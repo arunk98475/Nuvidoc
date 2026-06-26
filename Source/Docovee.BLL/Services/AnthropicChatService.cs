@@ -150,19 +150,14 @@ public class AnthropicChatService : IAnthropicChatService
         try
         {
             var history = await GetChatHistoryAsync(session.Id, cancellationToken);
-            var payload = new
-            {
-                model = _options.Model.Trim(),
-                max_tokens = 1000,
-                system = TriageSystemPrompt,
-                messages = history
-            };
+            var payload = AnthropicApiHelper.BuildPayload(
+                _options,
+                maxTokens: 1000,
+                system: TriageSystemPrompt,
+                messages: history,
+                includeWebSearch: true);
 
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-            httpRequest.Headers.Add("x-api-key", _options.ApiKey);
-            httpRequest.Headers.Add("anthropic-version", "2023-06-01");
-            httpRequest.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
             var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
 
@@ -172,8 +167,7 @@ public class AnthropicChatService : IAnthropicChatService
                 return await HandleTriageFallbackAsync(session, context, message, cancellationToken);
             }
 
-            using var doc = JsonDocument.Parse(responseBody);
-            var aiText = doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? string.Empty;
+            var aiText = AnthropicApiHelper.ExtractTextContent(responseBody);
             await SaveAssistantMessageAsync(session, aiText, cancellationToken);
 
             var routingMatch = RoutingRegex.Match(aiText);

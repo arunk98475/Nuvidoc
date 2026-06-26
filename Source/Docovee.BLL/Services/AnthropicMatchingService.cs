@@ -69,19 +69,13 @@ public class AnthropicMatchingService : IAnthropicMatchingService
 
         try
         {
-            var payload = new
-            {
-                model = _options.Model.Trim(),
-                max_tokens = 1500,
-                system = systemPrompt,
-                messages = new[] { new { role = "user", content = userPrompt } }
-            };
+            var payload = AnthropicApiHelper.BuildPayload(
+                _options,
+                maxTokens: 1500,
+                system: systemPrompt,
+                messages: new[] { new { role = "user", content = userPrompt } });
 
-            using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
-            httpRequest.Headers.Add("x-api-key", _options.ApiKey);
-            httpRequest.Headers.Add("anthropic-version", "2023-06-01");
-            httpRequest.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
             var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
@@ -90,8 +84,9 @@ public class AnthropicMatchingService : IAnthropicMatchingService
                 return FallbackRank(session, candidates);
             }
 
-            using var doc = JsonDocument.Parse(responseBody);
-            var text = doc.RootElement.GetProperty("content")[0].GetProperty("text").GetString() ?? "[]";
+            var text = AnthropicApiHelper.ExtractTextContent(responseBody);
+            if (string.IsNullOrWhiteSpace(text))
+                text = "[]";
             var jsonStart = text.IndexOf('[');
             var jsonEnd = text.LastIndexOf(']');
             if (jsonStart >= 0 && jsonEnd > jsonStart)

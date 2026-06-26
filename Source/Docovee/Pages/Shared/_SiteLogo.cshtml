@@ -1,0 +1,14 @@
+<a asp-page="/Index" class="logo">
+    @{
+        var name = Branding.SiteName;
+        var suffixLength = name.Length > 3 ? 3 : 0;
+    }
+    @if (suffixLength > 0)
+    {
+        @name[..^suffixLength]<span>@name[^suffixLength..]</span>
+    }
+    else
+    {
+        @name
+    }
+</a>

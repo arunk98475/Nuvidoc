@@ -1,5 +1,28 @@
 namespace Docovee.BLL.Models;
 
+public enum NuviConversationStage
+{
+    Greeting,
+    Triage,
+    Logistics,
+    MomentumBridge,
+    AccountCreation,
+    DeepDive,
+    RecommendationReveal,
+    DoctorExplore,
+    BookingInitiation,
+    Confirmation,
+    Complete
+}
+
+public enum AccountCreationStep
+{
+    Name,
+    Email,
+    Phone,
+    Password
+}
+
 public class SearchContextData
 {
     public NuviConversationStage Stage { get; set; } = NuviConversationStage.Greeting;
