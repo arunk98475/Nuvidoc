@@ -1,0 +1,41 @@
+@page
+@model Docovee.Pages.Admin.Patients.CreateModel
+@{
+    ViewData["Title"] = "Create Patient";
+}
+
+<div class="admin-card">
+    <h1>Create Patient</h1>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.FullName">Full Name</label>
+                <input asp-for="Input.FullName" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.Username">Username</label>
+                <input asp-for="Input.Username" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.Phone">Phone</label>
+                <input asp-for="Input.Phone" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.DateOfBirth">Date of Birth</label>
+                <input asp-for="Input.DateOfBirth" type="date" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.Password">Password</label>
+                <input asp-for="Input.Password" type="password" class="form-control" />
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Create</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>

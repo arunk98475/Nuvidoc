@@ -1,0 +1,18 @@
+@model Docovee.BLL.Models.PollingQuestionEditModel
+
+<div class="form-group">
+    <label asp-for="Question">Question</label>
+    <input asp-for="Question" class="form-control" placeholder="e.g. What is your age?" />
+</div>
+<div class="form-group">
+    <label asp-for="ValidationHint">Validation Hint (for AI)</label>
+    <input asp-for="ValidationHint" class="form-control" placeholder="e.g. Expect a number between 1 and 120" />
+    <p class="hint">Anthropic uses this to reject invalid answers like "yy".</p>
+</div>
+<div class="form-group">
+    <label asp-for="SortOrder">Sort Order</label>
+    <input asp-for="SortOrder" type="number" min="0" class="form-control" />
+</div>
+<div class="form-group">
+    <label><input asp-for="IsActive" /> Active</label>
+</div>

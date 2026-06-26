@@ -1,0 +1,91 @@
+@page
+@model Docovee.Pages.Admin.Patients.IndexModel
+@{
+    ViewData["Title"] = "Patients";
+}
+
+<div class="admin-card">
+    <h1>Patients</h1>
+    <p>Search registered patients by name, phone, date of birth, or AI chat medical issues. Results are paginated.</p>
+
+    <form method="get">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Name</label>
+                <input name="Name" value="@Model.Name" class="form-control" placeholder="Full name or username" />
+            </div>
+            <div class="form-group">
+                <label>Phone</label>
+                <input name="Phone" value="@Model.Phone" class="form-control" placeholder="Phone number" />
+            </div>
+            <div class="form-group">
+                <label>Date of Birth</label>
+                <input name="DateOfBirth" type="date" value="@(Model.DateOfBirth?.ToString("yyyy-MM-dd"))" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Medical Issue (AI chat)</label>
+                <input name="IssueKeyword" value="@Model.IssueKeyword" class="form-control" placeholder="e.g. tooth pain, back pain" />
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+        <a asp-page="Create" class="btn btn-secondary">+ Create Patient</a>
+    </form>
+</div>
+
+<div class="admin-card">
+    @if (Model.Results.Items.Count == 0)
+    {
+        <p>No patients found. Try a search or create a new patient.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>DOB</th>
+                    <th>Specialty</th>
+                    <th>Medical Issues (AI)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Model.Results.Items)
+                {
+                    <tr>
+                        <td>
+                            <strong>@p.FullName</strong><br />
+                            <span style="font-size:12px;color:#6b8078;">@p.Username</span>
+                        </td>
+                        <td>@p.Phone</td>
+                        <td>@p.DateOfBirth.ToString("MM/dd/yyyy")</td>
+                        <td>@(p.LatestSpecialty ?? "—")</td>
+                        <td style="max-width:280px;font-size:13px;">@(p.MedicalIssuesSummary ?? "—")</td>
+                        <td>
+                            <div class="actions">
+                                <a asp-page="Edit" asp-route-id="@p.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this patient?');">
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <span>Showing @Model.Results.Items.Count of @Model.Results.TotalCount (page @Model.Results.Page of @Model.Results.TotalPages)</span>
+            @if (Model.Results.Page > 1)
+            {
+                <a class="btn btn-secondary btn-sm" asp-page="./Index" asp-route-Name="@Model.Name" asp-route-Phone="@Model.Phone" asp-route-DateOfBirth="@Model.DateOfBirth" asp-route-IssueKeyword="@Model.IssueKeyword" asp-route-PageNum="@(Model.Results.Page - 1)">Previous</a>
+            }
+            @if (Model.Results.Page < Model.Results.TotalPages)
+            {
+                <a class="btn btn-secondary btn-sm" asp-page="./Index" asp-route-Name="@Model.Name" asp-route-Phone="@Model.Phone" asp-route-DateOfBirth="@Model.DateOfBirth" asp-route-IssueKeyword="@Model.IssueKeyword" asp-route-PageNum="@(Model.Results.Page + 1)">Next</a>
+            }
+        </div>
+    }
+</div>

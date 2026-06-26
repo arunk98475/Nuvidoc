@@ -1,0 +1,207 @@
+﻿@page
+@model IndexModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"{Branding.SiteName} — Find the Best Doctor Near Me";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <meta name="description" content="Find the best doctor near you. @Branding.SiteName matches you with top-rated local doctors based on your needs." />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body>
+
+<nav>
+    <partial name="Shared/_SiteLogo" />
+    <div class="nav-right">
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            if (User.IsInRole(AuthRoles.Admin))
+            {
+                <a href="/Admin/Patients" class="nav-link">Admin Panel</a>
+            }
+            else if (User.IsInRole(AuthRoles.Patient))
+            {
+                <a href="/Account/Profile" class="nav-link">My Profile</a>
+            }
+            else if (User.IsInRole(AuthRoles.Doctor))
+            {
+                <a href="/Account/DoctorProfile" class="nav-link">My Profile</a>
+            }
+            <a href="/Account/Logout" class="nav-link">Logout</a>
+        }
+        else
+        {
+            <a href="/Account/Register" class="nav-register">Register with @Branding.SiteName</a>
+            <a href="/Account/Login" class="nav-link">Login</a>
+        }
+        <button class="nav-cta" onclick="window.scrollTo({top:0,behavior:'smooth'})">Find My Doctor</button>
+    </div>
+</nav>
+
+<div class="hero-chat" id="hero-section">
+    <div class="hero-left">
+        <div class="hero-eyebrow">Find the Best Doctor Near Me · Book Online Today</div>
+        <h1>Find a doctor<br>you can <em>trust.</em></h1>
+        <p>Tell @Branding.ChatBotName what's going on. Your personal AI concierge finds the doctor who truly fits you — not just any doctor, the right one.</p>
+    </div>
+
+    <div class="hero-right" id="hero-chat-panel">
+        <div class="chat-window">
+            <div class="chat-header">
+                <div class="ai-avatar">@Branding.ChatBotInitial</div>
+                <div>
+                    <div style="font-size:13px;font-weight:600;">@Branding.ChatBotName</div>
+                    <div style="font-size:11px;color:var(--sage);">Your personal doctor-matching concierge</div>
+                </div>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+                <div class="msg ai">
+                    <div class="msg-avatar">@Branding.ChatBotInitial</div>
+                    <div class="msg-bubble">Hi! I'm @Branding.ChatBotName 👋 I'm your personal doctor-matching concierge. I don't just find you a doctor — I find you YOUR doctor. What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.</div>
+                </div>
+            </div>
+            <div class="chips" id="quick-chips">
+                <button class="chip" onclick="sendChip(this)">I need a dentist</button>
+                <button class="chip" onclick="sendChip(this)">Tooth pain</button>
+                <button class="chip" onclick="sendChip(this)">Back pain</button>
+                <button class="chip" onclick="sendChip(this)">Annual checkup</button>
+                <button class="chip" onclick="sendChip(this)">Skin rash</button>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="chat-input" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" />
+                <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                    <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="disclaimer">Not medical advice. For emergencies call 911.</div>
+    </div>
+</div>
+
+<div class="main" id="main-flow" style="display:none;">
+
+    <div class="screen" id="screen-2">
+        <div class="card">
+            <div class="card-label">Step 2 of 3</div>
+            <h2>A little about you</h2>
+            <p>Help us find the doctor that's right for you — location and preferences.</p>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Location</div>
+            <h2 style="font-size:18px;margin-bottom:12px;">Where are you located?</h2>
+            <input type="text" id="pref-location" class="field-input" placeholder="City or zip code" value="Renton, WA" />
+        </div>
+
+        <div class="card" id="insurance-card">
+            <div class="card-label">Insurance</div>
+            <h2 style="font-size:18px;margin-bottom:12px;">What insurance do you have?</h2>
+            <input type="text" id="insurance-input" class="field-input" placeholder="e.g. Aetna PPO, Blue Cross Blue Shield, Medicare" />
+            <p class="hint" style="margin-top:8px;font-size:12px;color:var(--muted);">We'll prioritize doctors who accept your plan.</p>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Doctor Gender Preference</div>
+            <h2 style="font-size:18px;margin-bottom:16px;">Do you have a gender preference for your doctor?</h2>
+            <label class="option-label">
+                <input type="radio" name="gender" value="none" checked /> No preference
+            </label>
+            <label class="option-label">
+                <input type="radio" name="gender" value="female" /> Female doctor
+            </label>
+            <label class="option-label">
+                <input type="radio" name="gender" value="male" /> Male doctor
+            </label>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Communication Style</div>
+            <h2 style="font-size:18px;margin-bottom:16px;">How do you prefer your doctor to communicate?</h2>
+            <label class="option-label">
+                <input type="radio" name="comm" value="direct" /> <div><strong>Direct & efficient</strong> — just the facts, fast appointments</div>
+            </label>
+            <label class="option-label">
+                <input type="radio" name="comm" value="collaborative" checked /> <div><strong>Collaborative & thorough</strong> — explains everything, takes time</div>
+            </label>
+            <label class="option-label">
+                <input type="radio" name="comm" value="reassuring" /> <div><strong>Warm & reassuring</strong> — I get anxious, I need calm</div>
+            </label>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Availability</div>
+            <h2 style="font-size:18px;margin-bottom:16px;">When do you need to be seen?</h2>
+            <div class="option-grid">
+                <label class="option-label"><input type="radio" name="avail" value="asap" checked /> As soon as possible</label>
+                <label class="option-label"><input type="radio" name="avail" value="week" /> This week</label>
+                <label class="option-label"><input type="radio" name="avail" value="flexible" /> I'm flexible</label>
+                <label class="option-label"><input type="radio" name="avail" value="telehealth" /> Telehealth preferred</label>
+            </div>
+        </div>
+
+        <button class="btn-primary" onclick="goToScreen(3)">Find My Best Matches →</button>
+    </div>
+
+    <div class="screen" id="screen-3">
+        <button type="button" class="btn-back" onclick="goToScreen(2)">← Back to location &amp; preferences</button>
+        <div class="card">
+            <div class="card-label">Step 3 of 3 — Your Matches</div>
+            <h2 id="match-headline">Your top matches</h2>
+            <p id="match-subhead">Ranked by Google Reviews and fit for your needs.</p>
+        </div>
+        <div class="provider-list" id="provider-list"></div>
+    </div>
+
+</div>
+
+<div class="modal-overlay" id="register-modal">
+    <div class="modal">
+        <h2>Save your search?</h2>
+        <p>Create a free account so we can remember your preferences and serve you better next time.</p>
+        <div class="alert-error" id="register-error"></div>
+        <div class="form-group">
+            <label>Full name</label>
+            <input type="text" id="reg-name" class="field-input" />
+        </div>
+        <div class="form-group">
+            <label>Date of birth</label>
+            <input type="date" id="reg-dob" class="field-input" />
+        </div>
+        <div class="form-group">
+            <label>Phone number</label>
+            <input type="tel" id="reg-phone" class="field-input" />
+        </div>
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="reg-username" class="field-input" />
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="reg-password" class="field-input" />
+        </div>
+        <div class="modal-actions">
+            <button class="btn-primary" onclick="submitRegistration()">Create Account</button>
+            <button class="btn-secondary" onclick="closeRegisterModal()">Not now</button>
+        </div>
+    </div>
+</div>
+
+<footer class="site-footer">
+    © 2026 @Branding.SiteName · Not medical advice · For emergencies call 911
+</footer>
+
+<script>
+  window.nuvidocBranding = {
+    siteName: "@Branding.SiteName",
+    chatBotName: "@Branding.ChatBotName",
+    chatBotInitial: "@Branding.ChatBotInitial"
+  };
+</script>
+<script src="~/js/docovee.js" asp-append-version="true"></script>
+</body>
+</html>

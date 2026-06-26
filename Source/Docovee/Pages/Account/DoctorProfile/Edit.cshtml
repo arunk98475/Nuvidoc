@@ -1,0 +1,124 @@
+@page
+@model Docovee.Pages.Account.DoctorProfile.EditModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"Edit Profile — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body>
+<nav>
+    <partial name="Shared/_SiteLogo" />
+    <div class="nav-right">
+        <a href="/Account/DoctorProfile" class="nav-link">My Profile</a>
+        <a href="/Account/Logout" class="nav-link">Logout</a>
+    </div>
+</nav>
+
+<div class="auth-page">
+    <div class="auth-card auth-card-wide">
+        <h1>Edit your profile</h1>
+        <p class="auth-subtitle">Update your practice details, photo, and insurance.</p>
+
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="alert-error" role="alert">@Model.ErrorMessage</div>
+        }
+
+        <form method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>Username</label>
+                <input value="@Model.Input.Username" class="field-input" disabled />
+                <p class="hint">Username cannot be changed.</p>
+            </div>
+            @if (!string.IsNullOrEmpty(Model.CurrentPhotoUrl))
+            {
+                <div class="form-group">
+                    <label>Current photo</label>
+                    <img src="@Model.CurrentPhotoUrl" alt="" class="profile-avatar" onerror="this.style.display='none';" />
+                </div>
+            }
+            <div class="form-group">
+                <label asp-for="Input.Name">Doctor name</label>
+                <input asp-for="Input.Name" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.PracticeName">Practice name</label>
+                <input asp-for="Input.PracticeName" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.Specialty">Specialty</label>
+                <input asp-for="Input.Specialty" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.Address">Address</label>
+                <input asp-for="Input.Address" class="field-input" />
+            </div>
+            <div class="form-grid-2">
+                <div class="form-group">
+                    <label asp-for="Input.City">City</label>
+                    <input asp-for="Input.City" class="field-input" />
+                </div>
+                <div class="form-group">
+                    <label asp-for="Input.State">State</label>
+                    <select asp-for="Input.State" class="field-select">
+                        <option value="">Select state</option>
+                        @foreach (var state in Model.UsStates)
+                        {
+                            <option value="@state.Code">@state.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.ZipCode">Zip code</label>
+                <input asp-for="Input.ZipCode" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.OfficePhoneNumber">Office phone</label>
+                <input asp-for="Input.OfficePhoneNumber" type="tel" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.TagLine">Tag line</label>
+                <input asp-for="Input.TagLine" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.Niche">Niche</label>
+                <input asp-for="Input.Niche" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label for="Photo">Upload new photo</label>
+                <input type="file" id="Photo" name="Photo" accept="image/*" class="field-input" />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.GmbPhotoLink">GMB photo link</label>
+                <input asp-for="Input.GmbPhotoLink" class="field-input" placeholder="https://..." />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.InsuranceCarrierIds">Insurance accepted</label>
+                <select asp-for="Input.InsuranceCarrierIds" class="field-select" multiple size="5">
+                    @foreach (var carrier in Model.InsuranceCarriers)
+                    {
+                        <option value="@carrier.Id">@carrier.Name</option>
+                    }
+                </select>
+                <p class="hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.NewPassword">New password</label>
+                <input asp-for="Input.NewPassword" type="password" class="field-input" autocomplete="new-password" />
+                <p class="hint">Leave blank to keep your current password.</p>
+            </div>
+            <button type="submit" class="btn-primary" style="width:100%;">Save Changes</button>
+            <p class="auth-footer-link"><a href="/Account/DoctorProfile">Cancel</a></p>
+        </form>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,24 @@
+@page "{id:int}"
+@model Docovee.Pages.Admin.PollingQuestions.EditModel
+@{
+    ViewData["Title"] = "Edit Polling Question";
+}
+
+<div class="admin-card">
+    <h1>Edit Polling Question</h1>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        <input type="hidden" asp-for="Input.Id" />
+        @{
+            ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
+        }
+        <partial name="_PollingQuestionForm" model="Model.Input" />
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>

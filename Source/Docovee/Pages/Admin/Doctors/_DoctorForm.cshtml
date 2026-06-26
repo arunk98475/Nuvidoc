@@ -1,0 +1,122 @@
+@model Docovee.BLL.Models.DoctorAdminEditModel
+
+<div class="form-grid">
+    <div class="form-group">
+        <label asp-for="Name">Doctor Name</label>
+        <input asp-for="Name" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="PracticeName">Practice Name</label>
+        <input asp-for="PracticeName" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="Specialty">Specialty</label>
+        <input asp-for="Specialty" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="SpecialtyCategory">Specialty Category</label>
+        <input asp-for="SpecialtyCategory" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="Location">Location</label>
+        <input asp-for="Location" class="form-control" placeholder="e.g. Renton, WA" />
+    </div>
+    <div class="form-group">
+        <label asp-for="Address">Address</label>
+        <input asp-for="Address" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="OfficePhoneNumber">Office Phone</label>
+        <input asp-for="OfficePhoneNumber" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="City">City</label>
+        <input asp-for="City" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="State">State</label>
+        <input asp-for="State" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="ZipCode">Zip Code</label>
+        <input asp-for="ZipCode" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="GmbPhotoLink">GMB Photo Link</label>
+        <input asp-for="GmbPhotoLink" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="GoogleRating">Rating (1–5)</label>
+        <input asp-for="GoogleRating" type="number" step="0.1" min="0" max="5" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="GoogleReviewCount">Review Count</label>
+        <input asp-for="GoogleReviewCount" type="number" min="0" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="Niche">Niche</label>
+        <input asp-for="Niche" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="Top3Procedures">Top 3 Procedures</label>
+        <input asp-for="Top3Procedures" class="form-control" placeholder="Comma-separated" />
+    </div>
+    <div class="form-group">
+        <label asp-for="TagLine">Tag Line</label>
+        <input asp-for="TagLine" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="Gender">Gender</label>
+        <select asp-for="Gender" class="form-control">
+            <option value="Other">Unknown / Other</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label asp-for="Age">Age (optional)</label>
+        <input asp-for="Age" type="number" min="1" max="120" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="YearsOfPractice">Years of Practice</label>
+        <input asp-for="YearsOfPractice" type="number" min="0" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="ProcedureCount">Procedure Count</label>
+        <input asp-for="ProcedureCount" type="number" min="0" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="GraduationYear">Graduation Year</label>
+        <input asp-for="GraduationYear" type="number" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label asp-for="PracticeCount">Practice Count</label>
+        <input asp-for="PracticeCount" type="number" min="0" class="form-control" />
+    </div>
+    <div class="form-group">
+        <label><input asp-for="OffersDentalImplants" /> Dental Implants</label>
+    </div>
+    <div class="form-group">
+        <label><input asp-for="OffersTmj" /> TMJ</label>
+    </div>
+    <div class="form-group">
+        <label><input asp-for="OffersBotox" /> Botox</label>
+    </div>
+    <div class="form-group">
+        <label><input asp-for="IsActive" /> Active</label>
+    </div>
+    <div class="form-group">
+        <label asp-for="Username">Login Username</label>
+        <input asp-for="Username" class="form-control" autocomplete="off" />
+        <p class="hint">Optional — lets this doctor sign in and view their profile.</p>
+    </div>
+    <div class="form-group">
+        <label asp-for="Password">Login Password</label>
+        <input asp-for="Password" type="password" class="form-control" autocomplete="new-password" />
+        <p class="hint">Leave blank to keep the current password when editing.</p>
+    </div>
+</div>
+<div class="form-group">
+    <label asp-for="SummaryOfReviews">Summary of Reviews</label>
+    <textarea asp-for="SummaryOfReviews" class="form-control" rows="3"></textarea>
+</div>

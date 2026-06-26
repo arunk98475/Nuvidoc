@@ -1,0 +1,99 @@
+@page
+@model Docovee.Pages.Admin.Doctors.IndexModel
+@{
+    ViewData["Title"] = "Doctors";
+}
+
+<div class="admin-card">
+    <h1>Doctors</h1>
+    <p>Manage practitioner listings used by the AI matching engine.</p>
+
+    <form method="get">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Search</label>
+                <input name="Search" value="@Model.Search" class="form-control" placeholder="Name, specialty, practice, city" />
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+        <a asp-page="Create" class="btn btn-secondary">+ Add Doctor</a>
+        <a asp-page="Import" class="btn btn-secondary">Import CSV / Excel</a>
+    </form>
+</div>
+
+<div class="admin-card">
+    @if (Model.Results.Items.Count == 0)
+    {
+        <p>No doctors found. Add one manually or import from CSV/Excel.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Photo</th>
+                    <th>Doctor</th>
+                    <th>Specialty</th>
+                    <th>Location</th>
+                    <th>Rating</th>
+                    <th>Patient Reviews</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var d in Model.Results.Items)
+                {
+                    <tr>
+                        <td>
+                            @if (!string.IsNullOrEmpty(d.PhotoUrl))
+                            {
+                                <div class="doctor-thumb-cell">
+                                    <img src="@d.PhotoUrl" alt="@d.Name" class="doctor-thumb-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                                    <span class="doctor-thumb-fallback" style="display:none;">—</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td>
+                            <strong>@d.Name</strong>
+                            @if (!string.IsNullOrEmpty(d.PracticeName))
+                            {
+                                <br /><span style="font-size:12px;color:#6b8078;">@d.PracticeName</span>
+                            }
+                        </td>
+                        <td>@d.Specialty</td>
+                        <td>@(d.Location ?? $"{d.City}, {d.State}")</td>
+                        <td>★ @d.GoogleRating (@d.GoogleReviewCount)</td>
+                        <td>@d.PatientReviewCount</td>
+                        <td>@(d.IsActive ? "Active" : "Inactive")</td>
+                        <td>
+                            <div class="actions">
+                                <a asp-page="Edit" asp-route-id="@d.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this doctor?');">
+                                    <input type="hidden" name="id" value="@d.Id" />
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <span>Showing @Model.Results.Items.Count of @Model.Results.TotalCount (page @Model.Results.Page of @Model.Results.TotalPages)</span>
+            @if (Model.Results.Page > 1)
+            {
+                <a class="btn btn-secondary btn-sm" asp-page="./Index" asp-route-Search="@Model.Search" asp-route-PageNum="@(Model.Results.Page - 1)">Previous</a>
+            }
+            @if (Model.Results.Page < Model.Results.TotalPages)
+            {
+                <a class="btn btn-secondary btn-sm" asp-page="./Index" asp-route-Search="@Model.Search" asp-route-PageNum="@(Model.Results.Page + 1)">Next</a>
+            }
+        </div>
+    }
+</div>

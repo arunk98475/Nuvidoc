@@ -1,0 +1,80 @@
+@page
+@model Docovee.Pages.Account.ProfileModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"My Profile — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body>
+<nav>
+    <partial name="Shared/_SiteLogo" />
+    <div class="nav-right">
+        <a href="/" class="nav-link">Home</a>
+        <a href="/Account/Logout" class="nav-link">Logout</a>
+    </div>
+</nav>
+
+<div class="main profile-page">
+    @if (Model.Saved)
+    {
+        <div class="alert-success">Your profile has been updated.</div>
+    }
+
+    <div class="card">
+        <div class="profile-card-top">
+            <div>
+                <div class="card-label">Patient Profile</div>
+                <h1>@Model.Profile!.FullName</h1>
+                <p class="profile-meta">Member since @Model.Profile.MemberSince.ToString("MMMM d, yyyy")</p>
+            </div>
+            <a href="/Account/Profile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 style="font-size:18px;margin-bottom:16px;">Account Details</h2>
+        <dl class="profile-dl">
+            <dt>Username</dt><dd>@Model.Profile.Username</dd>
+            <dt>Full name</dt><dd>@Model.Profile.FullName</dd>
+            <dt>Date of birth</dt><dd>@Model.Profile.DateOfBirth.ToString("MMMM d, yyyy")</dd>
+            <dt>Phone</dt><dd>@Model.Profile.Phone</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 style="font-size:18px;margin-bottom:16px;">Search History</h2>
+        @if (Model.Profile.SearchHistory.Count == 0)
+        {
+            <p class="profile-empty">No saved searches yet. <a href="/">Find a doctor</a> to get started.</p>
+        }
+        else
+        {
+            <ul class="profile-list">
+                @foreach (var search in Model.Profile.SearchHistory)
+                {
+                    <li>
+                        <strong>@(search.Specialty ?? "General search")</strong>
+                        @if (!string.IsNullOrEmpty(search.Location))
+                        {
+                            <span> · @search.Location</span>
+                        }
+                        <div class="profile-list-meta">@search.Date.ToString("MMM d, yyyy h:mm tt")</div>
+                        @if (!string.IsNullOrEmpty(search.MedicalIssuesSummary))
+                        {
+                            <div class="profile-list-note">@search.MedicalIssuesSummary</div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+</body>
+</html>

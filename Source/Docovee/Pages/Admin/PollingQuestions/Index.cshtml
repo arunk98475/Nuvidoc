@@ -1,0 +1,52 @@
+@page
+@model Docovee.Pages.Admin.PollingQuestions.IndexModel
+@{
+    ViewData["Title"] = "Polling Questions";
+}
+
+<div class="admin-card">
+    <h1>Polling Questions</h1>
+    <p>Questions asked during AI chat. Answers are validated by Anthropic before proceeding.</p>
+    <a asp-page="Create" class="btn btn-primary">+ Add Question</a>
+</div>
+
+<div class="admin-card">
+    @if (Model.Questions.Count == 0)
+    {
+        <p>No polling questions configured.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Question</th>
+                    <th>Validation Hint</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var q in Model.Questions)
+                {
+                    <tr>
+                        <td>@q.SortOrder</td>
+                        <td>@q.Question</td>
+                        <td style="font-size:13px;">@(q.ValidationHint ?? "—")</td>
+                        <td>@(q.IsActive ? "Yes" : "No")</td>
+                        <td>
+                            <div class="actions">
+                                <a asp-page="Edit" asp-route-id="@q.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this question?');">
+                                    <input type="hidden" name="id" value="@q.Id" />
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>

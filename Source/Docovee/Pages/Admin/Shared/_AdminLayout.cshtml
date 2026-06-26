@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - @Branding.SiteName Admin</title>
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="admin-header">
+        <a href="/Admin/Doctors" class="admin-logo">@Branding.SiteNameLower <span>admin</span></a>
+        <nav>
+            <a href="/Admin/Doctors">Doctors</a>
+            <a href="/Admin/Patients">Patients</a>
+            <a href="/Admin/PollingQuestions">Polling Questions</a>
+            <a href="/Admin/Settings">Settings</a>
+            <a href="/">Public Site</a>
+            <a href="/Admin/Logout">Logout</a>
+        </nav>
+    </header>
+    <main class="admin-main">
+        @RenderBody()
+    </main>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

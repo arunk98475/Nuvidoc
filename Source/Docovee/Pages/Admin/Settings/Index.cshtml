@@ -1,0 +1,36 @@
+@page
+@model Docovee.Pages.Admin.Settings.IndexModel
+@{
+    ViewData["Title"] = "Settings";
+}
+
+<div class="admin-card">
+    <h1>Site Settings</h1>
+    <p>Configure doctor search behavior. Promoted doctors (top of results) can be configured here in a future phase.</p>
+
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert-success">@Model.SuccessMessage</div>
+    }
+
+    <form method="post">
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.DoctorSearchResultCount">Doctor search results to show</label>
+                <input asp-for="Input.DoctorSearchResultCount" type="number" min="1" max="50" class="form-control" />
+                <p class="hint">How many doctors appear in patient search results (1–50).</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.MaxAiQuestions">Max AI questions per chat</label>
+                <input asp-for="Input.MaxAiQuestions" type="number" min="2" max="5" class="form-control" />
+                <p class="hint">How many follow-up / polling questions the AI may ask (2–5).</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.PromotedDoctorIds">Promoted doctor IDs (coming soon)</label>
+                <input asp-for="Input.PromotedDoctorIds" class="form-control" placeholder="e.g. 1,3,5" disabled />
+                <p class="hint">Reserved for Phase II — doctors shown at top of search results.</p>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+    </form>
+</div>

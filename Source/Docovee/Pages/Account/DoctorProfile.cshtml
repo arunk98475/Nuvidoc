@@ -1,0 +1,97 @@
+@page
+@model Docovee.Pages.Account.DoctorProfileModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"My Profile — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body>
+<nav>
+    <partial name="Shared/_SiteLogo" />
+    <div class="nav-right">
+        <a href="/" class="nav-link">Home</a>
+        <a href="/Account/Logout" class="nav-link">Logout</a>
+    </div>
+</nav>
+
+<div class="main profile-page">
+    @if (Model.Saved)
+    {
+        <div class="alert-success">Your profile has been updated.</div>
+    }
+
+    <div class="card profile-header-card">
+        <div class="profile-header">
+            @if (!string.IsNullOrEmpty(Model.Profile!.PhotoUrl))
+            {
+                <img src="@Model.Profile.PhotoUrl" alt="" class="profile-avatar" onerror="this.style.display='none';" />
+            }
+            <div class="profile-header-main">
+                <div class="card-label">Doctor Profile</div>
+                <h1>@Model.Profile.Name</h1>
+                <p class="profile-meta">@Model.Profile.Specialty</p>
+                @if (!string.IsNullOrEmpty(Model.Profile.PracticeName))
+                {
+                    <p class="profile-meta">@Model.Profile.PracticeName</p>
+                }
+            </div>
+            <a href="/Account/DoctorProfile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 style="font-size:18px;margin-bottom:16px;">Practice Details</h2>
+        <dl class="profile-dl">
+            <dt>Username</dt><dd>@(Model.Profile.Username ?? "—")</dd>
+            <dt>Location</dt><dd>@(Model.Profile.Location ?? "—")</dd>
+            <dt>Address</dt><dd>@(Model.Profile.Address ?? "—")</dd>
+            <dt>Phone</dt><dd>@(Model.Profile.OfficePhoneNumber ?? "—")</dd>
+            <dt>GMB photo link</dt><dd>@(string.IsNullOrEmpty(Model.Profile.GmbPhotoLink) ? "—" : Model.Profile.GmbPhotoLink)</dd>
+            <dt>Niche</dt><dd>@(Model.Profile.Niche ?? "—")</dd>
+            <dt>Insurance accepted</dt>
+            <dd>
+                @if (Model.Profile.InsuranceCarriers.Count == 0)
+                {
+                    <text>None listed</text>
+                }
+                else
+                {
+                    @string.Join(", ", Model.Profile.InsuranceCarriers)
+                }
+            </dd>
+            <dt>Status</dt><dd>@(Model.Profile.IsActive ? "Active" : "Inactive")</dd>
+            <dt>Member since</dt><dd>@Model.Profile.MemberSince.ToString("MMMM d, yyyy")</dd>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 style="font-size:18px;margin-bottom:16px;">Ratings</h2>
+        <dl class="profile-dl">
+            <dt>Google rating</dt><dd>★ @Model.Profile.GoogleRating (@Model.Profile.GoogleReviewCount reviews)</dd>
+            <dt>Patient reviews</dt>
+            <dd>
+                @if (Model.Profile.PatientReviewCount > 0)
+                {
+                    <text>★ @Model.Profile.PatientReviewAverage?.ToString("0.0") (@Model.Profile.PatientReviewCount)</text>
+                }
+                else
+                {
+                    <text>No patient reviews yet</text>
+                }
+            </dd>
+        </dl>
+        @if (!string.IsNullOrEmpty(Model.Profile.TagLine))
+        {
+            <p class="profile-tagline">"@Model.Profile.TagLine"</p>
+        }
+    </div>
+</div>
+</body>
+</html>

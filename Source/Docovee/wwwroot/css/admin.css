@@ -1,0 +1,207 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: #f5f7f6;
+  color: #1a2b22;
+}
+
+.admin-header {
+  background: #fff;
+  border-bottom: 1px solid #d4ddd9;
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-logo {
+  font-size: 18px;
+  color: #3d6b5a;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.admin-logo span { color: #6b8078; font-weight: 400; font-size: 13px; }
+
+.admin-header nav { display: flex; gap: 16px; }
+
+.admin-header nav a {
+  color: #6b8078;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.admin-header nav a:hover { color: #3d6b5a; }
+
+.admin-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.admin-card {
+  background: #fff;
+  border: 1px solid #d4ddd9;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.admin-card h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.admin-card p { color: #6b8078; font-size: 14px; margin-bottom: 16px; }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b8078;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4ddd9;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-primary { background: #3d6b5a; color: #fff; }
+.btn-primary:hover { background: #1a2b22; }
+.btn-secondary { background: #fff; color: #6b8078; border: 1px solid #d4ddd9; }
+.btn-danger { background: #c0392b; color: #fff; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+
+.alert-error {
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  color: #b42318;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.alert-success {
+  background: #eaf2ee;
+  border: 1px solid #c2d9cf;
+  color: #3d6b5a;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e8edeb;
+}
+
+.data-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b8078;
+}
+
+.actions { display: flex; gap: 8px; }
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+  font-size: 14px;
+  color: #6b8078;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eaf2ee;
+}
+
+.login-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 36px;
+  width: 100%;
+  max-width: 400px;
+  border: 1px solid #d4ddd9;
+}
+
+.login-card h1 {
+  font-size: 26px;
+  margin-bottom: 6px;
+  color: #3d6b5a;
+}
+
+.login-card p { margin-bottom: 20px; color: #6b8078; }
+
+.hint { font-size: 12px; color: #6b8078; margin-top: 12px; }
+
+.import-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #6b8078;
+  margin-bottom: 8px;
+}
+
+.import-progress-track {
+  height: 10px;
+  background: #eaf2ee;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.import-progress-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #3d6b5a, #5a9e87);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.doctor-thumb-cell { width: 48px; height: 48px; }
+.doctor-thumb-img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
+.doctor-thumb-fallback {
+  width: 48px; height: 48px; align-items: center; justify-content: center;
+  background: #eaf2ee; border-radius: 8px; color: #6b8078; font-size: 12px;
+}

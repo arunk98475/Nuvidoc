@@ -1,0 +1,28 @@
+@page
+@model Docovee.Pages.Admin.Doctors.CreateModel
+@{
+    ViewData["Title"] = "Add Doctor";
+}
+
+<div class="admin-card">
+    <h1>Add Doctor</h1>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post" enctype="multipart/form-data">
+        @{
+            ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
+        }
+        <partial name="_DoctorForm" model="Model.Input" />
+        <div class="form-group">
+            <label>Photo</label>
+            <input type="file" name="photo" accept="image/*" class="form-control" />
+            <p class="hint">Optional — saved to /uploads/doctors. You can also use a GMB Photo Link below for thumbnails.</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Doctor</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>

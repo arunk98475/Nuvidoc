@@ -1,0 +1,35 @@
+@page "{id:int}"
+@model Docovee.Pages.Admin.Doctors.EditModel
+@{
+    ViewData["Title"] = "Edit Doctor";
+}
+
+<div class="admin-card">
+    <h1>Edit Doctor</h1>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" asp-for="Input.Id" />
+        @{
+            ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
+        }
+        <partial name="_DoctorForm" model="Model.Input" />
+        @if (!string.IsNullOrEmpty(Model.Input.PhotoUrl))
+        {
+            <div class="form-group">
+                <label>Current Photo</label>
+                <img src="@Model.Input.PhotoUrl" alt="Current photo" class="doctor-thumb-preview" onerror="this.style.display='none';" style="max-width:120px;border-radius:8px;" />
+            </div>
+        }
+        <div class="form-group">
+            <label>Replace Photo</label>
+            <input type="file" name="photo" accept="image/*" class="form-control" />
+        </div>
+        <button type="submit" class="btn btn-primary">Save Changes</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
