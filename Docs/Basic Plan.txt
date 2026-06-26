@@ -1,0 +1,27 @@
+Reference Website: https://www.zocdoc.com/
+Basic Prototype for the Application: docovee-prototype.html
+AI Model and Tool: Anthropic Cloud
+Assumption: A valid API key is available.
+Preferred Framework: ASP.NET Core
+
+Phase I:
+
+	1. User enters the website.
+	2. A chatbot interface is available where users can describe their medical issues and symptoms to the AI.
+	3. The website requests permission to access the user's location, or the user can manually enter their preferred location.
+	4. The user submits their query through the AI chat interface.
+	5. The AI searches and displays a list of doctors based on the user's preferred location, insurance coverage, and medical condition.
+	6. Doctors are listed and ranked according to Google Reviews.
+	7. A popup window is displayed over the doctor list, asking the user to register on the website and save their search criteria so that we can provide a better experience in future visits.
+	8. If the user agrees, we will save their name, date of birth, phone number, and search history in our database. The user can also create a username and password. If the user chooses not to register, they can close the popup and continue viewing the list of doctors.
+
+Phase II:
+
+	1. Add the ability for users to book consultations with doctors directly through the web application.
+	2. Add a provision for doctors to register on the website, allowing them to appear at the top of the search results.
+	3. Doctor registration will be offered as a paid monthly or yearly subscription.
+	4. Add a feature that allows users to review doctors after their consultation.
+
+ 
+I think we need to add Gender preference. also in searching doctor .. 
+
