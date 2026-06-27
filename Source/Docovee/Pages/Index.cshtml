@@ -16,7 +16,27 @@
 <body>
 
 <nav>
-    <partial name="Shared/_SiteLogo" />
+    <div class="nav-left">
+        <partial name="Shared/_SiteLogo" />
+        <div class="nav-links">
+            <a class="nav-link" href="#" onclick="scrollToChat(); return false;">Find a Doctor</a>
+            <div class="nav-dropdown">
+                <a class="nav-link" href="#">Specialties</a>
+                <div class="nav-dropdown-menu">
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); return false;">🦷 Dentist</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a primary care doctor'); return false;">🩺 Primary Care</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I have back pain'); return false;">🦴 Orthopedics</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I have a skin rash'); return false;">🧴 Dermatology</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a cardiologist'); return false;">❤️ Cardiology</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a neurologist'); return false;">🧠 Neurology</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a pediatrician'); return false;">👶 Pediatrics</a>
+                    <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); return false;">🌿 View all specialties →</a>
+                </div>
+            </div>
+            <a class="nav-link" href="#how-it-works">How It Works</a>
+            <a class="nav-link" href="#testimonials">Reviews</a>
+        </div>
+    </div>
     <div class="nav-right" id="nav-right" @(User.Identity?.IsAuthenticated == true ? "data-authenticated=\"true\"" : "")>
         @if (User.Identity?.IsAuthenticated == true)
         {
@@ -50,13 +70,32 @@
         <p>Tell @Branding.ChatBotName what's going on. Your personal AI concierge finds the doctor who truly fits you — not just any doctor, the right one.</p>
     </div>
 
+    <div class="hero-steps-strip">
+        <div class="hero-step-cell">
+            <div class="hero-step-label">Step 1</div>
+            <div class="hero-step-text">Tell us what's wrong</div>
+        </div>
+        <div class="hero-step-cell">
+            <div class="hero-step-label">Step 2</div>
+            <div class="hero-step-text">We understand your needs</div>
+        </div>
+        <div class="hero-step-cell">
+            <div class="hero-step-label">Step 3</div>
+            <div class="hero-step-text">Get matched with top doctors</div>
+        </div>
+        <div class="hero-step-cell hero-step-cell-last">
+            <div class="hero-step-label">Step 4</div>
+            <div class="hero-step-text">Book instantly</div>
+        </div>
+    </div>
+
     <div class="hero-right" id="hero-chat-panel">
         <div class="chat-window">
             <div class="chat-header">
-                <div class="ai-avatar">@Branding.ChatBotName</div>
+                <div class="ai-avatar">@Branding.ChatBotInitial</div>
                 <div>
-                    <div style="font-size:13px;font-weight:600;">@Branding.ChatBotName</div>
-                    <div style="font-size:11px;color:var(--sage);">Your personal doctor-matching concierge</div>
+                    <div class="ai-name">@Branding.ChatBotName</div>
+                    <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right doctor</div>
                 </div>
             </div>
             <div class="chat-messages" id="chat-messages">
@@ -77,20 +116,23 @@
             <div class="chips" id="quick-chips">
                 <button class="chip" onclick="sendChip(this)">I need a dentist</button>
                 <button class="chip" onclick="sendChip(this)">Tooth pain</button>
+                <button class="chip" onclick="sendChip(this)">Dental implants</button>
                 <button class="chip" onclick="sendChip(this)">Back pain</button>
                 <button class="chip" onclick="sendChip(this)">Annual checkup</button>
                 <button class="chip" onclick="sendChip(this)">Skin rash</button>
             </div>
-            <div class="chat-input-area">
-                <input type="text" class="chat-input" id="chat-input" name="chat-message" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" />
+            <div class="chat-input-area" id="chat-input-area">
+                <textarea class="chat-input" id="chat-input" name="chat-message" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
                 <button class="send-btn" id="send-btn" onclick="sendMessage()">
                     <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                 </button>
             </div>
         </div>
-        <div class="disclaimer">Not medical advice. For emergencies call 911.</div>
+        <div class="disclaimer disclaimer-banner">⚠️ Not medical advice. For emergencies call 911.</div>
     </div>
 </div>
+
+<partial name="Shared/_HomeMarketing" />
 
 <div class="main" id="main-flow" style="display:none;">
 
@@ -200,8 +242,17 @@
     </div>
 </div>
 
-<footer class="site-footer">
-    © 2026 @Branding.SiteName · Not medical advice · For emergencies call 911
+<footer class="site-footer site-footer-rich">
+    <div class="site-footer-inner">
+        <div class="site-footer-brand">@Branding.SiteName.ToLowerInvariant().</div>
+        <div class="site-footer-links">
+            <a href="#">Terms of Use</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Community Standards</a>
+            <a href="#">Accessibility</a>
+        </div>
+        <div class="site-footer-copy">© @DateTime.UtcNow.Year @Branding.SiteName · Not medical advice · For emergencies call 911</div>
+    </div>
 </footer>
 
 <script>

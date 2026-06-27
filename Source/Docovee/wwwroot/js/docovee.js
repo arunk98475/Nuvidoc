@@ -11,7 +11,70 @@ const NUVI_AVATAR = branding.chatBotName;
 
 document.addEventListener("DOMContentLoaded", () => {
   requestLocation();
+  const chatInput = document.getElementById("chat-input");
+  if (chatInput?.tagName === "TEXTAREA") autoResize(chatInput);
 });
+
+function scrollToChat() {
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  const input = document.getElementById("chat-input");
+  if (input) setTimeout(() => input.focus(), 400);
+}
+
+function fillChatInput(text) {
+  const input = document.getElementById("chat-input");
+  if (!input) return;
+  input.value = text;
+  if (input.tagName === "TEXTAREA") autoResize(input);
+  scrollToChat();
+}
+
+function autoResize(el) {
+  if (!el || el.tagName !== "TEXTAREA") return;
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+}
+
+function ensureChatInputElement(passwordMode) {
+  const area = document.getElementById("chat-input-area");
+  let input = document.getElementById("chat-input");
+  if (!area || !input) return input;
+
+  const value = input.value;
+  const defaultPlaceholder = `Tell ${branding.chatBotName} what's going on...`;
+
+  if (passwordMode && input.tagName === "TEXTAREA") {
+    const newInput = document.createElement("input");
+    newInput.type = "password";
+    newInput.id = "chat-input";
+    newInput.className = "chat-input";
+    newInput.name = "new-password";
+    newInput.autocomplete = "new-password";
+    newInput.placeholder = "Enter your password...";
+    newInput.value = value;
+    newInput.onkeydown = handleKey;
+    input.replaceWith(newInput);
+    return newInput;
+  }
+
+  if (!passwordMode && input.tagName === "INPUT") {
+    const newTa = document.createElement("textarea");
+    newTa.id = "chat-input";
+    newTa.className = "chat-input";
+    newTa.rows = 1;
+    newTa.name = "chat-message";
+    newTa.autocomplete = "off";
+    newTa.placeholder = defaultPlaceholder;
+    newTa.value = value;
+    newTa.onkeydown = handleKey;
+    newTa.oninput = function () { autoResize(this); };
+    input.replaceWith(newTa);
+    autoResize(newTa);
+    return newTa;
+  }
+
+  return input;
+}
 
 function updateNavForSignedInPatient() {
   const navRight = document.getElementById("nav-right");
@@ -166,11 +229,21 @@ function removeTyping() {
 
 function updateInputMode(passwordMode) {
   usePasswordInput = passwordMode;
-  const input = document.getElementById("chat-input");
-  input.type = passwordMode ? "password" : "text";
-  input.name = passwordMode ? "new-password" : "chat-message";
-  input.autocomplete = passwordMode ? "new-password" : "off";
-  input.placeholder = passwordMode ? "Enter your password..." : "Type your message...";
+  const input = ensureChatInputElement(passwordMode);
+  if (!input) return;
+
+  if (input.tagName === "INPUT") {
+    input.type = passwordMode ? "password" : "text";
+    input.name = passwordMode ? "new-password" : "chat-message";
+    input.autocomplete = passwordMode ? "new-password" : "off";
+  } else {
+    input.name = "chat-message";
+    input.autocomplete = "off";
+  }
+
+  input.placeholder = passwordMode
+    ? "Enter your password..."
+    : `Tell ${branding.chatBotName} what's going on...`;
 }
 
 async function sendMessage(action = null, selectedDoctorId = null) {
@@ -180,6 +253,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
   const wasPasswordInput = usePasswordInput;
   input.value = "";
+  if (input.tagName === "TEXTAREA") autoResize(input);
   document.getElementById("send-btn").disabled = true;
 
   if (text) addMessage(wasPasswordInput ? "••••••••" : text, "user");
@@ -256,7 +330,7 @@ function sendChip(btn) {
 }
 
 function handleKey(e) {
-  if (e.key === "Enter") {
+  if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     sendMessage();
   }
