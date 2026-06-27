@@ -144,6 +144,8 @@ function updateInputMode(passwordMode) {
   usePasswordInput = passwordMode;
   const input = document.getElementById("chat-input");
   input.type = passwordMode ? "password" : "text";
+  input.name = passwordMode ? "new-password" : "chat-message";
+  input.autocomplete = passwordMode ? "new-password" : "off";
   input.placeholder = passwordMode ? "Enter your password..." : "Type your message...";
 }
 

@@ -1,12 +1,15 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Enums;
 using Docovee.logging;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -14,7 +17,7 @@ namespace Docovee.BLL.Services;
 
 public interface IAnthropicChatService
 {
-    Task<ChatMessageResponse> SendMessageAsync(ChatMessageRequest request, CancellationToken cancellationToken = default);
+    Task<ChatMessageResponse> SendMessageAsync(ChatMessageRequest request, HttpContext? httpContext = null, CancellationToken cancellationToken = default);
 }
 
 public class AnthropicChatService : IAnthropicChatService
@@ -35,6 +38,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IAnthropicValidationService _validationService;
     private readonly IDoctorSearchService _doctorSearch;
     private readonly IPatientService _patientService;
+    private readonly IAccountAuthService _accountAuthService;
     private readonly IBrandingService _branding;
 
     public AnthropicChatService(
@@ -46,6 +50,7 @@ public class AnthropicChatService : IAnthropicChatService
         IAnthropicValidationService validationService,
         IDoctorSearchService doctorSearch,
         IPatientService patientService,
+        IAccountAuthService accountAuthService,
         IBrandingService branding)
     {
         _httpClient = httpClient;
@@ -56,6 +61,7 @@ public class AnthropicChatService : IAnthropicChatService
         _validationService = validationService;
         _doctorSearch = doctorSearch;
         _patientService = patientService;
+        _accountAuthService = accountAuthService;
         _branding = branding;
     }
 
@@ -87,10 +93,11 @@ public class AnthropicChatService : IAnthropicChatService
         SPECIALTY: [name] | URGENCY: [routine/urgent/emergency] | NOTES: [1 sentence about patient context]
         """;
 
-    public async Task<ChatMessageResponse> SendMessageAsync(ChatMessageRequest request, CancellationToken cancellationToken = default)
+    public async Task<ChatMessageResponse> SendMessageAsync(ChatMessageRequest request, HttpContext? httpContext = null, CancellationToken cancellationToken = default)
     {
         var session = await GetOrCreateSessionAsync(request.SessionKey, cancellationToken);
         var context = SearchContextHelper.Load(session);
+        await ApplyAuthenticatedPatientAsync(session, context, httpContext, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(request.Message))
         {
@@ -116,8 +123,8 @@ public class AnthropicChatService : IAnthropicChatService
             NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, request.Message, cancellationToken),
             NuviConversationStage.Triage => await HandleTriageAsync(session, context, request.Message, cancellationToken),
             NuviConversationStage.Logistics => await HandleLogisticsAsync(session, context, request.Message, cancellationToken),
-            NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, request.Message, cancellationToken),
-            NuviConversationStage.AccountCreation => await HandleAccountCreationAsync(session, context, request.Message, cancellationToken),
+            NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, request.Message, httpContext, cancellationToken),
+            NuviConversationStage.AccountCreation => await HandleAccountCreationAsync(session, context, request.Message, httpContext, cancellationToken),
             NuviConversationStage.DeepDive => await HandleDeepDiveAsync(session, context, request.Message, cancellationToken),
             NuviConversationStage.RecommendationReveal => await HandleRecommendationRevealAsync(session, context, request, cancellationToken),
             NuviConversationStage.DoctorExplore => await HandleDoctorExploreAsync(session, context, request, cancellationToken),
@@ -314,7 +321,7 @@ public class AnthropicChatService : IAnthropicChatService
     }
 
     private async Task<ChatMessageResponse> HandleMomentumBridgeAsync(
-        SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
+        SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         var lower = message.Trim().ToLowerInvariant();
         if (!lower.Contains("yes") && !lower.Contains("sure") && !lower.Contains("ok") && !lower.Contains("let"))
@@ -325,6 +332,9 @@ public class AnthropicChatService : IAnthropicChatService
                 options: ["Yes, let's do it!"]);
         }
 
+        if (context.SkipAccountCreation)
+            return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
+
         context.Stage = NuviConversationStage.AccountCreation;
         context.AccountStep = AccountCreationStep.Name;
         var text = "First — what's your name? (First name is fine.)";
@@ -332,20 +342,95 @@ public class AnthropicChatService : IAnthropicChatService
         return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
     }
 
-    private async Task<ChatMessageResponse> HandleAccountCreationAsync(
-        SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
+    private async Task<ChatMessageResponse> BeginDeepDiveForAuthenticatedPatientAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        context.Stage = NuviConversationStage.DeepDive;
+        var firstName = GetFirstName(context);
+        var welcomeText = $"Welcome back, {firstName}! Now let me get to know what matters most to YOU in a doctor.";
+        await SaveAssistantMessageAsync(session, welcomeText, cancellationToken);
+        return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> HandleAccountCreationAsync(
+        SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
+    {
+        if (context.SkipAccountCreation)
+            return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
+
         var answer = message.Trim();
-        var firstName = context.PendingFullName?.Split(' ').FirstOrDefault() ?? "there";
+        var firstName = GetFirstName(context);
 
         switch (context.AccountStep)
         {
             case AccountCreationStep.Name:
                 context.PendingFullName = answer;
+                context.AccountStep = AccountCreationStep.Username;
+                var usernamePrompt = $"Nice to meet you, {firstName}! What username would you like for your profile?";
+                await SaveAssistantMessageAsync(session, usernamePrompt, cancellationToken);
+                return BuildResponse(session, context, usernamePrompt, stage: NuviConversationStage.AccountCreation);
+
+            case AccountCreationStep.Username:
+                if (string.IsNullOrWhiteSpace(answer))
+                    return BuildResponse(session, context, "Please enter a username to continue.", stage: NuviConversationStage.AccountCreation);
+
+                context.PendingUsername = answer;
+                var existingPatient = await _db.Patients
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Username == answer, cancellationToken);
+
+                if (existingPatient != null)
+                {
+                    context.IsExistingAccountLogin = true;
+                    context.AccountStep = AccountCreationStep.LoginPassword;
+                    var loginText = "You already have an account. Please enter your password and I'll sign you in to your profile.";
+                    await SaveAssistantMessageAsync(session, loginText, cancellationToken);
+                    return BuildResponse(session, context, loginText, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
+                }
+
                 context.AccountStep = AccountCreationStep.Email;
-                var emailText = $"Nice to meet you, {firstName}! What email should I use for your profile?";
+                var emailText = "Great choice! What email should I use for your profile?";
                 await SaveAssistantMessageAsync(session, emailText, cancellationToken);
                 return BuildResponse(session, context, emailText, stage: NuviConversationStage.AccountCreation);
+
+            case AccountCreationStep.LoginPassword:
+                if (httpContext == null)
+                    return BuildResponse(session, context, "Unable to sign in right now. Please try again.", stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
+
+                if (string.IsNullOrWhiteSpace(answer))
+                    return BuildResponse(session, context, "Please enter your password.", stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
+
+                var loginResult = await _accountAuthService.LoginAsync(new AccountLoginRequest
+                {
+                    AccountType = AccountType.Patient,
+                    Username = context.PendingUsername!,
+                    Password = answer
+                }, httpContext, cancellationToken);
+
+                if (!loginResult.Success)
+                {
+                    return BuildResponse(session, context,
+                        loginResult.Error ?? "That password didn't work. Please try again.",
+                        stage: NuviConversationStage.AccountCreation,
+                        usePasswordInput: true);
+                }
+
+                var signedInPatient = await _db.Patients
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Username == context.PendingUsername, cancellationToken);
+
+                if (signedInPatient != null)
+                {
+                    session.PatientId = signedInPatient.Id;
+                    context.PendingFullName = signedInPatient.FullName;
+                    context.SkipAccountCreation = true;
+                }
+
+                context.IsExistingAccountLogin = false;
+                context.Stage = NuviConversationStage.DeepDive;
+                var signedInWelcome = $"You're signed in! Welcome back, {GetFirstName(context)}. Now let me get to know what matters most to YOU in a doctor.";
+                await SaveAssistantMessageAsync(session, signedInWelcome, cancellationToken);
+                return await AskNextDeepDiveQuestionAsync(session, context, signedInWelcome, cancellationToken);
 
             case AccountCreationStep.Email:
                 if (!answer.Contains('@'))
@@ -373,15 +458,26 @@ public class AnthropicChatService : IAnthropicChatService
                     FullName = context.PendingFullName ?? "Patient",
                     Email = context.PendingEmail,
                     Phone = context.PendingPhone ?? "",
+                    Username = context.PendingUsername ?? "",
                     Password = answer
                 }, cancellationToken);
 
                 if (!registerResult.Success)
                 {
+                    var retryPassword = registerResult.Message?.Contains("email", StringComparison.OrdinalIgnoreCase) != true;
+                    if (registerResult.Message?.Contains("already exists", StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        context.IsExistingAccountLogin = true;
+                        context.AccountStep = AccountCreationStep.LoginPassword;
+                        var existingAccountText = "You already have an account. Please enter your password and I'll sign you in to your profile.";
+                        await SaveAssistantMessageAsync(session, existingAccountText, cancellationToken);
+                        return BuildResponse(session, context, existingAccountText, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
+                    }
+
                     return BuildResponse(session, context,
                         registerResult.Message ?? "Something went wrong creating your account. Could you try a different email?",
                         stage: NuviConversationStage.AccountCreation,
-                        usePasswordInput: registerResult.Message?.Contains("email") == true ? false : true);
+                        usePasswordInput: retryPassword);
                 }
 
                 context.Stage = NuviConversationStage.DeepDive;
@@ -818,7 +914,45 @@ public class AnthropicChatService : IAnthropicChatService
 
     private static bool IsPasswordSubmission(SearchContextData context) =>
         context.Stage == NuviConversationStage.AccountCreation
-        && context.AccountStep == AccountCreationStep.Password;
+        && (context.AccountStep == AccountCreationStep.Password
+            || context.AccountStep == AccountCreationStep.LoginPassword);
+
+    private static string GetFirstName(SearchContextData context) =>
+        context.PendingFullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+        ?? context.PendingUsername
+        ?? "there";
+
+    private async Task ApplyAuthenticatedPatientAsync(
+        SearchSession session,
+        SearchContextData context,
+        HttpContext? httpContext,
+        CancellationToken cancellationToken)
+    {
+        var patientId = GetAuthenticatedPatientId(httpContext);
+        if (!patientId.HasValue)
+            return;
+
+        var patient = await _db.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == patientId.Value, cancellationToken);
+        if (patient == null)
+            return;
+
+        session.PatientId = patient.Id;
+        context.PendingFullName ??= patient.FullName;
+        context.PendingUsername ??= patient.Username;
+        context.SkipAccountCreation = true;
+    }
+
+    private static int? GetAuthenticatedPatientId(HttpContext? httpContext)
+    {
+        if (httpContext?.User.Identity?.IsAuthenticated != true)
+            return null;
+        if (!httpContext.User.IsInRole(AuthRoles.Patient))
+            return null;
+
+        var idClaim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(idClaim, out var id) ? id : null;
+    }
 
     private static UrgencyLevel ParseUrgency(string urgency) =>
         urgency.ToLowerInvariant() switch

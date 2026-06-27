@@ -53,7 +53,7 @@
     <div class="hero-right" id="hero-chat-panel">
         <div class="chat-window">
             <div class="chat-header">
-                <div class="ai-avatar">@Branding.ChatBotInitial</div>
+                <div class="ai-avatar">@Branding.ChatBotName</div>
                 <div>
                     <div style="font-size:13px;font-weight:600;">@Branding.ChatBotName</div>
                     <div style="font-size:11px;color:var(--sage);">Your personal doctor-matching concierge</div>
@@ -62,7 +62,16 @@
             <div class="chat-messages" id="chat-messages">
                 <div class="msg ai">
                         <div class="msg-avatar">@Branding.ChatBotName</div>
-                    <div class="msg-bubble">Hi! I'm @Branding.ChatBotName 👋 I'm your personal doctor-matching concierge. I don't just find you a doctor — I find you YOUR doctor. What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.</div>
+                    <div class="msg-bubble">
+                        @if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient))
+                        {
+                            @:Hi @User.Identity.Name! 👋 I'm @Branding.ChatBotName — your personal doctor-matching concierge. Welcome back! What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.
+                        }
+                        else
+                        {
+                            @:Hi! I'm @Branding.ChatBotName 👋 I'm your personal doctor-matching concierge. I don't just find you a doctor — I find you YOUR doctor. What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.
+                        }
+                    </div>
                 </div>
             </div>
             <div class="chips" id="quick-chips">
@@ -73,7 +82,7 @@
                 <button class="chip" onclick="sendChip(this)">Skin rash</button>
             </div>
             <div class="chat-input-area">
-                <input type="text" class="chat-input" id="chat-input" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" />
+                <input type="text" class="chat-input" id="chat-input" name="chat-message" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" />
                 <button class="send-btn" id="send-btn" onclick="sendMessage()">
                     <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                 </button>
@@ -178,11 +187,11 @@
         </div>
         <div class="form-group">
             <label>Username</label>
-            <input type="text" id="reg-username" class="field-input" />
+            <input type="text" id="reg-username" name="username" class="field-input" autocomplete="username" />
         </div>
         <div class="form-group">
             <label>Password</label>
-            <input type="password" id="reg-password" class="field-input" />
+            <input type="password" id="reg-password" name="password" class="field-input" autocomplete="new-password" />
         </div>
         <div class="modal-actions">
             <button class="btn-primary" onclick="submitRegistration()">Create Account</button>

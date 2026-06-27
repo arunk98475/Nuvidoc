@@ -18,9 +18,11 @@ public enum NuviConversationStage
 public enum AccountCreationStep
 {
     Name,
+    Username,
     Email,
     Phone,
-    Password
+    Password,
+    LoginPassword
 }
 
 public class SearchContextData
@@ -34,8 +36,11 @@ public class SearchContextData
     public string? InsurancePreference { get; set; }
     public AccountCreationStep AccountStep { get; set; } = AccountCreationStep.Name;
     public string? PendingFullName { get; set; }
+    public string? PendingUsername { get; set; }
     public string? PendingEmail { get; set; }
     public string? PendingPhone { get; set; }
+    public bool IsExistingAccountLogin { get; set; }
+    public bool SkipAccountCreation { get; set; }
     public List<PollingAnswerEntry> PollingAnswers { get; set; } = new();
     public int QuestionsAsked { get; set; }
     public int? CurrentPollingQuestionId { get; set; }

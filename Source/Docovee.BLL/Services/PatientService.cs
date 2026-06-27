@@ -26,16 +26,16 @@ public class PatientService : IPatientService
 
     public async Task<PatientRegisterResponse> RegisterAsync(PatientRegisterRequest request, CancellationToken cancellationToken = default)
     {
-        var username = !string.IsNullOrWhiteSpace(request.Email)
-            ? request.Email.Trim()
-            : request.Username.Trim();
+        var username = !string.IsNullOrWhiteSpace(request.Username)
+            ? request.Username.Trim()
+            : request.Email?.Trim() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(username))
             return new PatientRegisterResponse { Success = false, Message = "Email or username is required." };
 
         if (await _db.Patients.AnyAsync(p => p.Username == username, cancellationToken))
         {
-            return new PatientRegisterResponse { Success = false, Message = "An account with this email already exists." };
+            return new PatientRegisterResponse { Success = false, Message = "An account with this username already exists." };
         }
 
         var session = await _db.SearchSessions

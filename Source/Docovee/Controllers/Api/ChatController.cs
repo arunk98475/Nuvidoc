@@ -20,7 +20,7 @@ public class ChatController : ControllerBase
 
         try
         {
-            var result = await _chatService.SendMessageAsync(request, cancellationToken);
+            var result = await _chatService.SendMessageAsync(request, HttpContext, cancellationToken);
             return Ok(result);
         }
         catch (Exception ex)
