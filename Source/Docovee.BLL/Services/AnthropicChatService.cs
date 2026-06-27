@@ -21,6 +21,7 @@ public class AnthropicChatService : IAnthropicChatService
 {
     private const int MaxTriageQuestions = 3;
     private const int MaxDeepDiveQuestions = 8;
+    private const string RedactedPasswordPlaceholder = "[password hidden]";
 
     private static readonly Regex RoutingRegex = new(
         @"SPECIALTY:\s*([^|]+)\s*\|\s*URGENCY:\s*([^|]+)(?:\|\s*NOTES:\s*(.+))?",
@@ -97,7 +98,9 @@ public class AnthropicChatService : IAnthropicChatService
             {
                 SearchSessionId = session.Id,
                 Role = "user",
-                Content = request.Message
+                Content = IsPasswordSubmission(context)
+                    ? RedactedPasswordPlaceholder
+                    : request.Message
             });
             await _db.SaveChangesAsync(cancellationToken);
         }
@@ -812,6 +815,10 @@ public class AnthropicChatService : IAnthropicChatService
             return "Psychiatrist";
         return "Family Medicine";
     }
+
+    private static bool IsPasswordSubmission(SearchContextData context) =>
+        context.Stage == NuviConversationStage.AccountCreation
+        && context.AccountStep == AccountCreationStep.Password;
 
     private static UrgencyLevel ParseUrgency(string urgency) =>
         urgency.ToLowerInvariant() switch

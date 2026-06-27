@@ -152,10 +152,11 @@ async function sendMessage(action = null, selectedDoctorId = null) {
   const text = input.value.trim();
   if (!text && !action && !selectedDoctorId) return;
 
+  const wasPasswordInput = usePasswordInput;
   input.value = "";
   document.getElementById("send-btn").disabled = true;
 
-  if (text) addMessage(text, "user");
+  if (text) addMessage(wasPasswordInput ? "••••••••" : text, "user");
   showTyping();
 
   try {
