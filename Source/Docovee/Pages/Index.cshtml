@@ -17,7 +17,7 @@
 
 <nav>
     <partial name="Shared/_SiteLogo" />
-    <div class="nav-right">
+    <div class="nav-right" id="nav-right" @(User.Identity?.IsAuthenticated == true ? "data-authenticated=\"true\"" : "")>
         @if (User.Identity?.IsAuthenticated == true)
         {
             if (User.IsInRole(AuthRoles.Admin))
@@ -65,7 +65,7 @@
                     <div class="msg-bubble">
                         @if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient))
                         {
-                            @:Hi @User.Identity.Name! 👋 I'm @Branding.ChatBotName — your personal doctor-matching concierge. Welcome back! What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.
+                            @:Hi @(Model.PatientFullName ?? User.Identity!.Name)! 👋 I'm @Branding.ChatBotName — your personal doctor-matching concierge. Welcome back! What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.
                         }
                         else
                         {
@@ -207,8 +207,7 @@
 <script>
   window.nuvidocBranding = {
     siteName: "@Branding.SiteName",
-    chatBotName: "@Branding.ChatBotName",
-    chatBotInitial: "@Branding.ChatBotInitial"
+    chatBotName: "@Branding.ChatBotName"
   };
 </script>
 <script src="~/js/docovee.js" asp-append-version="true"></script>

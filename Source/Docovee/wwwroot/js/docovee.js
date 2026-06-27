@@ -6,12 +6,36 @@ let userLongitude = null;
 let usePasswordInput = false;
 let currentStage = "Greeting";
 
-const branding = window.nuvidocBranding || { siteName: "NuviDoc", chatBotName: "Nuvi", chatBotInitial: "N" };
-const NUVI_AVATAR = branding.chatBotInitial;
+const branding = window.nuvidocBranding || { siteName: "NuviDoc", chatBotName: "Nuvi" };
+const NUVI_AVATAR = branding.chatBotName;
 
 document.addEventListener("DOMContentLoaded", () => {
   requestLocation();
 });
+
+function updateNavForSignedInPatient() {
+  const navRight = document.getElementById("nav-right");
+  if (!navRight || navRight.dataset.authenticated === "true") return;
+
+  navRight.querySelector(".nav-register")?.remove();
+  navRight.querySelector('a[href="/Account/Login"]')?.remove();
+
+  const cta = navRight.querySelector(".nav-cta");
+
+  const profile = document.createElement("a");
+  profile.href = "/Account/Profile";
+  profile.className = "nav-link";
+  profile.textContent = "My Profile";
+
+  const logout = document.createElement("a");
+  logout.href = "/Account/Logout";
+  logout.className = "nav-link";
+  logout.textContent = "Logout";
+
+  navRight.insertBefore(profile, cta);
+  navRight.insertBefore(logout, cta);
+  navRight.dataset.authenticated = "true";
+}
 
 async function requestLocation() {
   if (!navigator.geolocation) return;
@@ -165,6 +189,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
     const res = await fetch("/api/chat/message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({
         sessionKey,
         message: text || (action ? action : "continue"),
@@ -202,6 +227,10 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
     updateInputMode(data.usePasswordInput);
     setChips(data.options);
+
+    if (data.signedIn) {
+      updateNavForSignedInPatient();
+    }
 
     if (data.flowComplete) {
       setChips([]);

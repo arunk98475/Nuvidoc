@@ -25,6 +25,7 @@ public class AnthropicChatService : IAnthropicChatService
     private const int MaxTriageQuestions = 3;
     private const int MaxDeepDiveQuestions = 8;
     private const string RedactedPasswordPlaceholder = "[password hidden]";
+    private static readonly DateOnly PlaceholderDateOfBirth = new(1990, 1, 1);
 
     private static readonly Regex RoutingRegex = new(
         @"SPECIALTY:\s*([^|]+)\s*\|\s*URGENCY:\s*([^|]+)(?:\|\s*NOTES:\s*(.+))?",
@@ -346,8 +347,8 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
         context.Stage = NuviConversationStage.DeepDive;
-        var firstName = GetFirstName(context);
-        var welcomeText = $"Welcome back, {firstName}! Now let me get to know what matters most to YOU in a doctor.";
+        var displayName = GetDisplayName(context);
+        var welcomeText = $"Welcome back, {displayName}! Now let me get to know what matters most to YOU in a doctor.";
         await SaveAssistantMessageAsync(session, welcomeText, cancellationToken);
         return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken);
     }
@@ -359,14 +360,13 @@ public class AnthropicChatService : IAnthropicChatService
             return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
 
         var answer = message.Trim();
-        var firstName = GetFirstName(context);
 
         switch (context.AccountStep)
         {
             case AccountCreationStep.Name:
                 context.PendingFullName = answer;
                 context.AccountStep = AccountCreationStep.Username;
-                var usernamePrompt = $"Nice to meet you, {firstName}! What username would you like for your profile?";
+                var usernamePrompt = $"Nice to meet you, {answer}! What username would you like for your profile?";
                 await SaveAssistantMessageAsync(session, usernamePrompt, cancellationToken);
                 return BuildResponse(session, context, usernamePrompt, stage: NuviConversationStage.AccountCreation);
 
@@ -423,14 +423,15 @@ public class AnthropicChatService : IAnthropicChatService
                 {
                     session.PatientId = signedInPatient.Id;
                     context.PendingFullName = signedInPatient.FullName;
+                    context.PatientDateOfBirth = signedInPatient.DateOfBirth;
                     context.SkipAccountCreation = true;
                 }
 
                 context.IsExistingAccountLogin = false;
                 context.Stage = NuviConversationStage.DeepDive;
-                var signedInWelcome = $"You're signed in! Welcome back, {GetFirstName(context)}. Now let me get to know what matters most to YOU in a doctor.";
+                var signedInWelcome = $"You're signed in! Welcome back, {GetDisplayName(context)}. Now let me get to know what matters most to YOU in a doctor.";
                 await SaveAssistantMessageAsync(session, signedInWelcome, cancellationToken);
-                return await AskNextDeepDiveQuestionAsync(session, context, signedInWelcome, cancellationToken);
+                return await AskNextDeepDiveQuestionAsync(session, context, signedInWelcome, cancellationToken, signedIn: true);
 
             case AccountCreationStep.Email:
                 if (!answer.Contains('@'))
@@ -481,7 +482,7 @@ public class AnthropicChatService : IAnthropicChatService
                 }
 
                 context.Stage = NuviConversationStage.DeepDive;
-                var welcomeText = $"You're all set, {firstName}! Now let me get to know what matters most to YOU in a doctor.";
+                var welcomeText = $"You're all set, {GetDisplayName(context)}! Now let me get to know what matters most to YOU in a doctor.";
                 await SaveAssistantMessageAsync(session, welcomeText, cancellationToken);
                 return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken);
 
@@ -536,6 +537,8 @@ public class AnthropicChatService : IAnthropicChatService
         });
         context.CurrentPollingQuestionId = null;
 
+        await PersistPatientAgeFromAnswerAsync(session, context, current, validation.NormalizedAnswer ?? answer.Trim(), cancellationToken);
+
         if (context.PollingAnswers.Count >= MaxDeepDiveQuestions)
             return await CompleteDeepDiveAsync(session, context, cancellationToken);
 
@@ -543,21 +546,21 @@ public class AnthropicChatService : IAnthropicChatService
     }
 
     private async Task<ChatMessageResponse> AskNextDeepDiveQuestionAsync(
-        SearchSession session, SearchContextData context, string priorText, CancellationToken cancellationToken)
+        SearchSession session, SearchContextData context, string priorText, CancellationToken cancellationToken, bool signedIn = false)
     {
-        var nextPolling = await GetNextPollingQuestionAsync(context, cancellationToken);
+        var nextPolling = await GetNextPollingQuestionAsync(session, context, cancellationToken);
         if (nextPolling == null || context.PollingAnswers.Count >= MaxDeepDiveQuestions)
             return await CompleteDeepDiveAsync(session, context, cancellationToken);
 
         context.CurrentPollingQuestionId = nextPolling.Id;
-        var firstName = context.PendingFullName?.Split(' ').FirstOrDefault() ?? "there";
+        var displayName = GetDisplayName(context);
         var question = context.PollingAnswers.Count == 0
-            ? $"{priorText}\n\n{firstName}, {nextPolling.Question}"
+            ? $"{priorText}\n\n{displayName}, {nextPolling.Question}"
             : $"{priorText}\n\n{nextPolling.Question}";
 
         await SaveAssistantMessageAsync(session, question, cancellationToken);
         return BuildResponse(session, context, question, stage: NuviConversationStage.DeepDive,
-            awaitingPolling: true, pollingQuestionId: nextPolling.Id);
+            awaitingPolling: true, pollingQuestionId: nextPolling.Id, signedIn: signedIn);
     }
 
     private async Task<ChatMessageResponse> CompleteDeepDiveAsync(
@@ -575,10 +578,10 @@ public class AnthropicChatService : IAnthropicChatService
         var doctors = await SearchTopMatchesAsync(session, context, cancellationToken);
         context.MatchedDoctorIds = doctors.Select(d => d.Id).ToList();
 
-        var firstName = context.PendingFullName?.Split(' ').FirstOrDefault() ?? "there";
+        var displayName = GetDisplayName(context);
         var revealText = doctors.Count > 0
-            ? $"{firstName}, based on everything you've shared, I've personally matched you with {doctors.Count} doctor{(doctors.Count == 1 ? "" : "s")} I think could be a great fit. Here's who I found — and here's WHY I think each one could be the one."
-            : $"{firstName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
+            ? $"{displayName}, based on everything you've shared, I've personally matched you with {doctors.Count} doctor{(doctors.Count == 1 ? "" : "s")} I think could be a great fit. Here's who I found — and here's WHY I think each one could be the one."
+            : $"{displayName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
 
         await SaveAssistantMessageAsync(session, revealText, cancellationToken);
         return BuildResponse(session, context, revealText, stage: NuviConversationStage.RecommendationReveal,
@@ -635,7 +638,7 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, ChatMessageRequest request, CancellationToken cancellationToken)
     {
         var message = request.Message.Trim().ToLowerInvariant();
-        var firstName = context.PendingFullName?.Split(' ').FirstOrDefault() ?? "there";
+        var displayName = GetDisplayName(context);
 
         if (message.Contains("other") || message.Contains("match"))
         {
@@ -649,7 +652,7 @@ public class AnthropicChatService : IAnthropicChatService
         if (message.Contains("save") || message.Contains("later"))
         {
             context.Stage = NuviConversationStage.Confirmation;
-            var saveText = $"No problem, {firstName}! I've saved your matches in your profile. You can come back anytime.";
+            var saveText = $"No problem, {displayName}! I've saved your matches in your profile. You can come back anytime.";
             await SaveAssistantMessageAsync(session, saveText, cancellationToken);
             return BuildResponse(session, context, saveText, stage: NuviConversationStage.Confirmation, flowComplete: true);
         }
@@ -667,7 +670,7 @@ public class AnthropicChatService : IAnthropicChatService
         var phone = doctor.OfficePhoneNumber ?? "(phone not on file)";
         var hours = "Mon–Fri 8am–5pm";
         var contactText = message.Contains("yes") || message.Contains("contact") || request.Action == "book"
-            ? $"Done! 🎉 {doctor.Name}'s office can be reached at {phone} ({hours}). Tap the number below to call — they'll help you schedule. I've also saved your other matches in your profile in case you want to compare. You're in good hands, {firstName}."
+            ? $"Done! 🎉 {doctor.Name}'s office can be reached at {phone} ({hours}). Tap the number below to call — they'll help you schedule. I've also saved your other matches in your profile in case you want to compare. You're in good hands, {displayName}."
             : $"Want me to connect you with {doctor.Name}'s office? They're available at {phone} ({hours}).";
 
         context.Stage = NuviConversationStage.Confirmation;
@@ -771,11 +774,114 @@ public class AnthropicChatService : IAnthropicChatService
         return null;
     }
 
-    private async Task<PollingQuestionDto?> GetNextPollingQuestionAsync(SearchContextData context, CancellationToken cancellationToken)
+    private async Task<PollingQuestionDto?> GetNextPollingQuestionAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        await PrefillAgeFromPatientProfileAsync(session, context, cancellationToken);
+
         var answeredIds = context.PollingAnswers.Select(a => a.QuestionId).ToHashSet();
         var active = await _pollingQuestions.GetActiveAsync(cancellationToken);
         return active.FirstOrDefault(q => !answeredIds.Contains(q.Id));
+    }
+
+    private async Task PrefillAgeFromPatientProfileAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (!context.SkipAccountCreation)
+            return;
+
+        if (!HasKnownPatientAge(context) && session.PatientId.HasValue)
+        {
+            var dob = await _db.Patients.AsNoTracking()
+                .Where(p => p.Id == session.PatientId.Value)
+                .Select(p => p.DateOfBirth)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (dob != default)
+                context.PatientDateOfBirth = dob;
+        }
+
+        if (!HasKnownPatientAge(context))
+            return;
+
+        var active = await _pollingQuestions.GetActiveAsync(cancellationToken);
+        var answeredIds = context.PollingAnswers.Select(a => a.QuestionId).ToHashSet();
+        var calculatedAge = CalculateAge(context.PatientDateOfBirth!.Value);
+
+        foreach (var question in active.Where(IsAgePollingQuestion))
+        {
+            if (answeredIds.Contains(question.Id))
+                continue;
+
+            context.PollingAnswers.Add(new PollingAnswerEntry
+            {
+                QuestionId = question.Id,
+                Question = question.Question,
+                Answer = calculatedAge.ToString()
+            });
+        }
+    }
+
+    private static bool IsAgePollingQuestion(PollingQuestionDto question) =>
+        question.ValidationHint?.Contains("age", StringComparison.OrdinalIgnoreCase) == true
+        || question.Question.Contains("age", StringComparison.OrdinalIgnoreCase)
+        || question.Question.Contains("old are you", StringComparison.OrdinalIgnoreCase);
+
+    private static bool HasKnownPatientAge(SearchContextData context) =>
+        context.PatientDateOfBirth is { } dob && !IsPlaceholderDateOfBirth(dob);
+
+    private static bool IsPlaceholderDateOfBirth(DateOnly dateOfBirth) =>
+        dateOfBirth == PlaceholderDateOfBirth;
+
+    private static DateOnly ApproximateDateOfBirthFromAge(int age)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var birthYear = today.Year - age;
+        var month = today.Month;
+        var day = today.Day;
+
+        if (month == 2 && day == 29 && !DateTime.IsLeapYear(birthYear))
+            day = 28;
+
+        return new DateOnly(birthYear, month, day);
+    }
+
+    private async Task PersistPatientAgeFromAnswerAsync(
+        SearchSession session,
+        SearchContextData context,
+        PollingQuestionDto question,
+        string normalizedAnswer,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAgePollingQuestion(question))
+            return;
+
+        if (!int.TryParse(normalizedAnswer, out var age) || age is < 1 or > 120)
+            return;
+
+        var approximateDob = ApproximateDateOfBirthFromAge(age);
+        context.PatientDateOfBirth = approximateDob;
+
+        if (!session.PatientId.HasValue)
+            return;
+
+        var patient = await _db.Patients
+            .FirstOrDefaultAsync(p => p.Id == session.PatientId.Value, cancellationToken);
+
+        if (patient == null || !IsPlaceholderDateOfBirth(patient.DateOfBirth))
+            return;
+
+        patient.DateOfBirth = approximateDob;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static int CalculateAge(DateOnly dateOfBirth)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var age = today.Year - dateOfBirth.Year;
+        if (dateOfBirth > today.AddYears(-age))
+            age--;
+        return age;
     }
 
     private static ChatMessageResponse BuildResponse(
@@ -790,7 +896,8 @@ public class AnthropicChatService : IAnthropicChatService
         DoctorDetailDto? selectedDoctor = null,
         bool awaitingPolling = false,
         int? pollingQuestionId = null,
-        bool flowComplete = false)
+        bool flowComplete = false,
+        bool signedIn = false)
     {
         return new ChatMessageResponse
         {
@@ -800,6 +907,7 @@ public class AnthropicChatService : IAnthropicChatService
             Options = options,
             ShowLoading = showLoading,
             UsePasswordInput = usePasswordInput,
+            SignedIn = signedIn,
             DoctorCards = doctorCards,
             SelectedDoctor = selectedDoctor,
             AwaitingPollingAnswer = awaitingPolling,
@@ -917,8 +1025,8 @@ public class AnthropicChatService : IAnthropicChatService
         && (context.AccountStep == AccountCreationStep.Password
             || context.AccountStep == AccountCreationStep.LoginPassword);
 
-    private static string GetFirstName(SearchContextData context) =>
-        context.PendingFullName?.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+    private static string GetDisplayName(SearchContextData context) =>
+        context.PendingFullName?.Trim()
         ?? context.PendingUsername
         ?? "there";
 
@@ -940,6 +1048,7 @@ public class AnthropicChatService : IAnthropicChatService
         session.PatientId = patient.Id;
         context.PendingFullName ??= patient.FullName;
         context.PendingUsername ??= patient.Username;
+        context.PatientDateOfBirth = patient.DateOfBirth;
         context.SkipAccountCreation = true;
     }
 

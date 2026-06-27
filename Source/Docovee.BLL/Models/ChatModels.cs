@@ -23,6 +23,7 @@ public class ChatMessageResponse
     public IReadOnlyList<string>? Options { get; set; }
     public bool ShowLoading { get; set; }
     public bool UsePasswordInput { get; set; }
+    public bool SignedIn { get; set; }
     public IReadOnlyList<DoctorDto>? DoctorCards { get; set; }
     public DoctorDetailDto? SelectedDoctor { get; set; }
 }

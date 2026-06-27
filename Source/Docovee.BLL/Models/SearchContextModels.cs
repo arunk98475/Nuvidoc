@@ -41,6 +41,7 @@ public class SearchContextData
     public string? PendingPhone { get; set; }
     public bool IsExistingAccountLogin { get; set; }
     public bool SkipAccountCreation { get; set; }
+    public DateOnly? PatientDateOfBirth { get; set; }
     public List<PollingAnswerEntry> PollingAnswers { get; set; } = new();
     public int QuestionsAsked { get; set; }
     public int? CurrentPollingQuestionId { get; set; }
