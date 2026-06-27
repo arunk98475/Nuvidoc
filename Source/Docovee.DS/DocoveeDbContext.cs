@@ -19,6 +19,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorPatientReview> DoctorPatientReviews => Set<DoctorPatientReview>();
     public DbSet<PollingQuestion> PollingQuestions => Set<PollingQuestion>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+    public DbSet<DoctorOnboardingSession> DoctorOnboardingSessions => Set<DoctorOnboardingSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,7 +47,16 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Niche).HasMaxLength(200);
             entity.Property(e => e.Username).HasMaxLength(100);
             entity.Property(e => e.PasswordHash).HasMaxLength(500);
+            entity.Property(e => e.OnboardingProfileJson).HasColumnType("text");
             entity.HasIndex(e => e.Username).IsUnique();
+        });
+
+        modelBuilder.Entity<DoctorOnboardingSession>(entity =>
+        {
+            entity.ToTable("doctor_onboarding_sessions");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.SessionKey).IsUnique();
+            entity.Property(e => e.ContextJson).HasColumnType("text").IsRequired();
         });
 
         modelBuilder.Entity<DoctorPatientReview>(entity =>

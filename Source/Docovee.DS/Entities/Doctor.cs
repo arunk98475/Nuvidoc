@@ -39,6 +39,7 @@ public class Doctor
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }
+    public string? OnboardingProfileJson { get; set; }
 
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();
     public ICollection<DoctorPatientReview> PatientReviews { get; set; } = new List<DoctorPatientReview>();

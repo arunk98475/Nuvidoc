@@ -91,6 +91,21 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "PracticeCount", "int NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "Username", "varchar(100) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "PasswordHash", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "OnboardingProfileJson", "TEXT NULL", cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `doctor_onboarding_sessions` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `SessionKey` char(36) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL,
+                `ContextJson` text CHARACTER SET utf8mb4 NOT NULL,
+                `DoctorId` int NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_doctor_onboarding_sessions_SessionKey` (`SessionKey`)
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(

@@ -1,0 +1,62 @@
+@page
+@model Docovee.Pages.Account.Register.DoctorModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"Doctor Registration — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body class="onboarding-body">
+<nav>
+    <partial name="Shared/_SiteLogo" />
+    <div class="nav-right">
+        <a href="/Account/Register" class="nav-link">Back</a>
+        <a href="/Account/Login" class="nav-link">Login</a>
+    </div>
+</nav>
+
+<div class="onboarding-page">
+    <div class="onboarding-header">
+        <h1>Doctor Registration</h1>
+        <p>@Branding.ChatBotName will guide you through setting up your @Branding.SiteName profile.</p>
+        <div class="onboarding-progress" id="onboarding-progress" hidden>
+            <div class="onboarding-progress-bar" id="onboarding-progress-bar"></div>
+            <span class="onboarding-progress-text" id="onboarding-progress-text"></span>
+        </div>
+    </div>
+
+    <div class="onboarding-chat">
+        <div class="chat-window">
+            <div class="chat-header">
+                <div class="ai-avatar">@Branding.ChatBotInitial</div>
+                <div>
+                    <div class="ai-name">@Branding.ChatBotName</div>
+                    <div class="ai-status"><span class="ai-dot"></span>Doctor profile setup</div>
+                </div>
+            </div>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chips" id="quick-chips" style="display:none;"></div>
+            <div class="chat-input-area" id="chat-input-area">
+                <textarea id="chat-input" class="chat-input" rows="1" name="chat-message" autocomplete="off"
+                          placeholder="Type your answer..." onkeydown="handleKey(event)"></textarea>
+                <button type="button" class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.nuvidocBranding = {
+    siteName: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Branding.SiteName)),
+    chatBotName: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Branding.ChatBotName))
+};
+</script>
+<script src="~/js/doctor-onboarding.js" asp-append-version="true"></script>
+</body>
+</html>

@@ -24,142 +24,30 @@
 <div class="auth-page">
     <div class="auth-card auth-card-wide">
         <h1>Register with @Branding.SiteName</h1>
-        <p class="auth-subtitle">Create a patient or doctor account.</p>
+        <p class="auth-subtitle">Tell us who you are to get started.</p>
 
-        <form method="post" id="register-form" enctype="multipart/form-data">
-            <div class="form-group">
-                <label asp-for="Input.AccountType">I am registering as a</label>
-                <select asp-for="Input.AccountType" class="field-select" id="account-type">
-                    <option value="Patient">Patient</option>
-                    <option value="Doctor">Doctor</option>
-                </select>
-            </div>
+        <div class="role-picker">
+            <button type="button" class="role-picker-btn role-picker-btn-muted" id="patient-role-btn">
+                <span class="role-picker-icon">🧑</span>
+                <span class="role-picker-label">I am a Patient</span>
+                <span class="role-picker-hint">Coming soon</span>
+            </button>
+            <a href="/Account/Register/Doctor" class="role-picker-btn role-picker-btn-primary">
+                <span class="role-picker-icon">🩺</span>
+                <span class="role-picker-label">I am a Doctor</span>
+                <span class="role-picker-hint">Set up your practice profile</span>
+            </a>
+        </div>
 
-            <div id="patient-fields" class="register-section">
-                <div class="form-group">
-                    <label asp-for="Input.FullName">Full name</label>
-                    <input asp-for="Input.FullName" class="field-input" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.DateOfBirth">Date of birth</label>
-                    <input asp-for="Input.DateOfBirth" type="date" class="field-input" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.Phone">Phone number</label>
-                    <input asp-for="Input.Phone" type="tel" class="field-input" />
-                </div>
-            </div>
-
-            <div id="doctor-fields" class="register-section" style="display:none;">
-                <div class="form-group">
-                    <label asp-for="Input.DoctorName">Doctor name</label>
-                    <input asp-for="Input.DoctorName" class="field-input" placeholder="e.g. Dr. Jane Smith" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.PracticeName">Practice name</label>
-                    <input asp-for="Input.PracticeName" class="field-input" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.Specialty">Specialty</label>
-                    <input asp-for="Input.Specialty" class="field-input" placeholder="e.g. Family Medicine" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.Address">Address</label>
-                    <input asp-for="Input.Address" class="field-input" />
-                </div>
-                <div class="form-grid-2">
-                    <div class="form-group">
-                        <label asp-for="Input.City">City</label>
-                        <input asp-for="Input.City" class="field-input" />
-                    </div>
-                    <div class="form-group">
-                        <label asp-for="Input.State">State</label>
-                        <select asp-for="Input.State" class="field-select">
-                            <option value="">Select state</option>
-                            @foreach (var state in Model.UsStates)
-                            {
-                                <option value="@state.Code">@state.Name</option>
-                            }
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.ZipCode">Zip code</label>
-                    <input asp-for="Input.ZipCode" class="field-input" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.OfficePhoneNumber">Office phone</label>
-                    <input asp-for="Input.OfficePhoneNumber" type="tel" class="field-input" />
-                </div>
-                <div class="form-group">
-                    <label for="DoctorPhoto">Profile photo</label>
-                    <input type="file" id="DoctorPhoto" name="DoctorPhoto" accept="image/*" class="field-input" />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.GmbPhotoLink">GMB photo link</label>
-                    <input asp-for="Input.GmbPhotoLink" class="field-input" placeholder="https://..." />
-                </div>
-                <div class="form-group">
-                    <label asp-for="Input.InsuranceCarrierIds">Insurance accepted</label>
-                    <select asp-for="Input.InsuranceCarrierIds" class="field-select" multiple size="5">
-                        @foreach (var carrier in Model.InsuranceCarriers)
-                        {
-                            <option value="@carrier.Id">@carrier.Name</option>
-                        }
-                    </select>
-                    <p class="hint">Hold Ctrl (Windows) or Cmd (Mac) to select more than one.</p>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label asp-for="Input.Username">Username</label>
-                <input asp-for="Input.Username" class="field-input" autocomplete="username" />
-            </div>
-            <div class="form-group">
-                <label asp-for="Input.Password">Password</label>
-                <input asp-for="Input.Password" type="password" class="field-input" autocomplete="new-password" />
-            </div>
-            <div class="form-group">
-                <label asp-for="Input.ConfirmPassword">Confirm password</label>
-                <input asp-for="Input.ConfirmPassword" type="password" class="field-input" autocomplete="new-password" />
-            </div>
-
-            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
-            {
-                <div class="register-form-error" role="alert">@Model.ErrorMessage</div>
-            }
-
-            <button type="submit" class="btn-primary" style="width:100%;">Create Account</button>
-            <p class="auth-footer-link">Already have an account? <a href="/Account/Login">Sign in</a></p>
-        </form>
+        <p class="auth-footer-link">Already have an account? <a href="/Account/Login">Sign in</a></p>
     </div>
 </div>
 
 <script>
-(function () {
-    const typeSelect = document.getElementById("account-type");
-    const patientFields = document.getElementById("patient-fields");
-    const doctorFields = document.getElementById("doctor-fields");
-    const form = document.getElementById("register-form");
-
-    function setSectionEnabled(section, enabled) {
-        section.querySelectorAll("input, select, textarea").forEach(el => {
-            el.disabled = !enabled;
-        });
-    }
-
-    function toggleFields() {
-        const isDoctor = typeSelect.value === "Doctor";
-        patientFields.style.display = isDoctor ? "none" : "block";
-        doctorFields.style.display = isDoctor ? "block" : "none";
-        setSectionEnabled(patientFields, !isDoctor);
-        setSectionEnabled(doctorFields, isDoctor);
-    }
-
-    typeSelect.addEventListener("change", toggleFields);
-    form.addEventListener("submit", toggleFields);
-    toggleFields();
-})();
+document.getElementById("patient-role-btn").addEventListener("click", () => {
+    alert("Patient registration is available through our chat assistant on the homepage. We'll add a dedicated patient sign-up flow soon.");
+    window.location.href = "/";
+});
 </script>
 </body>
 </html>

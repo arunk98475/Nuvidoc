@@ -32,6 +32,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Account");
     options.Conventions.AllowAnonymousToPage("/Account/Login");
     options.Conventions.AllowAnonymousToPage("/Account/Register");
+    options.Conventions.AllowAnonymousToPage("/Account/Register/Doctor");
     options.Conventions.AllowAnonymousToPage("/Account/Logout");
     options.Conventions.AllowAnonymousToPage("/Account/Admin/Index");
     options.Conventions.AuthorizePage("/Account/Profile", AuthRoles.Patient);
