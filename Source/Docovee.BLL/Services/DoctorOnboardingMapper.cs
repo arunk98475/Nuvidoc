@@ -58,7 +58,7 @@ public static class DoctorOnboardingMapper
             State = address.State,
             ZipCode = address.ZipCode,
             OfficePhoneNumber = null,
-            GmbPhotoLink = GetUrl(answers, 50) ?? GetUrl(answers, 53),
+            GmbPhotoLink = GetUrl(answers, 50),
             Niche = Get(answers, 3) ?? Get(answers, 24),
             TagLine = Get(answers, 40) ?? Get(answers, 25),
             InsuranceCarrierIds = MatchInsuranceCarriers(Get(answers, 17), carriers)
@@ -75,7 +75,7 @@ public static class DoctorOnboardingMapper
             Niche = request.Niche,
             TagLine = request.TagLine,
             SummaryOfReviews = Get(answers, 43),
-            PhotoUrl = GetUrl(answers, 53),
+            PhotoUrl = null,
             GmbPhotoLink = request.GmbPhotoLink,
             Age = ParseAge(Get(answers, 31)),
             OnboardingProfileJson = JsonSerializer.Serialize(profile, JsonOptions),

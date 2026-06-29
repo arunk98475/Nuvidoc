@@ -40,8 +40,6 @@ public static class DoctorOnboardingQuestions
         new(32, "Personal Profile", "Do you have a family? (spouse/partner, kids?)", "Short Text", "e.g. 'Married with 3 kids'", false),
         new(33, "Personal Profile", "Do you have any pets?", "Short Text + Photo", "Type + name (e.g. 'Golden Retriever named Biscuit')", false),
         new(34, "Personal Profile", "Where did you grow up?", "Short Text", "City, State / Country", false),
-        new(35, "Personal Profile", "What is your favorite color?", "Short Text", "Free text", false),
-        new(36, "Personal Profile", "What is your favorite food or cuisine?", "Short Text", "Free text (e.g. 'Thai food, specifically pad see ew')", false),
         new(37, "Personal Profile", "What are your hobbies or interests outside of medicine?", "Multi-select + Text", "Golf, Cooking, Running, Travel, Music, Art, Hiking, Other", false),
         new(38, "Personal Profile", "Do you play any sports or have an active lifestyle?", "Short Text", "Free text", false),
         new(39, "Personal Profile", "What is a fun fact about you that your patients would be surprised to know?", "Long Text", "Free text, 1–2 sentences", false),
@@ -58,14 +56,6 @@ public static class DoctorOnboardingQuestions
         new(50, "Social & Online Presence", "Do you have a practice website? URL?", "URL", "https://...", false),
         new(51, "Social & Online Presence", "Are you active on social media? Which platforms?", "Multi-select + Handle", "Instagram, TikTok, Facebook, YouTube, LinkedIn + username", false),
         new(52, "Social & Online Presence", "Do you create any educational content (videos, blog, podcast)?", "Yes/No + Link", "", false),
-        new(53, "Social & Online Presence", "Do you have a professional headshot you'd like to use?", "Photo Upload", "JPG/PNG, min 400×400", true),
-        new(54, "Social & Online Presence", "Can you provide a short video introduction (30–60 seconds)?", "Video Upload / Link", "MP4 or YouTube/Vimeo link", false),
-        new(55, "Social & Online Presence", "Do you have before/after photos or case examples you can share?", "Photo Upload", "With patient consent", false),
-        new(56, "Preferences & Fit", "What type of patient do you feel you serve best?", "Multi-select", "Young families / Seniors / Athletes / Chronic illness / Anxious patients / Complex cases / Preventive care seekers", true),
-        new(57, "Preferences & Fit", "Is there any patient type or case you prefer NOT to take on?", "Long Text", "Free text (used internally only)", false),
-        new(58, "Preferences & Fit", "Are you currently accepting new patients?", "Yes/No + Detail", "Yes – all / Yes – limited / Waitlist only / No", true),
-        new(59, "Preferences & Fit", "What is the best way for a new patient to book with you?", "Multi-select", "Online booking / Call office / Text / Via Nuvidoc only", true),
-        new(60, "Preferences & Fit", "Is there anything else you'd like potential patients to know about you before they book?", "Long Text", "Free text", false),
     };
 
     public static DoctorOnboardingQuestion? GetById(int id) =>

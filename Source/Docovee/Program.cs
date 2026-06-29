@@ -61,6 +61,7 @@ using (var scope = app.Services.CreateScope())
     {
         await SchemaUpdater.EnsureLatestSchemaAsync(db);
         await SeedData.InitializeAsync(db);
+        await PollingQuestionSync.SyncFromSpecAsync(db);
         await SeedData.InitializeAdminAndSettingsAsync(db, adminOptions);
     }
     catch (Exception ex)

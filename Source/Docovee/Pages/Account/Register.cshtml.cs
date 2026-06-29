@@ -10,7 +10,7 @@ public class RegisterModel : PageModel
     {
         if (User.Identity?.IsAuthenticated == true)
             return Redirect(GetRedirectUrl());
-        return Page();
+        return Redirect("/Account/Register/Doctor");
     }
 
     private string GetRedirectUrl()

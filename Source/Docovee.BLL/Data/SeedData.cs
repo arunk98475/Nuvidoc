@@ -187,16 +187,7 @@ public static class SeedData
 
         if (!await context.PollingQuestions.AnyAsync())
         {
-            context.PollingQuestions.AddRange(
-                new PollingQuestion { Question = "Does experience level matter to you, or are you more focused on bedside manner and vibe?", ValidationHint = "Expect a preference about experience vs bedside manner", SortOrder = 1 },
-                new PollingQuestion { Question = "Do you have a gender preference for your doctor?", ValidationHint = "Expect male, female, or no preference", SortOrder = 2 },
-                new PollingQuestion { Question = "How do you prefer your doctor to communicate — direct and efficient, collaborative and thorough, or warm and reassuring?", ValidationHint = "Expect a communication style preference", SortOrder = 3 },
-                new PollingQuestion { Question = "How far are you willing to travel for the right doctor?", ValidationHint = "Expect a distance or location preference", SortOrder = 4 },
-                new PollingQuestion { Question = "Is it important that your doctor offers telehealth visits?", ValidationHint = "Expect yes, no, or sometimes", SortOrder = 5 },
-                new PollingQuestion { Question = "Do you prefer a doctor who takes time to explain things, or one who moves quickly?", ValidationHint = "Expect a pace preference", SortOrder = 6 },
-                new PollingQuestion { Question = "Are you looking for a long-term doctor relationship or a one-time visit?", ValidationHint = "Expect long-term or one-time", SortOrder = 7 },
-                new PollingQuestion { Question = "Anything else that would make a doctor feel like the right fit for you?", ValidationHint = "Expect any free-text preference", SortOrder = 8 }
-            );
+            await PollingQuestionSync.SyncFromSpecAsync(context);
         }
 
         await context.SaveChangesAsync();

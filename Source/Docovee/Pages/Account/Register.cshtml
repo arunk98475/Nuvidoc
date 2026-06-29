@@ -8,46 +8,10 @@
 <html lang="en">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="refresh" content="0;url=/Account/Register/Doctor" />
     <title>@ViewData["Title"]</title>
-    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body>
-<nav>
-    <partial name="Shared/_SiteLogo" />
-    <div class="nav-right">
-        <a href="/" class="nav-link">Home</a>
-        <a href="/Account/Login" class="nav-link">Login</a>
-    </div>
-</nav>
-
-<div class="auth-page">
-    <div class="auth-card auth-card-wide">
-        <h1>Register with @Branding.SiteName</h1>
-        <p class="auth-subtitle">Tell us who you are to get started.</p>
-
-        <div class="role-picker">
-            <button type="button" class="role-picker-btn role-picker-btn-muted" id="patient-role-btn">
-                <span class="role-picker-icon">🧑</span>
-                <span class="role-picker-label">I am a Patient</span>
-                <span class="role-picker-hint">Coming soon</span>
-            </button>
-            <a href="/Account/Register/Doctor" class="role-picker-btn role-picker-btn-primary">
-                <span class="role-picker-icon">🩺</span>
-                <span class="role-picker-label">I am a Doctor</span>
-                <span class="role-picker-hint">Set up your practice profile</span>
-            </a>
-        </div>
-
-        <p class="auth-footer-link">Already have an account? <a href="/Account/Login">Sign in</a></p>
-    </div>
-</div>
-
-<script>
-document.getElementById("patient-role-btn").addEventListener("click", () => {
-    alert("Patient registration is available through our chat assistant on the homepage. We'll add a dedicated patient sign-up flow soon.");
-    window.location.href = "/";
-});
-</script>
+    <p>Redirecting to doctor registration… <a href="/Account/Register/Doctor">Continue</a></p>
 </body>
 </html>

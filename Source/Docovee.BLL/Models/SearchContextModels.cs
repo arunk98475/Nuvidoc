@@ -18,10 +18,10 @@ public enum NuviConversationStage
 public enum AccountCreationStep
 {
     Name,
-    Username,
     Email,
     Phone,
     Password,
+    ConfirmPassword,
     LoginPassword
 }
 
@@ -34,11 +34,13 @@ public class SearchContextData
     public string? UrgencyPreference { get; set; }
     public string? LocationPreference { get; set; }
     public string? InsurancePreference { get; set; }
+    public string? InsuranceCategory { get; set; }
     public AccountCreationStep AccountStep { get; set; } = AccountCreationStep.Name;
     public string? PendingFullName { get; set; }
     public string? PendingUsername { get; set; }
     public string? PendingEmail { get; set; }
     public string? PendingPhone { get; set; }
+    public string? PendingPassword { get; set; }
     public bool IsExistingAccountLogin { get; set; }
     public bool SkipAccountCreation { get; set; }
     public DateOnly? PatientDateOfBirth { get; set; }
