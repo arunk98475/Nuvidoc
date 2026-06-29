@@ -140,6 +140,7 @@ public class AnthropicChatService : IAnthropicChatService
             NuviConversationStage.Triage => await HandleTriageAsync(session, context, request.Message, cancellationToken),
             NuviConversationStage.Logistics => await HandleLogisticsAsync(session, context, request.Message, cancellationToken),
             NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, request.Message, httpContext, cancellationToken),
+            NuviConversationStage.DeepDivePermission => await HandleDeepDivePermissionAsync(session, context, request.Message, httpContext, cancellationToken),
             NuviConversationStage.AccountCreation => await HandleAccountCreationAsync(session, context, request.Message, httpContext, cancellationToken),
             NuviConversationStage.DeepDive => await HandleDeepDiveAsync(session, context, request.Message, cancellationToken),
             NuviConversationStage.RecommendationReveal => await HandleRecommendationRevealAsync(session, context, request, cancellationToken),
@@ -304,16 +305,24 @@ public class AnthropicChatService : IAnthropicChatService
             case 0:
                 context.VisitPreference = answer;
                 context.LogisticsStep = 1;
+                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsLocationQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.LogisticsLocationQuestion,
+                    stage: NuviConversationStage.Logistics);
+
+            case 1:
+                context.LocationPreference = answer;
+                session.Location = answer;
+                context.LogisticsStep = 2;
                 await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsuranceTypeQuestion, cancellationToken);
                 return BuildResponse(session, context, NuviFlowContent.LogisticsInsuranceTypeQuestion,
                     stage: NuviConversationStage.Logistics,
                     options: NuviFlowContent.LogisticsInsuranceTypeOptions);
 
-            case 1:
+            case 2:
                 context.InsuranceCategory = ClassifyInsuranceCategory(answer);
                 if (IsInsuredCategory(context.InsuranceCategory))
                 {
-                    context.LogisticsStep = 2;
+                    context.LogisticsStep = 3;
                     await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsurancePlanQuestion, cancellationToken);
                     return BuildResponse(session, context, NuviFlowContent.LogisticsInsurancePlanQuestion,
                         stage: NuviConversationStage.Logistics,
@@ -322,25 +331,25 @@ public class AnthropicChatService : IAnthropicChatService
 
                 context.InsurancePreference = context.InsuranceCategory == "self-pay" ? "Self-pay" : null;
                 session.InsurancePlanText = context.InsuranceCategory == "self-pay" ? null : session.InsurancePlanText;
-                context.LogisticsStep = 3;
-                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
-                return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
-                    stage: NuviConversationStage.Logistics,
-                    options: NuviFlowContent.LogisticsUrgencyOptions);
-
-            case 2:
-                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.InsurancePreference = answer;
-                    session.InsurancePlanText = answer;
-                }
-                context.LogisticsStep = 3;
+                context.LogisticsStep = 4;
                 await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
                 return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
                     stage: NuviConversationStage.Logistics,
                     options: NuviFlowContent.LogisticsUrgencyOptions);
 
             case 3:
+                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.InsurancePreference = answer;
+                    session.InsurancePlanText = answer;
+                }
+                context.LogisticsStep = 4;
+                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
+                    stage: NuviConversationStage.Logistics,
+                    options: NuviFlowContent.LogisticsUrgencyOptions);
+
+            case 4:
                 context.UrgencyPreference = answer;
                 session.AvailabilityPreference = MapUrgencyToAvailability(answer);
                 session.UpdatedAt = DateTime.UtcNow;
@@ -386,14 +395,56 @@ public class AnthropicChatService : IAnthropicChatService
                 options: ["Yes, let's do it!"]);
         }
 
+        return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> BeginDeepDivePermissionAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.DeepDivePermission;
+        var text = NuviFlowContent.DeepDivePermissionQuestion;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.DeepDivePermission,
+            options: NuviFlowContent.DeepDivePermissionOptions);
+    }
+
+    private async Task<ChatMessageResponse> HandleDeepDivePermissionAsync(
+        SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        var allowed = lower.Contains("yes") || lower.Contains("fine") || lower.Contains("sure") || lower.Contains("ok");
+        var declined = lower.Contains("no") || lower.Contains("thanks") || lower.Contains("skip") || lower.Contains("show");
+
+        if (!allowed && !declined)
+        {
+            return BuildResponse(session, context,
+                "No pressure — just let me know if you'd like a few quick preference questions, or if you'd rather see your matches now.",
+                stage: NuviConversationStage.DeepDivePermission,
+                options: NuviFlowContent.DeepDivePermissionOptions);
+        }
+
+        if (allowed)
+        {
+            context.SkipDeepDive = false;
+            if (context.SkipAccountCreation)
+                return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
+
+            context.Stage = NuviConversationStage.AccountCreation;
+            context.AccountStep = AccountCreationStep.Name;
+            var text = NuviFlowContent.AccountNameQuestion;
+            await SaveAssistantMessageAsync(session, text, cancellationToken);
+            return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
+        }
+
+        context.SkipDeepDive = true;
         if (context.SkipAccountCreation)
-            return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
+            return await CompleteDeepDiveAsync(session, context, cancellationToken);
 
         context.Stage = NuviConversationStage.AccountCreation;
-        context.AccountStep = AccountCreationStep.Name;
-        var text = NuviFlowContent.AccountNameQuestion;
-        await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
+        context.AccountStep = AccountCreationStep.Email;
+        var emailText = NuviFlowContent.AccountEmailQuestion;
+        await SaveAssistantMessageAsync(session, emailText, cancellationToken);
+        return BuildResponse(session, context, emailText, stage: NuviConversationStage.AccountCreation);
     }
 
     private async Task<ChatMessageResponse> BeginDeepDiveForAuthenticatedPatientAsync(
@@ -406,11 +457,20 @@ public class AnthropicChatService : IAnthropicChatService
         return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken);
     }
 
+    private async Task<ChatMessageResponse> BeginDeepDiveAfterAccountAsync(
+        SearchSession session, SearchContextData context, string welcomeText, CancellationToken cancellationToken, bool signedIn = false)
+    {
+        context.Stage = NuviConversationStage.DeepDive;
+        return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken, signedIn: signedIn);
+    }
+
     private async Task<ChatMessageResponse> HandleAccountCreationAsync(
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         if (context.SkipAccountCreation)
-            return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
+            return context.SkipDeepDive
+                ? await CompleteDeepDiveAsync(session, context, cancellationToken)
+                : await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
 
         var answer = message.Trim();
 
@@ -481,10 +541,9 @@ public class AnthropicChatService : IAnthropicChatService
                 }
 
                 context.IsExistingAccountLogin = false;
-                context.Stage = NuviConversationStage.DeepDive;
-                var signedInWelcome = $"You're signed in! {FormatDeepDiveWelcome(GetDisplayName(context))}";
-                await SaveAssistantMessageAsync(session, signedInWelcome, cancellationToken);
-                return await AskNextDeepDiveQuestionAsync(session, context, signedInWelcome, cancellationToken, signedIn: true);
+                return context.SkipDeepDive
+                    ? await CompleteDeepDiveAsync(session, context, cancellationToken)
+                    : await BeginDeepDiveAfterAccountAsync(session, context, $"You're signed in! {FormatDeepDiveWelcome(GetDisplayName(context))}", cancellationToken, signedIn: true);
 
             case AccountCreationStep.Phone:
                 context.PendingPhone = answer;
@@ -532,10 +591,11 @@ public class AnthropicChatService : IAnthropicChatService
                         stage: NuviConversationStage.AccountCreation);
                 }
 
-                context.Stage = NuviConversationStage.DeepDive;
-                var welcomeText = $"You're all set, {GetDisplayName(context)}! {NuviFlowContent.DeepDiveWelcomeSuffix}";
-                await SaveAssistantMessageAsync(session, welcomeText, cancellationToken);
-                return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken);
+                return context.SkipDeepDive
+                    ? await CompleteDeepDiveAsync(session, context, cancellationToken)
+                    : await BeginDeepDiveAfterAccountAsync(session, context,
+                        $"You're all set, {GetDisplayName(context)}! {NuviFlowContent.DeepDiveWelcomeSuffix}",
+                        cancellationToken);
 
             default:
                 return BuildResponse(session, context, "Let's continue — what's your name?", stage: NuviConversationStage.AccountCreation);
@@ -578,7 +638,8 @@ public class AnthropicChatService : IAnthropicChatService
                 "This one's important — is there anything else that matters to you in a doctor? You can say 'nothing else' if you're all set.",
                 stage: NuviConversationStage.DeepDive,
                 awaitingPolling: true,
-                pollingQuestionId: current.Id);
+                pollingQuestionId: current.Id,
+                options: GetPollingQuestionOptions(current));
         }
 
         if (!validation.IsValid)
@@ -587,7 +648,8 @@ public class AnthropicChatService : IAnthropicChatService
                 validation.RepromptMessage ?? $"Could you answer again: {current.Question}",
                 stage: NuviConversationStage.DeepDive,
                 awaitingPolling: true,
-                pollingQuestionId: current.Id);
+                pollingQuestionId: current.Id,
+                options: GetPollingQuestionOptions(current));
         }
 
         context.PollingAnswers.Add(new PollingAnswerEntry
@@ -620,12 +682,15 @@ public class AnthropicChatService : IAnthropicChatService
         var displayName = GetDisplayName(context);
         var pollingText = PersonalizePollingQuestion(nextPolling.Question, session);
         var question = context.PollingAnswers.Count == 0
-            ? $"{priorText}\n\n{FormatDeepDiveWelcome(displayName)}\n\n{pollingText}"
+            ? priorText.Contains(NuviFlowContent.DeepDiveWelcomeSuffix, StringComparison.OrdinalIgnoreCase)
+                ? $"{priorText}\n\n{pollingText}"
+                : $"{priorText}\n\n{FormatDeepDiveWelcome(displayName)}\n\n{pollingText}"
             : $"{priorText}\n\n{pollingText}";
 
         await SaveAssistantMessageAsync(session, question, cancellationToken);
         return BuildResponse(session, context, question, stage: NuviConversationStage.DeepDive,
-            awaitingPolling: true, pollingQuestionId: nextPolling.Id, signedIn: signedIn);
+            awaitingPolling: true, pollingQuestionId: nextPolling.Id, signedIn: signedIn,
+            options: GetPollingQuestionOptions(nextPolling));
     }
 
     private async Task<ChatMessageResponse> CompleteDeepDiveAsync(
@@ -904,7 +969,7 @@ public class AnthropicChatService : IAnthropicChatService
         var answeredIds = context.PollingAnswers.Select(a => a.QuestionId).ToHashSet();
         var calculatedAge = CalculateAge(context.PatientDateOfBirth!.Value);
 
-        foreach (var question in active.Where(IsAgePollingQuestion))
+        foreach (var question in active.Where(IsPatientAgePollingQuestion))
         {
             if (answeredIds.Contains(question.Id))
                 continue;
@@ -918,10 +983,43 @@ public class AnthropicChatService : IAnthropicChatService
         }
     }
 
-    private static bool IsAgePollingQuestion(PollingQuestionDto question) =>
-        question.ValidationHint?.Contains("age", StringComparison.OrdinalIgnoreCase) == true
-        || question.Question.Contains("age", StringComparison.OrdinalIgnoreCase)
-        || question.Question.Contains("old are you", StringComparison.OrdinalIgnoreCase);
+    private static bool IsPatientAgePollingQuestion(PollingQuestionDto question)
+    {
+        if (question.Question.Contains("doctor", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return question.Question.Contains("old are you", StringComparison.OrdinalIgnoreCase)
+            || question.Question.Contains("how old are you", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IReadOnlyList<string>? GetPollingQuestionOptions(PollingQuestionDto question)
+    {
+        var hint = question.ValidationHint;
+        if (string.IsNullOrWhiteSpace(hint))
+            return null;
+
+        if (hint.StartsWith("Required", StringComparison.OrdinalIgnoreCase)
+            || hint.Contains("language name", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (hint.Contains("1 through 5", StringComparison.OrdinalIgnoreCase))
+            return ["1", "2", "3", "4", "5"];
+
+        if (hint.Contains('/'))
+            return hint.Split('/').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+
+        if (!hint.Contains(',') && hint.Contains(" or ", StringComparison.OrdinalIgnoreCase))
+            return hint.Split(" or ", StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+
+        if (!hint.Contains(','))
+            return null;
+
+        return hint.Split(',')
+            .Select(s => s.Trim())
+            .Select(s => s.StartsWith("or ", StringComparison.OrdinalIgnoreCase) ? s[3..].Trim() : s)
+            .Where(s => s.Length > 0)
+            .ToList();
+    }
 
     private static bool HasKnownPatientAge(SearchContextData context) =>
         context.PatientDateOfBirth is { } dob && !IsPlaceholderDateOfBirth(dob);
@@ -949,7 +1047,7 @@ public class AnthropicChatService : IAnthropicChatService
         string normalizedAnswer,
         CancellationToken cancellationToken)
     {
-        if (!IsAgePollingQuestion(question))
+        if (!IsPatientAgePollingQuestion(question))
             return;
 
         if (!int.TryParse(normalizedAnswer, out var age) || age is < 1 or > 120)

@@ -18,6 +18,9 @@ public static class NuviFlowContent
     public static readonly string[] LogisticsVisitOptions =
         ["In-person only", "Telehealth only", "Either works"];
 
+    public const string LogisticsLocationQuestion =
+        "Where are you looking for care? Share your city, ZIP code, or general area — I'll use it to find doctors near you.";
+
     public const string LogisticsInsuranceTypeQuestion =
         "Do you have health insurance, or are you looking for self-pay / cash-pay options?";
 
@@ -39,8 +42,19 @@ public static class NuviFlowContent
     public const string MomentumBridgeMessage =
         "Perfect — I think I already have a few ideas forming. Based on what you've shared, I want to find you someone who truly fits. Give me just a moment… ✨ I've identified some potential matches — but before I show you, I want to make sure these are a personal fit, not just a generic result. Can I ask you 3 more quick things?";
 
+    /// <summary>User Intake Flow step 7 (Excel row 12) — permission before account + deep-dive preferences.</summary>
+    public const string DeepDivePermissionQuestion =
+        "To save your matches and personalize your results, I'd like to ask a few quick preference questions after a short profile setup. Is that okay?";
+
+    public static readonly string[] DeepDivePermissionOptions =
+        ["Yes, that's fine", "No thanks"];
+
     public const string AccountNameQuestion =
         "To save your matches and get in touch with your top picks, I just need a quick second to set up your free profile. What's your name?";
+
+    /// <summary>User Intake Flow step 8 (Excel row 13) — used when name step is skipped.</summary>
+    public const string AccountEmailQuestion =
+        "What's the best email address for you?";
 
     public const string AccountPhoneQuestion =
         "And a phone number? (We'll only use this if your matched doctor needs to confirm your appointment.)";

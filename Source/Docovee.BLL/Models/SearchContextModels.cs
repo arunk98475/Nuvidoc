@@ -6,6 +6,7 @@ public enum NuviConversationStage
     Triage,
     Logistics,
     MomentumBridge,
+    DeepDivePermission,
     AccountCreation,
     DeepDive,
     RecommendationReveal,
@@ -43,6 +44,7 @@ public class SearchContextData
     public string? PendingPassword { get; set; }
     public bool IsExistingAccountLogin { get; set; }
     public bool SkipAccountCreation { get; set; }
+    public bool SkipDeepDive { get; set; }
     public DateOnly? PatientDateOfBirth { get; set; }
     public List<PollingAnswerEntry> PollingAnswers { get; set; } = new();
     public int QuestionsAsked { get; set; }
