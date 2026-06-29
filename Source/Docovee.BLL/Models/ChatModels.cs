@@ -22,6 +22,7 @@ public class ChatMessageResponse
     public string? Stage { get; set; }
     public IReadOnlyList<string>? Options { get; set; }
     public bool ShowLoading { get; set; }
+    public string? FollowUpText { get; set; }
     public bool UsePasswordInput { get; set; }
     public bool SignedIn { get; set; }
     public IReadOnlyList<DoctorDto>? DoctorCards { get; set; }

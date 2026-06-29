@@ -185,10 +185,7 @@ public static class SeedData
             });
         }
 
-        if (!await context.PollingQuestions.AnyAsync())
-        {
-            await PollingQuestionSync.SyncFromSpecAsync(context);
-        }
+        await PollingQuestionSync.SyncFromSpecAsync(context);
 
         await context.SaveChangesAsync();
     }

@@ -8,6 +8,7 @@ public class Patient
     public string FullName { get; set; } = string.Empty;
     public DateOnly DateOfBirth { get; set; }
     public string Phone { get; set; } = string.Empty;
+    public string? PreferenceProfileJson { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<SearchSession> SearchSessions { get; set; } = new List<SearchSession>();

@@ -5,9 +5,13 @@ let userLatitude = null;
 let userLongitude = null;
 let usePasswordInput = false;
 let currentStage = "Greeting";
+let pendingSkipToMatches = false;
 
 const branding = window.nuvidocBranding || { siteName: "NuviDoc", chatBotName: "Nuvi" };
 const NUVI_AVATAR = branding.chatBotName;
+const MATCH_SEARCH_LOADING_MESSAGE =
+  branding.matchSearchLoadingMessage ||
+  "Please wait for a while — I'm searching for the best matches for you.";
 
 document.addEventListener("DOMContentLoaded", () => {
   requestLocation();
@@ -80,7 +84,7 @@ function updateNavForSignedInPatient() {
   const navRight = document.getElementById("nav-right");
   if (!navRight || navRight.dataset.authenticated === "true") return;
 
-  navRight.querySelector(".nav-register")?.remove();
+  navRight.querySelector(".nav-for-doctors")?.remove();
   navRight.querySelector('a[href="/Account/Login"]')?.remove();
 
   const cta = navRight.querySelector(".nav-cta");
@@ -201,6 +205,9 @@ function setChips(options) {
     const btn = document.createElement("button");
     btn.className = "chip";
     btn.textContent = opt;
+    if (/no thanks|show my match/i.test(opt)) {
+      btn.dataset.skipToMatches = "true";
+    }
     btn.onclick = () => sendChip(btn);
     chipsEl.appendChild(btn);
   });
@@ -246,18 +253,34 @@ function updateInputMode(passwordMode) {
     : `Tell ${branding.chatBotName} what's going on...`;
 }
 
+function isSkipToMatchesMessage(text) {
+  const lower = (text || "").toLowerCase();
+  return lower.includes("no thanks") || lower.includes("show my match");
+}
+
 async function sendMessage(action = null, selectedDoctorId = null) {
   const input = document.getElementById("chat-input");
   const text = input.value.trim();
   if (!text && !action && !selectedDoctorId) return;
 
   const wasPasswordInput = usePasswordInput;
+  const skipToMatches =
+    pendingSkipToMatches ||
+    (currentStage === "DeepDivePermission" && isSkipToMatchesMessage(text));
+  pendingSkipToMatches = false;
+
   input.value = "";
   if (input.tagName === "TEXTAREA") autoResize(input);
   document.getElementById("send-btn").disabled = true;
 
   if (text) addMessage(wasPasswordInput ? "••••••••" : text, "user");
-  showTyping();
+
+  const matchSearchStartedAt = skipToMatches ? Date.now() : 0;
+  if (skipToMatches) {
+    addMessage(MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
+  } else {
+    showTyping();
+  }
 
   try {
     const res = await fetch("/api/chat/message", {
@@ -284,15 +307,33 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
     removeTyping();
 
-    if (data.showLoading) {
-      await delay(1500);
-    }
+    if (data.showLoading && data.followUpText) {
+      if (!skipToMatches) {
+        addMessage(data.text || MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
+        await delay(2500);
+      } else {
+        const elapsed = Date.now() - matchSearchStartedAt;
+        const minWait = 1200;
+        if (elapsed < minWait) {
+          await delay(minWait - elapsed);
+        }
+      }
 
-    addMessage(data.text || "I'm here to help. Could you tell me more?", "ai", {
-      loading: data.showLoading,
-      doctorCards: data.doctorCards,
-      selectedDoctor: data.selectedDoctor
-    });
+      addMessage(data.followUpText, "ai", {
+        doctorCards: data.doctorCards,
+        selectedDoctor: data.selectedDoctor
+      });
+    } else {
+      if (data.showLoading) {
+        await delay(2500);
+      }
+
+      addMessage(data.text || "I'm here to help. Could you tell me more?", "ai", {
+        loading: data.showLoading,
+        doctorCards: data.doctorCards,
+        selectedDoctor: data.selectedDoctor
+      });
+    }
 
     sessionKey = data.sessionKey;
     if (data.specialty) aiSpecialty = data.specialty;
@@ -325,6 +366,7 @@ function selectDoctor(doctorId) {
 }
 
 function sendChip(btn) {
+  pendingSkipToMatches = btn.dataset.skipToMatches === "true";
   document.getElementById("chat-input").value = btn.textContent;
   sendMessage();
 }
@@ -338,126 +380,4 @@ function handleKey(e) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Legacy screen flow kept for profile/search fallback (unused in Nuvi chat flow)
-function goToScreen(n) {
-  if (n >= 2) {
-    document.getElementById("hero-section").style.display = "none";
-    document.getElementById("main-flow").style.display = "block";
-  }
-  document.querySelectorAll(".screen").forEach((s) => s.classList.remove("active"));
-  const target = document.getElementById(`screen-${n}`);
-  if (target) target.classList.add("active");
-  if (n === 3) searchDoctors();
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-async function searchDoctors() {
-  const location = document.getElementById("pref-location")?.value.trim() || "Renton, WA";
-  const insurancePlan = document.getElementById("insurance-input")?.value.trim() || null;
-  const genderPref = document.querySelector('input[name="gender"]:checked')?.value || "none";
-  const comm = document.querySelector('input[name="comm"]:checked')?.value;
-  const avail = document.querySelector('input[name="avail"]:checked')?.value;
-
-  document.getElementById("match-headline").textContent = `Your top ${aiSpecialty || "doctor"} matches`;
-  document.getElementById("match-subhead").textContent = aiNotes
-    ? `Matched for you: ${aiNotes}`
-    : "Ranked by Google Reviews and fit for your needs.";
-
-  const list = document.getElementById("provider-list");
-  list.innerHTML = '<div class="card"><p>Searching for doctors...</p></div>';
-
-  try {
-    const res = await fetch("/api/doctors/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionKey,
-        location,
-        latitude: userLatitude,
-        longitude: userLongitude,
-        insurancePlan,
-        genderPreference: genderPref,
-        communicationStyle: comm,
-        availabilityPreference: avail
-      })
-    });
-
-    const doctors = await res.json();
-    list.innerHTML = "";
-
-    if (!doctors.length) {
-      list.innerHTML = '<div class="card"><p>No doctors found for your criteria. Try adjusting your location or preferences.</p></div>';
-      return;
-    }
-
-    doctors.forEach((p) => {
-      const card = document.createElement("div");
-      card.className = `provider-card${p.recommended ? " recommended" : ""}`;
-      card.innerHTML = `
-        ${p.recommended ? '<div class="rec-badge">Best Match</div>' : ""}
-        <div class="provider-top">
-          <div class="provider-avatar">${escapeHtml(p.avatarInitials)}</div>
-          <div class="provider-info">
-            <div class="provider-name">${escapeHtml(p.name)}</div>
-            <div class="provider-spec">${escapeHtml(p.specialty)}</div>
-          </div>
-          <div class="match-score">
-            <div class="match-num">${p.matchScore}</div>
-            <div class="match-label">Fit Score</div>
-          </div>
-        </div>`;
-      list.appendChild(card);
-    });
-  } catch {
-    list.innerHTML = '<div class="card"><p>Unable to load doctors. Please try again.</p></div>';
-  }
-}
-
-function showRegisterModal() {
-  document.getElementById("register-modal")?.classList.add("active");
-}
-
-function closeRegisterModal() {
-  document.getElementById("register-modal")?.classList.remove("active");
-}
-
-async function submitRegistration() {
-  const errorEl = document.getElementById("register-error");
-  errorEl.style.display = "none";
-
-  const payload = {
-    sessionKey,
-    fullName: document.getElementById("reg-name").value.trim(),
-    dateOfBirth: document.getElementById("reg-dob").value,
-    phone: document.getElementById("reg-phone").value.trim(),
-    username: document.getElementById("reg-username").value.trim(),
-    password: document.getElementById("reg-password").value
-  };
-
-  if (!payload.fullName || !payload.dateOfBirth || !payload.phone || !payload.username || !payload.password) {
-    errorEl.textContent = "Please fill in all fields.";
-    errorEl.style.display = "block";
-    return;
-  }
-
-  try {
-    const res = await fetch("/api/patients/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      errorEl.textContent = data.message || "Registration failed.";
-      errorEl.style.display = "block";
-      return;
-    }
-    closeRegisterModal();
-    alert("Account created! Your search has been saved.");
-  } catch {
-    errorEl.textContent = "Registration failed. Please try again.";
-    errorEl.style.display = "block";
-  }
 }

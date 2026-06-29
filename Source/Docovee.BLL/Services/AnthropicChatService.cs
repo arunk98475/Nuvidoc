@@ -79,9 +79,11 @@ public class AnthropicChatService : IAnthropicChatService
 
         GOOD clarifying questions (matching-focused):
         - "Are you looking for someone to help manage it long-term, or would you like it properly evaluated first?"
-        - "How soon are you hoping to be seen — this week, soon, or no rush?"
         - "Is this something new, or have you already been working with a doctor on it?"
         - "Do you already have a specialty in mind, or would you like my recommendation?"
+        - For tooth/dental issues: acknowledge and move toward matching — e.g. "Sounds like you're looking for a dentist — let's get you taken care of."
+
+        Do NOT ask how soon they want to be seen or about urgency — that is asked later in logistics.
 
         EXAMPLE tone:
         "That sounds really frustrating — ongoing back pain is exhausting. Are you looking for someone to help manage it long-term, or would you like it properly evaluated first?"
@@ -93,6 +95,8 @@ public class AnthropicChatService : IAnthropicChatService
 
         IF the patient's message is vague (e.g. "I need a doctor", "not feeling well", "health issues") use this style of clarifying question:
         "Got it — that sounds like something worth addressing. Are you looking more for a doctor to help manage something ongoing, or do you have a specific concern you'd like evaluated?"
+
+        If the patient already named a clear specialty or symptom (e.g. tooth pain, back pain, rash), respond with empathy and route quickly — do not ask clinical follow-ups.
 
         Ask ONE question per turn.
 
@@ -169,6 +173,12 @@ public class AnthropicChatService : IAnthropicChatService
     {
         context.TriageQuestionCount++;
 
+        if (context.TriageQuestionCount >= 2 && await ShouldFastRouteToLogisticsAsync(session, cancellationToken))
+        {
+            return await CompleteTriageWithInferenceAsync(
+                session, context, "Got it — let's find you the right doctor.", cancellationToken);
+        }
+
         if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
         {
             return await HandleTriageFallbackAsync(session, context, message, cancellationToken);
@@ -203,7 +213,7 @@ public class AnthropicChatService : IAnthropicChatService
             }
 
             var routingMatch = RoutingRegex.Match(aiText);
-            if (routingMatch.Success && context.TriageQuestionCount >= 2)
+            if (routingMatch.Success && context.TriageQuestionCount >= 1)
             {
                 await SaveAssistantMessageAsync(session, aiText, cancellationToken);
                 return await CompleteTriageAsync(session, context, aiText, routingMatch, cancellationToken);
@@ -395,14 +405,27 @@ public class AnthropicChatService : IAnthropicChatService
                 options: ["Yes, let's do it!"]);
         }
 
-        return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+        return await BeginAccountCreationAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> BeginAccountCreationAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (context.SkipAccountCreation)
+            return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+
+        context.Stage = NuviConversationStage.AccountCreation;
+        context.AccountStep = AccountCreationStep.Name;
+        var text = NuviFlowContent.AccountNameQuestion;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
     }
 
     private async Task<ChatMessageResponse> BeginDeepDivePermissionAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
         context.Stage = NuviConversationStage.DeepDivePermission;
-        var text = NuviFlowContent.DeepDivePermissionQuestion;
+        var text = NuviFlowContent.FormatDeepDivePermissionQuestion(GetDisplayName(context));
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(session, context, text, stage: NuviConversationStage.DeepDivePermission,
             options: NuviFlowContent.DeepDivePermissionOptions);
@@ -412,8 +435,8 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         var lower = message.Trim().ToLowerInvariant();
-        var allowed = lower.Contains("yes") || lower.Contains("fine") || lower.Contains("sure") || lower.Contains("ok");
-        var declined = lower.Contains("no") || lower.Contains("thanks") || lower.Contains("skip") || lower.Contains("show");
+        var allowed = lower.Contains("yes") || lower.Contains("ask") || lower.Contains("fine") || lower.Contains("sure") || lower.Contains("ok");
+        var declined = lower.Contains("no") || lower.Contains("thanks") || lower.Contains("skip") || lower.Contains("show") || lower.Contains("match");
 
         if (!allowed && !declined)
         {
@@ -426,35 +449,13 @@ public class AnthropicChatService : IAnthropicChatService
         if (allowed)
         {
             context.SkipDeepDive = false;
-            if (context.SkipAccountCreation)
-                return await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
-
-            context.Stage = NuviConversationStage.AccountCreation;
-            context.AccountStep = AccountCreationStep.Name;
-            var text = NuviFlowContent.AccountNameQuestion;
-            await SaveAssistantMessageAsync(session, text, cancellationToken);
-            return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
+            var welcome = $"{FormatDeepDiveWelcome(GetDisplayName(context))}";
+            return await BeginDeepDiveAfterAccountAsync(session, context, welcome, cancellationToken,
+                signedIn: context.SkipAccountCreation);
         }
 
         context.SkipDeepDive = true;
-        if (context.SkipAccountCreation)
-            return await CompleteDeepDiveAsync(session, context, cancellationToken);
-
-        context.Stage = NuviConversationStage.AccountCreation;
-        context.AccountStep = AccountCreationStep.Email;
-        var emailText = NuviFlowContent.AccountEmailQuestion;
-        await SaveAssistantMessageAsync(session, emailText, cancellationToken);
-        return BuildResponse(session, context, emailText, stage: NuviConversationStage.AccountCreation);
-    }
-
-    private async Task<ChatMessageResponse> BeginDeepDiveForAuthenticatedPatientAsync(
-        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
-    {
-        context.Stage = NuviConversationStage.DeepDive;
-        var displayName = GetDisplayName(context);
-        var welcomeText = FormatDeepDiveWelcome(displayName);
-        await SaveAssistantMessageAsync(session, welcomeText, cancellationToken);
-        return await AskNextDeepDiveQuestionAsync(session, context, welcomeText, cancellationToken);
+        return await CompleteDeepDiveAsync(session, context, cancellationToken);
     }
 
     private async Task<ChatMessageResponse> BeginDeepDiveAfterAccountAsync(
@@ -468,9 +469,7 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         if (context.SkipAccountCreation)
-            return context.SkipDeepDive
-                ? await CompleteDeepDiveAsync(session, context, cancellationToken)
-                : await BeginDeepDiveForAuthenticatedPatientAsync(session, context, cancellationToken);
+            return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
 
         var answer = message.Trim();
 
@@ -541,9 +540,7 @@ public class AnthropicChatService : IAnthropicChatService
                 }
 
                 context.IsExistingAccountLogin = false;
-                return context.SkipDeepDive
-                    ? await CompleteDeepDiveAsync(session, context, cancellationToken)
-                    : await BeginDeepDiveAfterAccountAsync(session, context, $"You're signed in! {FormatDeepDiveWelcome(GetDisplayName(context))}", cancellationToken, signedIn: true);
+                return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
 
             case AccountCreationStep.Phone:
                 context.PendingPhone = answer;
@@ -591,11 +588,7 @@ public class AnthropicChatService : IAnthropicChatService
                         stage: NuviConversationStage.AccountCreation);
                 }
 
-                return context.SkipDeepDive
-                    ? await CompleteDeepDiveAsync(session, context, cancellationToken)
-                    : await BeginDeepDiveAfterAccountAsync(session, context,
-                        $"You're all set, {GetDisplayName(context)}! {NuviFlowContent.DeepDiveWelcomeSuffix}",
-                        cancellationToken);
+                return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
 
             default:
                 return BuildResponse(session, context, "Let's continue — what's your name?", stage: NuviConversationStage.AccountCreation);
@@ -701,8 +694,9 @@ public class AnthropicChatService : IAnthropicChatService
         context.CurrentPollingQuestionId = null;
 
         ApplyDeepDivePreferences(session, context);
+        await PersistPatientPreferenceProfileAsync(session, context, cancellationToken);
 
-        var loadingText = "Give me just a moment while I match you with the best doctors… ✨";
+        var loadingText = NuviFlowContent.MatchSearchLoadingMessage;
         await SaveAssistantMessageAsync(session, loadingText, cancellationToken);
 
         var doctors = await SearchTopMatchesAsync(session, context, cancellationToken);
@@ -714,8 +708,33 @@ public class AnthropicChatService : IAnthropicChatService
             : $"{displayName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
 
         await SaveAssistantMessageAsync(session, revealText, cancellationToken);
-        return BuildResponse(session, context, revealText, stage: NuviConversationStage.RecommendationReveal,
-            doctorCards: doctors, showLoading: doctors.Count == 0);
+        return BuildResponse(session, context, loadingText, stage: NuviConversationStage.RecommendationReveal,
+            followUpText: revealText, doctorCards: doctors, showLoading: doctors.Count > 0);
+    }
+
+    private async Task PersistPatientPreferenceProfileAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (!session.PatientId.HasValue)
+            return;
+
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == session.PatientId.Value, cancellationToken);
+        if (patient == null)
+            return;
+
+        var profile = new
+        {
+            context.VisitPreference,
+            context.LocationPreference,
+            context.UrgencyPreference,
+            context.InsurancePreference,
+            context.InsuranceCategory,
+            DeepDiveAnswers = context.PollingAnswers,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        patient.PreferenceProfileJson = JsonSerializer.Serialize(profile);
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<ChatMessageResponse> HandleRecommendationRevealAsync(
@@ -817,10 +836,7 @@ public class AnthropicChatService : IAnthropicChatService
             var q = answer.Question.ToLowerInvariant();
             var a = answer.Answer.ToLowerInvariant();
 
-            if (q.Contains("gender"))
-                session.GenderPreference = a.Contains("female") ? GenderPreference.Female
-                    : a.Contains("male") ? GenderPreference.Male : GenderPreference.NoPreference;
-            else if (q.Contains("communicat") || q.Contains("bedside") || q.Contains("personality"))
+            if (q.Contains("communicat") || q.Contains("bedside") || q.Contains("personality"))
                 session.CommunicationStyle = a.Contains("direct") ? "direct"
                     : a.Contains("warm") || a.Contains("reassur") || a.Contains("nurtur") ? "reassuring" : "collaborative";
             else if (q.Contains("experience") || q.Contains("practicing"))
@@ -847,8 +863,7 @@ public class AnthropicChatService : IAnthropicChatService
             SessionKey = session.SessionKey,
             Location = context.LocationPreference ?? session.Location ?? "Renton, WA",
             InsurancePlan = context.InsurancePreference,
-            GenderPreference = session.GenderPreference == GenderPreference.Male ? "male"
-                : session.GenderPreference == GenderPreference.Female ? "female" : "none",
+            GenderPreference = "none",
             CommunicationStyle = session.CommunicationStyle,
             AvailabilityPreference = session.AvailabilityPreference
         }, cancellationToken);
@@ -921,7 +936,10 @@ public class AnthropicChatService : IAnthropicChatService
         var answeredIds = context.PollingAnswers.Select(a => a.QuestionId).ToHashSet();
         var active = await _pollingQuestions.GetActiveAsync(cancellationToken);
         var wildcard = active.FirstOrDefault(q => NuviFlowContent.IsWildcardDeepDiveQuestion(q.Question));
-        var pending = active.Where(q => !answeredIds.Contains(q.Id)).ToList();
+        var pending = active
+            .Where(q => !answeredIds.Contains(q.Id))
+            .Where(q => !ShouldSkipPollingQuestion(q, context))
+            .ToList();
 
         if (wildcard != null && !answeredIds.Contains(wildcard.Id))
         {
@@ -933,6 +951,33 @@ public class AnthropicChatService : IAnthropicChatService
 
         return pending.FirstOrDefault(q => wildcard == null || q.Id != wildcard.Id);
     }
+
+    private static bool ShouldSkipPollingQuestion(PollingQuestionDto question, SearchContextData context)
+    {
+        var text = question.Question.ToLowerInvariant();
+
+        if (!string.IsNullOrWhiteSpace(context.UrgencyPreference)
+            && (text.Contains("wait time") || text.Contains("how soon do you need")))
+            return true;
+
+        if (text.Contains("gender"))
+            return true;
+
+        if (text.Contains("virtual visit") || text.Contains("telehealth"))
+            return true;
+
+        return false;
+    }
+
+    private async Task<bool> ShouldFastRouteToLogisticsAsync(
+        SearchSession session, CancellationToken cancellationToken)
+    {
+        var allUserText = string.Join(" ", await GetAllUserMessagesAsync(session.Id, cancellationToken));
+        return HasClearSpecialtyIntent(allUserText);
+    }
+
+    private static bool HasClearSpecialtyIntent(string combinedUserText) =>
+        !string.Equals(InferSpecialtyFromText(combinedUserText), "Family Medicine", StringComparison.Ordinal);
 
     private async Task<bool> IsDeepDiveCompleteAsync(
         SearchContextData context, CancellationToken cancellationToken)
@@ -1085,6 +1130,7 @@ public class AnthropicChatService : IAnthropicChatService
         NuviConversationStage? stage = null,
         IReadOnlyList<string>? options = null,
         bool showLoading = false,
+        string? followUpText = null,
         bool usePasswordInput = false,
         IReadOnlyList<DoctorDto>? doctorCards = null,
         DoctorDetailDto? selectedDoctor = null,
@@ -1100,6 +1146,7 @@ public class AnthropicChatService : IAnthropicChatService
             Stage = (stage ?? context.Stage).ToString(),
             Options = options,
             ShowLoading = showLoading,
+            FollowUpText = followUpText,
             UsePasswordInput = usePasswordInput,
             SignedIn = signedIn,
             DoctorCards = doctorCards,
@@ -1142,11 +1189,11 @@ public class AnthropicChatService : IAnthropicChatService
         if (turnCount <= 1)
         {
             if (IsVagueUserMessage(userMessage))
-                return NuviFlowContent.VagueTriageQuestion;
+                return "Got it — can you tell me a bit more about what's going on, or what kind of doctor you're hoping to find?";
             if (lower.Contains("back") || lower.Contains("spine"))
                 return "That sounds really frustrating — ongoing back pain is exhausting. Are you looking for someone to help manage it long-term, or would you like it properly evaluated first?";
             if (lower.Contains("tooth") || lower.Contains("dental") || lower.Contains("dentist") || lower.Contains("gum"))
-                return "That sounds really frustrating — tooth pain is no fun. Are you hoping to get in soon for relief, or mainly looking for a regular dentist you can stick with?";
+                return "That sounds really frustrating — tooth pain is no fun. Are you looking for a new dentist for this, or do you already have one you see?";
             if (lower.Contains("skin") || lower.Contains("rash") || lower.Contains("acne"))
                 return "I hear you — skin issues can be really stressful. Are you looking for a quick evaluation, or someone to help manage this longer-term?";
             if (lower.Contains("anxiety") || lower.Contains("depression") || lower.Contains("mental"))
@@ -1155,7 +1202,7 @@ public class AnthropicChatService : IAnthropicChatService
         }
 
         if (turnCount == 2)
-            return "How soon are you hoping to see someone — this week, soon, or no rush?";
+            return "Is this your first visit for this, or are you already seeing someone for it?";
 
         return "Is this something you've dealt with before with another doctor, or would this be your first visit for it?";
     }
@@ -1168,7 +1215,8 @@ public class AnthropicChatService : IAnthropicChatService
         var lower = text.ToLowerInvariant();
         string[] patterns =
         [
-            "sharp pain", "dull pain", "throbbing", "stabbing", "radiat",
+            "sharp pain", "dull pain", "throbbing", "stabbing", "radiat", "is it sharp",
+            "sharp or", "constant or", "come and go",
             "swelling", "numbness", "tingling", "hot or cold", "worse when",
             "better when", "rate your pain", "pain scale", "how severe",
             "any fever", "any bleeding", "describe the pain", "type of pain",
@@ -1182,8 +1230,6 @@ public class AnthropicChatService : IAnthropicChatService
         var text = string.Join(" ", userMessages).ToLowerInvariant();
         if (text.Contains("anxious") || text.Contains("nervous"))
             return "Patient prefers a gentle, reassuring approach";
-        if (text.Contains("sharp") || text.Contains("severe") || text.Contains("bad"))
-            return "Experiencing notable pain, may need prompt care";
         return "Based on your description";
     }
 

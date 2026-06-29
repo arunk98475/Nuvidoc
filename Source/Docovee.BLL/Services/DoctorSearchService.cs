@@ -48,7 +48,7 @@ public class DoctorSearchService : IDoctorSearchService
             ? null
             : request.InsurancePlan.Trim();
         session.InsuranceCarrierId = request.InsuranceCarrierId;
-        session.GenderPreference = ParseGenderPreference(request.GenderPreference);
+        session.GenderPreference = GenderPreference.NoPreference;
         session.CommunicationStyle = request.CommunicationStyle;
         session.AvailabilityPreference = request.AvailabilityPreference;
         session.UpdatedAt = DateTime.UtcNow;
@@ -64,12 +64,7 @@ public class DoctorSearchService : IDoctorSearchService
             .Where(d => d.IsActive);
 
         // Do not hard-filter by insurance — rank doctors with matching plans higher instead.
-
-        if (session.GenderPreference != GenderPreference.NoPreference)
-        {
-            var gender = session.GenderPreference == GenderPreference.Male ? Gender.Male : Gender.Female;
-            query = query.Where(d => d.Gender == gender);
-        }
+        // Gender preference disabled for prototype — imported doctors may lack gender data.
 
         var doctors = await query.ToListAsync(cancellationToken);
         var filtered = doctors.Where(d => MatchesSpecialty(d.SpecialtyCategory, specialty) || MatchesSpecialty(d.Specialty, specialty)).ToList();
@@ -80,13 +75,10 @@ public class DoctorSearchService : IDoctorSearchService
             return Array.Empty<DoctorDto>();
         }
 
-        var locationLower = request.Location.ToLowerInvariant();
-        if (!string.IsNullOrWhiteSpace(locationLower))
+        var locationQuery = NormalizeLocationInput(request.Location);
+        if (!string.IsNullOrWhiteSpace(locationQuery))
         {
-            var cityMatch = filtered.Where(d =>
-                locationLower.Contains(d.City.ToLowerInvariant()) ||
-                d.City.ToLowerInvariant().Contains(locationLower.Split(',')[0].Trim().ToLowerInvariant()) ||
-                (d.Location != null && d.Location.ToLowerInvariant().Contains(locationLower.Split(',')[0].Trim().ToLowerInvariant()))).ToList();
+            var cityMatch = filtered.Where(d => LocationMatches(locationQuery, d)).ToList();
             if (cityMatch.Count > 0)
                 filtered = cityMatch;
         }
@@ -198,6 +190,68 @@ public class DoctorSearchService : IDoctorSearchService
     }
 
     private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180.0;
+
+    private static string NormalizeLocationInput(string location)
+    {
+        var lower = location.ToLowerInvariant().Trim();
+        foreach (var (typo, fix) in LocationTypoCorrections)
+            lower = lower.Replace(typo, fix, StringComparison.Ordinal);
+        return lower;
+    }
+
+    private static bool LocationMatches(string locationQuery, DS.Entities.Doctor doctor)
+    {
+        var city = doctor.City.ToLowerInvariant();
+        var token = locationQuery.Split(',')[0].Trim();
+
+        if (locationQuery.Contains(city) || city.Contains(token))
+            return true;
+
+        if (doctor.Location != null && doctor.Location.ToLowerInvariant().Contains(token))
+            return true;
+
+        if (!string.IsNullOrWhiteSpace(doctor.State)
+            && locationQuery.Contains(doctor.State.ToLowerInvariant())
+            && FuzzyCityMatch(token, city))
+            return true;
+
+        return FuzzyCityMatch(token, city);
+    }
+
+    private static bool FuzzyCityMatch(string a, string b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b))
+            return false;
+        if (a == b || a.StartsWith(b, StringComparison.Ordinal) || b.StartsWith(a, StringComparison.Ordinal))
+            return true;
+        if (a.Length < 4 || b.Length < 4)
+            return false;
+        return LevenshteinDistance(a, b) <= 2;
+    }
+
+    private static int LevenshteinDistance(string a, string b)
+    {
+        var d = new int[a.Length + 1, b.Length + 1];
+        for (var i = 0; i <= a.Length; i++) d[i, 0] = i;
+        for (var j = 0; j <= b.Length; j++) d[0, j] = j;
+        for (var i = 1; i <= a.Length; i++)
+        {
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+            }
+        }
+        return d[a.Length, b.Length];
+    }
+
+    private static readonly (string Typo, string Fix)[] LocationTypoCorrections =
+    [
+        ("phonix", "phoenix"),
+        ("pheonix", "phoenix"),
+        ("los angelas", "los angeles"),
+        ("seatle", "seattle"),
+    ];
 
     private static GenderPreference ParseGenderPreference(string? value) =>
         value?.ToLowerInvariant() switch
