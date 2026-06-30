@@ -17,7 +17,26 @@
     <partial name="Shared/_SiteLogo" />
     <div class="nav-right">
         <a href="/" class="nav-link">Home</a>
-        <a href="/Account/Login" class="nav-link">Login</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            if (User.IsInRole(AuthRoles.Doctor))
+            {
+                <a href="/Account/DoctorProfile" class="nav-link">My Profile</a>
+            }
+            else if (User.IsInRole(AuthRoles.Patient))
+            {
+                <a href="/Account/Profile" class="nav-link">My Profile</a>
+            }
+            else if (User.IsInRole(AuthRoles.Admin))
+            {
+                <a href="/Admin/Patients" class="nav-link">Admin Panel</a>
+            }
+            <a href="/Account/Logout" class="nav-link">Logout</a>
+        }
+        else
+        {
+            <a href="/Account/Login" class="nav-link">Login</a>
+        }
     </div>
 </nav>
 
@@ -45,7 +64,9 @@
             <div class="chat-input-area" id="chat-input-area">
                 <textarea id="chat-input" class="chat-input" rows="1" name="chat-message" autocomplete="off"
                           placeholder="Type your answer..." onkeydown="handleKey(event)"></textarea>
-                <button type="button" class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+                <button type="button" class="send-btn" id="send-btn" onclick="sendMessage()">
+                        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" /></svg>
+                </button>
             </div>
         </div>
     </div>

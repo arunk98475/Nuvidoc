@@ -56,6 +56,7 @@ public class DoctorProfileDto
     public string? Niche { get; set; }
     public bool IsActive { get; set; }
     public DateTime MemberSince { get; set; }
+    public int ProfileCompletionPercent { get; set; }
 }
 
 public class AccountRegisterRequest

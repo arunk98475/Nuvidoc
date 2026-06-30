@@ -27,14 +27,32 @@
         <div class="alert-success">Your profile has been updated.</div>
     }
 
+    @if (Model.Profile!.ProfileCompletionPercent < 100)
+    {
+        var completionPct = Model.Profile.ProfileCompletionPercent;
+        <div class="profile-completion-banner">
+            <div class="profile-completion-banner-body">
+                <div class="profile-completion-banner-text">
+                    <strong>Profile @completionPct% complete</strong>
+                    <p>Finish your onboarding questionnaire so patients can find and match with you.</p>
+                </div>
+                <div class="profile-completion-banner-bar" aria-hidden="true">
+                    <div class="profile-completion-banner-bar-fill" style="width: @completionPct%;"></div>
+                </div>
+            </div>
+            <a href="/Account/Register/Doctor" class="profile-completion-banner-btn">Continue profile setup</a>
+        </div>
+    }
+
     <div class="card profile-header-card">
         <div class="profile-header">
-            @if (!string.IsNullOrEmpty(Model.Profile!.PhotoUrl))
-            {
-                <img src="@Model.Profile.PhotoUrl" alt="" class="profile-avatar" onerror="this.style.display='none';" />
-            }
+            <img src="@Model.Profile!.PhotoUrl" alt="" class="profile-avatar" />
             <div class="profile-header-main">
                 <div class="card-label">Doctor Profile</div>
+                @if (Model.Profile.ProfileCompletionPercent < 100)
+                {
+                    <div class="profile-completion-pill">@Model.Profile.ProfileCompletionPercent% complete</div>
+                }
                 <h1>@Model.Profile.Name</h1>
                 <p class="profile-meta">@Model.Profile.Specialty</p>
                 @if (!string.IsNullOrEmpty(Model.Profile.PracticeName))

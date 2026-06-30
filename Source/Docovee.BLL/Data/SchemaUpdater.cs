@@ -117,6 +117,8 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "Username", "varchar(100) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "PasswordHash", "varchar(500) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "OnboardingProfileJson", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "OnboardingQuestionIndex", "int NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "ProfileCompletionPercent", "int NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
 
         await db.Database.ExecuteSqlRawAsync(

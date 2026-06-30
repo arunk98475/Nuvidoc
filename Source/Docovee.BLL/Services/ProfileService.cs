@@ -100,6 +100,7 @@ public class ProfileService : IProfileService
             Niche = doctor.Niche,
             IsActive = doctor.IsActive,
             MemberSince = doctor.CreatedAt,
+            ProfileCompletionPercent = doctor.ProfileCompletionPercent,
             InsuranceCarriers = doctor.DoctorInsurances
                 .Select(di => di.InsuranceCarrier.Name)
                 .OrderBy(n => n)

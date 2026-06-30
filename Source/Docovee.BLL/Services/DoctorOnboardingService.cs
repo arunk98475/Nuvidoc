@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
+using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
 using Docovee.BLL.Models;
@@ -50,10 +52,16 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         var session = await GetOrCreateSessionAsync(request.SessionKey, cancellationToken);
         var context = DoctorOnboardingContextHelper.Load(session);
         var message = request.Message?.Trim() ?? string.Empty;
-        var isStart = string.IsNullOrEmpty(message) && context.Stage == DoctorOnboardingStage.Questions
-            && context.CurrentQuestionIndex == 0 && context.Answers.Count == 0;
 
-        if (!string.IsNullOrEmpty(message) && !isStart)
+        await TryLoadLoggedInDoctorAsync(context, session, httpContext, cancellationToken);
+
+        var isFreshStart = string.IsNullOrEmpty(message)
+            && context.Stage == DoctorOnboardingStage.Name
+            && context.CurrentQuestionIndex == 0
+            && context.Answers.Count == 0
+            && !context.DoctorId.HasValue;
+
+        if (!string.IsNullOrEmpty(message) && !isFreshStart)
         {
             var response = await ProcessAnswerAsync(session, context, message, httpContext, cancellationToken);
             DoctorOnboardingContextHelper.Save(session, context);
@@ -62,11 +70,41 @@ public class DoctorOnboardingService : IDoctorOnboardingService
             return response;
         }
 
-        var intro = await BuildIntroResponseAsync(session, context, cancellationToken);
+        var intro = await BuildIntroResponseAsync(session, context, httpContext, cancellationToken);
         DoctorOnboardingContextHelper.Save(session, context);
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         return intro;
+    }
+
+    private async Task TryLoadLoggedInDoctorAsync(
+        DoctorOnboardingContextData context,
+        DoctorOnboardingSession session,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (context.DoctorId.HasValue)
+            return;
+
+        var doctorId = GetLoggedInDoctorId(httpContext);
+        if (!doctorId.HasValue)
+            return;
+
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId.Value, cancellationToken);
+        if (doctor == null)
+            return;
+
+        context.DoctorId = doctor.Id;
+        context.Answers = DoctorOnboardingProgress.LoadAnswers(doctor);
+        context.CurrentQuestionIndex = DoctorOnboardingProgress.ResumeQuestionIndex(doctor);
+        context.Stage = DoctorOnboardingProgress.IsOnboardingComplete(doctor)
+            ? DoctorOnboardingStage.Complete
+            : DoctorOnboardingStage.Questions;
+        context.PendingName = doctor.Name;
+        context.PendingEmail = doctor.Username;
+        context.PendingPhone = doctor.OfficePhoneNumber;
+
+        session.DoctorId = doctor.Id;
     }
 
     private async Task<DoctorOnboardingSession> GetOrCreateSessionAsync(Guid? sessionKey, CancellationToken cancellationToken)
@@ -88,20 +126,59 @@ public class DoctorOnboardingService : IDoctorOnboardingService
     private async Task<DoctorOnboardingMessageResponse> BuildIntroResponseAsync(
         DoctorOnboardingSession session,
         DoctorOnboardingContextData context,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        if (context.Stage == DoctorOnboardingStage.Complete)
+        {
+            var doneText = "Your doctor profile questionnaire is already complete. Taking you to your profile…";
+            await SaveAssistantMessageAsync(session, doneText, cancellationToken);
+            return BuildResponse(session, context, doneText, flowComplete: true, signedIn: httpContext.User.IsInRole(AuthRoles.Doctor));
+        }
+
+        if (context.Stage == DoctorOnboardingStage.Questions && context.DoctorId.HasValue)
+        {
+            var doctor = await _db.Doctors.AsNoTracking()
+                .FirstAsync(d => d.Id == context.DoctorId.Value, cancellationToken);
+            var pct = doctor.ProfileCompletionPercent;
+            var welcomeBack = $"""
+                Welcome back, Dr. {GetFirstName(doctor.Name)}! 👋
+
+                You're **{pct}%** through your profile questionnaire ({DoctorOnboardingProgress.TotalQuestions} questions total). Pick up right where you left off — your answers are saved.
+
+                You can type **skip** on optional questions.
+                """;
+            await SaveAssistantMessageAsync(session, welcomeBack, cancellationToken);
+            return await AskCurrentQuestionAsync(session, context, welcomeBack, cancellationToken);
+        }
+
+        if (context.Stage is DoctorOnboardingStage.Email or DoctorOnboardingStage.Phone
+            or DoctorOnboardingStage.Password or DoctorOnboardingStage.ConfirmPassword)
+        {
+            var (resumeText, usePassword) = context.Stage switch
+            {
+                DoctorOnboardingStage.Email => ("Welcome back! What's your **email address**? You'll use this to log in.", false),
+                DoctorOnboardingStage.Phone => ("Welcome back! What's your **phone number**?", false),
+                DoctorOnboardingStage.Password => ("Welcome back! Choose a **password** for your account (at least 6 characters).", true),
+                DoctorOnboardingStage.ConfirmPassword => ("Welcome back! Please **confirm your password**.", true),
+                _ => ("Let's continue setting up your account.", false)
+            };
+            await SaveAssistantMessageAsync(session, resumeText, cancellationToken);
+            return BuildResponse(session, context, resumeText, usePasswordInput: usePassword);
+        }
+
         var welcome = $"""
             Welcome to {_siteName} doctor registration! 👋
 
-            I'll walk you through our doctor profile questionnaire — about {DoctorOnboardingQuestions.All.Count} questions. This usually takes 10–15 minutes.
+            First I'll create your account — I need your name, email, phone number, and a password.
 
-            You can type **skip** on optional questions.
+            Then we'll walk through our doctor profile questionnaire ({DoctorOnboardingProgress.TotalQuestions} questions). You can log in anytime to continue where you left off.
 
-            Let's get started!
+            Let's start with your **full name** (include your professional title if you'd like, e.g. Dr. Sarah Kim, MD).
             """;
 
         await SaveAssistantMessageAsync(session, welcome, cancellationToken);
-        return await AskCurrentQuestionAsync(session, context, welcome, cancellationToken);
+        return BuildResponse(session, context, welcome);
     }
 
     private async Task<DoctorOnboardingMessageResponse> ProcessAnswerAsync(
@@ -113,70 +190,66 @@ public class DoctorOnboardingService : IDoctorOnboardingService
     {
         return context.Stage switch
         {
-            DoctorOnboardingStage.Questions => await HandleQuestionAnswerAsync(session, context, message, cancellationToken),
-            DoctorOnboardingStage.Username => await HandleUsernameAsync(session, context, message, cancellationToken),
+            DoctorOnboardingStage.Name => await HandleNameAsync(session, context, message, cancellationToken),
+            DoctorOnboardingStage.Email => await HandleEmailAsync(session, context, message, cancellationToken),
+            DoctorOnboardingStage.Phone => await HandlePhoneAsync(session, context, message, cancellationToken),
             DoctorOnboardingStage.Password => await HandlePasswordAsync(session, context, message, cancellationToken),
             DoctorOnboardingStage.ConfirmPassword => await HandleConfirmPasswordAsync(session, context, message, httpContext, cancellationToken),
-            DoctorOnboardingStage.Complete => BuildCompleteResponse(session, context),
-            _ => await HandleQuestionAnswerAsync(session, context, message, cancellationToken)
+            DoctorOnboardingStage.Questions => await HandleQuestionAnswerAsync(session, context, message, cancellationToken),
+            DoctorOnboardingStage.Complete => BuildCompleteResponse(session, context, httpContext),
+            _ => await HandleNameAsync(session, context, message, cancellationToken)
         };
     }
 
-    private async Task<DoctorOnboardingMessageResponse> HandleQuestionAnswerAsync(
+    private async Task<DoctorOnboardingMessageResponse> HandleNameAsync(
         DoctorOnboardingSession session,
         DoctorOnboardingContextData context,
         string message,
         CancellationToken cancellationToken)
     {
-        var questions = DoctorOnboardingQuestions.All;
-        if (context.CurrentQuestionIndex >= questions.Count)
-            return await BeginCredentialsAsync(session, context, cancellationToken);
+        if (string.IsNullOrWhiteSpace(message))
+            return BuildResponse(session, context, "Please enter your full name to continue.");
 
-        var question = questions[context.CurrentQuestionIndex];
-        var validationError = ValidateAnswer(question, message);
-        if (validationError != null)
-            return await RepromptQuestionAsync(session, context, validationError, cancellationToken);
-
-        if (!string.IsNullOrWhiteSpace(message) &&
-            (!message.Equals("skip", StringComparison.OrdinalIgnoreCase) || question.Required))
-        {
-            context.Answers[question.Id] = message.Trim();
-        }
-
-        context.CurrentQuestionIndex++;
-        if (context.CurrentQuestionIndex >= questions.Count)
-            return await BeginCredentialsAsync(session, context, cancellationToken);
-
-        return await AskCurrentQuestionAsync(session, context, "Got it — thanks!", cancellationToken);
-    }
-
-    private async Task<DoctorOnboardingMessageResponse> BeginCredentialsAsync(
-        DoctorOnboardingSession session,
-        DoctorOnboardingContextData context,
-        CancellationToken cancellationToken)
-    {
-        context.Stage = DoctorOnboardingStage.Username;
-        var text = "Great — your profile questionnaire is complete! 🎉\n\nNow let's create your login. What username would you like to use?";
+        context.PendingName = message.Trim();
+        context.Stage = DoctorOnboardingStage.Email;
+        var text = $"Thanks, **{context.PendingName}**! What's your **email address**? You'll use this to log in.";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BuildResponse(session, context, text, usePasswordInput: false);
+        return BuildResponse(session, context, text);
     }
 
-    private async Task<DoctorOnboardingMessageResponse> HandleUsernameAsync(
+    private async Task<DoctorOnboardingMessageResponse> HandleEmailAsync(
         DoctorOnboardingSession session,
         DoctorOnboardingContextData context,
         string message,
         CancellationToken cancellationToken)
     {
-        var username = message.Trim();
-        if (string.IsNullOrWhiteSpace(username))
-            return BuildResponse(session, context, "Please enter a username to continue.");
+        var email = message.Trim().ToLowerInvariant();
+        if (!IsValidEmail(email))
+            return BuildResponse(session, context, "Please enter a valid email address.");
 
-        if (await _db.Doctors.AnyAsync(d => d.Username == username, cancellationToken))
-            return BuildResponse(session, context, "That username is already taken. Please choose another.");
+        if (await _db.Doctors.AnyAsync(d => d.Username == email, cancellationToken))
+            return BuildResponse(session, context, "An account with that email already exists. Please sign in to continue your profile, or use a different email.");
 
-        context.PendingUsername = username;
+        context.PendingEmail = email;
+        context.Stage = DoctorOnboardingStage.Phone;
+        var text = "Great. What's your **phone number**?";
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text);
+    }
+
+    private async Task<DoctorOnboardingMessageResponse> HandlePhoneAsync(
+        DoctorOnboardingSession session,
+        DoctorOnboardingContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var phone = message.Trim();
+        if (!IsValidPhone(phone))
+            return BuildResponse(session, context, "Please enter a valid phone number (at least 7 digits).");
+
+        context.PendingPhone = phone;
         context.Stage = DoctorOnboardingStage.Password;
-        var text = $"Perfect — **{username}** it is. Now choose a password (at least 6 characters).";
+        var text = "Almost there — choose a **password** for your account (at least 6 characters).";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(session, context, text, usePasswordInput: true);
     }
@@ -192,7 +265,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
 
         context.PendingPassword = message;
         context.Stage = DoctorOnboardingStage.ConfirmPassword;
-        var text = "Please confirm your password.";
+        var text = "Please **confirm your password**.";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(session, context, text, usePasswordInput: true);
     }
@@ -207,55 +280,135 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         if (message != context.PendingPassword)
             return BuildResponse(session, context, "Passwords do not match. Please re-enter your password.", usePasswordInput: true);
 
+        var registerRequest = new AccountRegisterRequest
+        {
+            AccountType = AccountType.Doctor,
+            Username = context.PendingEmail!,
+            Password = context.PendingPassword!,
+            ConfirmPassword = context.PendingPassword!,
+            DoctorName = context.PendingName!,
+            OfficePhoneNumber = context.PendingPhone,
+            Specialty = "Pending",
+            City = "Pending",
+            State = "CA",
+            ZipCode = "00000"
+        };
+
+        var result = await _registration.RegisterAsync(registerRequest, cancellationToken: cancellationToken);
+        if (!result.Success)
+        {
+            context.Stage = DoctorOnboardingStage.Email;
+            context.PendingPassword = null;
+            var failText = $"{result.Message}\n\nPlease enter a different email address.";
+            await SaveAssistantMessageAsync(session, failText, cancellationToken);
+            return BuildResponse(session, context, failText);
+        }
+
+        var doctor = await _db.Doctors.FirstAsync(d => d.Username == context.PendingEmail, cancellationToken);
+        session.DoctorId = doctor.Id;
+        context.DoctorId = doctor.Id;
+
+        var loginResult = await _auth.LoginAsync(new AccountLoginRequest
+        {
+            AccountType = AccountType.Doctor,
+            Username = context.PendingEmail!,
+            Password = context.PendingPassword!
+        }, httpContext, cancellationToken);
+
+        context.Answers[1] = context.PendingName!;
+        context.CurrentQuestionIndex = 1;
+        context.Stage = DoctorOnboardingStage.Questions;
+        await PersistProgressAsync(context, cancellationToken);
+
+        var text = loginResult.Success
+            ? $"Account created — welcome, Dr. {GetFirstName(doctor.Name)}! 🎉\n\nNow let's build your profile. I've saved your name — next up is your specialty."
+            : $"Account created! Please sign in with **{context.PendingEmail}** to continue.\n\nLet's build your profile — next up is your specialty.";
+
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return await AskCurrentQuestionAsync(session, context, text, cancellationToken, signedIn: loginResult.Success);
+    }
+
+    private async Task<DoctorOnboardingMessageResponse> HandleQuestionAnswerAsync(
+        DoctorOnboardingSession session,
+        DoctorOnboardingContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var questions = DoctorOnboardingQuestions.All;
+        if (context.CurrentQuestionIndex >= questions.Count)
+            return await FinishQuestionnaireAsync(session, context, cancellationToken);
+
+        var question = questions[context.CurrentQuestionIndex];
+        var validationError = ValidateAnswer(question, message);
+        if (validationError != null)
+            return await RepromptQuestionAsync(session, context, validationError, cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(message) &&
+            (!message.Equals("skip", StringComparison.OrdinalIgnoreCase) || question.Required))
+        {
+            context.Answers[question.Id] = message.Trim();
+        }
+
+        context.CurrentQuestionIndex++;
+        await PersistProgressAsync(context, cancellationToken);
+
+        if (context.CurrentQuestionIndex >= questions.Count)
+            return await FinishQuestionnaireAsync(session, context, cancellationToken);
+
+        return await AskCurrentQuestionAsync(session, context, "Got it — thanks!", cancellationToken);
+    }
+
+    private async Task<DoctorOnboardingMessageResponse> FinishQuestionnaireAsync(
+        DoctorOnboardingSession session,
+        DoctorOnboardingContextData context,
+        CancellationToken cancellationToken)
+    {
+        if (!context.DoctorId.HasValue)
+            return BuildResponse(session, context, "Something went wrong — please sign in and try again.");
+
+        var doctor = await _db.Doctors.FirstAsync(d => d.Id == context.DoctorId.Value, cancellationToken);
         var carriers = await _db.InsuranceCarriers.AsNoTracking()
             .Where(c => c.IsActive)
             .ToListAsync(cancellationToken);
 
         var data = DoctorOnboardingMapper.BuildRegistration(
             context.Answers,
-            context.PendingUsername!,
-            context.PendingPassword!,
+            doctor.Username!,
+            string.Empty,
             carriers);
-
-        var result = await _registration.RegisterAsync(data.RegisterRequest, cancellationToken: cancellationToken);
-        if (!result.Success)
-        {
-            context.Stage = DoctorOnboardingStage.Username;
-            context.PendingPassword = null;
-            var failText = $"{result.Message}\n\nLet's pick a different username — what would you like to use?";
-            await SaveAssistantMessageAsync(session, failText, cancellationToken);
-            return BuildResponse(session, context, failText, usePasswordInput: false);
-        }
-
-        var doctor = await _db.Doctors.FirstAsync(
-            d => d.Username == context.PendingUsername, cancellationToken);
         DoctorOnboardingMapper.ApplyProfileFields(doctor, data);
-        session.DoctorId = doctor.Id;
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var loginResult = await _auth.LoginAsync(new AccountLoginRequest
-        {
-            AccountType = AccountType.Doctor,
-            Username = context.PendingUsername!,
-            Password = context.PendingPassword!
-        }, httpContext, cancellationToken);
+        doctor.ProfileCompletionPercent = 100;
+        doctor.OnboardingQuestionIndex = DoctorOnboardingQuestions.All.Count;
+        doctor.OnboardingProfileJson = DoctorOnboardingProgress.SerializeAnswers(context.Answers);
 
         context.Stage = DoctorOnboardingStage.Complete;
-        var text = loginResult.Success
-            ? $"You're all set, Dr. {doctor.Name.Split(' ').FirstOrDefault() ?? "there"}! 🎉 Your {_siteName} doctor profile has been created. Taking you to your profile now…"
-            : $"Your account was created! Please sign in with username **{context.PendingUsername}**.";
+        await _db.SaveChangesAsync(cancellationToken);
 
+        var text = $"You're all set, Dr. {GetFirstName(doctor.Name)}! 🎉 Your {_siteName} profile is **100% complete**. Taking you to your profile now…";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        _logger.LogInformation("Doctor onboarding completed: {Username}", doctor.Username);
+        _logger.LogInformation("Doctor onboarding completed: {Email}", doctor.Username);
 
-        return BuildResponse(session, context, text, flowComplete: true, signedIn: loginResult.Success);
+        return BuildResponse(session, context, text, flowComplete: true, signedIn: true);
+    }
+
+    private async Task PersistProgressAsync(DoctorOnboardingContextData context, CancellationToken cancellationToken)
+    {
+        if (!context.DoctorId.HasValue)
+            return;
+
+        var doctor = await _db.Doctors.FirstAsync(d => d.Id == context.DoctorId.Value, cancellationToken);
+        doctor.OnboardingProfileJson = DoctorOnboardingProgress.SerializeAnswers(context.Answers);
+        doctor.OnboardingQuestionIndex = context.CurrentQuestionIndex;
+        doctor.ProfileCompletionPercent = DoctorOnboardingProgress.CalculatePercent(context.CurrentQuestionIndex);
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<DoctorOnboardingMessageResponse> AskCurrentQuestionAsync(
         DoctorOnboardingSession session,
         DoctorOnboardingContextData context,
         string? prefix,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool signedIn = false)
     {
         var questions = DoctorOnboardingQuestions.All;
         var question = questions[context.CurrentQuestionIndex];
@@ -270,13 +423,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         sb.AppendLine();
         sb.AppendLine(question.Question);
 
-        if (!string.IsNullOrWhiteSpace(question.OptionsHint) &&
-            !question.AnswerType.Contains("e.g.", StringComparison.OrdinalIgnoreCase))
-        {
-            sb.AppendLine();
-            sb.AppendLine($"_{question.OptionsHint}_");
-        }
-        else if (!string.IsNullOrWhiteSpace(question.OptionsHint))
+        if (!string.IsNullOrWhiteSpace(question.OptionsHint))
         {
             sb.AppendLine();
             sb.AppendLine($"_{question.OptionsHint}_");
@@ -284,7 +431,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
 
         var text = sb.ToString().Trim();
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BuildResponse(session, context, text, options: GetOptions(question));
+        return BuildResponse(session, context, text, options: GetOptions(question), signedIn: signedIn);
     }
 
     private async Task<DoctorOnboardingMessageResponse> RepromptQuestionAsync(
@@ -299,21 +446,29 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         return BuildResponse(session, context, text, options: GetOptions(question));
     }
 
-    private static DoctorOnboardingMessageResponse BuildCompleteResponse(
+    private DoctorOnboardingMessageResponse BuildCompleteResponse(
         DoctorOnboardingSession session,
-        DoctorOnboardingContextData context) =>
-        BuildResponse(session, context, "Your registration is complete.", flowComplete: true);
+        DoctorOnboardingContextData context,
+        HttpContext httpContext) =>
+        BuildResponse(session, context, "Your registration is complete.", flowComplete: true,
+            signedIn: httpContext.User.IsInRole(AuthRoles.Doctor),
+            profileCompletionPercent: 100);
 
-    private static DoctorOnboardingMessageResponse BuildResponse(
+    private DoctorOnboardingMessageResponse BuildResponse(
         DoctorOnboardingSession session,
         DoctorOnboardingContextData context,
         string text,
         IReadOnlyList<string>? options = null,
         bool usePasswordInput = false,
         bool flowComplete = false,
-        bool signedIn = false)
+        bool signedIn = false,
+        int? profileCompletionPercent = null)
     {
         var questions = DoctorOnboardingQuestions.All;
+        var pct = profileCompletionPercent ?? (context.Stage == DoctorOnboardingStage.Questions
+            ? DoctorOnboardingProgress.CalculatePercent(context.CurrentQuestionIndex)
+            : context.Stage == DoctorOnboardingStage.Complete ? 100 : 0);
+
         return new DoctorOnboardingMessageResponse
         {
             SessionKey = session.SessionKey,
@@ -326,7 +481,8 @@ public class DoctorOnboardingService : IDoctorOnboardingService
             QuestionNumber = context.Stage == DoctorOnboardingStage.Questions
                 ? context.CurrentQuestionIndex + 1
                 : null,
-            TotalQuestions = context.Stage == DoctorOnboardingStage.Questions ? questions.Count : null
+            TotalQuestions = context.Stage == DoctorOnboardingStage.Questions ? questions.Count : null,
+            ProfileCompletionPercent = pct
         };
     }
 
@@ -334,6 +490,29 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         DoctorOnboardingSession session,
         string text,
         CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private static int? GetLoggedInDoctorId(HttpContext httpContext)
+    {
+        if (!httpContext.User.IsInRole(AuthRoles.Doctor))
+            return null;
+
+        var idClaim = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(idClaim, out var doctorId) ? doctorId : null;
+    }
+
+    private static string GetFirstName(string name) =>
+        name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(p => !p.Equals("Dr.", StringComparison.OrdinalIgnoreCase) && !p.Equals("Dr", StringComparison.OrdinalIgnoreCase))
+        ?? "there";
+
+    private static bool IsValidEmail(string email) =>
+        !string.IsNullOrWhiteSpace(email)
+        && email.Contains('@')
+        && email.Contains('.')
+        && email.Length >= 5;
+
+    private static bool IsValidPhone(string phone) =>
+        Regex.IsMatch(phone, @"\d{7,}");
 
     private static string? ValidateAnswer(DoctorOnboardingQuestion question, string message)
     {
@@ -379,12 +558,36 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         }
 
         var hint = question.OptionsHint;
-        if (hint.Contains('/'))
-            return hint.Split('/').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
 
-        return hint.Split(',')
-            .Select(s => s.Trim())
-            .Where(s => s.Length > 0 && !s.StartsWith("e.g.", StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        // Comma-separated lists (items may contain slashes, e.g. OB/GYN)
+        if (hint.Contains(','))
+        {
+            return hint.Split(',')
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0 && !s.StartsWith("e.g.", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        // "Option A / Option B" style (space-delimited slashes)
+        if (hint.Contains(" / ", StringComparison.Ordinal))
+        {
+            return hint.Split(" / ", StringSplitOptions.None)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+        }
+
+        if (hint.Equals("Yes/No", StringComparison.OrdinalIgnoreCase))
+            return ["Yes", "No"];
+
+        if (hint.Contains('/'))
+        {
+            return hint.Split('/')
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+        }
+
+        return null;
     }
 }

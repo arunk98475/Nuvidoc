@@ -40,6 +40,8 @@ public class Doctor
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }
     public string? OnboardingProfileJson { get; set; }
+    public int OnboardingQuestionIndex { get; set; }
+    public int ProfileCompletionPercent { get; set; }
 
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();
     public ICollection<DoctorPatientReview> PatientReviews { get; set; } = new List<DoctorPatientReview>();

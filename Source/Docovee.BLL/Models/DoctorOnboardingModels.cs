@@ -2,10 +2,12 @@ namespace Docovee.BLL.Models;
 
 public enum DoctorOnboardingStage
 {
-    Questions,
-    Username,
+    Name,
+    Email,
+    Phone,
     Password,
     ConfirmPassword,
+    Questions,
     Complete
 }
 
@@ -19,9 +21,12 @@ public record DoctorOnboardingQuestion(
 
 public class DoctorOnboardingContextData
 {
-    public DoctorOnboardingStage Stage { get; set; } = DoctorOnboardingStage.Questions;
+    public DoctorOnboardingStage Stage { get; set; } = DoctorOnboardingStage.Name;
     public int CurrentQuestionIndex { get; set; }
-    public string? PendingUsername { get; set; }
+    public int? DoctorId { get; set; }
+    public string? PendingName { get; set; }
+    public string? PendingEmail { get; set; }
+    public string? PendingPhone { get; set; }
     public string? PendingPassword { get; set; }
     public Dictionary<int, string> Answers { get; set; } = new();
 }
@@ -43,4 +48,5 @@ public class DoctorOnboardingMessageResponse
     public bool SignedIn { get; set; }
     public int? QuestionNumber { get; set; }
     public int? TotalQuestions { get; set; }
+    public int ProfileCompletionPercent { get; set; }
 }

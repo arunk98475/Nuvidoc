@@ -123,18 +123,26 @@ function setChips(options) {
   });
 }
 
-function updateProgress(questionNumber, totalQuestions) {
+function updateProgress(questionNumber, totalQuestions, profileCompletionPercent) {
   const wrap = document.getElementById("onboarding-progress");
   const bar = document.getElementById("onboarding-progress-bar");
   const text = document.getElementById("onboarding-progress-text");
-  if (!questionNumber || !totalQuestions) {
+  const pct = profileCompletionPercent ?? (questionNumber && totalQuestions
+    ? Math.round((questionNumber / totalQuestions) * 100)
+    : null);
+
+  if (pct == null) {
     wrap.hidden = true;
     return;
   }
+
   wrap.hidden = false;
-  const pct = Math.round((questionNumber / totalQuestions) * 100);
   bar.style.width = `${pct}%`;
-  text.textContent = `Question ${questionNumber} of ${totalQuestions}`;
+  if (questionNumber && totalQuestions) {
+    text.textContent = `Profile ${pct}% — Question ${questionNumber} of ${totalQuestions}`;
+  } else {
+    text.textContent = `Profile ${pct}% complete`;
+  }
 }
 
 function escapeHtml(text) {
@@ -176,7 +184,7 @@ function handleResponse(data) {
   sessionKey = data.sessionKey;
   updateInputMode(data.usePasswordInput);
   setChips(data.options);
-  updateProgress(data.questionNumber, data.totalQuestions);
+  updateProgress(data.questionNumber, data.totalQuestions, data.profileCompletionPercent);
 
   if (data.flowComplete) {
     setChips([]);
