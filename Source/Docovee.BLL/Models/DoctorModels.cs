@@ -11,6 +11,8 @@ public class DoctorSearchRequest
     public string? GenderPreference { get; set; }
     public string? CommunicationStyle { get; set; }
     public string? AvailabilityPreference { get; set; }
+    public string? PreferredLanguage { get; set; }
+    public string? AdditionalPreference { get; set; }
 }
 
 public class DoctorDto

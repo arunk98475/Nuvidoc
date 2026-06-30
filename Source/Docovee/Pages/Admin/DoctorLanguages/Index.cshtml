@@ -1,0 +1,50 @@
+@page
+@model Docovee.Pages.Admin.DoctorLanguages.IndexModel
+@{
+    ViewData["Title"] = "Doctor Languages";
+}
+
+<div class="admin-card">
+    <h1>Doctor Languages</h1>
+    <p>Languages patients can choose during deep-dive matching. Assign languages to doctors from their profile when available.</p>
+    <a asp-page="Create" class="btn btn-primary">+ Add Language</a>
+</div>
+
+<div class="admin-card">
+    @if (Model.Languages.Count == 0)
+    {
+        <p>No languages configured.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Order</th>
+                    <th>Language</th>
+                    <th>Active</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var lang in Model.Languages)
+                {
+                    <tr>
+                        <td>@lang.SortOrder</td>
+                        <td>@lang.Name</td>
+                        <td>@(lang.IsActive ? "Yes" : "No")</td>
+                        <td>
+                            <div class="actions">
+                                <a asp-page="Edit" asp-route-id="@lang.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this language?');">
+                                    <input type="hidden" name="id" value="@lang.Id" />
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>

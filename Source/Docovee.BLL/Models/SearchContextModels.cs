@@ -26,6 +26,13 @@ public enum AccountCreationStep
     LoginPassword
 }
 
+public enum DeepDiveFollowUpStep
+{
+    None,
+    AwaitingLanguageSelection,
+    AwaitingWildcardConcern
+}
+
 public class SearchContextData
 {
     public NuviConversationStage Stage { get; set; } = NuviConversationStage.Greeting;
@@ -45,6 +52,9 @@ public class SearchContextData
     public bool IsExistingAccountLogin { get; set; }
     public bool SkipAccountCreation { get; set; }
     public bool SkipDeepDive { get; set; }
+    public DeepDiveFollowUpStep DeepDiveFollowUp { get; set; }
+    public string? LanguagePreference { get; set; }
+    public string? WildcardConcern { get; set; }
     public DateOnly? PatientDateOfBirth { get; set; }
     public List<PollingAnswerEntry> PollingAnswers { get; set; } = new();
     public int QuestionsAsked { get; set; }

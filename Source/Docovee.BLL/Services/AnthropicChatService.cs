@@ -42,6 +42,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IPatientService _patientService;
     private readonly IAccountAuthService _accountAuthService;
     private readonly IBrandingService _branding;
+    private readonly IDoctorLanguageService _doctorLanguages;
 
     public AnthropicChatService(
         HttpClient httpClient,
@@ -53,7 +54,8 @@ public class AnthropicChatService : IAnthropicChatService
         IDoctorSearchService doctorSearch,
         IPatientService patientService,
         IAccountAuthService accountAuthService,
-        IBrandingService branding)
+        IBrandingService branding,
+        IDoctorLanguageService doctorLanguages)
     {
         _httpClient = httpClient;
         _db = db;
@@ -65,6 +67,7 @@ public class AnthropicChatService : IAnthropicChatService
         _patientService = patientService;
         _accountAuthService = accountAuthService;
         _branding = branding;
+        _doctorLanguages = doctorLanguages;
     }
 
     private string TriageSystemPrompt => $"""
@@ -615,6 +618,60 @@ public class AnthropicChatService : IAnthropicChatService
             return await CompleteDeepDiveAsync(session, context, cancellationToken);
         }
 
+        var trimmed = answer.Trim();
+
+        if (context.DeepDiveFollowUp == DeepDiveFollowUpStep.AwaitingLanguageSelection
+            && NuviFlowContent.IsLanguageDeepDiveQuestion(current.Question))
+        {
+            return await CompleteLanguageSelectionAsync(session, context, current, trimmed, cancellationToken);
+        }
+
+        if (context.DeepDiveFollowUp == DeepDiveFollowUpStep.AwaitingWildcardConcern
+            && NuviFlowContent.IsWildcardDeepDiveQuestion(current.Question))
+        {
+            return await CompleteWildcardConcernAsync(session, context, current, trimmed, cancellationToken);
+        }
+
+        if (NuviFlowContent.IsWildcardDeepDiveQuestion(current.Question))
+        {
+            if (IsAffirmativeAnswer(trimmed))
+            {
+                context.DeepDiveFollowUp = DeepDiveFollowUpStep.AwaitingWildcardConcern;
+                var prompt = NuviFlowContent.DeepDiveWildcardFollowUpQuestion;
+                await SaveAssistantMessageAsync(session, prompt, cancellationToken);
+                return BuildDeepDivePollingResponse(session, context, prompt, current,
+                    awaitingWildcardConcern: true,
+                    inputPlaceholder: "Share what matters to you in a doctor...");
+            }
+
+            if (IsNegativeAnswer(trimmed))
+                return await RecordPollingAnswerAndCompleteAsync(session, context, current, "No", cancellationToken);
+
+            return RepromptDeepDive(session, context, current, "Please choose Yes or No.");
+        }
+
+        if (NuviFlowContent.IsLanguageDeepDiveQuestion(current.Question))
+        {
+            if (IsAffirmativeAnswer(trimmed))
+            {
+                context.DeepDiveFollowUp = DeepDiveFollowUpStep.AwaitingLanguageSelection;
+                var languages = await _doctorLanguages.GetActiveNamesAsync(cancellationToken);
+                var prompt = NuviFlowContent.DeepDiveLanguageFollowUpQuestion;
+                await SaveAssistantMessageAsync(session, prompt, cancellationToken);
+                return BuildDeepDivePollingResponse(session, context, prompt, current,
+                    languageOptions: languages,
+                    awaitingLanguageSelection: true);
+            }
+
+            if (IsNegativeAnswer(trimmed))
+            {
+                context.LanguagePreference = null;
+                return await RecordPollingAnswerAndAdvanceAsync(session, context, current, "No", cancellationToken);
+            }
+
+            return RepromptDeepDive(session, context, current, "Please choose Yes or No.");
+        }
+
         var lastAssistantMessage = await _db.ChatMessages
             .Where(m => m.SearchSessionId == session.Id && m.Role == "assistant")
             .OrderByDescending(m => m.CreatedAt)
@@ -622,43 +679,152 @@ public class AnthropicChatService : IAnthropicChatService
             .FirstOrDefaultAsync(cancellationToken);
 
         var validation = await _validationService.ValidateAnswerAsync(
-            current.Question, answer, current.ValidationHint, lastAssistantMessage, cancellationToken);
-
-        if (NuviFlowContent.IsWildcardDeepDiveQuestion(current.Question)
-            && (string.IsNullOrWhiteSpace(answer) || answer.Trim().Equals("skip", StringComparison.OrdinalIgnoreCase)))
-        {
-            return BuildResponse(session, context,
-                "This one's important — is there anything else that matters to you in a doctor? You can say 'nothing else' if you're all set.",
-                stage: NuviConversationStage.DeepDive,
-                awaitingPolling: true,
-                pollingQuestionId: current.Id,
-                options: GetPollingQuestionOptions(current));
-        }
+            current.Question, trimmed, current.ValidationHint, lastAssistantMessage, cancellationToken);
 
         if (!validation.IsValid)
         {
-            return BuildResponse(session, context,
-                validation.RepromptMessage ?? $"Could you answer again: {current.Question}",
-                stage: NuviConversationStage.DeepDive,
-                awaitingPolling: true,
-                pollingQuestionId: current.Id,
-                options: GetPollingQuestionOptions(current));
+            return RepromptDeepDive(session, context, current,
+                validation.RepromptMessage ?? $"Could you answer again: {current.Question}");
         }
 
+        return await RecordPollingAnswerAndAdvanceAsync(
+            session, context, current, validation.NormalizedAnswer ?? trimmed, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> CompleteLanguageSelectionAsync(
+        SearchSession session,
+        SearchContextData context,
+        PollingQuestionDto current,
+        string language,
+        CancellationToken cancellationToken)
+    {
+        var activeLanguages = await _doctorLanguages.GetActiveNamesAsync(cancellationToken);
+        var match = activeLanguages.FirstOrDefault(l =>
+            l.Equals(language, StringComparison.OrdinalIgnoreCase));
+
+        if (match == null)
+        {
+            return BuildDeepDivePollingResponse(session, context,
+                "Please choose a language from the list.",
+                current,
+                languageOptions: activeLanguages,
+                awaitingLanguageSelection: true);
+        }
+
+        context.LanguagePreference = match;
+        context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
+        return await RecordPollingAnswerAndAdvanceAsync(session, context, current, $"Yes — {match}", cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> CompleteWildcardConcernAsync(
+        SearchSession session,
+        SearchContextData context,
+        PollingQuestionDto current,
+        string concern,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(concern) || concern.Length < 2)
+        {
+            return BuildDeepDivePollingResponse(session, context,
+                "Please share a short note about what else matters to you, or choose No if you're all set.",
+                current,
+                awaitingWildcardConcern: true,
+                inputPlaceholder: "Share what matters to you in a doctor...");
+        }
+
+        context.WildcardConcern = concern.Trim();
+        context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
+        return await RecordPollingAnswerAndCompleteAsync(session, context, current, concern.Trim(), cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> RecordPollingAnswerAndAdvanceAsync(
+        SearchSession session,
+        SearchContextData context,
+        PollingQuestionDto current,
+        string answer,
+        CancellationToken cancellationToken)
+    {
         context.PollingAnswers.Add(new PollingAnswerEntry
         {
             QuestionId = current.Id,
             Question = current.Question,
-            Answer = validation.NormalizedAnswer ?? answer.Trim()
+            Answer = answer
         });
         context.CurrentPollingQuestionId = null;
+        context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
 
-        await PersistPatientAgeFromAnswerAsync(session, context, current, validation.NormalizedAnswer ?? answer.Trim(), cancellationToken);
+        await PersistPatientAgeFromAnswerAsync(session, context, current, answer, cancellationToken);
 
         if (await IsDeepDiveCompleteAsync(context, cancellationToken))
             return await CompleteDeepDiveAsync(session, context, cancellationToken);
 
         return await AskNextDeepDiveQuestionAsync(session, context, "Thanks!", cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> RecordPollingAnswerAndCompleteAsync(
+        SearchSession session,
+        SearchContextData context,
+        PollingQuestionDto current,
+        string answer,
+        CancellationToken cancellationToken)
+    {
+        context.PollingAnswers.Add(new PollingAnswerEntry
+        {
+            QuestionId = current.Id,
+            Question = current.Question,
+            Answer = answer
+        });
+        context.CurrentPollingQuestionId = null;
+        context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
+
+        return await CompleteDeepDiveAsync(session, context, cancellationToken);
+    }
+
+    private ChatMessageResponse RepromptDeepDive(
+        SearchSession session,
+        SearchContextData context,
+        PollingQuestionDto current,
+        string message) =>
+        BuildDeepDivePollingResponse(session, context, message, current);
+
+    private ChatMessageResponse BuildDeepDivePollingResponse(
+        SearchSession session,
+        SearchContextData context,
+        string text,
+        PollingQuestionDto current,
+        IReadOnlyList<string>? languageOptions = null,
+        bool awaitingLanguageSelection = false,
+        bool awaitingWildcardConcern = false,
+        string? inputPlaceholder = null) =>
+        BuildResponse(session, context, text, stage: NuviConversationStage.DeepDive,
+            awaitingPolling: true,
+            pollingQuestionId: current.Id,
+            options: languageOptions == null ? GetPollingQuestionOptions(current) : null,
+            languageOptions: languageOptions,
+            awaitingLanguageSelection: awaitingLanguageSelection,
+            awaitingWildcardConcern: awaitingWildcardConcern,
+            pollingQuestionKind: GetPollingQuestionKind(current),
+            inputPlaceholder: inputPlaceholder);
+
+    private static bool IsAffirmativeAnswer(string answer)
+    {
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower is "yes" or "y" or "yeah" or "yep" or "sure" or "ok";
+    }
+
+    private static bool IsNegativeAnswer(string answer)
+    {
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower is "no" or "n" or "nope" or "nothing else" or "skip" or "no thanks";
+    }
+
+    private static string? GetPollingQuestionKind(PollingQuestionDto question)
+    {
+        if (NuviFlowContent.IsWildcardDeepDiveQuestion(question.Question))
+            return "wildcard";
+        if (NuviFlowContent.IsLanguageDeepDiveQuestion(question.Question))
+            return "language";
+        return null;
     }
 
     private async Task<ChatMessageResponse> AskNextDeepDiveQuestionAsync(
@@ -683,7 +849,8 @@ public class AnthropicChatService : IAnthropicChatService
         await SaveAssistantMessageAsync(session, question, cancellationToken);
         return BuildResponse(session, context, question, stage: NuviConversationStage.DeepDive,
             awaitingPolling: true, pollingQuestionId: nextPolling.Id, signedIn: signedIn,
-            options: GetPollingQuestionOptions(nextPolling));
+            options: GetPollingQuestionOptions(nextPolling),
+            pollingQuestionKind: GetPollingQuestionKind(nextPolling));
     }
 
     private async Task<ChatMessageResponse> CompleteDeepDiveAsync(
@@ -694,6 +861,11 @@ public class AnthropicChatService : IAnthropicChatService
         context.CurrentPollingQuestionId = null;
 
         ApplyDeepDivePreferences(session, context);
+        if (!string.IsNullOrWhiteSpace(context.LanguagePreference))
+            session.SearchNotes = (session.SearchNotes ?? "") + $" Preferred doctor language: {context.LanguagePreference}.";
+        if (!string.IsNullOrWhiteSpace(context.WildcardConcern))
+            session.SearchNotes = (session.SearchNotes ?? "") + $" Additional matching preference: {context.WildcardConcern}.";
+        await _db.SaveChangesAsync(cancellationToken);
         await PersistPatientPreferenceProfileAsync(session, context, cancellationToken);
 
         var loadingText = NuviFlowContent.MatchSearchLoadingMessage;
@@ -729,6 +901,8 @@ public class AnthropicChatService : IAnthropicChatService
             context.UrgencyPreference,
             context.InsurancePreference,
             context.InsuranceCategory,
+            context.LanguagePreference,
+            context.WildcardConcern,
             DeepDiveAnswers = context.PollingAnswers,
             UpdatedAt = DateTime.UtcNow
         };
@@ -847,6 +1021,8 @@ public class AnthropicChatService : IAnthropicChatService
                 session.SearchNotes = (session.SearchNotes ?? "") + $" Reviews matter: {a}.";
             else if (q.Contains("holistic") || q.Contains("conventional"))
                 session.SearchNotes = (session.SearchNotes ?? "") + $" Philosophy preference: {a}.";
+            else if (q.Contains("language other than english") && !a.StartsWith("no"))
+                session.SearchNotes = (session.SearchNotes ?? "") + $" Preferred doctor language: {answer.Answer}.";
             else if (q.Contains("anything else that matters"))
                 session.SearchNotes = (session.SearchNotes ?? "") + $" Additional preference: {answer.Answer}.";
             else if (q.Contains("telehealth") || q.Contains("virtual"))
@@ -865,7 +1041,9 @@ public class AnthropicChatService : IAnthropicChatService
             InsurancePlan = context.InsurancePreference,
             GenderPreference = "none",
             CommunicationStyle = session.CommunicationStyle,
-            AvailabilityPreference = session.AvailabilityPreference
+            AvailabilityPreference = session.AvailabilityPreference,
+            PreferredLanguage = context.LanguagePreference,
+            AdditionalPreference = context.WildcardConcern
         }, cancellationToken);
 
         return results.Take(3).ToList();
@@ -1039,12 +1217,15 @@ public class AnthropicChatService : IAnthropicChatService
 
     private static IReadOnlyList<string>? GetPollingQuestionOptions(PollingQuestionDto question)
     {
+        if (NuviFlowContent.IsWildcardDeepDiveQuestion(question.Question)
+            || NuviFlowContent.IsLanguageDeepDiveQuestion(question.Question))
+            return ["Yes", "No"];
+
         var hint = question.ValidationHint;
         if (string.IsNullOrWhiteSpace(hint))
             return null;
 
-        if (hint.StartsWith("Required", StringComparison.OrdinalIgnoreCase)
-            || hint.Contains("language name", StringComparison.OrdinalIgnoreCase))
+        if (hint.StartsWith("Required", StringComparison.OrdinalIgnoreCase))
             return null;
 
         if (hint.Contains("1 through 5", StringComparison.OrdinalIgnoreCase))
@@ -1137,7 +1318,12 @@ public class AnthropicChatService : IAnthropicChatService
         bool awaitingPolling = false,
         int? pollingQuestionId = null,
         bool flowComplete = false,
-        bool signedIn = false)
+        bool signedIn = false,
+        IReadOnlyList<string>? languageOptions = null,
+        bool awaitingLanguageSelection = false,
+        bool awaitingWildcardConcern = false,
+        string? pollingQuestionKind = null,
+        string? inputPlaceholder = null)
     {
         return new ChatMessageResponse
         {
@@ -1153,6 +1339,11 @@ public class AnthropicChatService : IAnthropicChatService
             SelectedDoctor = selectedDoctor,
             AwaitingPollingAnswer = awaitingPolling,
             CurrentPollingQuestionId = pollingQuestionId,
+            LanguageOptions = languageOptions,
+            AwaitingLanguageSelection = awaitingLanguageSelection,
+            AwaitingWildcardConcern = awaitingWildcardConcern,
+            PollingQuestionKind = pollingQuestionKind,
+            InputPlaceholder = inputPlaceholder,
             Specialty = session.Specialty,
             Urgency = session.Urgency.ToString(),
             Notes = session.SearchNotes,

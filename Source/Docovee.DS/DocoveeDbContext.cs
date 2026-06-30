@@ -20,6 +20,8 @@ public class DocoveeDbContext : DbContext
     public DbSet<PollingQuestion> PollingQuestions => Set<PollingQuestion>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<DoctorOnboardingSession> DoctorOnboardingSessions => Set<DoctorOnboardingSession>();
+    public DbSet<DoctorLanguage> DoctorLanguages => Set<DoctorLanguage>();
+    public DbSet<DoctorDoctorLanguage> DoctorDoctorLanguages => Set<DoctorDoctorLanguage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -147,6 +149,22 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Key).HasMaxLength(100).IsRequired();
             entity.Property(e => e.Value).HasMaxLength(500).IsRequired();
             entity.HasIndex(e => e.Key).IsUnique();
+        });
+
+        modelBuilder.Entity<DoctorLanguage>(entity =>
+        {
+            entity.ToTable("doctor_languages");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.HasIndex(e => e.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<DoctorDoctorLanguage>(entity =>
+        {
+            entity.ToTable("doctor_doctor_languages");
+            entity.HasKey(e => new { e.DoctorId, e.DoctorLanguageId });
+            entity.HasOne(e => e.Doctor).WithMany(d => d.DoctorLanguages).HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.DoctorLanguage).WithMany(l => l.Doctors).HasForeignKey(e => e.DoctorLanguageId);
         });
     }
 }

@@ -134,6 +134,18 @@ public static class NuviFlowContent
 
 
 
+    public const string DeepDiveLanguageFollowUpQuestion =
+
+        "Which language would you prefer your doctor to speak?";
+
+
+
+    public const string DeepDiveWildcardFollowUpQuestion =
+
+        "Please tell me what else matters to you when choosing a doctor.";
+
+
+
     public static string FormatDeepDivePermissionQuestion(string displayName) =>
 
         string.Format(DeepDivePermissionQuestionTemplate, displayName);
@@ -143,6 +155,12 @@ public static class NuviFlowContent
     public static bool IsWildcardDeepDiveQuestion(string question) =>
 
         question.Contains("anything else that matters", StringComparison.OrdinalIgnoreCase);
+
+
+
+    public static bool IsLanguageDeepDiveQuestion(string question) =>
+
+        question.Contains("speaks a language other than English", StringComparison.OrdinalIgnoreCase);
 
 
 
@@ -164,7 +182,7 @@ public static class NuviFlowContent
 
         ("Would you consider a newer doctor with fewer reviews if everything else felt right?", "Yes or no"),
 
-        ("Is it important that your doctor speaks a language other than English?", "Yes or no, or a language name"),
+        ("Is it important that your doctor speaks a language other than English?", "Yes or no"),
 
         ("On a scale of 1–5, how much does the doctor's personality and bedside manner matter to you vs. just their credentials?", "A number 1 through 5"),
 
@@ -174,7 +192,7 @@ public static class NuviFlowContent
 
         ("Do you have a preference for your doctor's approximate age group?", "30s, 40s–50s, 60s+, or no preference"),
 
-        (DeepDiveWildcardQuestion, "Required — share any preference, or say 'nothing else' if you're all set"),
+        (DeepDiveWildcardQuestion, "Yes or no"),
 
     ];
 

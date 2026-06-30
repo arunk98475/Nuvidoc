@@ -60,6 +60,8 @@ public class DoctorSearchService : IDoctorSearchService
             .AsNoTracking()
             .Include(d => d.DoctorInsurances)
             .ThenInclude(di => di.InsuranceCarrier)
+            .Include(d => d.DoctorLanguages)
+            .ThenInclude(dl => dl.DoctorLanguage)
             .Include(d => d.PatientReviews)
             .Where(d => d.IsActive);
 
@@ -81,6 +83,22 @@ public class DoctorSearchService : IDoctorSearchService
             var cityMatch = filtered.Where(d => LocationMatches(locationQuery, d)).ToList();
             if (cityMatch.Count > 0)
                 filtered = cityMatch;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.PreferredLanguage))
+        {
+            var preferredLanguage = request.PreferredLanguage.Trim();
+            var languageMatch = filtered.Where(d =>
+                d.DoctorLanguages.Any(dl =>
+                    dl.DoctorLanguage.Name.Equals(preferredLanguage, StringComparison.OrdinalIgnoreCase))).ToList();
+            if (languageMatch.Count > 0)
+                filtered = languageMatch;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.AdditionalPreference))
+        {
+            session.SearchNotes = (session.SearchNotes ?? "") + $" Additional matching preference: {request.AdditionalPreference.Trim()}.";
+            await _db.SaveChangesAsync(cancellationToken);
         }
 
         var rankings = await _matchingService.RankDoctorsAsync(session, filtered, cancellationToken);

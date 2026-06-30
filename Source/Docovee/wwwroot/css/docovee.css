@@ -307,6 +307,23 @@ nav {
 
 .chip:hover { background: var(--sage); color: white; }
 
+.nuvi-language-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.nuvi-language-select {
+  flex: 1;
+  min-width: 180px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: white;
+  font: inherit;
+}
+
 .nuvi-loading {
   display: inline-flex;
   gap: 4px;

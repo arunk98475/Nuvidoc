@@ -187,6 +187,15 @@ public static class SeedData
 
         await PollingQuestionSync.SyncFromSpecAsync(context);
 
+        if (!await context.DoctorLanguages.AnyAsync())
+        {
+            context.DoctorLanguages.AddRange(
+            [
+                new DoctorLanguage { Name = "Spanish", SortOrder = 1, IsActive = true },
+                new DoctorLanguage { Name = "German", SortOrder = 2, IsActive = true }
+            ]);
+        }
+
         await context.SaveChangesAsync();
     }
 }

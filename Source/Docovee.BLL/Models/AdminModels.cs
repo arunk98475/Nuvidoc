@@ -148,3 +148,19 @@ public class DoctorReviewDto
     public string ReviewText { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
 }
+
+public class DoctorLanguageDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class DoctorLanguageEditModel
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
+    public bool IsActive { get; set; } = true;
+}

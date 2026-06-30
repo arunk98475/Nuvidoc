@@ -1,0 +1,18 @@
+@page
+@model Docovee.Pages.Admin.DoctorLanguages.CreateModel
+@{
+    ViewData["Title"] = "Add Language";
+}
+
+<div class="admin-card">
+    <h1>Add Language</h1>
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+    <form method="post">
+        <partial name="_DoctorLanguageForm" model="Model.Input" />
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>

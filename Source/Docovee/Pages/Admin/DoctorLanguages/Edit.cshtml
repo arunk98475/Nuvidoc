@@ -1,0 +1,19 @@
+@page "{id:int}"
+@model Docovee.Pages.Admin.DoctorLanguages.EditModel
+@{
+    ViewData["Title"] = "Edit Language";
+}
+
+<div class="admin-card">
+    <h1>Edit Language</h1>
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+    <form method="post">
+        <input type="hidden" asp-for="Input.Id" />
+        <partial name="_DoctorLanguageForm" model="Model.Input" />
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>

@@ -6,6 +6,9 @@ let userLongitude = null;
 let usePasswordInput = false;
 let currentStage = "Greeting";
 let pendingSkipToMatches = false;
+let pendingCompleteMatchSearch = false;
+let awaitingWildcardConcern = false;
+let currentPollingQuestionKind = null;
 
 const branding = window.nuvidocBranding || { siteName: "NuviDoc", chatBotName: "Nuvi" };
 const NUVI_AVATAR = branding.chatBotName;
@@ -195,6 +198,7 @@ function addPhoneLink(doctor) {
 
 function setChips(options) {
   const chipsEl = document.getElementById("quick-chips");
+  removeLanguageSelector();
   chipsEl.innerHTML = "";
   if (!options?.length) {
     chipsEl.style.display = "none";
@@ -208,9 +212,53 @@ function setChips(options) {
     if (/no thanks|show my match/i.test(opt)) {
       btn.dataset.skipToMatches = "true";
     }
+    if (currentPollingQuestionKind === "wildcard" && /^no$/i.test(opt)) {
+      btn.dataset.completeMatchSearch = "true";
+    }
     btn.onclick = () => sendChip(btn);
     chipsEl.appendChild(btn);
   });
+}
+
+function removeLanguageSelector() {
+  document.getElementById("language-select-wrap")?.remove();
+}
+
+function addLanguageSelector(languages) {
+  const chipsEl = document.getElementById("quick-chips");
+  removeLanguageSelector();
+  chipsEl.innerHTML = "";
+  chipsEl.style.display = "flex";
+
+  const wrap = document.createElement("div");
+  wrap.className = "nuvi-language-select-wrap";
+  wrap.id = "language-select-wrap";
+
+  const select = document.createElement("select");
+  select.className = "nuvi-language-select";
+  select.innerHTML =
+    '<option value="">Select a language...</option>' +
+    languages.map((lang) => `<option value="${escapeHtml(lang)}">${escapeHtml(lang)}</option>`).join("");
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "chip";
+  btn.textContent = "Confirm";
+  btn.onclick = () => {
+    if (!select.value) return;
+    document.getElementById("chat-input").value = select.value;
+    sendMessage();
+  };
+
+  wrap.appendChild(select);
+  wrap.appendChild(btn);
+  chipsEl.appendChild(wrap);
+}
+
+function updateChatPlaceholder(text) {
+  const input = document.getElementById("chat-input");
+  if (!input || usePasswordInput) return;
+  input.placeholder = text || `Tell ${branding.chatBotName} what's going on...`;
 }
 
 function escapeHtml(text) {
@@ -264,10 +312,17 @@ async function sendMessage(action = null, selectedDoctorId = null) {
   if (!text && !action && !selectedDoctorId) return;
 
   const wasPasswordInput = usePasswordInput;
+  const completeMatchSearch =
+    pendingCompleteMatchSearch ||
+    (awaitingWildcardConcern && !!text);
+  pendingCompleteMatchSearch = false;
+
   const skipToMatches =
     pendingSkipToMatches ||
     (currentStage === "DeepDivePermission" && isSkipToMatchesMessage(text));
   pendingSkipToMatches = false;
+
+  const pendingMatchSearch = skipToMatches || completeMatchSearch;
 
   input.value = "";
   if (input.tagName === "TEXTAREA") autoResize(input);
@@ -275,8 +330,8 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
   if (text) addMessage(wasPasswordInput ? "••••••••" : text, "user");
 
-  const matchSearchStartedAt = skipToMatches ? Date.now() : 0;
-  if (skipToMatches) {
+  const matchSearchStartedAt = pendingMatchSearch ? Date.now() : 0;
+  if (pendingMatchSearch) {
     addMessage(MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
   } else {
     showTyping();
@@ -308,7 +363,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
     removeTyping();
 
     if (data.showLoading && data.followUpText) {
-      if (!skipToMatches) {
+      if (!pendingMatchSearch) {
         addMessage(data.text || MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
         await delay(2500);
       } else {
@@ -339,9 +394,17 @@ async function sendMessage(action = null, selectedDoctorId = null) {
     if (data.specialty) aiSpecialty = data.specialty;
     if (data.notes) aiNotes = data.notes;
     if (data.stage) currentStage = data.stage;
+    awaitingWildcardConcern = !!data.awaitingWildcardConcern;
+    currentPollingQuestionKind = data.pollingQuestionKind || null;
 
     updateInputMode(data.usePasswordInput);
-    setChips(data.options);
+    updateChatPlaceholder(data.inputPlaceholder);
+
+    if (data.languageOptions?.length) {
+      addLanguageSelector(data.languageOptions);
+    } else {
+      setChips(data.options);
+    }
 
     if (data.signedIn) {
       updateNavForSignedInPatient();
@@ -367,6 +430,7 @@ function selectDoctor(doctorId) {
 
 function sendChip(btn) {
   pendingSkipToMatches = btn.dataset.skipToMatches === "true";
+  pendingCompleteMatchSearch = btn.dataset.completeMatchSearch === "true";
   document.getElementById("chat-input").value = btn.textContent;
   sendMessage();
 }

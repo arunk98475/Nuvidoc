@@ -68,6 +68,31 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `doctor_languages` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Name` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+                `SortOrder` int NOT NULL,
+                `IsActive` tinyint(1) NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_doctor_languages_Name` (`Name`)
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `doctor_doctor_languages` (
+                `DoctorId` int NOT NULL,
+                `DoctorLanguageId` int NOT NULL,
+                PRIMARY KEY (`DoctorId`, `DoctorLanguageId`),
+                KEY `IX_doctor_doctor_languages_DoctorLanguageId` (`DoctorLanguageId`),
+                CONSTRAINT `FK_doctor_doctor_languages_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_doctor_doctor_languages_doctor_languages_DoctorLanguageId` FOREIGN KEY (`DoctorLanguageId`) REFERENCES `doctor_languages` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
         await EnsureColumnAsync(db, "search_sessions", "MedicalIssuesSummary", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "search_sessions", "SearchContextJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "search_sessions", "InsurancePlanText", "varchar(200) NULL", cancellationToken);

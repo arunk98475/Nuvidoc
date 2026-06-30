@@ -52,7 +52,8 @@ public class AnthropicMatchingService : IAnthropicMatchingService
         var doctorProfiles = candidates.Select(BuildDoctorProfile).ToList();
 
         var systemPrompt = """
-            You are a healthcare matching expert. Rank doctors for a patient based on specialty fit, location, reviews, niche expertise, personal preferences, and insurance coverage.
+            You are a healthcare matching expert. Rank doctors for a patient based on specialty fit, location, reviews, niche expertise, personal preferences, insurance coverage, and languages spoken.
+            When the patient prefers a specific language, prioritize doctors who speak that language.
             When the patient lists an insurance plan, give significantly higher scores to doctors whose acceptedInsurances include a match (exact or close, e.g. "Aetna" matches "Aetna PPO").
             Doctors without insurance data should rank lower when the patient specified insurance, but still include them.
             Respond with ONLY a JSON array: [{"doctorId": 1, "score": 95, "reason": "brief reason"}]
@@ -148,6 +149,10 @@ public class AnthropicMatchingService : IAnthropicMatchingService
     private static object BuildDoctorProfile(Doctor d)
     {
         var acceptedInsurances = InsuranceMatchHelper.GetCarrierNames(d);
+        var languagesSpoken = d.DoctorLanguages
+            .Select(dl => dl.DoctorLanguage.Name)
+            .OrderBy(name => name)
+            .ToList();
         return new
         {
             doctorId = d.Id,
@@ -158,6 +163,7 @@ public class AnthropicMatchingService : IAnthropicMatchingService
             location = d.Location ?? $"{d.City}, {d.State}",
             address = d.Address,
             acceptedInsurances,
+            languagesSpoken,
             rating = d.GoogleRating,
             reviewCount = d.GoogleReviewCount,
             summaryOfReviews = d.SummaryOfReviews,
