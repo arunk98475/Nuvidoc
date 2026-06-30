@@ -5,6 +5,7 @@ using Docovee.BLL.Data;
 using Docovee.BLL.Services;
 using Docovee.DS;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,14 +52,20 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
     });
 
+builder.Services.AddHttpsRedirection(options =>
+{
+    options.HttpsPort = 443;
+    options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
+});
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<DocoveeDbContext>();
-    var adminOptions = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AdminOptions>>().Value;
     try
     {
+        var db = scope.ServiceProvider.GetRequiredService<DocoveeDbContext>();
+        var adminOptions = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AdminOptions>>().Value;
         await SchemaUpdater.EnsureLatestSchemaAsync(db);
         await SeedData.InitializeAsync(db);
         await PollingQuestionSync.SyncFromSpecAsync(db);

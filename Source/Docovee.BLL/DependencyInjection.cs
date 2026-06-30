@@ -13,8 +13,11 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddDocoveeBll(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is missing or empty. " +
+                "Set it in appsettings.json or appsettings.Production.json on the server before starting the app.");
 
         services.AddDbContext<DocoveeDbContext>(options =>
             options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36))));
