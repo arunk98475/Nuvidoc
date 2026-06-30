@@ -77,6 +77,7 @@ public class DocoveeDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Question).HasMaxLength(500).IsRequired();
             entity.Property(e => e.ValidationHint).HasMaxLength(500);
+            entity.Property(e => e.MatchWeightLabel).HasMaxLength(50);
         });
 
         modelBuilder.Entity<InsuranceCarrier>(entity =>

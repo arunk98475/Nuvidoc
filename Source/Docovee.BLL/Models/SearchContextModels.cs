@@ -63,6 +63,7 @@ public class SearchContextData
     public List<int>? MatchedDoctorIds { get; set; }
     public int? SelectedDoctorId { get; set; }
     public bool BookingConfirmed { get; set; }
+    public string? PendingNormalizedAnswer { get; set; }
 }
 
 public class PollingAnswerEntry
@@ -70,4 +71,5 @@ public class PollingAnswerEntry
     public int QuestionId { get; set; }
     public string Question { get; set; } = string.Empty;
     public string Answer { get; set; } = string.Empty;
+    public int MatchWeight { get; set; }
 }

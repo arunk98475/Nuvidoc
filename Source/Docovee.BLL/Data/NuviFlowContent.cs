@@ -164,35 +164,35 @@ public static class NuviFlowContent
 
 
 
-    public static IReadOnlyList<(string Question, string ValidationHint)> DeepDiveQuestions { get; } =
+    public static IReadOnlyList<(string Question, string ValidationHint, int MatchWeight, string MatchWeightLabel)> DeepDiveQuestions { get; } =
 
     [
 
-        ("How important is it that your doctor is close to home or work?", "Very important, somewhat, or doesn't matter"),
+        ("How important is it that your doctor is close to home or work?", "Very important, somewhat, or doesn't matter", 8, "High"),
 
-        ("Would you travel 30+ minutes for the right doctor?", "Yes or no"),
+        ("Would you travel 30+ minutes for the right doctor?", "Yes or no", 5, "Medium"),
 
-        ("Does experience level matter to you — do you prefer a doctor who's been practicing for many years?", "Yes, no, or neutral"),
+        ("Does experience level matter to you — do you prefer a doctor who's been practicing for many years?", "Yes, no, or neutral", 8, "High"),
 
-        ("Is training at a top-ranked medical school or residency program important to you?", "Yes, no, or neutral"),
+        ("Is training at a top-ranked medical school or residency program important to you?", "Yes, no, or neutral", 5, "Medium"),
 
-        ("Shall I only show doctors who accept your insurance plan?", "Yes or no"),
+        ("Shall I only show doctors who accept your insurance plan?", "Yes or no", 10, "Critical"),
 
-        ("Do online reviews (Google, Healthgrades) matter to you when choosing a doctor?", "Yes or no"),
+        ("Do online reviews (Google, Healthgrades) matter to you when choosing a doctor?", "Yes or no", 5, "Medium"),
 
-        ("Would you consider a newer doctor with fewer reviews if everything else felt right?", "Yes or no"),
+        ("Would you consider a newer doctor with fewer reviews if everything else felt right?", "Yes or no", 3, "Low-Medium"),
 
-        ("Is it important that your doctor speaks a language other than English?", "Yes or no"),
+        ("Is it important that your doctor speaks a language other than English?", "Yes or no", 8, "High"),
 
-        ("On a scale of 1–5, how much does the doctor's personality and bedside manner matter to you vs. just their credentials?", "A number 1 through 5"),
+        ("On a scale of 1–5, how much does the doctor's personality and bedside manner matter to you vs. just their credentials?", "A number 1 through 5", 8, "High"),
 
-        ("Do you value a doctor who takes a holistic or integrative approach, or do you prefer strictly conventional medicine?", "Holistic, conventional, or doesn't matter"),
+        ("Do you value a doctor who takes a holistic or integrative approach, or do you prefer strictly conventional medicine?", "Holistic, conventional, or doesn't matter", 5, "Medium"),
 
-        ("Would you feel more comfortable with a doctor who shares some of your personal interests or lifestyle?", "Yes or no"),
+        ("Would you feel more comfortable with a doctor who shares some of your personal interests or lifestyle?", "Yes or no", 3, "Low-Medium"),
 
-        ("Do you have a preference for your doctor's approximate age group?", "30s, 40s–50s, 60s+, or no preference"),
+        ("Do you have a preference for your doctor's approximate age group?", "30s, 40s–50s, 60s+, or no preference", 1, "Low"),
 
-        (DeepDiveWildcardQuestion, "Yes or no"),
+        (DeepDiveWildcardQuestion, "Yes or no", 5, "Variable"),
 
     ];
 

@@ -106,23 +106,31 @@ public class DoctorSearchService : IDoctorSearchService
 
         var userInsurance = session.InsurancePlanText;
         var resultCount = await _appSettings.GetDoctorSearchResultCountAsync(cancellationToken);
+        var pollingAnswers = SearchContextHelper.Load(session).PollingAnswers;
 
         var results = filtered
             .Select(d =>
             {
                 rankingMap.TryGetValue(d.Id, out var rank);
+                var distance = CalculateDistanceMiles(request.Latitude, request.Longitude, d.Latitude, d.Longitude);
                 var baseScore = rank.DoctorId == d.Id && rank.MatchScore > 0
                     ? rank.MatchScore
-                    : CalculateMatchScore(d, CalculateDistanceMiles(request.Latitude, request.Longitude, d.Latitude, d.Longitude));
+                    : CalculateMatchScore(d, distance);
 
                 var insuranceBoost = InsuranceMatchHelper.InsuranceRankBoost(userInsurance, d);
-                var score = Math.Min(baseScore + insuranceBoost, 99);
+                var preferenceBoost = MatchWeightHelper.ComputeDoctorPreferenceBoost(d, pollingAnswers, distance);
+                var score = Math.Min(baseScore + insuranceBoost + preferenceBoost, 99);
 
                 var reason = rank.DoctorId == d.Id ? rank.Reason : null;
                 if (insuranceBoost > 0)
                 {
                     var insuranceNote = $"Accepts your insurance ({userInsurance})";
                     reason = string.IsNullOrWhiteSpace(reason) ? insuranceNote : $"{reason}; {insuranceNote}";
+                }
+                if (preferenceBoost > 0)
+                {
+                    var preferenceNote = "Strong fit for your weighted preferences";
+                    reason = string.IsNullOrWhiteSpace(reason) ? preferenceNote : $"{reason}; {preferenceNote}";
                 }
 
                 return MapDoctor(d, request.Latitude, request.Longitude, score, reason);

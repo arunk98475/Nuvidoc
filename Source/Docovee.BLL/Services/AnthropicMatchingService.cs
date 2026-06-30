@@ -53,6 +53,8 @@ public class AnthropicMatchingService : IAnthropicMatchingService
 
         var systemPrompt = """
             You are a healthcare matching expert. Rank doctors for a patient based on specialty fit, location, reviews, niche expertise, personal preferences, insurance coverage, and languages spoken.
+            When weighted patient preferences are provided, prioritize factors with higher weights (10 = Critical, 8 = High, 5 = Medium, 3 = Low-Medium, 1 = Low).
+            A Critical-weight preference should strongly influence ranking; Low-weight preferences should only nudge scores slightly.
             When the patient prefers a specific language, prioritize doctors who speak that language.
             When the patient lists an insurance plan, give significantly higher scores to doctors whose acceptedInsurances include a match (exact or close, e.g. "Aetna" matches "Aetna PPO").
             Doctors without insurance data should rank lower when the patient specified insurance, but still include them.
@@ -141,9 +143,32 @@ public class AnthropicMatchingService : IAnthropicMatchingService
             parts.Add($"Patient insurance plan: {session.InsurancePlanText}");
         if (!string.IsNullOrWhiteSpace(session.SearchNotes))
             parts.Add($"Notes: {session.SearchNotes}");
-        if (!string.IsNullOrWhiteSpace(session.SearchContextJson))
-            parts.Add($"Preferences: {session.SearchContextJson}");
+
+        var weightedPreferences = TryGetWeightedPreferences(session.SearchContextJson);
+        if (!string.IsNullOrWhiteSpace(weightedPreferences))
+            parts.Add($"Weighted deep-dive preferences (higher weight = more important in ranking):\n{weightedPreferences}");
+
         return string.Join("\n", parts);
+    }
+
+    private static string? TryGetWeightedPreferences(string? searchContextJson)
+    {
+        if (string.IsNullOrWhiteSpace(searchContextJson))
+            return null;
+
+        try
+        {
+            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            var context = JsonSerializer.Deserialize<SearchContextData>(searchContextJson, options);
+            if (context?.PollingAnswers == null || context.PollingAnswers.Count == 0)
+                return null;
+
+            return MatchWeightHelper.FormatWeightedPreferences(context.PollingAnswers);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static object BuildDoctorProfile(Doctor d)

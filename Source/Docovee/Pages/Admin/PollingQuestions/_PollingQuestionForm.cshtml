@@ -14,5 +14,14 @@
     <input asp-for="SortOrder" type="number" min="0" class="form-control" />
 </div>
 <div class="form-group">
+    <label asp-for="MatchWeight">Match Weight (1–10)</label>
+    <input asp-for="MatchWeight" type="number" min="1" max="10" class="form-control" />
+    <p class="hint">10 = Critical, 8 = High, 5 = Medium, 3 = Low-Medium, 1 = Low. Used when ranking doctors.</p>
+</div>
+<div class="form-group">
+    <label asp-for="MatchWeightLabel">Match Weight Label</label>
+    <input asp-for="MatchWeightLabel" class="form-control" placeholder="e.g. High, Critical" />
+</div>
+<div class="form-group">
     <label><input asp-for="IsActive" /> Active</label>
 </div>

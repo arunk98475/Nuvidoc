@@ -50,6 +50,8 @@ public class PollingQuestionService : IPollingQuestionService
             Question = q.Question,
             ValidationHint = q.ValidationHint,
             SortOrder = q.SortOrder,
+            MatchWeight = q.MatchWeight,
+            MatchWeightLabel = q.MatchWeightLabel,
             IsActive = q.IsActive
         };
     }
@@ -64,6 +66,10 @@ public class PollingQuestionService : IPollingQuestionService
             Question = model.Question.Trim(),
             ValidationHint = model.ValidationHint?.Trim(),
             SortOrder = model.SortOrder,
+            MatchWeight = Math.Clamp(model.MatchWeight, 1, 10),
+            MatchWeightLabel = string.IsNullOrWhiteSpace(model.MatchWeightLabel)
+                ? MatchWeightHelper.ToLabel(model.MatchWeight)
+                : model.MatchWeightLabel.Trim(),
             IsActive = model.IsActive
         });
         await _db.SaveChangesAsync(cancellationToken);
@@ -81,6 +87,10 @@ public class PollingQuestionService : IPollingQuestionService
         q.Question = model.Question.Trim();
         q.ValidationHint = model.ValidationHint?.Trim();
         q.SortOrder = model.SortOrder;
+        q.MatchWeight = Math.Clamp(model.MatchWeight, 1, 10);
+        q.MatchWeightLabel = string.IsNullOrWhiteSpace(model.MatchWeightLabel)
+            ? MatchWeightHelper.ToLabel(model.MatchWeight)
+            : model.MatchWeightLabel.Trim();
         q.IsActive = model.IsActive;
         await _db.SaveChangesAsync(cancellationToken);
         return (true, null);
@@ -101,6 +111,8 @@ public class PollingQuestionService : IPollingQuestionService
         Question = q.Question,
         ValidationHint = q.ValidationHint,
         SortOrder = q.SortOrder,
+        MatchWeight = q.MatchWeight,
+        MatchWeightLabel = q.MatchWeightLabel,
         IsActive = q.IsActive
     };
 }

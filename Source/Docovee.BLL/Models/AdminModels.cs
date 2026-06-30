@@ -120,6 +120,8 @@ public class PollingQuestionDto
     public string Question { get; set; } = string.Empty;
     public string? ValidationHint { get; set; }
     public int SortOrder { get; set; }
+    public int MatchWeight { get; set; }
+    public string? MatchWeightLabel { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -129,6 +131,8 @@ public class PollingQuestionEditModel
     public string Question { get; set; } = string.Empty;
     public string? ValidationHint { get; set; }
     public int SortOrder { get; set; }
+    public int MatchWeight { get; set; } = 5;
+    public string? MatchWeightLabel { get; set; }
     public bool IsActive { get; set; } = true;
 }
 

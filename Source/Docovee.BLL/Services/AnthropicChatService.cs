@@ -122,6 +122,21 @@ public class AnthropicChatService : IAnthropicChatService
         var context = SearchContextHelper.Load(session);
         await ApplyAuthenticatedPatientAsync(session, context, httpContext, cancellationToken);
 
+        var effectiveMessage = request.Message ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(request.Message) && !IsPasswordSubmission(context))
+        {
+            var validationBlock = await TryValidateIncomingMessageAsync(
+                session, context, request.Message, cancellationToken);
+            if (validationBlock != null)
+            {
+                SearchContextHelper.Save(session, context);
+                return validationBlock;
+            }
+
+            effectiveMessage = context.PendingNormalizedAnswer ?? request.Message.Trim();
+            context.PendingNormalizedAnswer = null;
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Message))
         {
             _db.ChatMessages.Add(new ChatMessage
@@ -143,19 +158,19 @@ public class AnthropicChatService : IAnthropicChatService
 
         var response = context.Stage switch
         {
-            NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, request.Message, cancellationToken),
-            NuviConversationStage.Triage => await HandleTriageAsync(session, context, request.Message, cancellationToken),
-            NuviConversationStage.Logistics => await HandleLogisticsAsync(session, context, request.Message, cancellationToken),
-            NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, request.Message, httpContext, cancellationToken),
-            NuviConversationStage.DeepDivePermission => await HandleDeepDivePermissionAsync(session, context, request.Message, httpContext, cancellationToken),
-            NuviConversationStage.AccountCreation => await HandleAccountCreationAsync(session, context, request.Message, httpContext, cancellationToken),
-            NuviConversationStage.DeepDive => await HandleDeepDiveAsync(session, context, request.Message, cancellationToken),
+            NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.Triage => await HandleTriageAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.Logistics => await HandleLogisticsAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, effectiveMessage, httpContext, cancellationToken),
+            NuviConversationStage.DeepDivePermission => await HandleDeepDivePermissionAsync(session, context, effectiveMessage, httpContext, cancellationToken),
+            NuviConversationStage.AccountCreation => await HandleAccountCreationAsync(session, context, effectiveMessage, httpContext, cancellationToken),
+            NuviConversationStage.DeepDive => await HandleDeepDiveAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.RecommendationReveal => await HandleRecommendationRevealAsync(session, context, request, cancellationToken),
             NuviConversationStage.DoctorExplore => await HandleDoctorExploreAsync(session, context, request, cancellationToken),
             NuviConversationStage.BookingInitiation => await HandleBookingInitiationAsync(session, context, request, cancellationToken),
             NuviConversationStage.Confirmation or NuviConversationStage.Complete => BuildResponse(session, context,
                 "You're all set! I'm here whenever you need to find another doctor.", flowComplete: true),
-            _ => await HandleGreetingAsync(session, context, request.Message, cancellationToken)
+            _ => await HandleGreetingAsync(session, context, effectiveMessage, cancellationToken)
         };
 
         SearchContextHelper.Save(session, context);
@@ -218,7 +233,6 @@ public class AnthropicChatService : IAnthropicChatService
             var routingMatch = RoutingRegex.Match(aiText);
             if (routingMatch.Success && context.TriageQuestionCount >= 1)
             {
-                await SaveAssistantMessageAsync(session, aiText, cancellationToken);
                 return await CompleteTriageAsync(session, context, aiText, routingMatch, cancellationToken);
             }
 
@@ -258,8 +272,7 @@ public class AnthropicChatService : IAnthropicChatService
         session.UpdatedAt = DateTime.UtcNow;
 
         var text = $"That sounds really frustrating — I hear you. I think I have a good sense of what you need. Let me ask a few quick logistics questions.";
-        await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BeginLogistics(session, context, text);
+        return await BeginLogisticsAsync(session, context, text, cancellationToken);
     }
 
     private async Task<ChatMessageResponse> CompleteTriageAsync(
@@ -275,8 +288,7 @@ public class AnthropicChatService : IAnthropicChatService
         if (string.IsNullOrWhiteSpace(cleanText))
             cleanText = "Got it — I have a good sense of what you need. Let me ask a few quick logistics questions.";
 
-        await SaveAssistantMessageAsync(session, cleanText, cancellationToken);
-        return BeginLogistics(session, context, cleanText);
+        return await BeginLogisticsAsync(session, context, cleanText, cancellationToken);
     }
 
     private async Task<ChatMessageResponse> CompleteTriageWithInferenceAsync(
@@ -292,11 +304,11 @@ public class AnthropicChatService : IAnthropicChatService
             ? "Thanks for sharing all of that. Let me ask a few quick logistics questions."
             : RoutingRegex.Replace(aiText, string.Empty).Trim();
 
-        await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BeginLogistics(session, context, text);
+        return await BeginLogisticsAsync(session, context, text, cancellationToken);
     }
 
-    private ChatMessageResponse BeginLogistics(SearchSession session, SearchContextData context, string priorText)
+    private async Task<ChatMessageResponse> BeginLogisticsAsync(
+        SearchSession session, SearchContextData context, string priorText, CancellationToken cancellationToken)
     {
         context.Stage = NuviConversationStage.Logistics;
         context.LogisticsStep = 0;
@@ -304,6 +316,7 @@ public class AnthropicChatService : IAnthropicChatService
         var logisticsQuestion = NuviFlowContent.LogisticsVisitQuestion;
         var combined = string.IsNullOrWhiteSpace(priorText) ? logisticsQuestion : $"{priorText}\n\n{logisticsQuestion}";
 
+        await SaveAssistantMessageAsync(session, combined, cancellationToken);
         return BuildResponse(session, context, combined, stage: NuviConversationStage.Logistics,
             options: NuviFlowContent.LogisticsVisitOptions);
     }
@@ -748,7 +761,8 @@ public class AnthropicChatService : IAnthropicChatService
         {
             QuestionId = current.Id,
             Question = current.Question,
-            Answer = answer
+            Answer = answer,
+            MatchWeight = current.MatchWeight
         });
         context.CurrentPollingQuestionId = null;
         context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
@@ -772,7 +786,8 @@ public class AnthropicChatService : IAnthropicChatService
         {
             QuestionId = current.Id,
             Question = current.Question,
-            Answer = answer
+            Answer = answer,
+            MatchWeight = current.MatchWeight
         });
         context.CurrentPollingQuestionId = null;
         context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
@@ -865,11 +880,9 @@ public class AnthropicChatService : IAnthropicChatService
             session.SearchNotes = (session.SearchNotes ?? "") + $" Preferred doctor language: {context.LanguagePreference}.";
         if (!string.IsNullOrWhiteSpace(context.WildcardConcern))
             session.SearchNotes = (session.SearchNotes ?? "") + $" Additional matching preference: {context.WildcardConcern}.";
+        SearchContextHelper.Save(session, context);
         await _db.SaveChangesAsync(cancellationToken);
         await PersistPatientPreferenceProfileAsync(session, context, cancellationToken);
-
-        var loadingText = NuviFlowContent.MatchSearchLoadingMessage;
-        await SaveAssistantMessageAsync(session, loadingText, cancellationToken);
 
         var doctors = await SearchTopMatchesAsync(session, context, cancellationToken);
         context.MatchedDoctorIds = doctors.Select(d => d.Id).ToList();
@@ -879,9 +892,18 @@ public class AnthropicChatService : IAnthropicChatService
             ? $"{displayName}, based on everything you've shared, I've personally matched you with {doctors.Count} doctor{(doctors.Count == 1 ? "" : "s")} I think could be a great fit. Here's who I found — and here's WHY I think each one could be the one."
             : $"{displayName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
 
+        if (doctors.Count == 0)
+        {
+            await SaveAssistantMessageAsync(session, revealText, cancellationToken);
+            return BuildResponse(session, context, revealText, stage: NuviConversationStage.RecommendationReveal,
+                doctorCards: doctors, showLoading: false);
+        }
+
+        var loadingText = NuviFlowContent.MatchSearchLoadingMessage;
+        await SaveAssistantMessageAsync(session, loadingText, cancellationToken);
         await SaveAssistantMessageAsync(session, revealText, cancellationToken);
         return BuildResponse(session, context, loadingText, stage: NuviConversationStage.RecommendationReveal,
-            followUpText: revealText, doctorCards: doctors, showLoading: doctors.Count > 0);
+            followUpText: revealText, doctorCards: doctors, showLoading: true);
     }
 
     private async Task PersistPatientPreferenceProfileAsync(
@@ -1553,5 +1575,95 @@ public class AnthropicChatService : IAnthropicChatService
             "urgent" => UrgencyLevel.Urgent,
             "emergency" => UrgencyLevel.Emergency,
             _ => UrgencyLevel.Routine
+        };
+
+    private async Task<ChatMessageResponse?> TryValidateIncomingMessageAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var stage = context.Stage == NuviConversationStage.Greeting
+            ? NuviConversationStage.Triage
+            : context.Stage;
+
+        if (stage is not (NuviConversationStage.Triage or NuviConversationStage.Logistics))
+            return null;
+
+        var trimmed = message.Trim();
+        var lastAssistantMessage = await GetLastAssistantMessageAsync(session.Id, cancellationToken);
+        var (question, hint, options) = stage == NuviConversationStage.Triage
+            ? GetTriageValidationTarget(lastAssistantMessage)
+            : GetLogisticsValidationTarget(context.LogisticsStep);
+
+        var conversationContext = stage == NuviConversationStage.Triage
+            ? lastAssistantMessage ?? NuviFlowContent.GreetingMessage
+            : lastAssistantMessage ?? question;
+
+        var validation = await _validationService.ValidateAnswerAsync(
+            question, trimmed, hint, conversationContext, cancellationToken);
+
+        if (!validation.IsValid)
+        {
+            var reprompt = validation.RepromptMessage ?? $"Could you try again? {question}";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(session, context, reprompt, stage: stage, options: options);
+        }
+
+        context.PendingNormalizedAnswer = validation.NormalizedAnswer ?? trimmed;
+        return null;
+    }
+
+    private async Task<string?> GetLastAssistantMessageAsync(int sessionId, CancellationToken cancellationToken) =>
+        await _db.ChatMessages
+            .Where(m => m.SearchSessionId == sessionId && m.Role == "assistant")
+            .OrderByDescending(m => m.CreatedAt)
+            .Select(m => m.Content)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private static (string Question, string Hint, IReadOnlyList<string>? Options) GetTriageValidationTarget(
+        string? lastAssistantMessage)
+    {
+        if (string.IsNullOrWhiteSpace(lastAssistantMessage))
+        {
+            return (
+                NuviFlowContent.GreetingMessage,
+                "what health concern, symptoms, or type of doctor they are looking for",
+                null);
+        }
+
+        return (
+            lastAssistantMessage,
+            "their care goals, timing, specialty preference, or health situation — at least one clear point is enough",
+            null);
+    }
+
+    private static (string Question, string Hint, IReadOnlyList<string>? Options) GetLogisticsValidationTarget(int step) =>
+        step switch
+        {
+            0 => (
+                NuviFlowContent.LogisticsVisitQuestion,
+                "in-person only, telehealth/virtual only, or either/both",
+                NuviFlowContent.LogisticsVisitOptions),
+            1 => (
+                NuviFlowContent.LogisticsLocationQuestion,
+                "a city, ZIP code, neighborhood, or general area where they want care",
+                null),
+            2 => (
+                NuviFlowContent.LogisticsInsuranceTypeQuestion,
+                "whether they have insurance, want self-pay/cash-pay, or are not sure yet",
+                NuviFlowContent.LogisticsInsuranceTypeOptions),
+            3 => (
+                NuviFlowContent.LogisticsInsurancePlanQuestion,
+                "an insurance plan name, or skip if they are unsure",
+                NuviFlowContent.LogisticsInsurancePlanOptions),
+            4 => (
+                NuviFlowContent.LogisticsUrgencyQuestion,
+                "how soon they want to be seen: ASAP/this week, within a month, no rush, or just exploring",
+                NuviFlowContent.LogisticsUrgencyOptions),
+            _ => (
+                NuviFlowContent.LogisticsUrgencyQuestion,
+                "how soon they want to be seen",
+                NuviFlowContent.LogisticsUrgencyOptions)
         };
 }

@@ -78,8 +78,9 @@ public class AnthropicValidationService : IAnthropicValidationService
 
             Rules:
             - Accept reasonable informal answers, including words instead of digits (e.g. "twenty five" for age, "about 10 miles", "either is fine").
-            - If the assistant message asked multiple things, accept an answer that clearly addresses the target question even if brief.
-            - Reject only gibberish (e.g. "yyy", random letters) or answers with no relation to the question.
+            - If the assistant message asked multiple questions, accept the answer when it clearly addresses AT LEAST ONE of them — even if brief.
+            - Reject gibberish (e.g. "bla bla", "yyy", random letters, keyboard mash) or answers unrelated to every question asked.
+            - Reject answers that do not meaningfully respond to what was asked (e.g. nonsense filler when a location or preference was requested).
             - When valid, extract the useful answer into normalizedAnswer (short, plain text).
 
             Respond with ONLY JSON:
@@ -210,17 +211,39 @@ public class AnthropicValidationService : IAnthropicValidationService
 
     private static bool IsGibberish(string input)
     {
-        var letters = input.Where(char.IsLetter).ToArray();
+        var trimmed = input.Trim().ToLowerInvariant();
+        var letters = trimmed.Where(char.IsLetter).ToArray();
         if (letters.Length == 0)
             return false;
 
         if (letters.Length <= 2 && letters.Distinct().Count() == 1)
             return true;
 
-        if (input.Length >= 3 && letters.Distinct().Count() == 1)
+        if (trimmed.Length >= 3 && letters.Distinct().Count() == 1)
             return true;
 
+        var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length >= 2 && words.All(w => w.Length <= 5) && IsNonsenseFillerWord(words[0]))
+        {
+            var distinct = words.Distinct(StringComparer.OrdinalIgnoreCase).Count();
+            if (distinct <= 2 && words.All(IsNonsenseFillerWord))
+                return true;
+        }
+
         return false;
+    }
+
+    private static bool IsNonsenseFillerWord(string word)
+    {
+        if (word.Length < 2)
+            return true;
+
+        string[] fillers =
+        [
+            "bla", "blah", "bal", "foo", "bar", "baz", "test", "asdf", "qwer",
+            "yyy", "xxx", "zzz", "hmm", "uhh", "umm", "idk", "meh"
+        ];
+        return fillers.Contains(word, StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool TryParseAge(string input, out int age)

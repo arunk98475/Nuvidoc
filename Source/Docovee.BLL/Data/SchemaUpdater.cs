@@ -93,6 +93,9 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
 
+        await EnsureColumnAsync(db, "polling_questions", "MatchWeight", "int NOT NULL DEFAULT 5", cancellationToken);
+        await EnsureColumnAsync(db, "polling_questions", "MatchWeightLabel", "varchar(50) NULL", cancellationToken);
+
         await EnsureColumnAsync(db, "search_sessions", "MedicalIssuesSummary", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "search_sessions", "SearchContextJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "search_sessions", "InsurancePlanText", "varchar(200) NULL", cancellationToken);

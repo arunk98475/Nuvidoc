@@ -362,7 +362,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
     removeTyping();
 
-    if (data.showLoading && data.followUpText) {
+    if (data.followUpText && (data.showLoading || pendingMatchSearch)) {
       if (!pendingMatchSearch) {
         addMessage(data.text || MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
         await delay(2500);
@@ -383,11 +383,16 @@ async function sendMessage(action = null, selectedDoctorId = null) {
         await delay(2500);
       }
 
-      addMessage(data.text || "I'm here to help. Could you tell me more?", "ai", {
-        loading: data.showLoading,
-        doctorCards: data.doctorCards,
-        selectedDoctor: data.selectedDoctor
-      });
+      const isDuplicateLoading =
+        pendingMatchSearch &&
+        (data.text || "") === MATCH_SEARCH_LOADING_MESSAGE;
+      if (!isDuplicateLoading) {
+        addMessage(data.text || "I'm here to help. Could you tell me more?", "ai", {
+          loading: data.showLoading,
+          doctorCards: data.doctorCards,
+          selectedDoctor: data.selectedDoctor
+        });
+      }
     }
 
     sessionKey = data.sessionKey;

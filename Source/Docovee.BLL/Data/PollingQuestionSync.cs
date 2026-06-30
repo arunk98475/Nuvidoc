@@ -16,7 +16,7 @@ public static class PollingQuestionSync
         for (var i = 0; i < spec.Count; i++)
         {
             var sortOrder = i + 1;
-            var (question, hint) = spec[i];
+            var (question, hint, matchWeight, matchWeightLabel) = spec[i];
             var row = existing.FirstOrDefault(q => q.SortOrder == sortOrder);
             var isWildcard = sortOrder == spec.Count;
             var isActive = isWildcard || sortOrder <= ActiveDeepDiveCount;
@@ -27,6 +27,8 @@ public static class PollingQuestionSync
                     Question = question,
                     ValidationHint = hint,
                     SortOrder = sortOrder,
+                    MatchWeight = matchWeight,
+                    MatchWeightLabel = matchWeightLabel,
                     IsActive = isActive
                 });
             }
@@ -34,6 +36,8 @@ public static class PollingQuestionSync
             {
                 row.Question = question;
                 row.ValidationHint = hint;
+                row.MatchWeight = matchWeight;
+                row.MatchWeightLabel = matchWeightLabel;
                 row.IsActive = isActive;
             }
         }

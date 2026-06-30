@@ -23,6 +23,7 @@
                     <th>Order</th>
                     <th>Question</th>
                     <th>Validation Hint</th>
+                    <th>Match Weight</th>
                     <th>Active</th>
                     <th>Actions</th>
                 </tr>
@@ -34,6 +35,7 @@
                         <td>@q.SortOrder</td>
                         <td>@q.Question</td>
                         <td style="font-size:13px;">@(q.ValidationHint ?? "—")</td>
+                        <td>@(q.MatchWeight) @(q.MatchWeightLabel != null ? $"({q.MatchWeightLabel})" : "")</td>
                         <td>@(q.IsActive ? "Yes" : "No")</td>
                         <td>
                             <div class="actions">
