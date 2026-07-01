@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Docovee.BLL.Auth;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

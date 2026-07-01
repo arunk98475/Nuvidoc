@@ -26,6 +26,8 @@ public class PollingValidationResult
 
 public class AnthropicValidationService : IAnthropicValidationService
 {
+    public static bool LooksLikeGibberish(string input) => IsGibberish(input);
+
     private static readonly Regex JsonFenceRegex = new(
         @"```(?:json)?\s*(\{[\s\S]*?\})\s*```",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -221,6 +223,28 @@ public class AnthropicValidationService : IAnthropicValidationService
 
         if (trimmed.Length >= 3 && letters.Distinct().Count() == 1)
             return true;
+
+        if (letters.Length >= 6)
+        {
+            for (var patLen = 1; patLen <= 3; patLen++)
+            {
+                if (letters.Length % patLen != 0)
+                    continue;
+
+                var pattern = new string(letters, 0, patLen);
+                var repeats = letters.Length / patLen;
+                if (Enumerable.Range(0, repeats).All(i =>
+                        new string(letters, i * patLen, patLen)
+                            .Equals(pattern, StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+            }
+
+            var vowelCount = letters.Count(c => "aeiou".Contains(char.ToLowerInvariant(c)));
+            if (vowelCount == 0 && letters.Distinct().Count() <= 3)
+                return true;
+        }
 
         var words = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (words.Length >= 2 && words.All(w => w.Length <= 5) && IsNonsenseFillerWord(words[0]))

@@ -1,5 +1,5 @@
 using Docovee.BLL.Auth;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Docovee.DS;
 using Microsoft.AspNetCore.Mvc;

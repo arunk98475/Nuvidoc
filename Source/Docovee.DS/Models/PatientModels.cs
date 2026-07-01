@@ -1,4 +1,4 @@
-namespace Docovee.BLL.Models;
+namespace Docovee.DS.Models;
 
 public class PatientRegisterRequest
 {

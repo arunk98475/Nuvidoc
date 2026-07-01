@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Docovee.BLL.Data;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS.Entities;
 
 namespace Docovee.BLL.Services;

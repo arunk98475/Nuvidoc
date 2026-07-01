@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;
@@ -29,19 +29,22 @@ public class DoctorOnboardingService : IDoctorOnboardingService
     private readonly IAccountAuthService _auth;
     private readonly IDocoveeLogger _logger;
     private readonly string _siteName;
+    private readonly IAnthropicValidationService _validationService;
 
     public DoctorOnboardingService(
         DocoveeDbContext db,
         IAccountRegistrationService registration,
         IAccountAuthService auth,
         IDocoveeLogger logger,
-        IOptions<SiteOptions> siteOptions)
+        IOptions<SiteOptions> siteOptions,
+        IAnthropicValidationService validationService)
     {
         _db = db;
         _registration = registration;
         _auth = auth;
         _logger = logger;
         _siteName = siteOptions.Value.Name;
+        _validationService = validationService;
     }
 
     public async Task<DoctorOnboardingMessageResponse> SendMessageAsync(
@@ -210,7 +213,19 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         if (string.IsNullOrWhiteSpace(message))
             return BuildResponse(session, context, "Please enter your full name to continue.");
 
-        context.PendingName = message.Trim();
+        if (AnthropicValidationService.LooksLikeGibberish(message))
+            return BuildResponse(session, context, "Please enter your real full name (e.g. Dr. Sarah Kim, MD).");
+
+        var nameValidation = await _validationService.ValidateAnswerAsync(
+            "What is your full name and preferred professional title?",
+            message.Trim(),
+            "a real person's name, optionally with a title such as Dr. or MD",
+            null,
+            cancellationToken);
+        if (!nameValidation.IsValid)
+            return BuildResponse(session, context, nameValidation.RepromptMessage ?? "Please enter your full name to continue.");
+
+        context.PendingName = nameValidation.NormalizedAnswer ?? message.Trim();
         context.Stage = DoctorOnboardingStage.Email;
         var text = $"Thanks, **{context.PendingName}**! What's your **email address**? You'll use this to log in.";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
@@ -339,14 +354,43 @@ public class DoctorOnboardingService : IDoctorOnboardingService
             return await FinishQuestionnaireAsync(session, context, cancellationToken);
 
         var question = questions[context.CurrentQuestionIndex];
-        var validationError = ValidateAnswer(question, message);
-        if (validationError != null)
-            return await RepromptQuestionAsync(session, context, validationError, cancellationToken);
+        var answer = message.Trim();
 
-        if (!string.IsNullOrWhiteSpace(message) &&
-            (!message.Equals("skip", StringComparison.OrdinalIgnoreCase) || question.Required))
+        var staticError = ValidateAnswer(question, answer);
+        if (staticError != null)
+            return await RepromptQuestionAsync(session, context, staticError, cancellationToken);
+
+        var isSkip = !question.Required && answer.Equals("skip", StringComparison.OrdinalIgnoreCase);
+        if (!isSkip)
         {
-            context.Answers[question.Id] = message.Trim();
+            var options = GetOptions(question);
+            var isExactOption = options?.Any(o => o.Equals(answer, StringComparison.OrdinalIgnoreCase)) == true;
+            if (!isExactOption)
+            {
+                var validation = await _validationService.ValidateAnswerAsync(
+                    question.Question,
+                    answer,
+                    BuildValidationHint(question),
+                    BuildQuestionContext(question, context.CurrentQuestionIndex, questions.Count),
+                    cancellationToken);
+
+                if (!validation.IsValid)
+                {
+                    var reprompt = validation.RepromptMessage ?? "Could you give a clearer answer?";
+                    return await RepromptQuestionAsync(session, context, reprompt, cancellationToken);
+                }
+
+                answer = validation.NormalizedAnswer ?? answer;
+
+                var optionError = ValidateAgainstOptions(question, answer);
+                if (optionError != null)
+                    return await RepromptQuestionAsync(session, context, optionError, cancellationToken);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(answer) && !isSkip)
+        {
+            context.Answers[question.Id] = answer;
         }
 
         context.CurrentQuestionIndex++;
@@ -440,8 +484,23 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         string error,
         CancellationToken cancellationToken)
     {
-        var question = DoctorOnboardingQuestions.All[context.CurrentQuestionIndex];
-        var text = $"{error}\n\n{question.Question}";
+        var questions = DoctorOnboardingQuestions.All;
+        var question = questions[context.CurrentQuestionIndex];
+        var sb = new StringBuilder();
+        sb.AppendLine(error);
+        sb.AppendLine();
+        sb.AppendLine($"**{question.Category}** — Question {context.CurrentQuestionIndex + 1} of {questions.Count}");
+        if (!question.Required)
+            sb.AppendLine("_(Optional — type skip to skip)_");
+        sb.AppendLine();
+        sb.AppendLine(question.Question);
+        if (!string.IsNullOrWhiteSpace(question.OptionsHint))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"_{question.OptionsHint}_");
+        }
+
+        var text = sb.ToString().Trim();
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(session, context, text, options: GetOptions(question));
     }
@@ -523,6 +582,12 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         if (question.Required && string.IsNullOrWhiteSpace(answer))
             return "This question is required. Please provide an answer.";
 
+        if (!answer.Equals("skip", StringComparison.OrdinalIgnoreCase)
+            && AnthropicValidationService.LooksLikeGibberish(answer))
+        {
+            return "That doesn't look like a valid answer — please try again.";
+        }
+
         if (question.AnswerType.Contains("Number", StringComparison.OrdinalIgnoreCase) &&
             !question.AnswerType.Contains("Number or", StringComparison.OrdinalIgnoreCase) &&
             !Regex.IsMatch(answer, @"\d"))
@@ -539,6 +604,64 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         }
 
         return null;
+    }
+
+    private static string? ValidateAgainstOptions(DoctorOnboardingQuestion question, string answer)
+    {
+        var options = GetOptions(question);
+        if (options == null || options.Count == 0)
+            return null;
+
+        if (options.Any(o => o.Equals(answer, StringComparison.OrdinalIgnoreCase)))
+            return null;
+
+        var partial = options.FirstOrDefault(o =>
+            o.Contains(answer, StringComparison.OrdinalIgnoreCase) ||
+            answer.Contains(o, StringComparison.OrdinalIgnoreCase));
+        if (partial != null)
+            return null;
+
+        if (options.Any(o => o.Equals("Other", StringComparison.OrdinalIgnoreCase))
+            && !AnthropicValidationService.LooksLikeGibberish(answer)
+            && answer.Trim().Length >= 3)
+        {
+            return null;
+        }
+
+        return $"Please pick one of the listed options: {question.OptionsHint}";
+    }
+
+    private static string BuildValidationHint(DoctorOnboardingQuestion question)
+    {
+        if (!string.IsNullOrWhiteSpace(question.OptionsHint))
+        {
+            if (question.AnswerType.Contains("Dropdown", StringComparison.OrdinalIgnoreCase)
+                || question.AnswerType.Contains("Multi-select", StringComparison.OrdinalIgnoreCase)
+                || question.AnswerType.Contains("Yes/No", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"A sensible answer matching one of these options (or close): {question.OptionsHint}";
+            }
+
+            return question.OptionsHint;
+        }
+
+        return question.AnswerType switch
+        {
+            var t when t.Contains("Number", StringComparison.OrdinalIgnoreCase) => "a number or numeric value",
+            var t when t.Contains("URL", StringComparison.OrdinalIgnoreCase) => "a valid URL or skip",
+            var t when t.Contains("Address", StringComparison.OrdinalIgnoreCase) => "a practice address with city and state",
+            _ => "a clear, relevant answer to the question"
+        };
+    }
+
+    private static string BuildQuestionContext(DoctorOnboardingQuestion question, int index, int total)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"{question.Category} — Question {index + 1} of {total}");
+        sb.AppendLine(question.Question);
+        if (!string.IsNullOrWhiteSpace(question.OptionsHint))
+            sb.AppendLine(question.OptionsHint);
+        return sb.ToString().Trim();
     }
 
     private static IReadOnlyList<string>? GetOptions(DoctorOnboardingQuestion question)

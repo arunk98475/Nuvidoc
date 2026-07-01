@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;

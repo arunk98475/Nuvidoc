@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Docovee.BLL.Models;
 using Docovee.DS.Entities;
+using Docovee.DS.Models;
 
 namespace Docovee.BLL.Services;
 

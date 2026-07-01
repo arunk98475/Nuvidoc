@@ -1,4 +1,4 @@
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 
 namespace Docovee.BLL.Data;
 

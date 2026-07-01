@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Docovee.BLL.Services;

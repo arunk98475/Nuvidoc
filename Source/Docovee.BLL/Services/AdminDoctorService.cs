@@ -3,7 +3,7 @@ using System.Text;
 using ClosedXML.Excel;
 using CsvHelper;
 using CsvHelper.Configuration;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Enums;

@@ -1,7 +1,8 @@
 using Docovee.BLL.Configuration;
-using Docovee.BLL.Models;
+
 using Docovee.DS;
 using Docovee.DS.Entities;
+using Docovee.DS.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Docovee.BLL.Services;

@@ -1,5 +1,5 @@
 using Docovee.BLL.Data;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;

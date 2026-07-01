@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Docovee.BLL.Configuration;
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS.Entities;
 using Docovee.logging;
 using Microsoft.Extensions.Options;

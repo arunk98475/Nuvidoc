@@ -1,4 +1,4 @@
-using Docovee.BLL.Models;
+using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
