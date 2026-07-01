@@ -51,6 +51,9 @@ public class SearchContextData
     public string? PendingPassword { get; set; }
     public bool IsExistingAccountLogin { get; set; }
     public bool SkipAccountCreation { get; set; }
+    public string? LastKnownLocation { get; set; }
+    public bool HasPriorDeepDiveAnswers { get; set; }
+    public List<PollingAnswerEntry>? SavedDeepDiveAnswers { get; set; }
     public bool SkipDeepDive { get; set; }
     public DeepDiveFollowUpStep DeepDiveFollowUp { get; set; }
     public string? LanguagePreference { get; set; }

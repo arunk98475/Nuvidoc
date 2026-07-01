@@ -25,6 +25,7 @@ public class AnthropicChatService : IAnthropicChatService
 {
     private const int MaxTriageQuestions = 3;
     private const int MaxDeepDiveQuestions = 10;
+    private const int LogisticsStepNewLocation = 11;
     private const string RedactedPasswordPlaceholder = "[password hidden]";
     private static readonly DateOnly PlaceholderDateOfBirth = new(1990, 1, 1);
 
@@ -334,18 +335,48 @@ public class AnthropicChatService : IAnthropicChatService
             case 0:
                 context.VisitPreference = answer;
                 context.LogisticsStep = 1;
+                if (IsReturningWithSavedLocation(context))
+                {
+                    var locationChangeQuestion = NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!);
+                    await SaveAssistantMessageAsync(session, locationChangeQuestion, cancellationToken);
+                    return BuildResponse(session, context, locationChangeQuestion,
+                        stage: NuviConversationStage.Logistics,
+                        options: NuviFlowContent.LogisticsLocationChangeOptions);
+                }
+
                 await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsLocationQuestion, cancellationToken);
                 return BuildResponse(session, context, NuviFlowContent.LogisticsLocationQuestion,
                     stage: NuviConversationStage.Logistics);
 
             case 1:
+                if (IsReturningWithSavedLocation(context))
+                {
+                    if (IsYesAnswer(answer))
+                    {
+                        context.LogisticsStep = LogisticsStepNewLocation;
+                        await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsLocationQuestion, cancellationToken);
+                        return BuildResponse(session, context, NuviFlowContent.LogisticsLocationQuestion,
+                            stage: NuviConversationStage.Logistics);
+                    }
+
+                    if (IsNoAnswer(answer))
+                        return await ApplySavedLocationAndContinueAsync(session, context, cancellationToken);
+
+                    var reprompt = NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!);
+                    return BuildResponse(session, context,
+                        "Please choose Yes or No — has your location changed?",
+                        stage: NuviConversationStage.Logistics,
+                        options: NuviFlowContent.LogisticsLocationChangeOptions);
+                }
+
                 context.LocationPreference = answer;
                 session.Location = answer;
-                context.LogisticsStep = 2;
-                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsuranceTypeQuestion, cancellationToken);
-                return BuildResponse(session, context, NuviFlowContent.LogisticsInsuranceTypeQuestion,
-                    stage: NuviConversationStage.Logistics,
-                    options: NuviFlowContent.LogisticsInsuranceTypeOptions);
+                return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
+
+            case LogisticsStepNewLocation:
+                context.LocationPreference = answer;
+                session.Location = answer;
+                return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
 
             case 2:
                 context.InsuranceCategory = ClassifyInsuranceCategory(answer);
@@ -431,7 +462,7 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
         if (context.SkipAccountCreation)
-            return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+            return await BeginPostAccountFlowAsync(session, context, cancellationToken);
 
         context.Stage = NuviConversationStage.AccountCreation;
         context.AccountStep = AccountCreationStep.Name;
@@ -488,7 +519,7 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         if (context.SkipAccountCreation)
-            return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+            return await BeginPostAccountFlowAsync(session, context, cancellationToken);
 
         var answer = message.Trim();
 
@@ -556,10 +587,11 @@ public class AnthropicChatService : IAnthropicChatService
                     context.PendingFullName = signedInPatient.FullName;
                     context.PatientDateOfBirth = signedInPatient.DateOfBirth;
                     context.SkipAccountCreation = true;
+                    await LoadReturningPatientProfileAsync(session, context, signedInPatient, cancellationToken);
                 }
 
                 context.IsExistingAccountLogin = false;
-                return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+                return await BeginPostAccountFlowAsync(session, context, cancellationToken);
 
             case AccountCreationStep.Phone:
                 context.PendingPhone = answer;
@@ -607,11 +639,101 @@ public class AnthropicChatService : IAnthropicChatService
                         stage: NuviConversationStage.AccountCreation);
                 }
 
-                return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+                return await BeginPostAccountFlowAsync(session, context, cancellationToken);
 
             default:
                 return BuildResponse(session, context, "Let's continue — what's your name?", stage: NuviConversationStage.AccountCreation);
         }
+    }
+
+    private async Task<ChatMessageResponse> BeginPostAccountFlowAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (!context.SkipAccountCreation)
+            return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+
+        await PrefillAgeFromPatientProfileAsync(session, context, cancellationToken);
+
+        if (context.HasPriorDeepDiveAnswers && context.SavedDeepDiveAnswers is { Count: > 0 })
+        {
+            context.PollingAnswers = context.SavedDeepDiveAnswers
+                .Select(a => new PollingAnswerEntry
+                {
+                    QuestionId = a.QuestionId,
+                    Question = a.Question,
+                    Answer = a.Answer,
+                    MatchWeight = a.MatchWeight
+                })
+                .ToList();
+            context.SkipDeepDive = true;
+            return await CompleteDeepDiveAsync(session, context, cancellationToken);
+        }
+
+        var welcome = FormatDeepDiveWelcome(GetDisplayName(context));
+        return await BeginDeepDiveAfterAccountAsync(session, context, welcome, cancellationToken, signedIn: true);
+    }
+
+    private async Task<ChatMessageResponse> ApplySavedLocationAndContinueAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.LocationPreference = context.LastKnownLocation;
+        session.Location = context.LastKnownLocation;
+        return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> ContinueLogisticsAfterLocationAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (context.SkipAccountCreation)
+            return await AskUrgencySkippingInsuranceAsync(session, context, cancellationToken);
+
+        context.LogisticsStep = 2;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsuranceTypeQuestion, cancellationToken);
+        return BuildResponse(session, context, NuviFlowContent.LogisticsInsuranceTypeQuestion,
+            stage: NuviConversationStage.Logistics,
+            options: NuviFlowContent.LogisticsInsuranceTypeOptions);
+    }
+
+    private async Task<ChatMessageResponse> AskUrgencySkippingInsuranceAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        ApplySavedInsuranceToSession(session, context);
+        context.LogisticsStep = 4;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
+        return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
+            stage: NuviConversationStage.Logistics,
+            options: NuviFlowContent.LogisticsUrgencyOptions);
+    }
+
+    private static void ApplySavedInsuranceToSession(SearchSession session, SearchContextData context)
+    {
+        if (!string.IsNullOrWhiteSpace(context.InsurancePreference))
+            session.InsurancePlanText = context.InsurancePreference;
+        else if (!string.IsNullOrWhiteSpace(session.InsurancePlanText))
+            context.InsurancePreference = session.InsurancePlanText;
+
+        if (string.IsNullOrWhiteSpace(context.InsuranceCategory)
+            && !string.IsNullOrWhiteSpace(context.InsurancePreference))
+        {
+            context.InsuranceCategory = string.Equals(context.InsurancePreference, "Self-pay", StringComparison.OrdinalIgnoreCase)
+                ? "self-pay"
+                : "insured";
+        }
+    }
+
+    private static bool IsReturningWithSavedLocation(SearchContextData context) =>
+        context.SkipAccountCreation && !string.IsNullOrWhiteSpace(context.LastKnownLocation);
+
+    private static bool IsYesAnswer(string answer)
+    {
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower is "yes" or "y" || lower.StartsWith("yes ") || lower.Contains("changed");
+    }
+
+    private static bool IsNoAnswer(string answer)
+    {
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower is "no" or "n" || lower.StartsWith("no ") || lower.Contains("same") || lower.Contains("no change");
     }
 
     private async Task<ChatMessageResponse> HandleDeepDiveAsync(
@@ -1571,6 +1693,151 @@ public class AnthropicChatService : IAnthropicChatService
         context.PendingUsername ??= patient.Username;
         context.PatientDateOfBirth = patient.DateOfBirth;
         context.SkipAccountCreation = true;
+
+        await LoadReturningPatientProfileAsync(session, context, patient, cancellationToken);
+    }
+
+    private async Task LoadReturningPatientProfileAsync(
+        SearchSession session,
+        SearchContextData context,
+        Patient patient,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(patient.PreferenceProfileJson))
+        {
+            try
+            {
+                var profile = JsonSerializer.Deserialize<PatientPreferenceProfile>(
+                    patient.PreferenceProfileJson,
+                    SearchContextHelper.JsonOptions);
+
+                if (profile != null)
+                {
+                    context.LastKnownLocation = profile.LocationPreference;
+                    context.InsuranceCategory ??= profile.InsuranceCategory;
+                    context.InsurancePreference ??= profile.InsurancePreference;
+                    context.VisitPreference ??= profile.VisitPreference;
+                    context.LanguagePreference ??= profile.LanguagePreference;
+                    context.WildcardConcern ??= profile.WildcardConcern;
+
+                    if (profile.DeepDiveAnswers is { Count: > 0 })
+                    {
+                        context.HasPriorDeepDiveAnswers = true;
+                        context.SavedDeepDiveAnswers = profile.DeepDiveAnswers;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore malformed profile JSON.
+            }
+        }
+
+        await TryLoadPriorDeepDiveFromSessionsAsync(session, context, patient.Id, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(context.LastKnownLocation))
+        {
+            var lastSession = await _db.SearchSessions.AsNoTracking()
+                .Where(s => s.PatientId == patient.Id && s.Location != null && s.Location != "")
+                .OrderByDescending(s => s.UpdatedAt)
+                .Select(s => new { s.Location, s.InsurancePlanText })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (lastSession != null)
+            {
+                context.LastKnownLocation = lastSession.Location;
+                context.InsurancePreference ??= lastSession.InsurancePlanText;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(context.InsurancePreference)
+            && !string.IsNullOrWhiteSpace(session.InsurancePlanText))
+        {
+            context.InsurancePreference = session.InsurancePlanText;
+        }
+    }
+
+    private async Task TryLoadPriorDeepDiveFromSessionsAsync(
+        SearchSession session,
+        SearchContextData context,
+        int patientId,
+        CancellationToken cancellationToken)
+    {
+        if (context.HasPriorDeepDiveAnswers)
+            return;
+
+        var priorContextJsonList = await _db.SearchSessions.AsNoTracking()
+            .Where(s => s.PatientId == patientId
+                && s.Id != session.Id
+                && s.SearchContextJson != null
+                && s.SearchContextJson != "")
+            .OrderByDescending(s => s.UpdatedAt)
+            .Select(s => s.SearchContextJson)
+            .Take(15)
+            .ToListAsync(cancellationToken);
+
+        foreach (var json in priorContextJsonList)
+        {
+            SearchContextData? prior;
+            try
+            {
+                prior = JsonSerializer.Deserialize<SearchContextData>(json!, SearchContextHelper.JsonOptions);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (prior?.PollingAnswers is not { Count: > 0 } || !HasAttendedDeepDive(prior))
+                continue;
+
+            context.HasPriorDeepDiveAnswers = true;
+            context.SavedDeepDiveAnswers = prior.PollingAnswers;
+            context.LanguagePreference ??= prior.LanguagePreference;
+            context.WildcardConcern ??= prior.WildcardConcern;
+            return;
+        }
+    }
+
+    private static bool HasAttendedDeepDive(SearchContextData context)
+    {
+        if (context.PollingAnswers.Count == 0)
+            return false;
+
+        if (context.PollingComplete)
+            return true;
+
+        if (context.SkipDeepDive)
+            return false;
+
+        if (HasCompletedDeepDiveAnswers(context.PollingAnswers))
+            return true;
+
+        return context.Stage is NuviConversationStage.RecommendationReveal
+            or NuviConversationStage.DoctorExplore
+            or NuviConversationStage.BookingInitiation
+            or NuviConversationStage.Confirmation
+            or NuviConversationStage.Complete;
+    }
+
+    private static bool HasCompletedDeepDiveAnswers(IReadOnlyList<PollingAnswerEntry> answers)
+    {
+        if (answers.Any(a => NuviFlowContent.IsWildcardDeepDiveQuestion(a.Question)))
+            return true;
+
+        return answers.Count >= MaxDeepDiveQuestions;
+    }
+
+    private sealed class PatientPreferenceProfile
+    {
+        public string? VisitPreference { get; set; }
+        public string? LocationPreference { get; set; }
+        public string? UrgencyPreference { get; set; }
+        public string? InsurancePreference { get; set; }
+        public string? InsuranceCategory { get; set; }
+        public string? LanguagePreference { get; set; }
+        public string? WildcardConcern { get; set; }
+        public List<PollingAnswerEntry>? DeepDiveAnswers { get; set; }
     }
 
     private static int? GetAuthenticatedPatientId(HttpContext? httpContext)
@@ -1609,7 +1876,7 @@ public class AnthropicChatService : IAnthropicChatService
         var lastAssistantMessage = await GetLastAssistantMessageAsync(session.Id, cancellationToken);
         var (question, hint, options) = stage == NuviConversationStage.Triage
             ? GetTriageValidationTarget(lastAssistantMessage)
-            : GetLogisticsValidationTarget(context.LogisticsStep);
+            : GetLogisticsValidationTarget(context);
 
         var conversationContext = stage == NuviConversationStage.Triage
             ? lastAssistantMessage ?? NuviFlowContent.GreetingMessage
@@ -1653,14 +1920,23 @@ public class AnthropicChatService : IAnthropicChatService
             null);
     }
 
-    private static (string Question, string Hint, IReadOnlyList<string>? Options) GetLogisticsValidationTarget(int step) =>
-        step switch
+    private static (string Question, string Hint, IReadOnlyList<string>? Options) GetLogisticsValidationTarget(
+        SearchContextData context) =>
+        context.LogisticsStep switch
         {
             0 => (
                 NuviFlowContent.LogisticsVisitQuestion,
                 "in-person only, telehealth/virtual only, or either/both",
                 NuviFlowContent.LogisticsVisitOptions),
+            1 when IsReturningWithSavedLocation(context) => (
+                NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!),
+                "yes if their location changed, or no if it is the same",
+                NuviFlowContent.LogisticsLocationChangeOptions),
             1 => (
+                NuviFlowContent.LogisticsLocationQuestion,
+                "a city, ZIP code, neighborhood, or general area where they want care",
+                null),
+            LogisticsStepNewLocation => (
                 NuviFlowContent.LogisticsLocationQuestion,
                 "a city, ZIP code, neighborhood, or general area where they want care",
                 null),

@@ -6,7 +6,7 @@ namespace Docovee.BLL.Services;
 
 public static class SearchContextHelper
 {
-    private static readonly JsonSerializerOptions Options = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    public static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public static SearchContextData Load(SearchSession session)
     {
@@ -15,7 +15,7 @@ public static class SearchContextHelper
 
         try
         {
-            return JsonSerializer.Deserialize<SearchContextData>(session.SearchContextJson, Options) ?? new SearchContextData();
+            return JsonSerializer.Deserialize<SearchContextData>(session.SearchContextJson, JsonOptions) ?? new SearchContextData();
         }
         catch
         {
@@ -25,6 +25,6 @@ public static class SearchContextHelper
 
     public static void Save(SearchSession session, SearchContextData context)
     {
-        session.SearchContextJson = JsonSerializer.Serialize(context, Options);
+        session.SearchContextJson = JsonSerializer.Serialize(context, JsonOptions);
     }
 }

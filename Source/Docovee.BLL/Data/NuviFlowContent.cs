@@ -38,6 +38,24 @@ public static class NuviFlowContent
 
 
 
+    public const string LogisticsLocationChangeQuestionTemplate =
+
+        "Any change in your location {0}?";
+
+
+
+    public static readonly string[] LogisticsLocationChangeOptions =
+
+        ["Yes", "No"];
+
+
+
+    public static string FormatLogisticsLocationChangeQuestion(string cityName) =>
+
+        string.Format(LogisticsLocationChangeQuestionTemplate, cityName.Trim());
+
+
+
     public const string LogisticsInsuranceTypeQuestion =
 
         "Do you have health insurance, or are you looking for self-pay / cash-pay options?";
