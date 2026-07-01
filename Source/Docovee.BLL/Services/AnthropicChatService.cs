@@ -436,6 +436,9 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> BeginMomentumBridgeAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        if (context.SkipAccountCreation && context.HasPriorDeepDiveAnswers)
+            return await BeginPostAccountFlowAsync(session, context, cancellationToken);
+
         context.Stage = NuviConversationStage.MomentumBridge;
         var text = NuviFlowContent.MomentumBridgeMessage;
         await SaveAssistantMessageAsync(session, text, cancellationToken);
