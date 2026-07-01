@@ -23,14 +23,20 @@ public class ProfileService : IProfileService
 {
     private readonly DocoveeDbContext _db;
     private readonly IDoctorFileService _fileService;
+    private readonly IPatientDoctorContactService _contactViews;
     private readonly IDocoveeLogger _logger;
     private readonly PasswordHasher<Patient> _patientHasher = new();
     private readonly PasswordHasher<Doctor> _doctorHasher = new();
 
-    public ProfileService(DocoveeDbContext db, IDoctorFileService fileService, IDocoveeLogger logger)
+    public ProfileService(
+        DocoveeDbContext db,
+        IDoctorFileService fileService,
+        IPatientDoctorContactService contactViews,
+        IDocoveeLogger logger)
     {
         _db = db;
         _fileService = fileService;
+        _contactViews = contactViews;
         _logger = logger;
     }
 
@@ -58,7 +64,8 @@ public class ProfileService : IProfileService
                     Location = s.Location,
                     MedicalIssuesSummary = s.MedicalIssuesSummary
                 })
-                .ToList()
+                .ToList(),
+            ViewedDoctors = await _contactViews.GetViewedDoctorsAsync(patientId, cancellationToken)
         };
     }
 

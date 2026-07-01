@@ -142,6 +142,7 @@ public class DoctorReviewRequest
     public string ReviewerName { get; set; } = string.Empty;
     public int Rating { get; set; }
     public string ReviewText { get; set; } = string.Empty;
+    public int? PatientId { get; set; }
 }
 
 public class DoctorReviewDto

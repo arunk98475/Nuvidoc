@@ -8,6 +8,12 @@ public class ChatMessageRequest
     public string? Action { get; set; }
 }
 
+public class ChatRecordContactViewRequest
+{
+    public Guid SessionKey { get; set; }
+    public int DoctorId { get; set; }
+}
+
 public class ChatMessageResponse
 {
     public Guid SessionKey { get; set; }

@@ -9,8 +9,13 @@ namespace Docovee.Controllers.Api;
 public class ChatController : ControllerBase
 {
     private readonly IAnthropicChatService _chatService;
+    private readonly IPatientDoctorContactService _contactViews;
 
-    public ChatController(IAnthropicChatService chatService) => _chatService = chatService;
+    public ChatController(IAnthropicChatService chatService, IPatientDoctorContactService contactViews)
+    {
+        _chatService = chatService;
+        _contactViews = contactViews;
+    }
 
     [HttpPost("message")]
     public async Task<ActionResult<ChatMessageResponse>> SendMessage([FromBody] ChatMessageRequest request, CancellationToken cancellationToken)
@@ -27,5 +32,17 @@ public class ChatController : ControllerBase
         {
             return StatusCode(500, new { message = "Unable to process chat message.", detail = ex.Message });
         }
+    }
+
+    [HttpPost("record-contact-view")]
+    public async Task<IActionResult> RecordContactView(
+        [FromBody] ChatRecordContactViewRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.SessionKey == Guid.Empty || request.DoctorId <= 0)
+            return BadRequest(new { message = "Session key and doctor id are required." });
+
+        await _contactViews.TryRecordContactViewBySessionAsync(request.SessionKey, request.DoctorId, cancellationToken);
+        return Ok(new { recorded = true });
     }
 }

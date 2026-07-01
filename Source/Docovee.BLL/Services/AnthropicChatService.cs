@@ -43,6 +43,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IAccountAuthService _accountAuthService;
     private readonly IBrandingService _branding;
     private readonly IDoctorLanguageService _doctorLanguages;
+    private readonly IPatientDoctorContactService _patientDoctorContacts;
 
     public AnthropicChatService(
         HttpClient httpClient,
@@ -55,7 +56,8 @@ public class AnthropicChatService : IAnthropicChatService
         IPatientService patientService,
         IAccountAuthService accountAuthService,
         IBrandingService branding,
-        IDoctorLanguageService doctorLanguages)
+        IDoctorLanguageService doctorLanguages,
+        IPatientDoctorContactService patientDoctorContacts)
     {
         _httpClient = httpClient;
         _db = db;
@@ -68,6 +70,7 @@ public class AnthropicChatService : IAnthropicChatService
         _accountAuthService = accountAuthService;
         _branding = branding;
         _doctorLanguages = doctorLanguages;
+        _patientDoctorContacts = patientDoctorContacts;
     }
 
     private string TriageSystemPrompt => $"""
@@ -963,7 +966,6 @@ public class AnthropicChatService : IAnthropicChatService
                 stage: NuviConversationStage.RecommendationReveal,
                 doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
 
-        var detail = MapDoctorDetail(doctor, session);
         var yearsText = doctor.YearsOfPractice.HasValue ? $" for {doctor.YearsOfPractice} years" : "";
         var reviewSnippet = !string.IsNullOrWhiteSpace(doctor.SummaryOfReviews)
             ? doctor.SummaryOfReviews
@@ -976,13 +978,18 @@ public class AnthropicChatService : IAnthropicChatService
 
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(session, context, text, stage: NuviConversationStage.BookingInitiation,
-            selectedDoctor: detail,
             options: ["Yes, contact their office", "Save for later", "Show my other matches"]);
     }
 
     private async Task<ChatMessageResponse> HandleBookingInitiationAsync(
         SearchSession session, SearchContextData context, ChatMessageRequest request, CancellationToken cancellationToken)
     {
+        if (request.SelectedDoctorId.HasValue)
+        {
+            context.SelectedDoctorId = request.SelectedDoctorId;
+            return await HandleDoctorExploreAsync(session, context, request, cancellationToken);
+        }
+
         var message = request.Message.Trim().ToLowerInvariant();
         var displayName = GetDisplayName(context);
 
@@ -1013,16 +1020,24 @@ public class AnthropicChatService : IAnthropicChatService
         if (doctor == null)
             return BuildResponse(session, context, "I couldn't find that doctor's contact info.");
 
-        var contactText = message.Contains("yes") || message.Contains("contact") || request.Action == "book"
+        var contactConfirmed = message.Contains("yes") || message.Contains("contact") || request.Action == "book";
+        var contactText = contactConfirmed
             ? $"Done! 🎉 {doctor.Name}'s office will reach out to {context.PendingPhone ?? context.PendingEmail ?? "you"} within 1 business day to confirm your appointment. In the meantime, I've saved your other matches in your profile in case you want to compare. You're in good hands, {displayName}."
             : string.Format(NuviFlowContent.BookingInitiationPrompt, doctor.Name);
+
+        if (contactConfirmed && session.PatientId.HasValue)
+        {
+            await _patientDoctorContacts.RecordContactViewAsync(
+                session.PatientId.Value, doctor.Id, session.Id, cancellationToken);
+        }
 
         context.Stage = NuviConversationStage.Confirmation;
         context.BookingConfirmed = true;
         await SaveAssistantMessageAsync(session, contactText, cancellationToken);
 
         return BuildResponse(session, context, contactText, stage: NuviConversationStage.Confirmation,
-            selectedDoctor: MapDoctorDetail(doctor, session), flowComplete: message.Contains("yes") || message.Contains("contact") || request.Action == "book");
+            selectedDoctor: contactConfirmed ? MapDoctorDetail(doctor, session) : null,
+            flowComplete: contactConfirmed);
     }
 
     private void ApplyDeepDivePreferences(SearchSession session, SearchContextData context)

@@ -12,4 +12,5 @@ public class Patient
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<SearchSession> SearchSessions { get; set; } = new List<SearchSession>();
+    public ICollection<PatientDoctorContactView> DoctorContactViews { get; set; } = new List<PatientDoctorContactView>();
 }

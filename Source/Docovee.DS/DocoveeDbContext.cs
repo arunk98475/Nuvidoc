@@ -22,6 +22,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorOnboardingSession> DoctorOnboardingSessions => Set<DoctorOnboardingSession>();
     public DbSet<DoctorLanguage> DoctorLanguages => Set<DoctorLanguage>();
     public DbSet<DoctorDoctorLanguage> DoctorDoctorLanguages => Set<DoctorDoctorLanguage>();
+    public DbSet<PatientDoctorContactView> PatientDoctorContactViews => Set<PatientDoctorContactView>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -166,6 +167,16 @@ public class DocoveeDbContext : DbContext
             entity.HasKey(e => new { e.DoctorId, e.DoctorLanguageId });
             entity.HasOne(e => e.Doctor).WithMany(d => d.DoctorLanguages).HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.DoctorLanguage).WithMany(l => l.Doctors).HasForeignKey(e => e.DoctorLanguageId);
+        });
+
+        modelBuilder.Entity<PatientDoctorContactView>(entity =>
+        {
+            entity.ToTable("patient_doctor_contact_views");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.PatientId, e.DoctorId }).IsUnique();
+            entity.HasOne(e => e.Patient).WithMany(p => p.DoctorContactViews).HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.SearchSession).WithMany().HasForeignKey(e => e.SearchSessionId);
         });
     }
 }

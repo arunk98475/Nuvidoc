@@ -26,6 +26,14 @@
     {
         <div class="alert-success">Your profile has been updated.</div>
     }
+    @if (Model.ReviewSubmitted)
+    {
+        <div class="alert-success">Thank you — your review has been submitted.</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.ReviewError))
+    {
+        <div class="alert-error">@Model.ReviewError</div>
+    }
 
     <div class="card">
         <div class="profile-card-top">
@@ -46,6 +54,65 @@
             <dt>Date of birth</dt><dd>@Model.Profile.DateOfBirth.ToString("MMMM d, yyyy")</dd>
             <dt>Phone</dt><dd>@Model.Profile.Phone</dd>
         </dl>
+    </div>
+
+    <div class="card">
+        <h2 style="font-size:18px;margin-bottom:8px;">Doctors You've Contacted</h2>
+        <p class="profile-section-hint">Doctors you asked Nuvi to contact on your behalf. You can leave a review for each one.</p>
+        @if (Model.Profile.ViewedDoctors.Count == 0)
+        {
+            <p class="profile-empty">No doctors yet. When you choose "Yes, contact their office" in chat, they'll appear here so you can leave a review.</p>
+        }
+        else
+        {
+            <div class="viewed-doctors-list">
+                @foreach (var doctor in Model.Profile.ViewedDoctors)
+                {
+                    <div class="viewed-doctor-card">
+                        <div class="viewed-doctor-header">
+                            <div class="viewed-doctor-avatar">@doctor.AvatarInitials</div>
+                            <div>
+                                <div class="viewed-doctor-name">@doctor.Name</div>
+                                <div class="viewed-doctor-meta">@doctor.Specialty · @doctor.Location</div>
+                                @if (!string.IsNullOrEmpty(doctor.OfficePhoneNumber))
+                                {
+                                    <div class="viewed-doctor-phone">@doctor.OfficePhoneNumber</div>
+                                }
+                                <div class="profile-list-meta">Contact viewed @doctor.ViewedAt.ToString("MMM d, yyyy")</div>
+                            </div>
+                        </div>
+
+                        @if (doctor.HasReview)
+                        {
+                            <div class="patient-review-submitted">
+                                <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
+                                <p>@doctor.ReviewText</p>
+                                <div class="profile-list-meta">Submitted @doctor.ReviewedAt?.ToString("MMM d, yyyy")</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
+                                <input type="hidden" name="doctorId" value="@doctor.DoctorId" />
+                                <label class="review-label">Your rating</label>
+                                <div class="review-rating-row">
+                                    @for (var star = 1; star <= 5; star++)
+                                    {
+                                        <label class="review-star-label">
+                                            <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
+                                            <span>@star</span>
+                                        </label>
+                                    }
+                                </div>
+                                <label class="review-label" for="review-@doctor.DoctorId">Your review</label>
+                                <textarea id="review-@doctor.DoctorId" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
+                                <button type="submit" class="btn-primary btn-sm">Submit review</button>
+                            </form>
+                        }
+                    </div>
+                }
+            </div>
+        }
     </div>
 
     <div class="card">

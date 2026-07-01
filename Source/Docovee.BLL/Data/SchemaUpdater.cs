@@ -93,6 +93,24 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `patient_doctor_contact_views` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `DoctorId` int NOT NULL,
+                `SearchSessionId` int NULL,
+                `ViewedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_patient_doctor_contact_views_PatientId_DoctorId` (`PatientId`, `DoctorId`),
+                KEY `IX_patient_doctor_contact_views_DoctorId` (`DoctorId`),
+                KEY `IX_patient_doctor_contact_views_SearchSessionId` (`SearchSessionId`),
+                CONSTRAINT `FK_patient_doctor_contact_views_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_patient_doctor_contact_views_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_patient_doctor_contact_views_search_sessions_SearchSessionId` FOREIGN KEY (`SearchSessionId`) REFERENCES `search_sessions` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
         await EnsureColumnAsync(db, "polling_questions", "MatchWeight", "int NOT NULL DEFAULT 5", cancellationToken);
         await EnsureColumnAsync(db, "polling_questions", "MatchWeightLabel", "varchar(50) NULL", cancellationToken);
 

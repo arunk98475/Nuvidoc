@@ -22,6 +22,24 @@ public class PatientProfileDto
     public string Phone { get; set; } = string.Empty;
     public DateTime MemberSince { get; set; }
     public IReadOnlyList<PatientSearchHistoryDto> SearchHistory { get; set; } = Array.Empty<PatientSearchHistoryDto>();
+    public IReadOnlyList<PatientViewedDoctorDto> ViewedDoctors { get; set; } = Array.Empty<PatientViewedDoctorDto>();
+}
+
+public class PatientViewedDoctorDto
+{
+    public int DoctorId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Specialty { get; set; } = string.Empty;
+    public string? PracticeName { get; set; }
+    public string Location { get; set; } = string.Empty;
+    public string? OfficePhoneNumber { get; set; }
+    public string? PhotoUrl { get; set; }
+    public string AvatarInitials { get; set; } = string.Empty;
+    public DateTime ViewedAt { get; set; }
+    public bool HasReview { get; set; }
+    public int? ReviewRating { get; set; }
+    public string? ReviewText { get; set; }
+    public DateTime? ReviewedAt { get; set; }
 }
 
 public class PatientSearchHistoryDto
