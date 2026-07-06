@@ -89,7 +89,7 @@ public class AccountAuthService : IAccountAuthService
             return (false, "Invalid username or password.");
 
         await SignInAsync(httpContext, doctor.Username!, AuthRoles.Doctor, doctor.Id);
-        _logger.LogInformation("Doctor logged in: {Username}", doctor.Username);
+        _logger.LogInformation("Doctor logged in: {Username}", doctor?.Username ?? "Unknown");
         return (true, null);
     }
 

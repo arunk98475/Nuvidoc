@@ -430,7 +430,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
 
         var text = $"You're all set, Dr. {GetFirstName(doctor.Name)}! 🎉 Your {_siteName} profile is **100% complete**. Taking you to your profile now…";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        _logger.LogInformation("Doctor onboarding completed: {Email}", doctor.Username);
+        _logger.LogInformation("Doctor onboarding completed: {Email}", doctor?.Username ?? "Unknown");
 
         return BuildResponse(session, context, text, flowComplete: true, signedIn: true);
     }
