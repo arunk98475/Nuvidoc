@@ -9,11 +9,41 @@ namespace Docovee.Controllers.Api;
 public class DoctorsController : ControllerBase
 {
     private readonly IDoctorSearchService _doctorSearchService;
+    private readonly IPublicDoctorService _publicDoctorService;
 
-    public DoctorsController(IDoctorSearchService doctorSearchService) => _doctorSearchService = doctorSearchService;
+    public DoctorsController(
+        IDoctorSearchService doctorSearchService,
+        IPublicDoctorService publicDoctorService)
+    {
+        _doctorSearchService = doctorSearchService;
+        _publicDoctorService = publicDoctorService;
+    }
+
+    [HttpGet("featured")]
+    public async Task<ActionResult<IReadOnlyList<FeaturedDoctorCardDto>>> GetFeatured(
+        [FromQuery] int count = 3,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await _publicDoctorService.GetFeaturedAsync(count, cancellationToken);
+        return Ok(results);
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<PublicDoctorProfileDto>> GetProfile(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await _publicDoctorService.GetPublicProfileAsync(id, cancellationToken);
+        if (profile == null)
+            return NotFound();
+
+        return Ok(profile);
+    }
 
     [HttpPost("search")]
-    public async Task<ActionResult<IReadOnlyList<DoctorDto>>> Search([FromBody] DoctorSearchRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<IReadOnlyList<DoctorDto>>> Search(
+        [FromBody] DoctorSearchRequest request,
+        CancellationToken cancellationToken)
     {
         if (request.SessionKey == Guid.Empty)
             return BadRequest("SessionKey is required.");

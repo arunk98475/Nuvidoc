@@ -498,3 +498,84 @@ function handleKey(e) {
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+function renderStars(rating) {
+  const count = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
+  return "★".repeat(count) + "☆".repeat(5 - count);
+}
+
+async function openDoctorProfileModal(doctorId) {
+  const modal = document.getElementById("doctor-profile-modal");
+  const body = document.getElementById("doctor-profile-modal-body");
+  if (!modal || !body) return;
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  body.innerHTML = '<div class="hp-doctor-modal-loading">Loading profile…</div>';
+
+  try {
+    const res = await fetch(`/api/doctors/${doctorId}`, { credentials: "same-origin" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      body.innerHTML = '<div class="hp-doctor-modal-loading">Unable to load this doctor profile.</div>';
+      return;
+    }
+
+    const location = [data.city, data.state].filter(Boolean).join(", ");
+    const photoHtml = data.photoUrl
+      ? `<img class="hp-doctor-modal-photo" src="${escapeHtml(data.photoUrl)}" alt="" />`
+      : `<div class="hp-doctor-modal-avatar">${escapeHtml(data.avatarInitials || "DR")}</div>`;
+
+    const phoneHtml = data.officePhoneNumber
+      ? `<a class="hp-doctor-modal-phone" href="tel:${data.officePhoneNumber.replace(/\D/g, "")}">📞 ${escapeHtml(data.officePhoneNumber)}</a>`
+      : "<p>Contact number not available</p>";
+
+    const reviewsHtml = (data.reviews || []).length
+      ? data.reviews.map((r) => `
+          <div class="hp-doctor-modal-review">
+            <div class="hp-doctor-modal-review-stars">${renderStars(r.rating)}</div>
+            <div class="hp-doctor-modal-review-text">"${escapeHtml(r.reviewText)}"</div>
+            <div class="hp-doctor-modal-review-author">— ${escapeHtml(r.reviewerName)}</div>
+          </div>`).join("")
+      : data.summaryOfReviews
+        ? `<p>${escapeHtml(data.summaryOfReviews)}</p>`
+        : "<p>No patient reviews yet.</p>";
+
+    body.innerHTML = `
+      <div class="hp-doctor-modal-header">
+        ${photoHtml}
+        <div>
+          <h3 class="hp-doctor-modal-name" id="doctor-modal-title">${escapeHtml(data.name)}</h3>
+          <div class="hp-doctor-modal-spec">${escapeHtml(data.specialty)}${data.practiceName ? ` · ${escapeHtml(data.practiceName)}` : ""}</div>
+          <div class="hp-doctor-modal-loc">${escapeHtml(location)}${data.address ? `<br>${escapeHtml(data.address)}` : ""}</div>
+          ${data.googleRating > 0 ? `<div class="hp-doctor-modal-rating">${renderStars(data.googleRating)} ${Number(data.googleRating).toFixed(1)} (${data.googleReviewCount || 0} Google reviews)</div>` : ""}
+        </div>
+      </div>
+      <div class="hp-doctor-modal-section">
+        <h4>Contact</h4>
+        ${phoneHtml}
+      </div>
+      ${data.niche ? `<div class="hp-doctor-modal-section"><h4>Focus</h4><p>${escapeHtml(data.niche)}</p></div>` : ""}
+      ${data.yearsOfPractice ? `<div class="hp-doctor-modal-section"><h4>Experience</h4><p>${data.yearsOfPractice} years in practice</p></div>` : ""}
+      ${data.top3Procedures ? `<div class="hp-doctor-modal-section"><h4>Top procedures</h4><p>${escapeHtml(data.top3Procedures)}</p></div>` : ""}
+      <div class="hp-doctor-modal-section">
+        <h4>Reviews</h4>
+        ${reviewsHtml}
+      </div>`;
+  } catch {
+    body.innerHTML = '<div class="hp-doctor-modal-loading">Unable to load this doctor profile.</div>';
+  }
+}
+
+function closeDoctorProfileModal() {
+  const modal = document.getElementById("doctor-profile-modal");
+  if (!modal) return;
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeDoctorProfileModal();
+});

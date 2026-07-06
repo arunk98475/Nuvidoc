@@ -134,7 +134,15 @@
     </div>
 </div>
 
-<partial name="Shared/_HomeMarketing" />
+<partial name="Shared/_HomeMarketing" model="Model.FeaturedDoctors" />
+
+<div id="doctor-profile-modal" class="hp-doctor-modal" hidden aria-hidden="true">
+    <div class="hp-doctor-modal-backdrop" onclick="closeDoctorProfileModal()"></div>
+    <div class="hp-doctor-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="doctor-modal-title">
+        <button type="button" class="hp-doctor-modal-close" onclick="closeDoctorProfileModal()" aria-label="Close">&times;</button>
+        <div id="doctor-profile-modal-body" class="hp-doctor-modal-body"></div>
+    </div>
+</div>
 
 <footer class="site-footer site-footer-rich">
     <div class="site-footer-inner">

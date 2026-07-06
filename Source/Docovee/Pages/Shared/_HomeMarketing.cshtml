@@ -1,3 +1,6 @@
+@model IReadOnlyList<Docovee.DS.Models.FeaturedDoctorCardDto>
+@using Docovee.DS.Models
+
 <section class="hp-stats" aria-label="Trust statistics">
     <div class="hp-stats-inner">
         <div class="hp-stat"><div class="hp-stat-num">3 min</div><div class="hp-stat-label">Average time to match</div></div>
@@ -105,26 +108,54 @@
 <section class="hp-section hp-section-mist" id="testimonials" aria-labelledby="testimonials-heading">
     <div class="hp-container">
         <div class="hp-section-header">
-            <div class="section-eyebrow">Patient Stories</div>
-            <h2 class="section-h2" id="testimonials-heading">Real people.<br><em>Real matches.</em></h2>
+            <div class="section-eyebrow">Top Doctors</div>
+            <h2 class="section-h2" id="testimonials-heading">Real doctors.<br><em>Real results.</em></h2>
+            <p class="section-body hp-doctors-subtitle">Highly rated providers in our network — tap a card to view profile, contact info, and reviews.</p>
         </div>
-        <div class="hp-testimonials-grid">
-            <blockquote class="hp-testimonial">
-                <div class="hp-stars">★★★★★</div>
-                <p>"I described my back pain and @Branding.SiteName matched me with an orthopedic specialist the same day. I'd been putting this off for months because I didn't know where to start."</p>
-                <footer><span class="hp-testimonial-avatar">M</span><div><strong>Maria T.</strong><span>Renton, WA</span></div></footer>
-            </blockquote>
-            <blockquote class="hp-testimonial hp-testimonial-featured">
-                <div class="hp-stars">★★★★★</div>
-                <p>"Finally found a dentist who actually listens. The match was perfect — I told @Branding.ChatBotName I get anxious at the dentist and they found someone who specializes in nervous patients."</p>
-                <footer><span class="hp-testimonial-avatar">J</span><div><strong>James R.</strong><span>Seattle, WA</span></div></footer>
-            </blockquote>
-            <blockquote class="hp-testimonial">
-                <div class="hp-stars">★★★★★</div>
-                <p>"Booked my whole family through @Branding.SiteName. Pediatrician for the kids, a new cardiologist for my husband. One account, done in 20 minutes. Life changing honestly."</p>
-                <footer><span class="hp-testimonial-avatar">S</span><div><strong>Sandra K.</strong><span>Tacoma, WA</span></div></footer>
-            </blockquote>
-        </div>
+        @if (Model is { Count: > 0 })
+        {
+            <div class="hp-testimonials-grid">
+                @foreach (var doctor in Model)
+                {
+                    var stars = doctor.GoogleRating > 0
+                        ? new string('★', (int)Math.Round(doctor.GoogleRating))
+                        : "★★★★★";
+                    var location = $"{doctor.City}, {doctor.State}";
+                    var highlight = string.IsNullOrWhiteSpace(doctor.HighlightText)
+                        ? $"Trusted {doctor.Specialty} in {location}."
+                        : doctor.HighlightText;
+                    <button type="button"
+                            class="hp-testimonial hp-doctor-card@(doctor.IsFeatured ? " hp-testimonial-featured" : "")"
+                            onclick="openDoctorProfileModal(@doctor.Id)"
+                            aria-label="View profile for @doctor.Name">
+                        <div class="hp-stars" title="@doctor.GoogleRating.ToString("0.0") rating">@stars</div>
+                        <p>@highlight</p>
+                        <footer>
+                            @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+                            {
+                                <img class="hp-doctor-card-photo" src="@doctor.PhotoUrl" alt="" loading="lazy" />
+                            }
+                            else
+                            {
+                                <span class="hp-testimonial-avatar">@doctor.AvatarInitials</span>
+                            }
+                            <div>
+                                <strong>@doctor.Name</strong>
+                                <span>@doctor.Specialty · @location</span>
+                                @if (doctor.GoogleReviewCount > 0)
+                                {
+                                    <span class="hp-doctor-review-count">@doctor.GoogleReviewCount Google reviews</span>
+                                }
+                            </div>
+                        </footer>
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="section-body">We're adding doctors to our network every day. <a href="#" class="hp-text-link" onclick="scrollToChat(); return false;">Tell @Branding.ChatBotName what you need →</a></p>
+        }
     </div>
 </section>
 

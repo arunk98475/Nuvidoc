@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddHttpClient<IWebDoctorDiscoveryService, WebDoctorDiscoveryService>();
 
         services.AddScoped<IDoctorSearchService, DoctorSearchService>();
+        services.AddScoped<IPublicDoctorService, PublicDoctorService>();
         services.AddScoped<IInsuranceService, InsuranceService>();
         services.AddScoped<IPatientService, PatientService>();
         services.AddScoped<IAdminAuthService, AdminAuthService>();
