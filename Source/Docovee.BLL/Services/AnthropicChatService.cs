@@ -103,7 +103,7 @@ public class AnthropicChatService : IAnthropicChatService
         IF the patient's message is vague (e.g. "I need a doctor", "not feeling well", "health issues") use this style of clarifying question:
         "Got it — that sounds like something worth addressing. Are you looking more for a doctor to help manage something ongoing, or do you have a specific concern you'd like evaluated?"
 
-        If the patient already named a clear specialty or symptom (e.g. tooth pain, back pain, rash), respond with empathy and route quickly — do not ask clinical follow-ups.
+        Even when the patient names a clear specialty or symptom (e.g. tooth pain, back pain, skin rash), still ask ONE matching-focused clarifying question before routing — never skip straight to the routing signal on the first response.
 
         Ask ONE question per turn.
 
@@ -111,7 +111,7 @@ public class AnthropicChatService : IAnthropicChatService
         - SHORT responses — empathy + one question (2–3 sentences max)
         - Warm and calm — patients may be anxious
         - ONE question per turn, never multiple
-        - Do NOT output the routing signal on your first response — always ask at least one clarifying question first
+        - Do NOT output the routing signal on your first response when the message is vague — ask one clarifying question first
         - Emergency symptoms (chest pain, difficulty breathing, stroke signs) — say call 911 immediately, set URGENCY: emergency, then route
 
         Valid specialties: General Dentist, Oral Surgeon, Periodontist, Orthodontist, Family Medicine, Internal Medicine, Dermatologist, Orthopedic Surgeon, Neurologist, Cardiologist, OB/GYN, Pediatrician, Psychiatrist, Physical Therapist, Urgent Care
@@ -125,6 +125,15 @@ public class AnthropicChatService : IAnthropicChatService
         var session = await GetOrCreateSessionAsync(request.SessionKey, cancellationToken);
         var context = SearchContextHelper.Load(session);
         await ApplyAuthenticatedPatientAsync(session, context, httpContext, cancellationToken);
+
+        if (context.AwaitingMatchSearch
+            && string.Equals(request.Action, "match_search", StringComparison.OrdinalIgnoreCase))
+        {
+            var matchResponse = await ExecuteMatchSearchAsync(session, context, cancellationToken);
+            SearchContextHelper.Save(session, context);
+            await _db.SaveChangesAsync(cancellationToken);
+            return matchResponse;
+        }
 
         var effectiveMessage = request.Message ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(request.Message) && !IsPasswordSubmission(context))
@@ -162,7 +171,7 @@ public class AnthropicChatService : IAnthropicChatService
 
         var response = context.Stage switch
         {
-            NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, effectiveMessage, httpContext, cancellationToken),
             NuviConversationStage.Triage => await HandleTriageAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.Logistics => await HandleLogisticsAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, effectiveMessage, httpContext, cancellationToken),
@@ -174,7 +183,7 @@ public class AnthropicChatService : IAnthropicChatService
             NuviConversationStage.BookingInitiation => await HandleBookingInitiationAsync(session, context, request, cancellationToken),
             NuviConversationStage.Confirmation or NuviConversationStage.Complete => BuildResponse(session, context,
                 "You're all set! I'm here whenever you need to find another doctor.", flowComplete: true),
-            _ => await HandleGreetingAsync(session, context, effectiveMessage, cancellationToken)
+            _ => await HandleGreetingAsync(session, context, effectiveMessage, httpContext, cancellationToken)
         };
 
         SearchContextHelper.Save(session, context);
@@ -183,23 +192,119 @@ public class AnthropicChatService : IAnthropicChatService
     }
 
     private async Task<ChatMessageResponse> HandleGreetingAsync(
-        SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
+        SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
-        context.Stage = NuviConversationStage.Triage;
-        SearchContextHelper.Save(session, context);
-        return await HandleTriageAsync(session, context, message, cancellationToken);
+        if (context.SkipAccountCreation)
+        {
+            context.Stage = NuviConversationStage.Triage;
+            return await HandleTriageAsync(session, context, message, cancellationToken);
+        }
+
+        var answer = message.Trim();
+
+        switch (context.GreetingStep)
+        {
+            case 0:
+                context.GreetingStep = 1;
+                var empathy = GetGreetingEmpathyMessage(answer);
+                var firstVisitQuestion = NuviFlowContent.FormatFirstVisitQuestion(_branding.SiteName);
+                var combined = $"{empathy}\n\n{firstVisitQuestion}";
+                await SaveAssistantMessageAsync(session, combined, cancellationToken);
+                return BuildResponse(session, context, combined, stage: NuviConversationStage.Greeting,
+                    options: NuviFlowContent.FirstVisitOptions);
+
+            case 1:
+                if (TryParseFirstVisitAnswer(answer, out var isFirstVisit))
+                {
+                    if (isFirstVisit)
+                    {
+                        context.Stage = NuviConversationStage.Triage;
+                        var healthMessage = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+                        return await HandleTriageAsync(session, context, healthMessage, cancellationToken);
+                    }
+
+                    context.GreetingStep = 2;
+                    await SaveAssistantMessageAsync(session, NuviFlowContent.ReturningUsernameQuestion, cancellationToken);
+                    return BuildResponse(session, context, NuviFlowContent.ReturningUsernameQuestion,
+                        stage: NuviConversationStage.Greeting);
+                }
+
+                return BuildResponse(session, context,
+                    "Please choose Yes or No — is this your first time visiting us?",
+                    stage: NuviConversationStage.Greeting,
+                    options: NuviFlowContent.FirstVisitOptions);
+
+            case 2:
+                if (string.IsNullOrWhiteSpace(answer))
+                {
+                    return BuildResponse(session, context,
+                        "Please enter your username or email address.",
+                        stage: NuviConversationStage.Greeting);
+                }
+
+                context.PendingUsername = answer.Trim();
+                context.GreetingStep = 3;
+                await SaveAssistantMessageAsync(session, NuviFlowContent.ReturningPasswordQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.ReturningPasswordQuestion,
+                    stage: NuviConversationStage.Greeting, usePasswordInput: true);
+
+            case 3:
+                if (httpContext == null)
+                {
+                    return BuildResponse(session, context,
+                        "Unable to sign in right now. Please try again.",
+                        stage: NuviConversationStage.Greeting, usePasswordInput: true);
+                }
+
+                if (string.IsNullOrWhiteSpace(answer))
+                {
+                    return BuildResponse(session, context,
+                        "Please enter your password.",
+                        stage: NuviConversationStage.Greeting, usePasswordInput: true);
+                }
+
+                var loginResult = await _accountAuthService.LoginAsync(new AccountLoginRequest
+                {
+                    AccountType = AccountType.Patient,
+                    Username = context.PendingUsername!,
+                    Password = answer
+                }, httpContext, cancellationToken);
+
+                if (!loginResult.Success)
+                {
+                    return BuildResponse(session, context,
+                        loginResult.Error ?? "That password didn't work. Please try again.",
+                        stage: NuviConversationStage.Greeting, usePasswordInput: true);
+                }
+
+                var signedInPatient = await _db.Patients
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.Username == context.PendingUsername, cancellationToken);
+
+                if (signedInPatient != null)
+                {
+                    session.PatientId = signedInPatient.Id;
+                    context.PendingFullName = signedInPatient.FullName;
+                    context.PatientDateOfBirth = signedInPatient.DateOfBirth;
+                    context.SkipAccountCreation = true;
+                    await LoadReturningPatientProfileAsync(session, context, signedInPatient, cancellationToken);
+                }
+
+                context.GreetingStep = 0;
+                context.Stage = NuviConversationStage.Triage;
+                var healthConcern = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+                return await HandleTriageAsync(session, context, healthConcern, cancellationToken);
+
+            default:
+                context.GreetingStep = 0;
+                return await HandleGreetingAsync(session, context, message, httpContext, cancellationToken);
+        }
     }
 
     private async Task<ChatMessageResponse> HandleTriageAsync(
         SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
     {
         context.TriageQuestionCount++;
-
-        if (context.TriageQuestionCount >= 2 && await ShouldFastRouteToLogisticsAsync(session, cancellationToken))
-        {
-            return await CompleteTriageWithInferenceAsync(
-                session, context, "Got it — let's find you the right doctor.", cancellationToken);
-        }
 
         if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
         {
@@ -235,7 +340,7 @@ public class AnthropicChatService : IAnthropicChatService
             }
 
             var routingMatch = RoutingRegex.Match(aiText);
-            if (routingMatch.Success && context.TriageQuestionCount >= 1)
+            if (routingMatch.Success && context.TriageQuestionCount >= 2)
             {
                 return await CompleteTriageAsync(session, context, aiText, routingMatch, cancellationToken);
             }
@@ -508,7 +613,7 @@ public class AnthropicChatService : IAnthropicChatService
         }
 
         context.SkipDeepDive = true;
-        return await CompleteDeepDiveAsync(session, context, cancellationToken);
+        return await BeginMatchSearchAsync(session, context, cancellationToken);
     }
 
     private async Task<ChatMessageResponse> BeginDeepDiveAfterAccountAsync(
@@ -669,7 +774,7 @@ public class AnthropicChatService : IAnthropicChatService
                 })
                 .ToList();
             context.SkipDeepDive = true;
-            return await CompleteDeepDiveAsync(session, context, cancellationToken);
+            return await BeginMatchSearchAsync(session, context, cancellationToken);
         }
 
         var welcome = FormatDeepDiveWelcome(GetDisplayName(context));
@@ -727,6 +832,40 @@ public class AnthropicChatService : IAnthropicChatService
     private static bool IsReturningWithSavedLocation(SearchContextData context) =>
         context.SkipAccountCreation && !string.IsNullOrWhiteSpace(context.LastKnownLocation);
 
+    private static bool TryParseFirstVisitAnswer(string answer, out bool isFirstVisit)
+    {
+        isFirstVisit = false;
+        var lower = answer.Trim().ToLowerInvariant();
+
+        if (lower is "yes" or "y" or "yeah" or "yep" or "sure" or "ok")
+        {
+            isFirstVisit = true;
+            return true;
+        }
+
+        if (lower is "no" or "n" or "nope")
+        {
+            isFirstVisit = false;
+            return true;
+        }
+
+        if (lower.StartsWith("yes") || lower.Contains("first time") || lower.Contains("first visit")
+            || lower.Contains("never been") || lower.Contains("new here"))
+        {
+            isFirstVisit = true;
+            return true;
+        }
+
+        if (lower.StartsWith("no") || lower.Contains("visited before") || lower.Contains("been here before")
+            || lower.Contains("returning") || lower.Contains("come back"))
+        {
+            isFirstVisit = false;
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsYesAnswer(string answer)
     {
         var lower = answer.Trim().ToLowerInvariant();
@@ -756,7 +895,7 @@ public class AnthropicChatService : IAnthropicChatService
         if (current == null)
         {
             context.CurrentPollingQuestionId = null;
-            return await CompleteDeepDiveAsync(session, context, cancellationToken);
+            return await BeginMatchSearchAsync(session, context, cancellationToken);
         }
 
         var trimmed = answer.Trim();
@@ -898,7 +1037,7 @@ public class AnthropicChatService : IAnthropicChatService
         await PersistPatientAgeFromAnswerAsync(session, context, current, answer, cancellationToken);
 
         if (await IsDeepDiveCompleteAsync(context, cancellationToken))
-            return await CompleteDeepDiveAsync(session, context, cancellationToken);
+            return await BeginMatchSearchAsync(session, context, cancellationToken);
 
         return await AskNextDeepDiveQuestionAsync(session, context, "Thanks!", cancellationToken);
     }
@@ -920,7 +1059,7 @@ public class AnthropicChatService : IAnthropicChatService
         context.CurrentPollingQuestionId = null;
         context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
 
-        return await CompleteDeepDiveAsync(session, context, cancellationToken);
+        return await BeginMatchSearchAsync(session, context, cancellationToken);
     }
 
     private ChatMessageResponse RepromptDeepDive(
@@ -974,11 +1113,11 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string priorText, CancellationToken cancellationToken, bool signedIn = false)
     {
         if (await IsDeepDiveCompleteAsync(context, cancellationToken))
-            return await CompleteDeepDiveAsync(session, context, cancellationToken);
+            return await BeginMatchSearchAsync(session, context, cancellationToken);
 
         var nextPolling = await GetNextPollingQuestionAsync(session, context, cancellationToken);
         if (nextPolling == null)
-            return await CompleteDeepDiveAsync(session, context, cancellationToken);
+            return await BeginMatchSearchAsync(session, context, cancellationToken);
 
         context.CurrentPollingQuestionId = nextPolling.Id;
         var displayName = GetDisplayName(context);
@@ -996,9 +1135,10 @@ public class AnthropicChatService : IAnthropicChatService
             pollingQuestionKind: GetPollingQuestionKind(nextPolling));
     }
 
-    private async Task<ChatMessageResponse> CompleteDeepDiveAsync(
+    private async Task<ChatMessageResponse> BeginMatchSearchAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        context.AwaitingMatchSearch = true;
         context.Stage = NuviConversationStage.RecommendationReveal;
         context.PollingComplete = true;
         context.CurrentPollingQuestionId = null;
@@ -1012,6 +1152,17 @@ public class AnthropicChatService : IAnthropicChatService
         await _db.SaveChangesAsync(cancellationToken);
         await PersistPatientPreferenceProfileAsync(session, context, cancellationToken);
 
+        var loadingText = NuviFlowContent.MatchSearchLoadingMessage;
+        await SaveAssistantMessageAsync(session, loadingText, cancellationToken);
+        return BuildResponse(session, context, loadingText, stage: NuviConversationStage.RecommendationReveal,
+            showLoading: true, awaitingMatchSearch: true);
+    }
+
+    private async Task<ChatMessageResponse> ExecuteMatchSearchAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.AwaitingMatchSearch = false;
+
         var doctors = await SearchTopMatchesAsync(session, context, cancellationToken);
         context.MatchedDoctorIds = doctors.Select(d => d.Id).ToList();
 
@@ -1020,18 +1171,9 @@ public class AnthropicChatService : IAnthropicChatService
             ? $"{displayName}, based on everything you've shared, I've personally matched you with {doctors.Count} doctor{(doctors.Count == 1 ? "" : "s")} I think could be a great fit. Here's who I found — and here's WHY I think each one could be the one."
             : $"{displayName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
 
-        if (doctors.Count == 0)
-        {
-            await SaveAssistantMessageAsync(session, revealText, cancellationToken);
-            return BuildResponse(session, context, revealText, stage: NuviConversationStage.RecommendationReveal,
-                doctorCards: doctors, showLoading: false);
-        }
-
-        var loadingText = NuviFlowContent.MatchSearchLoadingMessage;
-        await SaveAssistantMessageAsync(session, loadingText, cancellationToken);
         await SaveAssistantMessageAsync(session, revealText, cancellationToken);
-        return BuildResponse(session, context, loadingText, stage: NuviConversationStage.RecommendationReveal,
-            followUpText: revealText, doctorCards: doctors, showLoading: true);
+        return BuildResponse(session, context, revealText, stage: NuviConversationStage.RecommendationReveal,
+            doctorCards: doctors);
     }
 
     private async Task PersistPatientPreferenceProfileAsync(
@@ -1309,16 +1451,6 @@ public class AnthropicChatService : IAnthropicChatService
         return false;
     }
 
-    private async Task<bool> ShouldFastRouteToLogisticsAsync(
-        SearchSession session, CancellationToken cancellationToken)
-    {
-        var allUserText = string.Join(" ", await GetAllUserMessagesAsync(session.Id, cancellationToken));
-        return HasClearSpecialtyIntent(allUserText);
-    }
-
-    private static bool HasClearSpecialtyIntent(string combinedUserText) =>
-        !string.Equals(InferSpecialtyFromText(combinedUserText), "Family Medicine", StringComparison.Ordinal);
-
     private async Task<bool> IsDeepDiveCompleteAsync(
         SearchContextData context, CancellationToken cancellationToken)
     {
@@ -1473,6 +1605,7 @@ public class AnthropicChatService : IAnthropicChatService
         NuviConversationStage? stage = null,
         IReadOnlyList<string>? options = null,
         bool showLoading = false,
+        bool awaitingMatchSearch = false,
         string? followUpText = null,
         bool usePasswordInput = false,
         IReadOnlyList<DoctorDto>? doctorCards = null,
@@ -1494,6 +1627,7 @@ public class AnthropicChatService : IAnthropicChatService
             Stage = (stage ?? context.Stage).ToString(),
             Options = options,
             ShowLoading = showLoading,
+            AwaitingMatchSearch = awaitingMatchSearch,
             FollowUpText = followUpText,
             UsePasswordInput = usePasswordInput,
             SignedIn = signedIn,
@@ -1535,6 +1669,41 @@ public class AnthropicChatService : IAnthropicChatService
         return history.Select(m => (object)new { role = m.Role, content = m.Content }).ToList();
     }
 
+    private static string GetGreetingEmpathyMessage(string userMessage)
+    {
+        var lower = userMessage.ToLowerInvariant();
+        if (lower.Contains("skin") || lower.Contains("rash") || lower.Contains("acne"))
+            return "I hear you — skin issues can be really uncomfortable.";
+        if (lower.Contains("tooth") || lower.Contains("dental") || lower.Contains("dentist") || lower.Contains("gum"))
+            return "That sounds frustrating — tooth pain is no fun.";
+        if (lower.Contains("back") || lower.Contains("knee") || lower.Contains("joint") || lower.Contains("bone"))
+            return "That sounds really frustrating — back and joint issues are exhausting.";
+        if (lower.Contains("heart") || lower.Contains("cardio"))
+            return "I understand — heart concerns can be worrying.";
+        if (lower.Contains("anxiety") || lower.Contains("depression") || lower.Contains("mental"))
+            return "Thank you for sharing that — it takes courage.";
+        if (IsVagueUserMessage(userMessage))
+            return "Got it — that sounds like something worth addressing.";
+        return "Thanks for sharing — I want to make sure we find the right fit for you.";
+    }
+
+    private async Task<string> GetInitialHealthConcernAsync(int sessionId, CancellationToken cancellationToken)
+    {
+        var messages = await GetAllUserMessagesAsync(sessionId, cancellationToken);
+        foreach (var msg in messages)
+        {
+            if (msg == RedactedPasswordPlaceholder)
+                continue;
+            if (IsYesAnswer(msg) || IsNoAnswer(msg) || TryParseFirstVisitAnswer(msg, out _))
+                continue;
+            if (msg.Contains('@') && !msg.Contains(' '))
+                continue;
+            return msg;
+        }
+
+        return messages.FirstOrDefault(m => m != RedactedPasswordPlaceholder) ?? string.Empty;
+    }
+
     private static string GetFollowUpQuestion(string userMessage, int turnCount)
     {
         var lower = userMessage.ToLowerInvariant();
@@ -1573,7 +1742,10 @@ public class AnthropicChatService : IAnthropicChatService
             "swelling", "numbness", "tingling", "hot or cold", "worse when",
             "better when", "rate your pain", "pain scale", "how severe",
             "any fever", "any bleeding", "describe the pain", "type of pain",
-            "location of the pain", "on a scale", "diagnos"
+            "location of the pain", "on a scale", "diagnos",
+            "come up recently", "something new", "ongoing issue", "bothering you for a while",
+            "just started recently", "how long has", "when did it start", "when did this start",
+            "been going on", "first noticed", "spread", "itchy", "oozing", "blister"
         ];
         return patterns.Any(lower.Contains);
     }
@@ -1666,10 +1838,11 @@ public class AnthropicChatService : IAnthropicChatService
     }
 
     private static bool IsPasswordSubmission(SearchContextData context) =>
-        context.Stage == NuviConversationStage.AccountCreation
-        && (context.AccountStep == AccountCreationStep.Password
-            || context.AccountStep == AccountCreationStep.ConfirmPassword
-            || context.AccountStep == AccountCreationStep.LoginPassword);
+        (context.Stage == NuviConversationStage.Greeting && context.GreetingStep == 3)
+        || (context.Stage == NuviConversationStage.AccountCreation
+            && (context.AccountStep == AccountCreationStep.Password
+                || context.AccountStep == AccountCreationStep.ConfirmPassword
+                || context.AccountStep == AccountCreationStep.LoginPassword));
 
     private static string GetDisplayName(SearchContextData context) =>
         context.PendingFullName?.Trim()
@@ -1868,9 +2041,10 @@ public class AnthropicChatService : IAnthropicChatService
         string message,
         CancellationToken cancellationToken)
     {
-        var stage = context.Stage == NuviConversationStage.Greeting
-            ? NuviConversationStage.Triage
-            : context.Stage;
+        if (context.Stage == NuviConversationStage.Greeting)
+            return await TryValidateGreetingMessageAsync(session, context, message, cancellationToken);
+
+        var stage = context.Stage;
 
         if (stage is not (NuviConversationStage.Triage or NuviConversationStage.Logistics))
             return null;
@@ -1893,6 +2067,50 @@ public class AnthropicChatService : IAnthropicChatService
             var reprompt = validation.RepromptMessage ?? $"Could you try again? {question}";
             await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
             return BuildResponse(session, context, reprompt, stage: stage, options: options);
+        }
+
+        context.PendingNormalizedAnswer = validation.NormalizedAnswer ?? trimmed;
+        return null;
+    }
+
+    private async Task<ChatMessageResponse?> TryValidateGreetingMessageAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (context.GreetingStep is not (1 or 2))
+            return null;
+
+        var trimmed = message.Trim();
+
+        if (context.GreetingStep == 1)
+        {
+            if (!TryParseFirstVisitAnswer(trimmed, out var isFirstVisit))
+            {
+                var reprompt = "Please choose Yes or No — is this your first time visiting us?";
+                await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+                return BuildResponse(session, context, reprompt, stage: NuviConversationStage.Greeting,
+                    options: NuviFlowContent.FirstVisitOptions);
+            }
+
+            context.PendingNormalizedAnswer = isFirstVisit ? "Yes" : "No";
+            return null;
+        }
+
+        var (question, hint, options) = (
+            NuviFlowContent.ReturningUsernameQuestion,
+            "a username or email address",
+            (IReadOnlyList<string>?)null);
+
+        var validation = await _validationService.ValidateAnswerAsync(
+            question, trimmed, hint, question, cancellationToken);
+
+        if (!validation.IsValid)
+        {
+            var reprompt = validation.RepromptMessage ?? $"Could you try again? {question}";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(session, context, reprompt, stage: NuviConversationStage.Greeting, options: options);
         }
 
         context.PendingNormalizedAnswer = validation.NormalizedAnswer ?? trimmed;

@@ -1,3 +1,4 @@
+using Docovee.BLL.Data;
 using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Enums;
@@ -17,17 +18,20 @@ public class DoctorSearchService : IDoctorSearchService
     private readonly IDocoveeLogger _logger;
     private readonly IAppSettingsService _appSettings;
     private readonly IAnthropicMatchingService _matchingService;
+    private readonly IWebDoctorDiscoveryService _webDiscovery;
 
     public DoctorSearchService(
         DocoveeDbContext db,
         IDocoveeLogger logger,
         IAppSettingsService appSettings,
-        IAnthropicMatchingService matchingService)
+        IAnthropicMatchingService matchingService,
+        IWebDoctorDiscoveryService webDiscovery)
     {
         _db = db;
         _logger = logger;
         _appSettings = appSettings;
         _matchingService = matchingService;
+        _webDiscovery = webDiscovery;
     }
 
     public async Task<IReadOnlyList<DoctorDto>> SearchAsync(DoctorSearchRequest request, CancellationToken cancellationToken = default)
@@ -55,21 +59,20 @@ public class DoctorSearchService : IDoctorSearchService
         await _db.SaveChangesAsync(cancellationToken);
 
         var specialty = session.Specialty ?? "Family Medicine";
+        var resultCount = await _appSettings.GetDoctorSearchResultCountAsync(cancellationToken);
+        var locationQuery = NormalizeLocationInput(request.Location);
+        var hasLocation = !string.IsNullOrWhiteSpace(locationQuery);
 
-        var query = _db.Doctors
-            .AsNoTracking()
-            .Include(d => d.DoctorInsurances)
-            .ThenInclude(di => di.InsuranceCarrier)
-            .Include(d => d.DoctorLanguages)
-            .ThenInclude(dl => dl.DoctorLanguage)
-            .Include(d => d.PatientReviews)
-            .Where(d => d.IsActive);
+        var filtered = await LoadSpecialtyMatchesAsync(specialty, cancellationToken);
 
-        // Do not hard-filter by insurance — rank doctors with matching plans higher instead.
-        // Gender preference disabled for prototype — imported doctors may lack gender data.
-
-        var doctors = await query.ToListAsync(cancellationToken);
-        var filtered = doctors.Where(d => MatchesSpecialty(d.SpecialtyCategory, specialty) || MatchesSpecialty(d.Specialty, specialty)).ToList();
+        if (filtered.Count == 0 && hasLocation)
+        {
+            _logger.LogInformation(
+                "No local doctors for specialty {Specialty}; discovering in {Location} via web search.",
+                specialty, request.Location);
+            filtered = (await _webDiscovery.DiscoverAndImportAsync(
+                request.Location, specialty, resultCount, cancellationToken)).ToList();
+        }
 
         if (filtered.Count == 0)
         {
@@ -77,12 +80,31 @@ public class DoctorSearchService : IDoctorSearchService
             return Array.Empty<DoctorDto>();
         }
 
-        var locationQuery = NormalizeLocationInput(request.Location);
-        if (!string.IsNullOrWhiteSpace(locationQuery))
+        if (hasLocation)
         {
             var cityMatch = filtered.Where(d => LocationMatches(locationQuery, d)).ToList();
             if (cityMatch.Count > 0)
+            {
                 filtered = cityMatch;
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "No doctors in DB for {Location}; discovering via web search.",
+                    request.Location);
+                var discovered = (await _webDiscovery.DiscoverAndImportAsync(
+                    request.Location, specialty, resultCount, cancellationToken)).ToList();
+
+                if (discovered.Count == 0)
+                {
+                    _logger.LogWarning("Web discovery found no doctors for {Location} and specialty {Specialty}.",
+                        request.Location, specialty);
+                    return Array.Empty<DoctorDto>();
+                }
+
+                var discoveredInArea = discovered.Where(d => LocationMatches(locationQuery, d)).ToList();
+                filtered = discoveredInArea.Count > 0 ? discoveredInArea : discovered;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(request.PreferredLanguage))
@@ -105,7 +127,6 @@ public class DoctorSearchService : IDoctorSearchService
         var rankingMap = rankings.ToDictionary(r => r.DoctorId, r => r);
 
         var userInsurance = session.InsurancePlanText;
-        var resultCount = await _appSettings.GetDoctorSearchResultCountAsync(cancellationToken);
         var pollingAnswers = SearchContextHelper.Load(session).PollingAnswers;
 
         var results = filtered
@@ -145,6 +166,24 @@ public class DoctorSearchService : IDoctorSearchService
 
         _logger.LogInformation("Doctor search returned {Count} results for session {SessionKey}", results.Count, request.SessionKey);
         return results;
+    }
+
+    private async Task<List<DS.Entities.Doctor>> LoadSpecialtyMatchesAsync(
+        string specialty, CancellationToken cancellationToken)
+    {
+        var doctors = await _db.Doctors
+            .AsNoTracking()
+            .Include(d => d.DoctorInsurances)
+            .ThenInclude(di => di.InsuranceCarrier)
+            .Include(d => d.DoctorLanguages)
+            .ThenInclude(dl => dl.DoctorLanguage)
+            .Include(d => d.PatientReviews)
+            .Where(d => d.IsActive)
+            .ToListAsync(cancellationToken);
+
+        return doctors
+            .Where(d => MatchesSpecialty(d.SpecialtyCategory, specialty) || MatchesSpecialty(d.Specialty, specialty))
+            .ToList();
     }
 
     private static DoctorDto MapDoctor(
@@ -236,10 +275,25 @@ public class DoctorSearchService : IDoctorSearchService
         if (doctor.Location != null && doctor.Location.ToLowerInvariant().Contains(token))
             return true;
 
-        if (!string.IsNullOrWhiteSpace(doctor.State)
-            && locationQuery.Contains(doctor.State.ToLowerInvariant())
-            && FuzzyCityMatch(token, city))
-            return true;
+        if (!string.IsNullOrWhiteSpace(doctor.State))
+        {
+            var doctorState = doctor.State.Trim();
+            if (locationQuery.Contains(doctorState.ToLowerInvariant())
+                && FuzzyCityMatch(token, city))
+                return true;
+
+            var queryStateCode = UsStates.CodeFromNameOrCode(locationQuery)
+                ?? UsStates.CodeFromNameOrCode(token);
+            if (queryStateCode != null
+                && doctorState.Equals(queryStateCode, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var doctorStateName = UsStates.All
+                .FirstOrDefault(s => s.Code.Equals(doctorState, StringComparison.OrdinalIgnoreCase)).Name;
+            if (!string.IsNullOrWhiteSpace(doctorStateName)
+                && locationQuery.Contains(doctorStateName.ToLowerInvariant()))
+                return true;
+        }
 
         return FuzzyCityMatch(token, city);
     }

@@ -20,6 +20,36 @@ public static class NuviFlowContent
 
 
 
+    public const string FirstVisitQuestionTemplate =
+
+        "Is this your first time visiting {0}?";
+
+
+
+    public static readonly string[] FirstVisitOptions =
+
+        ["Yes", "No"];
+
+
+
+    public static string FormatFirstVisitQuestion(string siteName) =>
+
+        string.Format(FirstVisitQuestionTemplate, siteName.Trim());
+
+
+
+    public const string ReturningUsernameQuestion =
+
+        "Welcome back! Please enter your username or email address.";
+
+
+
+    public const string ReturningPasswordQuestion =
+
+        "Thanks — now enter your password.";
+
+
+
     public const string LogisticsVisitQuestion =
 
         "And are you looking for someone local you can visit in person, or would a virtual/telehealth option work for you — or both?";

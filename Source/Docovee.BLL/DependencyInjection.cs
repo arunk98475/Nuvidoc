@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddHttpClient<IAnthropicChatService, AnthropicChatService>();
         services.AddHttpClient<IAnthropicValidationService, AnthropicValidationService>();
         services.AddHttpClient<IAnthropicMatchingService, AnthropicMatchingService>();
+        services.AddHttpClient<IWebDoctorDiscoveryService, WebDoctorDiscoveryService>();
 
         services.AddScoped<IDoctorSearchService, DoctorSearchService>();
         services.AddScoped<IInsuranceService, InsuranceService>();

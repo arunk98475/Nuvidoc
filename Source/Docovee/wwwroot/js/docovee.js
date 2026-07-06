@@ -306,6 +306,47 @@ function isSkipToMatchesMessage(text) {
   return lower.includes("no thanks") || lower.includes("show my match");
 }
 
+async function fetchChatMessage(body) {
+  const res = await fetch("/api/chat/message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+function applyChatResponseState(data) {
+  sessionKey = data.sessionKey;
+  if (data.specialty) aiSpecialty = data.specialty;
+  if (data.notes) aiNotes = data.notes;
+  if (data.stage) currentStage = data.stage;
+  awaitingWildcardConcern = !!data.awaitingWildcardConcern;
+  currentPollingQuestionKind = data.pollingQuestionKind || null;
+
+  updateInputMode(data.usePasswordInput);
+  updateChatPlaceholder(data.inputPlaceholder);
+
+  if (data.languageOptions?.length) {
+    addLanguageSelector(data.languageOptions);
+  } else {
+    setChips(data.options);
+  }
+
+  if (data.signedIn) {
+    updateNavForSignedInPatient();
+  }
+
+  const input = document.getElementById("chat-input");
+  if (data.flowComplete && input) {
+    setChips([]);
+    input.placeholder = "Conversation complete — refresh to start over";
+    input.disabled = true;
+    document.getElementById("send-btn").disabled = true;
+  }
+}
+
 async function sendMessage(action = null, selectedDoctorId = null) {
   const input = document.getElementById("chat-input");
   const text = input.value.trim();
@@ -338,29 +379,61 @@ async function sendMessage(action = null, selectedDoctorId = null) {
   }
 
   try {
-    const res = await fetch("/api/chat/message", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({
-        sessionKey,
-        message: text || (action ? action : "continue"),
-        action,
-        selectedDoctorId
-      })
+    const { ok, status, data } = await fetchChatMessage({
+      sessionKey,
+      message: text || (action ? action : "continue"),
+      action,
+      selectedDoctorId
     });
 
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
+    if (!ok) {
       removeTyping();
-      const errText = data.title || data.detail || data.message || data.error || `Server error (${res.status})`;
+      const errText = data.title || data.detail || data.message || data.error || `Server error (${status})`;
       addMessage(`Sorry — ${errText}. Please try again.`, "ai");
       document.getElementById("send-btn").disabled = false;
       return;
     }
 
     removeTyping();
+
+    if (data.awaitingMatchSearch) {
+      if (!pendingMatchSearch) {
+        addMessage(data.text || MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
+      }
+
+      applyChatResponseState(data);
+
+      const matchSearchStartedAt = Date.now();
+      const searchResult = await fetchChatMessage({
+        sessionKey,
+        action: "match_search",
+        message: ""
+      });
+
+      if (!searchResult.ok) {
+        const errText = searchResult.data.title || searchResult.data.detail
+          || searchResult.data.message || searchResult.data.error
+          || `Server error (${searchResult.status})`;
+        addMessage(`Sorry — ${errText}. Please try again.`, "ai");
+        document.getElementById("send-btn").disabled = false;
+        return;
+      }
+
+      const searchData = searchResult.data;
+      const elapsed = Date.now() - matchSearchStartedAt;
+      const minWait = 1200;
+      if (elapsed < minWait) {
+        await delay(minWait - elapsed);
+      }
+
+      addMessage(searchData.text || "Here are your matches.", "ai", {
+        doctorCards: searchData.doctorCards,
+        selectedDoctor: searchData.selectedDoctor
+      });
+      applyChatResponseState(searchData);
+      document.getElementById("send-btn").disabled = false;
+      return;
+    }
 
     if (data.followUpText && (data.showLoading || pendingMatchSearch)) {
       if (!pendingMatchSearch) {
@@ -395,32 +468,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
       }
     }
 
-    sessionKey = data.sessionKey;
-    if (data.specialty) aiSpecialty = data.specialty;
-    if (data.notes) aiNotes = data.notes;
-    if (data.stage) currentStage = data.stage;
-    awaitingWildcardConcern = !!data.awaitingWildcardConcern;
-    currentPollingQuestionKind = data.pollingQuestionKind || null;
-
-    updateInputMode(data.usePasswordInput);
-    updateChatPlaceholder(data.inputPlaceholder);
-
-    if (data.languageOptions?.length) {
-      addLanguageSelector(data.languageOptions);
-    } else {
-      setChips(data.options);
-    }
-
-    if (data.signedIn) {
-      updateNavForSignedInPatient();
-    }
-
-    if (data.flowComplete) {
-      setChips([]);
-      input.placeholder = "Conversation complete — refresh to start over";
-      input.disabled = true;
-      document.getElementById("send-btn").disabled = true;
-    }
+    applyChatResponseState(data);
   } catch {
     removeTyping();
     addMessage("I'm having trouble connecting right now. Please try again.", "ai");

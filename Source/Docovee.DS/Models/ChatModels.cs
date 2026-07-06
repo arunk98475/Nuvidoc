@@ -28,6 +28,7 @@ public class ChatMessageResponse
     public string? Stage { get; set; }
     public IReadOnlyList<string>? Options { get; set; }
     public bool ShowLoading { get; set; }
+    public bool AwaitingMatchSearch { get; set; }
     public string? FollowUpText { get; set; }
     public IReadOnlyList<string>? LanguageOptions { get; set; }
     public bool AwaitingLanguageSelection { get; set; }

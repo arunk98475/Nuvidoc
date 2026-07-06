@@ -25,4 +25,18 @@ public static class UsStates
 
     public static string? Normalize(string? code) =>
         All.FirstOrDefault(s => s.Code.Equals(code?.Trim() ?? "", StringComparison.OrdinalIgnoreCase)).Code;
+
+    public static string? CodeFromNameOrCode(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return null;
+
+        var trimmed = input.Trim();
+        var byCode = Normalize(trimmed);
+        if (byCode != null)
+            return byCode;
+
+        return All.FirstOrDefault(s =>
+            s.Name.Equals(trimmed, StringComparison.OrdinalIgnoreCase)).Code;
+    }
 }

@@ -36,6 +36,8 @@ public enum DeepDiveFollowUpStep
 public class SearchContextData
 {
     public NuviConversationStage Stage { get; set; } = NuviConversationStage.Greeting;
+    /// <summary>0 = awaiting first-visit question; 1 = awaiting Yes/No; 2 = awaiting username; 3 = awaiting password.</summary>
+    public int GreetingStep { get; set; }
     public int TriageQuestionCount { get; set; }
     public int LogisticsStep { get; set; }
     public string? VisitPreference { get; set; }
@@ -67,6 +69,7 @@ public class SearchContextData
     public int? SelectedDoctorId { get; set; }
     public bool BookingConfirmed { get; set; }
     public string? PendingNormalizedAnswer { get; set; }
+    public bool AwaitingMatchSearch { get; set; }
 }
 
 public class PollingAnswerEntry
