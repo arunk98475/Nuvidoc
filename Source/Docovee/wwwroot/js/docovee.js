@@ -261,6 +261,24 @@ function updateChatPlaceholder(text) {
   input.placeholder = text || `Tell ${branding.chatBotName} what's going on...`;
 }
 
+function applyInputLock(optionsOnly) {
+  const input = document.getElementById("chat-input");
+  const sendBtn = document.getElementById("send-btn");
+  if (!input) return;
+
+  if (optionsOnly) {
+    input.value = "";
+    input.disabled = true;
+    input.placeholder = "Tap an option above to continue";
+    input.classList.add("input-locked");
+    if (sendBtn) sendBtn.disabled = true;
+  } else {
+    input.disabled = false;
+    input.classList.remove("input-locked");
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
 function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text ?? "";
@@ -333,6 +351,8 @@ function applyChatResponseState(data) {
   } else {
     setChips(data.options);
   }
+
+  applyInputLock(!!data.optionsOnly);
 
   if (data.signedIn) {
     updateNavForSignedInPatient();
@@ -474,7 +494,10 @@ async function sendMessage(action = null, selectedDoctorId = null) {
     addMessage("I'm having trouble connecting right now. Please try again.", "ai");
   }
 
-  document.getElementById("send-btn").disabled = false;
+  const chatInput = document.getElementById("chat-input");
+  if (!chatInput || !chatInput.classList.contains("input-locked")) {
+    document.getElementById("send-btn").disabled = false;
+  }
 }
 
 function selectDoctor(doctorId) {

@@ -64,13 +64,13 @@ public static class NuviFlowContent
 
     public const string LogisticsLocationQuestion =
 
-        "Where are you looking for care? Share your city, ZIP code, or general area — I'll use it to find doctors near you.";
+        "So I can find the best-fit doctor near you — what's your ZIP code, city, or general area?";
 
 
 
     public const string LogisticsLocationChangeQuestionTemplate =
 
-        "Any change in your location {0}?";
+        "Are you looking for doctors near {0}?";
 
 
 
@@ -124,13 +124,13 @@ public static class NuviFlowContent
 
     public const string MomentumBridgeMessage =
 
-        "Perfect — I think I already have a few ideas forming. Based on what you've shared, I want to find you someone who truly fits. Give me just a moment… ✨ I've identified some strong doctors who could be a great fit — but before I show you, I want to make sure they're a personal fit for you, not just a generic list. Ready to set up your free profile so I can save your matches?";
+        "I've identified some doctors who could be a great fit for you. To help with booking and save your matches, I just need a quick second to set up your profile.";
 
 
 
     public const string DeepDivePermissionQuestionTemplate =
 
-        "Thanks for creating your account, {0}! To get you the best match possible, may I ask a few more quick questions? Totally optional — I can show your matches now if you prefer.";
+        "Nice to meet you, {0}! May I ask a few follow-up questions just to make sure they're the best fit for you? Totally optional — I can show your matches now if you prefer.";
 
 
 
@@ -148,7 +148,7 @@ public static class NuviFlowContent
 
     public const string AccountNameQuestion =
 
-        "To save your matches and get in touch with your top picks, I just need a quick second to set up your free profile. What's your name?";
+        "What's your name?";
 
 
 
@@ -172,7 +172,7 @@ public static class NuviFlowContent
 
     public const string BookingInitiationPrompt =
 
-        "Want me to send a booking request to {0}'s office on your behalf? I can reach out with your info so they're expecting you — all you'd need to do is confirm the time.";
+        "Give {0}'s office a call when you're ready — they're the best next step to get you taken care of.";
 
 
 

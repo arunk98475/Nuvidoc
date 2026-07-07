@@ -36,6 +36,7 @@ public class ChatMessageResponse
     public string? PollingQuestionKind { get; set; }
     public string? InputPlaceholder { get; set; }
     public bool UsePasswordInput { get; set; }
+    public bool OptionsOnly { get; set; }
     public bool SignedIn { get; set; }
     public IReadOnlyList<DoctorDto>? DoctorCards { get; set; }
     public DoctorDetailDto? SelectedDoctor { get; set; }

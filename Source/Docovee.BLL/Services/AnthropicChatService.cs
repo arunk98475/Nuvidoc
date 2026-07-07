@@ -86,8 +86,8 @@ public class AnthropicChatService : IAnthropicChatService
 
         GOOD clarifying questions (matching-focused):
         - "Are you looking for someone to help manage it long-term, or would you like it properly evaluated first?"
-        - "Is this something new, or have you already been working with a doctor on it?"
         - "Do you already have a specialty in mind, or would you like my recommendation?"
+        - For tooth/dental issues: "Are you looking to get the pain taken care of first, focus on replacing missing teeth, or both?"
         - For tooth/dental issues: acknowledge and move toward matching — e.g. "Sounds like you're looking for a dentist — let's get you taken care of."
 
         Do NOT ask how soon they want to be seen or about urgency — that is asked later in logistics.
@@ -96,6 +96,7 @@ public class AnthropicChatService : IAnthropicChatService
         "That sounds really frustrating — ongoing back pain is exhausting. Are you looking for someone to help manage it long-term, or would you like it properly evaluated first?"
 
         FORBIDDEN — never ask about:
+        - Whether they already have a dentist, doctor, or provider ("are you currently seeing...", "already working with...", "do you have a dentist")
         - Pain quality (sharp, dull, throbbing), severity scales, or symptom characterization
         - Swelling, fever, triggers, hot/cold sensitivity, or other clinical detail
         - Medications, test results, or anything that narrows a diagnosis
@@ -206,7 +207,7 @@ public class AnthropicChatService : IAnthropicChatService
         {
             case 0:
                 context.GreetingStep = 1;
-                var empathy = GetGreetingEmpathyMessage(answer);
+                var empathy = await GenerateGreetingEmpathyAsync(answer, cancellationToken);
                 var firstVisitQuestion = NuviFlowContent.FormatFirstVisitQuestion(_branding.SiteName);
                 var combined = $"{empathy}\n\n{firstVisitQuestion}";
                 await SaveAssistantMessageAsync(session, combined, cancellationToken);
@@ -339,6 +340,12 @@ public class AnthropicChatService : IAnthropicChatService
                 aiText = GetFollowUpQuestion(message, context.TriageQuestionCount);
             }
 
+            if (LooksLikeAlreadySeeingQuestion(aiText) && !RoutingRegex.IsMatch(aiText))
+            {
+                _logger.LogInformation("Triage response asked about existing provider; substituting matching question.");
+                aiText = GetFollowUpQuestion(message, context.TriageQuestionCount);
+            }
+
             var routingMatch = RoutingRegex.Match(aiText);
             if (routingMatch.Success && context.TriageQuestionCount >= 2)
             {
@@ -420,14 +427,26 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string priorText, CancellationToken cancellationToken)
     {
         context.Stage = NuviConversationStage.Logistics;
+        context.VisitPreference = "In-person only";
         context.LogisticsStep = 0;
 
-        var logisticsQuestion = NuviFlowContent.LogisticsVisitQuestion;
+        string logisticsQuestion;
+        IReadOnlyList<string>? options = null;
+        if (IsReturningWithSavedLocation(context))
+        {
+            logisticsQuestion = NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!);
+            options = NuviFlowContent.LogisticsLocationChangeOptions;
+        }
+        else
+        {
+            logisticsQuestion = NuviFlowContent.LogisticsLocationQuestion;
+        }
+
         var combined = string.IsNullOrWhiteSpace(priorText) ? logisticsQuestion : $"{priorText}\n\n{logisticsQuestion}";
 
         await SaveAssistantMessageAsync(session, combined, cancellationToken);
         return BuildResponse(session, context, combined, stage: NuviConversationStage.Logistics,
-            options: NuviFlowContent.LogisticsVisitOptions);
+            options: options);
     }
 
     private async Task<ChatMessageResponse> HandleLogisticsAsync(
@@ -438,25 +457,12 @@ public class AnthropicChatService : IAnthropicChatService
         switch (context.LogisticsStep)
         {
             case 0:
-                context.VisitPreference = answer;
-                context.LogisticsStep = 1;
-                if (IsReturningWithSavedLocation(context))
-                {
-                    var locationChangeQuestion = NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!);
-                    await SaveAssistantMessageAsync(session, locationChangeQuestion, cancellationToken);
-                    return BuildResponse(session, context, locationChangeQuestion,
-                        stage: NuviConversationStage.Logistics,
-                        options: NuviFlowContent.LogisticsLocationChangeOptions);
-                }
-
-                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsLocationQuestion, cancellationToken);
-                return BuildResponse(session, context, NuviFlowContent.LogisticsLocationQuestion,
-                    stage: NuviConversationStage.Logistics);
-
-            case 1:
                 if (IsReturningWithSavedLocation(context))
                 {
                     if (IsYesAnswer(answer))
+                        return await ApplySavedLocationAndContinueAsync(session, context, cancellationToken);
+
+                    if (IsNoAnswer(answer))
                     {
                         context.LogisticsStep = LogisticsStepNewLocation;
                         await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsLocationQuestion, cancellationToken);
@@ -464,12 +470,8 @@ public class AnthropicChatService : IAnthropicChatService
                             stage: NuviConversationStage.Logistics);
                     }
 
-                    if (IsNoAnswer(answer))
-                        return await ApplySavedLocationAndContinueAsync(session, context, cancellationToken);
-
-                    var reprompt = NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!);
                     return BuildResponse(session, context,
-                        "Please choose Yes or No — has your location changed?",
+                        $"Please choose Yes or No — are you looking for doctors near {context.LastKnownLocation}?",
                         stage: NuviConversationStage.Logistics,
                         options: NuviFlowContent.LogisticsLocationChangeOptions);
                 }
@@ -483,11 +485,11 @@ public class AnthropicChatService : IAnthropicChatService
                 session.Location = answer;
                 return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
 
-            case 2:
+            case 1:
                 context.InsuranceCategory = ClassifyInsuranceCategory(answer);
                 if (IsInsuredCategory(context.InsuranceCategory))
                 {
-                    context.LogisticsStep = 3;
+                    context.LogisticsStep = 2;
                     await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsurancePlanQuestion, cancellationToken);
                     return BuildResponse(session, context, NuviFlowContent.LogisticsInsurancePlanQuestion,
                         stage: NuviConversationStage.Logistics,
@@ -496,25 +498,25 @@ public class AnthropicChatService : IAnthropicChatService
 
                 context.InsurancePreference = context.InsuranceCategory == "self-pay" ? "Self-pay" : null;
                 session.InsurancePlanText = context.InsuranceCategory == "self-pay" ? null : session.InsurancePlanText;
-                context.LogisticsStep = 4;
+                context.LogisticsStep = 3;
+                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
+                    stage: NuviConversationStage.Logistics,
+                    options: NuviFlowContent.LogisticsUrgencyOptions);
+
+            case 2:
+                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.InsurancePreference = answer;
+                    session.InsurancePlanText = answer;
+                }
+                context.LogisticsStep = 3;
                 await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
                 return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
                     stage: NuviConversationStage.Logistics,
                     options: NuviFlowContent.LogisticsUrgencyOptions);
 
             case 3:
-                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.InsurancePreference = answer;
-                    session.InsurancePlanText = answer;
-                }
-                context.LogisticsStep = 4;
-                await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
-                return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
-                    stage: NuviConversationStage.Logistics,
-                    options: NuviFlowContent.LogisticsUrgencyOptions);
-
-            case 4:
                 context.UrgencyPreference = answer;
                 session.AvailabilityPreference = MapUrgencyToAvailability(answer);
                 session.UpdatedAt = DateTime.UtcNow;
@@ -544,25 +546,19 @@ public class AnthropicChatService : IAnthropicChatService
         if (context.SkipAccountCreation && context.HasPriorDeepDiveAnswers)
             return await BeginPostAccountFlowAsync(session, context, cancellationToken);
 
-        context.Stage = NuviConversationStage.MomentumBridge;
-        var text = NuviFlowContent.MomentumBridgeMessage;
+        if (context.SkipAccountCreation)
+            return await BeginPostAccountFlowAsync(session, context, cancellationToken);
+
+        context.Stage = NuviConversationStage.AccountCreation;
+        context.AccountStep = AccountCreationStep.Name;
+        var text = $"{NuviFlowContent.MomentumBridgeMessage}\n\n{NuviFlowContent.AccountNameQuestion}";
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BuildResponse(session, context, text, stage: NuviConversationStage.MomentumBridge,
-            showLoading: true, options: ["Yes, let's do it!"]);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
     }
 
     private async Task<ChatMessageResponse> HandleMomentumBridgeAsync(
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
-        var lower = message.Trim().ToLowerInvariant();
-        if (!lower.Contains("yes") && !lower.Contains("sure") && !lower.Contains("ok") && !lower.Contains("let"))
-        {
-            return BuildResponse(session, context,
-                "No pressure — whenever you're ready, just say yes and we'll keep going.",
-                stage: NuviConversationStage.MomentumBridge,
-                options: ["Yes, let's do it!"]);
-        }
-
         return await BeginAccountCreationAsync(session, context, cancellationToken);
     }
 
@@ -795,7 +791,7 @@ public class AnthropicChatService : IAnthropicChatService
         if (context.SkipAccountCreation)
             return await AskUrgencySkippingInsuranceAsync(session, context, cancellationToken);
 
-        context.LogisticsStep = 2;
+        context.LogisticsStep = 1;
         await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsuranceTypeQuestion, cancellationToken);
         return BuildResponse(session, context, NuviFlowContent.LogisticsInsuranceTypeQuestion,
             stage: NuviConversationStage.Logistics,
@@ -806,7 +802,7 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
         ApplySavedInsuranceToSession(session, context);
-        context.LogisticsStep = 4;
+        context.LogisticsStep = 3;
         await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
         return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
             stage: NuviConversationStage.Logistics,
@@ -869,13 +865,20 @@ public class AnthropicChatService : IAnthropicChatService
     private static bool IsYesAnswer(string answer)
     {
         var lower = answer.Trim().ToLowerInvariant();
-        return lower is "yes" or "y" || lower.StartsWith("yes ") || lower.Contains("changed");
+        return lower is "yes" or "y" or "yeah" or "yep"
+            || lower.StartsWith("yes ")
+            || lower.Contains("same")
+            || lower.Contains("still");
     }
 
     private static bool IsNoAnswer(string answer)
     {
         var lower = answer.Trim().ToLowerInvariant();
-        return lower is "no" or "n" || lower.StartsWith("no ") || lower.Contains("same") || lower.Contains("no change");
+        return lower is "no" or "n" or "nope"
+            || lower.StartsWith("no ")
+            || lower.Contains("changed")
+            || lower.Contains("moved")
+            || lower.Contains("different");
     }
 
     private async Task<ChatMessageResponse> HandleDeepDiveAsync(
@@ -1206,7 +1209,16 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> HandleRecommendationRevealAsync(
         SearchSession session, SearchContextData context, ChatMessageRequest request, CancellationToken cancellationToken)
     {
-        var doctorId = request.SelectedDoctorId ?? TryParseDoctorFromMessage(request.Message, context.MatchedDoctorIds);
+        var message = (request.Message ?? string.Empty).Trim().ToLowerInvariant();
+        if (message.Contains("other") || message.Contains("match") || message.Contains("back"))
+        {
+            context.SelectedDoctorId = null;
+            return BuildResponse(session, context, "Here are your other matches:",
+                stage: NuviConversationStage.RecommendationReveal,
+                doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
+        }
+
+        var doctorId = request.SelectedDoctorId ?? TryParseDoctorFromMessage(request.Message ?? string.Empty, context.MatchedDoctorIds);
         if (!doctorId.HasValue)
         {
             return BuildResponse(session, context,
@@ -1233,19 +1245,22 @@ public class AnthropicChatService : IAnthropicChatService
                 stage: NuviConversationStage.RecommendationReveal,
                 doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
 
-        var yearsText = doctor.YearsOfPractice.HasValue ? $" for {doctor.YearsOfPractice} years" : "";
-        var reviewSnippet = !string.IsNullOrWhiteSpace(doctor.SummaryOfReviews)
-            ? doctor.SummaryOfReviews
-            : "patients consistently say they feel completely heard";
-        var niche = !string.IsNullOrWhiteSpace(doctor.Niche) ? $" {doctor.Niche}" : "";
-
-        var intro = $"{doctor.Name} has been practicing{yearsText} and {reviewSnippet}.{niche}";
-        var text = $"{intro}\n\n{string.Format(NuviFlowContent.BookingInitiationPrompt, doctor.Name)}";
-        context.Stage = NuviConversationStage.BookingInitiation;
+        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+        var text = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, cancellationToken);
+        context.Stage = NuviConversationStage.RecommendationReveal;
 
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BuildResponse(session, context, text, stage: NuviConversationStage.BookingInitiation,
-            options: ["Yes, contact their office", "Save for later", "Show my other matches"]);
+        var doctorDetail = MapDoctorDetail(doctor, session);
+
+        if (session.PatientId.HasValue)
+        {
+            await _patientDoctorContacts.RecordContactViewAsync(
+                session.PatientId.Value, doctor.Id, session.Id, cancellationToken);
+        }
+
+        return BuildResponse(session, context, text, stage: NuviConversationStage.RecommendationReveal,
+            selectedDoctor: doctorDetail,
+            options: ["Show my other matches"]);
     }
 
     private async Task<ChatMessageResponse> HandleBookingInitiationAsync(
@@ -1279,20 +1294,19 @@ public class AnthropicChatService : IAnthropicChatService
 
         var doctorId = context.SelectedDoctorId;
         if (!doctorId.HasValue)
-            return BuildResponse(session, context, "Which doctor would you like to contact?",
-                options: ["Yes, contact their office", "Save for later", "Show my other matches"],
-                stage: NuviConversationStage.BookingInitiation);
+            return BuildResponse(session, context, "Which doctor would you like to learn more about?",
+                options: ["Show my other matches"],
+                stage: NuviConversationStage.Confirmation);
 
         var doctor = await _db.Doctors.AsNoTracking().FirstOrDefaultAsync(d => d.Id == doctorId.Value, cancellationToken);
         if (doctor == null)
             return BuildResponse(session, context, "I couldn't find that doctor's contact info.");
 
-        var contactConfirmed = message.Contains("yes") || message.Contains("contact") || request.Action == "book";
-        var contactText = contactConfirmed
-            ? $"Done! 🎉 {doctor.Name}'s office will reach out to {context.PendingPhone ?? context.PendingEmail ?? "you"} within 1 business day to confirm your appointment. In the meantime, I've saved your other matches in your profile in case you want to compare. You're in good hands, {displayName}."
-            : string.Format(NuviFlowContent.BookingInitiationPrompt, doctor.Name);
+        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+        var contactText = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, cancellationToken);
+        var doctorDetail = MapDoctorDetail(doctor, session);
 
-        if (contactConfirmed && session.PatientId.HasValue)
+        if (session.PatientId.HasValue)
         {
             await _patientDoctorContacts.RecordContactViewAsync(
                 session.PatientId.Value, doctor.Id, session.Id, cancellationToken);
@@ -1303,8 +1317,8 @@ public class AnthropicChatService : IAnthropicChatService
         await SaveAssistantMessageAsync(session, contactText, cancellationToken);
 
         return BuildResponse(session, context, contactText, stage: NuviConversationStage.Confirmation,
-            selectedDoctor: contactConfirmed ? MapDoctorDetail(doctor, session) : null,
-            flowComplete: contactConfirmed);
+            selectedDoctor: doctorDetail,
+            options: ["Show my other matches"]);
     }
 
     private void ApplyDeepDivePreferences(SearchSession session, SearchContextData context)
@@ -1378,6 +1392,155 @@ public class AnthropicChatService : IAnthropicChatService
             OfficePhoneNumber = d.OfficePhoneNumber,
             YearsOfPractice = d.YearsOfPractice
         }).ToList();
+    }
+
+    private async Task<string> BuildDoctorConciergeRecommendationAsync(
+        Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        var phoneBlock = !string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber)
+            ? $"\n\nHere's the number — give the office a call to get started:\n📞 {doctor.OfficePhoneNumber}"
+            : "";
+
+        var prose = await GenerateDoctorRecommendationProseAsync(doctor, chiefComplaint, session, cancellationToken);
+        if (string.IsNullOrWhiteSpace(prose))
+            prose = BuildDoctorRecommendationFallback(doctor, chiefComplaint, session, context);
+
+        return $"{prose}{phoneBlock}";
+    }
+
+    private async Task<string?> GenerateDoctorRecommendationProseAsync(
+        Doctor doctor, string chiefComplaint, SearchSession session, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
+            return null;
+
+        var complaint = string.IsNullOrWhiteSpace(chiefComplaint) ? "(not clearly stated)" : chiefComplaint.Trim();
+        var location = string.IsNullOrWhiteSpace(doctor.State) || doctor.State.Equals("NA", StringComparison.OrdinalIgnoreCase)
+            ? doctor.City
+            : $"{doctor.City}, {doctor.State}";
+
+        var facts = new StringBuilder();
+        facts.AppendLine($"Doctor name: {doctor.Name}");
+        facts.AppendLine($"Specialty: {doctor.Specialty}");
+        if (!string.IsNullOrWhiteSpace(location)) facts.AppendLine($"Location: {location}");
+        if (doctor.GoogleRating > 0) facts.AppendLine($"Google rating: {doctor.GoogleRating:0.#} stars ({doctor.GoogleReviewCount} reviews)");
+        if (doctor.YearsOfPractice.HasValue) facts.AppendLine($"Years of practice: {doctor.YearsOfPractice}");
+        if (!string.IsNullOrWhiteSpace(doctor.Niche)) facts.AppendLine($"Focus areas: {doctor.Niche}");
+        if (!string.IsNullOrWhiteSpace(doctor.Top3Procedures)) facts.AppendLine($"Top procedures: {doctor.Top3Procedures}");
+        if (!string.IsNullOrWhiteSpace(doctor.SummaryOfReviews)) facts.AppendLine($"Review summary: {doctor.SummaryOfReviews}");
+
+        var systemPrompt = $"""
+            You are {_branding.ChatBotName}, a warm doctor-matching concierge for {_branding.SiteName}.
+            Write a short, persuasive recommendation (2–4 sentences) telling the patient why this doctor is their best fit.
+
+            CRITICAL RULES:
+            - Tie the recommendation directly to the patient's chief complaint. This is WHY they came.
+            - Only mention the doctor's strengths that are RELEVANT to that complaint. If the patient is in pain, emphasize relief, getting seen, and relevant experience.
+            - Do NOT list irrelevant services (e.g. do not mention cosmetic/whitening/prevention when someone is in pain or has missing teeth).
+            - You may highlight great reviews/ratings, relevant experience, and convenient location — but keep it tight and genuine, not a feature dump.
+            - Warm, human, reassuring, concierge tone. Speak directly to the patient ("you").
+            - Do NOT include a phone number, booking links, or promises to contact the office — that is added separately.
+            - Do NOT invent facts not provided. Do NOT diagnose or give medical advice.
+            - Output plain prose only. No bullet points, no headings.
+            """;
+
+        var userContent = $"Patient's chief complaint (their own words): \"{complaint}\"\n\nDoctor facts:\n{facts}";
+
+        try
+        {
+            var payload = AnthropicApiHelper.BuildPayload(
+                _options,
+                maxTokens: 350,
+                system: systemPrompt,
+                messages: new[] { new { role = "user", content = userContent } });
+
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Doctor recommendation API call failed: {Body}", responseBody);
+                return null;
+            }
+
+            var text = AnthropicApiHelper.ExtractTextContent(responseBody).Trim();
+            return string.IsNullOrWhiteSpace(text) ? null : text;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating doctor recommendation prose");
+            return null;
+        }
+    }
+
+    private static string BuildDoctorRecommendationFallback(
+        Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context)
+    {
+        var complaint = string.IsNullOrWhiteSpace(chiefComplaint)
+            ? "what you've shared"
+            : $"\"{chiefComplaint.Trim().TrimEnd('.')}\"";
+
+        var location = string.IsNullOrWhiteSpace(doctor.State) || doctor.State.Equals("NA", StringComparison.OrdinalIgnoreCase)
+            ? doctor.City
+            : $"{doctor.City}, {doctor.State}";
+
+        var fitDetails = new List<string>();
+        if (doctor.GoogleRating > 0)
+            fitDetails.Add($"excellent reviews ({doctor.GoogleRating:0.#} stars)");
+
+        var relevantFocus = GetComplaintRelevantFocus(chiefComplaint, doctor);
+        if (!string.IsNullOrWhiteSpace(relevantFocus))
+            fitDetails.Add(relevantFocus);
+
+        if (!string.IsNullOrWhiteSpace(location)
+            && (!string.IsNullOrWhiteSpace(context.LocationPreference) || !string.IsNullOrWhiteSpace(session.Location)))
+            fitDetails.Add($"conveniently located in {location}");
+
+        var fitSentence = fitDetails.Count > 0
+            ? $" {doctor.Name} has {string.Join(", ", fitDetails)}."
+            : (!string.IsNullOrWhiteSpace(location) ? $" {doctor.Name} practices in {location}." : "");
+
+        var yearsText = doctor.YearsOfPractice.HasValue
+            ? $" With {doctor.YearsOfPractice} years of experience,"
+            : "";
+
+        return $"Based on everything you've told me — especially that you're dealing with {complaint} — I think {doctor.Name} is your best fit.{yearsText}{fitSentence} " +
+               $"They help patients get relief every day, and I'm confident they can take great care of you.";
+    }
+
+    private static string? GetComplaintRelevantFocus(string chiefComplaint, Doctor doctor)
+    {
+        var source = $"{doctor.Niche} {doctor.Top3Procedures}";
+        if (string.IsNullOrWhiteSpace(source.Trim()))
+            return null;
+
+        var complaintLower = (chiefComplaint ?? string.Empty).ToLowerInvariant();
+        var isPainOrDental = complaintLower.Contains("pain") || complaintLower.Contains("hurt")
+            || complaintLower.Contains("tooth") || complaintLower.Contains("teeth")
+            || complaintLower.Contains("missing") || complaintLower.Contains("broken")
+            || complaintLower.Contains("ache");
+
+        var items = source
+            .Split(new[] { ',', ';', '/', '|' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(i => !string.IsNullOrWhiteSpace(i))
+            .ToList();
+
+        if (isPainOrDental)
+        {
+            string[] irrelevant = ["cosmetic", "whiten", "prevention", "prevent", "veneer", "botox", "aesthetic", "smile makeover"];
+            var relevant = items
+                .Where(i => !irrelevant.Any(bad => i.ToLowerInvariant().Contains(bad)))
+                .ToList();
+            items = relevant.Count > 0 ? relevant : items;
+        }
+
+        var top = items.Take(2).ToList();
+        if (top.Count == 0)
+            return null;
+
+        return $"experience with {string.Join(" and ", top).ToLowerInvariant()}";
     }
 
     private static DoctorDetailDto MapDoctorDetail(Doctor doctor, SearchSession session) => new()
@@ -1598,6 +1761,25 @@ public class AnthropicChatService : IAnthropicChatService
         return age;
     }
 
+    private static bool IsYesNoOptionSet(IReadOnlyList<string>? options)
+    {
+        if (options == null || options.Count is < 2 or > 3)
+            return false;
+
+        return options.All(o =>
+        {
+            var lower = o.Trim().ToLowerInvariant();
+            return lower is "yes" or "no";
+        });
+    }
+
+    private static bool IsSimpleYesNoAnswer(string answer)
+    {
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower is "yes" or "y" or "yeah" or "yep" or "yup" or "sure" or "ok" or "okay"
+            or "no" or "n" or "nope" or "nah";
+    }
+
     private static ChatMessageResponse BuildResponse(
         SearchSession session,
         SearchContextData context,
@@ -1626,6 +1808,7 @@ public class AnthropicChatService : IAnthropicChatService
             Text = text,
             Stage = (stage ?? context.Stage).ToString(),
             Options = options,
+            OptionsOnly = IsYesNoOptionSet(options),
             ShowLoading = showLoading,
             AwaitingMatchSearch = awaitingMatchSearch,
             FollowUpText = followUpText,
@@ -1669,22 +1852,77 @@ public class AnthropicChatService : IAnthropicChatService
         return history.Select(m => (object)new { role = m.Role, content = m.Content }).ToList();
     }
 
+    private async Task<string> GenerateGreetingEmpathyAsync(string userMessage, CancellationToken cancellationToken)
+    {
+        var trimmed = userMessage.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return GetGreetingEmpathyMessage(trimmed);
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
+            return GetGreetingEmpathyMessage(trimmed);
+
+        var systemPrompt = $"""
+            You are {_branding.ChatBotName}, a warm doctor-matching concierge for {_branding.SiteName}.
+            The patient just shared what's going on. Write ONLY 1–2 short sentences of genuine empathy that:
+            - Echo their specific concern using their own words (e.g. if they say "elbow pain", mention elbow pain; if "missing teeth", mention missing teeth)
+            - Sound human and caring — like a concierge on the phone, not a form or bot
+            - Reassure them we can help find the right doctor
+            Do NOT ask any questions. Do NOT mention first-time visiting. Do NOT diagnose or give medical advice.
+            Emergency (chest pain, can't breathe, stroke): tell them to call 911 first, then one brief supportive sentence.
+            Output plain text only — no quotes around the whole message, no bullet points.
+            """;
+
+        try
+        {
+            var payload = AnthropicApiHelper.BuildPayload(
+                _options,
+                maxTokens: 200,
+                system: systemPrompt,
+                messages: new[] { new { role = "user", content = trimmed } });
+
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Greeting empathy API call failed: {Body}", responseBody);
+                return GetGreetingEmpathyMessage(trimmed);
+            }
+
+            var text = AnthropicApiHelper.ExtractTextContent(responseBody).Trim();
+            if (string.IsNullOrWhiteSpace(text) || text.Length > 500)
+                return GetGreetingEmpathyMessage(trimmed);
+
+            return text.Trim('"', '“', '”');
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating greeting empathy");
+            return GetGreetingEmpathyMessage(trimmed);
+        }
+    }
+
     private static string GetGreetingEmpathyMessage(string userMessage)
     {
         var lower = userMessage.ToLowerInvariant();
         if (lower.Contains("skin") || lower.Contains("rash") || lower.Contains("acne"))
-            return "I hear you — skin issues can be really uncomfortable.";
-        if (lower.Contains("tooth") || lower.Contains("dental") || lower.Contains("dentist") || lower.Contains("gum"))
-            return "That sounds frustrating — tooth pain is no fun.";
-        if (lower.Contains("back") || lower.Contains("knee") || lower.Contains("joint") || lower.Contains("bone"))
-            return "That sounds really frustrating — back and joint issues are exhausting.";
+            return "I hear you — skin issues can be really uncomfortable, and we can absolutely help you find the right dermatologist.";
+        if (lower.Contains("tooth") || lower.Contains("teeth") || lower.Contains("dental") || lower.Contains("dentist") || lower.Contains("gum"))
+            return "I'm really glad you reached out — tooth pain and dental issues are absolutely something we can help you address.";
+        if (lower.Contains("back") || lower.Contains("knee") || lower.Contains("joint") || lower.Contains("bone") || lower.Contains("spine"))
+            return "That sounds really frustrating — back and joint pain can wear you down, and we're here to help you find the right specialist.";
         if (lower.Contains("heart") || lower.Contains("cardio"))
-            return "I understand — heart concerns can be worrying.";
+            return "I understand — heart concerns can be worrying, and we'll help you find someone who can take good care of you.";
         if (lower.Contains("anxiety") || lower.Contains("depression") || lower.Contains("mental"))
-            return "Thank you for sharing that — it takes courage.";
+            return "Thank you for sharing that — it takes courage, and we can help you find the right support.";
+        if (lower.Contains("eye") || lower.Contains("vision"))
+            return "Eye concerns are worth taking seriously — we can help you find the right specialist.";
+        if (lower.Contains("elbow") || lower.Contains("shoulder") || lower.Contains("wrist"))
+            return "That kind of pain is no fun — we can help you find someone who specializes in exactly that.";
         if (IsVagueUserMessage(userMessage))
-            return "Got it — that sounds like something worth addressing.";
-        return "Thanks for sharing — I want to make sure we find the right fit for you.";
+            return "Got it — that sounds like something worth addressing, and we're here to help you find the right doctor.";
+        return $"Thanks for sharing — I hear you, and we can help you find the right doctor for what you're dealing with.";
     }
 
     private async Task<string> GetInitialHealthConcernAsync(int sessionId, CancellationToken cancellationToken)
@@ -1714,8 +1952,8 @@ public class AnthropicChatService : IAnthropicChatService
                 return "Got it — can you tell me a bit more about what's going on, or what kind of doctor you're hoping to find?";
             if (lower.Contains("back") || lower.Contains("spine"))
                 return "That sounds really frustrating — ongoing back pain is exhausting. Are you looking for someone to help manage it long-term, or would you like it properly evaluated first?";
-            if (lower.Contains("tooth") || lower.Contains("dental") || lower.Contains("dentist") || lower.Contains("gum"))
-                return "That sounds really frustrating — tooth pain is no fun. Are you looking for a new dentist for this, or do you already have one you see?";
+            if (lower.Contains("tooth") || lower.Contains("teeth") || lower.Contains("dental") || lower.Contains("dentist") || lower.Contains("gum"))
+                return "That sounds really frustrating — tooth pain and missing teeth can affect so much of your daily life. Are you looking to get the pain taken care of first, focus on replacing missing teeth, or both?";
             if (lower.Contains("skin") || lower.Contains("rash") || lower.Contains("acne"))
                 return "I hear you — skin issues can be really stressful. Are you looking for a quick evaluation, or someone to help manage this longer-term?";
             if (lower.Contains("anxiety") || lower.Contains("depression") || lower.Contains("mental"))
@@ -1724,9 +1962,26 @@ public class AnthropicChatService : IAnthropicChatService
         }
 
         if (turnCount == 2)
-            return "Is this your first visit for this, or are you already seeing someone for it?";
+            return "Do you already have a specialty in mind, or would you like my recommendation?";
 
-        return "Is this something you've dealt with before with another doctor, or would this be your first visit for it?";
+        return "Is there anything else that would help me find the best doctor for you — like timing, or what matters most in a provider?";
+    }
+
+    private static bool LooksLikeAlreadySeeingQuestion(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var lower = text.ToLowerInvariant();
+        string[] patterns =
+        [
+            "already seeing", "already have a dentist", "already have a doctor",
+            "currently seeing", "currently working with", "working with a dentist",
+            "working with a doctor", "do you have a dentist", "do you have a doctor",
+            "are you seeing someone", "existing dentist", "existing doctor",
+            "first visit for this"
+        ];
+        return patterns.Any(lower.Contains);
     }
 
     private static bool LooksLikeDiagnosticQuestion(string text)
@@ -2055,6 +2310,14 @@ public class AnthropicChatService : IAnthropicChatService
             ? GetTriageValidationTarget(lastAssistantMessage)
             : GetLogisticsValidationTarget(context);
 
+        // Skip AI validation for button-choice (yes/no) questions and clear yes/no replies —
+        // buttons already constrain the input, so re-validating just causes frustrating loops.
+        if (IsYesNoOptionSet(options) || IsSimpleYesNoAnswer(trimmed))
+        {
+            context.PendingNormalizedAnswer = trimmed;
+            return null;
+        }
+
         var conversationContext = stage == NuviConversationStage.Triage
             ? lastAssistantMessage ?? NuviFlowContent.GreetingMessage
             : lastAssistantMessage ?? question;
@@ -2145,15 +2408,11 @@ public class AnthropicChatService : IAnthropicChatService
         SearchContextData context) =>
         context.LogisticsStep switch
         {
-            0 => (
-                NuviFlowContent.LogisticsVisitQuestion,
-                "in-person only, telehealth/virtual only, or either/both",
-                NuviFlowContent.LogisticsVisitOptions),
-            1 when IsReturningWithSavedLocation(context) => (
+            0 when IsReturningWithSavedLocation(context) => (
                 NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!),
-                "yes if their location changed, or no if it is the same",
+                "yes if they want doctors near their saved location, or no if they want a different area",
                 NuviFlowContent.LogisticsLocationChangeOptions),
-            1 => (
+            0 => (
                 NuviFlowContent.LogisticsLocationQuestion,
                 "a city, ZIP code, neighborhood, or general area where they want care",
                 null),
@@ -2161,15 +2420,15 @@ public class AnthropicChatService : IAnthropicChatService
                 NuviFlowContent.LogisticsLocationQuestion,
                 "a city, ZIP code, neighborhood, or general area where they want care",
                 null),
-            2 => (
+            1 => (
                 NuviFlowContent.LogisticsInsuranceTypeQuestion,
                 "whether they have insurance, want self-pay/cash-pay, or are not sure yet",
                 NuviFlowContent.LogisticsInsuranceTypeOptions),
-            3 => (
+            2 => (
                 NuviFlowContent.LogisticsInsurancePlanQuestion,
                 "an insurance plan name, or skip if they are unsure",
                 NuviFlowContent.LogisticsInsurancePlanOptions),
-            4 => (
+            3 => (
                 NuviFlowContent.LogisticsUrgencyQuestion,
                 "how soon they want to be seen: ASAP/this week, within a month, no rush, or just exploring",
                 NuviFlowContent.LogisticsUrgencyOptions),
