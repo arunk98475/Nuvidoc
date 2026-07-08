@@ -10,5 +10,9 @@ public class DoctorPatientReview
     public string ReviewerName { get; set; } = string.Empty;
     public int Rating { get; set; }
     public string ReviewText { get; set; } = string.Empty;
+    /// <summary>Excellent, Good, Average, or Bad.</summary>
+    public string? WaitingTime { get; set; }
+    /// <summary>Highly Recommended, Neutral, or Not Recommended.</summary>
+    public string? Recommendation { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

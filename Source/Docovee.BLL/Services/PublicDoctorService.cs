@@ -73,7 +73,9 @@ public class PublicDoctorService : IPublicDoctorService
             {
                 ReviewerName = r.ReviewerName,
                 Rating = r.Rating,
-                ReviewText = r.ReviewText
+                ReviewText = r.ReviewText,
+                WaitingTime = r.WaitingTime,
+                Recommendation = r.Recommendation
             })
             .ToList();
 

@@ -37,13 +37,18 @@ public class ProfileModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSubmitReviewAsync(int doctorId, int rating, string reviewText)
+    public async Task<IActionResult> OnPostSubmitReviewAsync(
+        int doctorId,
+        int rating,
+        string reviewText,
+        string waitingTime,
+        string recommendation)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
         var (success, error) = await _reviewService.AddReviewForPatientAsync(
-            patientId, doctorId, rating, reviewText);
+            patientId, doctorId, rating, reviewText, waitingTime, recommendation);
 
         if (!success)
         {

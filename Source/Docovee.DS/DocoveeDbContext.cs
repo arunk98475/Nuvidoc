@@ -69,6 +69,8 @@ public class DocoveeDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ReviewerName).HasMaxLength(200).IsRequired();
             entity.Property(e => e.ReviewText).HasColumnType("text").IsRequired();
+            entity.Property(e => e.WaitingTime).HasMaxLength(50);
+            entity.Property(e => e.Recommendation).HasMaxLength(50);
             entity.HasOne(e => e.Doctor).WithMany(d => d.PatientReviews).HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
         });

@@ -183,6 +183,19 @@
                                     <strong>@review.ReviewerName</strong>
                                 </div>
                                 <p class="pp-review-text">“@review.ReviewText”</p>
+                                @if (!string.IsNullOrWhiteSpace(review.WaitingTime) || !string.IsNullOrWhiteSpace(review.Recommendation))
+                                {
+                                    <div class="pp-review-meta">
+                                        @if (!string.IsNullOrWhiteSpace(review.WaitingTime))
+                                        {
+                                            <span>Waiting time: <strong>@review.WaitingTime</strong></span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(review.Recommendation))
+                                        {
+                                            <span>@review.Recommendation</span>
+                                        }
+                                    </div>
+                                }
                             </article>
                         }
                     </div>

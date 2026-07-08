@@ -63,6 +63,8 @@ public class PublicDoctorReviewDto
     public string ReviewerName { get; set; } = string.Empty;
     public int Rating { get; set; }
     public string ReviewText { get; set; } = string.Empty;
+    public string? WaitingTime { get; set; }
+    public string? Recommendation { get; set; }
 }
 
 public class PublicDoctorProfileDto

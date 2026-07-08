@@ -143,6 +143,8 @@ public class DoctorReviewRequest
     public string ReviewerName { get; set; } = string.Empty;
     public int Rating { get; set; }
     public string ReviewText { get; set; } = string.Empty;
+    public string? WaitingTime { get; set; }
+    public string? Recommendation { get; set; }
     public int? PatientId { get; set; }
 }
 
@@ -152,6 +154,8 @@ public class DoctorReviewDto
     public string ReviewerName { get; set; } = string.Empty;
     public int Rating { get; set; }
     public string ReviewText { get; set; } = string.Empty;
+    public string? WaitingTime { get; set; }
+    public string? Recommendation { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

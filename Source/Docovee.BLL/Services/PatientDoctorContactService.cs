@@ -108,6 +108,8 @@ public class PatientDoctorContactService : IPatientDoctorContactService
                 HasReview = review != null,
                 ReviewRating = review?.Rating,
                 ReviewText = review?.ReviewText,
+                ReviewWaitingTime = review?.WaitingTime,
+                ReviewRecommendation = review?.Recommendation,
                 ReviewedAt = review?.CreatedAt
             };
         }).ToList();

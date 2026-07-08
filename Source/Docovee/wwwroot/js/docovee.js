@@ -259,12 +259,21 @@ function buildDoctorProfileHtml(data, { modal = false, panel = false } = {}) {
     : "<p>Contact number not available</p>";
 
   const reviewsHtml = (data.reviews || []).length
-    ? data.reviews.map((r) => `
+    ? data.reviews.map((r) => {
+        const metaParts = [];
+        if (r.waitingTime) metaParts.push(`Waiting time: ${escapeHtml(r.waitingTime)}`);
+        if (r.recommendation) metaParts.push(escapeHtml(r.recommendation));
+        const metaHtml = metaParts.length
+          ? `<div class="${reviewAuthorClass} nuvi-profile-review-meta">${metaParts.join(" · ")}</div>`
+          : "";
+        return `
         <div class="${reviewClass}">
           <div class="${reviewStarsClass}">${renderStars(r.rating)}</div>
           <div class="${reviewTextClass}">"${escapeHtml(r.reviewText)}"</div>
+          ${metaHtml}
           <div class="${reviewAuthorClass}">— ${escapeHtml(r.reviewerName)}</div>
-        </div>`).join("")
+        </div>`;
+      }).join("")
     : data.summaryOfReviews
       ? `<p>${escapeHtml(data.summaryOfReviews)}</p>`
       : "<p>No patient reviews yet.</p>";

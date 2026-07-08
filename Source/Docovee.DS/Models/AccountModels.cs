@@ -39,6 +39,8 @@ public class PatientViewedDoctorDto
     public bool HasReview { get; set; }
     public int? ReviewRating { get; set; }
     public string? ReviewText { get; set; }
+    public string? ReviewWaitingTime { get; set; }
+    public string? ReviewRecommendation { get; set; }
     public DateTime? ReviewedAt { get; set; }
 }
 

@@ -2307,6 +2307,61 @@ footer.site-footer {
   flex-wrap: wrap;
 }
 
+.review-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-choice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #dce5df);
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  background: var(--mist, #f5f7f6);
+}
+
+.review-choice-label:has(input:checked) {
+  border-color: var(--sage, #3d6b5a);
+  background: var(--sage-lt, #eaf2ee);
+  color: var(--sage, #3d6b5a);
+  font-weight: 600;
+}
+
+.patient-review-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--muted, #6b8078);
+}
+
+.pp-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pp-review-meta span {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--sage-lt);
+  color: var(--sage);
+}
+
+.nuvi-profile-review-meta {
+  margin-top: 4px;
+  font-style: normal;
+}
+
 .review-star-label {
   display: inline-flex;
   align-items: center;

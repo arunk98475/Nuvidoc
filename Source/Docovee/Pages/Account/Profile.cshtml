@@ -87,6 +87,16 @@
                             <div class="patient-review-submitted">
                                 <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
                                 <p>@doctor.ReviewText</p>
+                                <div class="patient-review-meta-row">
+                                    @if (!string.IsNullOrWhiteSpace(doctor.ReviewWaitingTime))
+                                    {
+                                        <span><strong>Waiting time:</strong> @doctor.ReviewWaitingTime</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(doctor.ReviewRecommendation))
+                                    {
+                                        <span><strong>Recommendation:</strong> @doctor.ReviewRecommendation</span>
+                                    }
+                                </div>
                                 <div class="profile-list-meta">Submitted @doctor.ReviewedAt?.ToString("MMM d, yyyy")</div>
                             </div>
                         }
@@ -104,6 +114,29 @@
                                         </label>
                                     }
                                 </div>
+
+                                <label class="review-label">Waiting time</label>
+                                <div class="review-choice-row">
+                                    @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
+                                    {
+                                        <label class="review-choice-label">
+                                            <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
+                                            <span>@option</span>
+                                        </label>
+                                    }
+                                </div>
+
+                                <label class="review-label">How would you recommend this doctor?</label>
+                                <div class="review-choice-row">
+                                    @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
+                                    {
+                                        <label class="review-choice-label">
+                                            <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
+                                            <span>@option</span>
+                                        </label>
+                                    }
+                                </div>
+
                                 <label class="review-label" for="review-@doctor.DoctorId">Your review</label>
                                 <textarea id="review-@doctor.DoctorId" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
                                 <button type="submit" class="btn-primary btn-sm">Submit review</button>

@@ -29,7 +29,8 @@ public class ReviewsController : ControllerBase
         if (int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
         {
             var (success, error) = await _reviewService.AddReviewForPatientAsync(
-                patientId, request.DoctorId, request.Rating, request.ReviewText, cancellationToken);
+                patientId, request.DoctorId, request.Rating, request.ReviewText,
+                request.WaitingTime, request.Recommendation, cancellationToken);
             if (!success)
                 return BadRequest(new { message = error });
             return Ok(new { message = "Review submitted successfully." });
