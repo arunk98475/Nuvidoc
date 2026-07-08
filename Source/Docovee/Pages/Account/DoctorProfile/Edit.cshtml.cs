@@ -27,6 +27,7 @@ public class EditModel : PageModel
     public IReadOnlyList<InsuranceCarrierDto> InsuranceCarriers { get; set; } = Array.Empty<InsuranceCarrierDto>();
     public IReadOnlyList<(string Code, string Name)> UsStates => UsStateList.All;
     public string? CurrentPhotoUrl { get; set; }
+    public string? CurrentVideoUrl { get; set; }
     public string? ErrorMessage { get; set; }
 
     public async Task<IActionResult> OnGetAsync()
@@ -42,10 +43,11 @@ public class EditModel : PageModel
 
         var profile = await _profileService.GetDoctorProfileAsync(doctorId);
         CurrentPhotoUrl = profile?.PhotoUrl;
+        CurrentVideoUrl = model.VideoUrl;
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync(IFormFile? Photo)
+    public async Task<IActionResult> OnPostAsync(IFormFile? Photo, IFormFile? Video)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return RedirectToPage("/Account/Login");
@@ -60,7 +62,7 @@ public class EditModel : PageModel
             return Page();
         }
 
-        var (success, error) = await _profileService.UpdateDoctorProfileAsync(doctorId, Input, Photo);
+        var (success, error) = await _profileService.UpdateDoctorProfileAsync(doctorId, Input, Photo, Video);
         if (!success)
         {
             ErrorMessage = error;

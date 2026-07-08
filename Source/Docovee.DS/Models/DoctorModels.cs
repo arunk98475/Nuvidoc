@@ -83,5 +83,6 @@ public class PublicDoctorProfileDto
     public int? YearsOfPractice { get; set; }
     public decimal GoogleRating { get; set; }
     public int GoogleReviewCount { get; set; }
+    public string? VideoUrl { get; set; }
     public IReadOnlyList<PublicDoctorReviewDto> Reviews { get; set; } = Array.Empty<PublicDoctorReviewDto>();
 }

@@ -124,6 +124,7 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "OfficePhoneNumber", "varchar(30) NULL", cancellationToken);
         await EnsureTextColumnAsync(db, "doctors", "PhotoUrl", cancellationToken);
         await EnsureTextColumnAsync(db, "doctors", "GmbPhotoLink", cancellationToken);
+        await EnsureTextColumnAsync(db, "doctors", "VideoUrl", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "SummaryOfReviews", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "Top3Procedures", "varchar(500) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "Niche", "varchar(200) NULL", cancellationToken);

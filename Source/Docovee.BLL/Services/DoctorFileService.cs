@@ -7,6 +7,7 @@ namespace Docovee.BLL.Services;
 public interface IDoctorFileService
 {
     Task<string?> SaveUploadedPhotoAsync(IFormFile file, CancellationToken cancellationToken = default);
+    Task<string?> SaveUploadedVideoAsync(IFormFile file, CancellationToken cancellationToken = default);
     Task<string?> DownloadAndSavePhotoAsync(string url, CancellationToken cancellationToken = default);
 }
 
@@ -17,6 +18,13 @@ public class DoctorFileService : IDoctorFileService
         ".jpg", ".jpeg", ".png", ".webp", ".gif"
     };
 
+    private static readonly HashSet<string> AllowedVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".webm", ".ogg", ".mov", ".m4v"
+    };
+
+    private const long MaxVideoBytes = 100L * 1024 * 1024;
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly UploadOptions _options;
 
@@ -25,6 +33,34 @@ public class DoctorFileService : IDoctorFileService
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
         Directory.CreateDirectory(_options.DoctorsPhysicalPath);
+    }
+
+    private string VideoPhysicalPath => Path.Combine(_options.DoctorsPhysicalPath, "videos");
+
+    private string VideoPublicPath =>
+        $"{_options.DoctorsPublicPath.TrimEnd('/')}/videos";
+
+    public async Task<string?> SaveUploadedVideoAsync(IFormFile file, CancellationToken cancellationToken = default)
+    {
+        if (file == null || file.Length == 0)
+            return null;
+
+        if (file.Length > MaxVideoBytes)
+            return null;
+
+        var ext = Path.GetExtension(file.FileName);
+        if (string.IsNullOrEmpty(ext) || !AllowedVideoExtensions.Contains(ext))
+            return null;
+
+        Directory.CreateDirectory(VideoPhysicalPath);
+
+        var fileName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
+        var fullPath = Path.Combine(VideoPhysicalPath, fileName);
+
+        await using var stream = new FileStream(fullPath, FileMode.Create);
+        await file.CopyToAsync(stream, cancellationToken);
+
+        return $"{VideoPublicPath}/{fileName}";
     }
 
     public async Task<string?> SaveUploadedPhotoAsync(IFormFile file, CancellationToken cancellationToken = default)

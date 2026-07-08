@@ -1212,10 +1212,22 @@ public class AnthropicChatService : IAnthropicChatService
         var message = (request.Message ?? string.Empty).Trim().ToLowerInvariant();
         if (message.Contains("other") || message.Contains("match") || message.Contains("back"))
         {
+            var viewedDoctorId = context.SelectedDoctorId;
             context.SelectedDoctorId = null;
+            var others = await LoadOtherMatchedDoctorsAsync(session, context, viewedDoctorId, cancellationToken);
+            if (others.Count == 0)
+            {
+                var displayName = GetDisplayName(context);
+                var onlyMatchText = $"That's the only doctor I found in your area right now who fits what you shared, {displayName}. They're your best match based on everything you told me.";
+                await SaveAssistantMessageAsync(session, onlyMatchText, cancellationToken);
+                return BuildResponse(session, context, onlyMatchText,
+                    stage: NuviConversationStage.RecommendationReveal);
+            }
+
+            await SaveAssistantMessageAsync(session, "Here are your other matches:", cancellationToken);
             return BuildResponse(session, context, "Here are your other matches:",
                 stage: NuviConversationStage.RecommendationReveal,
-                doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
+                doctorCards: others);
         }
 
         var doctorId = request.SelectedDoctorId ?? TryParseDoctorFromMessage(request.Message ?? string.Empty, context.MatchedDoctorIds);
@@ -1260,7 +1272,7 @@ public class AnthropicChatService : IAnthropicChatService
 
         return BuildResponse(session, context, text, stage: NuviConversationStage.RecommendationReveal,
             selectedDoctor: doctorDetail,
-            options: ["Show my other matches"]);
+            options: GetOtherMatchesOptions(context, doctorId));
     }
 
     private async Task<ChatMessageResponse> HandleBookingInitiationAsync(
@@ -1277,11 +1289,22 @@ public class AnthropicChatService : IAnthropicChatService
 
         if (message.Contains("other") || message.Contains("match"))
         {
+            var viewedDoctorId = context.SelectedDoctorId;
             context.Stage = NuviConversationStage.RecommendationReveal;
             context.SelectedDoctorId = null;
+            var others = await LoadOtherMatchedDoctorsAsync(session, context, viewedDoctorId, cancellationToken);
+            if (others.Count == 0)
+            {
+                var onlyMatchText = $"That's the only doctor I found in your area right now who fits what you shared, {displayName}. They're your best match based on everything you told me.";
+                await SaveAssistantMessageAsync(session, onlyMatchText, cancellationToken);
+                return BuildResponse(session, context, onlyMatchText,
+                    stage: NuviConversationStage.RecommendationReveal);
+            }
+
+            await SaveAssistantMessageAsync(session, "Here are your other matches:", cancellationToken);
             return BuildResponse(session, context, "Here are your other matches:",
                 stage: NuviConversationStage.RecommendationReveal,
-                doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
+                doctorCards: others);
         }
 
         if (message.Contains("save") || message.Contains("later"))
@@ -1295,7 +1318,7 @@ public class AnthropicChatService : IAnthropicChatService
         var doctorId = context.SelectedDoctorId;
         if (!doctorId.HasValue)
             return BuildResponse(session, context, "Which doctor would you like to learn more about?",
-                options: ["Show my other matches"],
+                options: GetOtherMatchesOptions(context, null),
                 stage: NuviConversationStage.Confirmation);
 
         var doctor = await _db.Doctors.AsNoTracking().FirstOrDefaultAsync(d => d.Id == doctorId.Value, cancellationToken);
@@ -1318,7 +1341,7 @@ public class AnthropicChatService : IAnthropicChatService
 
         return BuildResponse(session, context, contactText, stage: NuviConversationStage.Confirmation,
             selectedDoctor: doctorDetail,
-            options: ["Show my other matches"]);
+            options: GetOtherMatchesOptions(context, doctorId));
     }
 
     private void ApplyDeepDivePreferences(SearchSession session, SearchContextData context)
@@ -1394,19 +1417,39 @@ public class AnthropicChatService : IAnthropicChatService
         }).ToList();
     }
 
+    private async Task<IReadOnlyList<DoctorDto>> LoadOtherMatchedDoctorsAsync(
+        SearchSession session, SearchContextData context, int? excludeDoctorId, CancellationToken cancellationToken)
+    {
+        var all = await LoadMatchedDoctorsAsync(session, context, cancellationToken);
+        if (!excludeDoctorId.HasValue)
+            return all;
+
+        return all.Where(d => d.Id != excludeDoctorId.Value).ToList();
+    }
+
+    private static bool HasOtherMatches(SearchContextData context, int? excludeDoctorId = null)
+    {
+        if (context.MatchedDoctorIds == null || context.MatchedDoctorIds.Count == 0)
+            return false;
+
+        if (!excludeDoctorId.HasValue)
+            return context.MatchedDoctorIds.Count > 1;
+
+        return context.MatchedDoctorIds.Any(id => id != excludeDoctorId.Value);
+    }
+
+    private static IReadOnlyList<string>? GetOtherMatchesOptions(SearchContextData context, int? excludeDoctorId) =>
+        HasOtherMatches(context, excludeDoctorId) ? ["Show my other matches"] : null;
+
     private async Task<string> BuildDoctorConciergeRecommendationAsync(
         Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context,
         CancellationToken cancellationToken)
     {
-        var phoneBlock = !string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber)
-            ? $"\n\nHere's the number — give the office a call to get started:\n📞 {doctor.OfficePhoneNumber}"
-            : "";
-
         var prose = await GenerateDoctorRecommendationProseAsync(doctor, chiefComplaint, session, cancellationToken);
         if (string.IsNullOrWhiteSpace(prose))
             prose = BuildDoctorRecommendationFallback(doctor, chiefComplaint, session, context);
 
-        return $"{prose}{phoneBlock}";
+        return prose;
     }
 
     private async Task<string?> GenerateDoctorRecommendationProseAsync(

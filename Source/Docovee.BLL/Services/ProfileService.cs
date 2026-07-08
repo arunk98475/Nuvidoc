@@ -16,7 +16,7 @@ public interface IProfileService
     Task<PatientProfileEditModel?> GetPatientForEditAsync(int patientId, CancellationToken cancellationToken = default);
     Task<DoctorProfileEditModel?> GetDoctorForEditAsync(int doctorId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdatePatientProfileAsync(int patientId, PatientProfileEditModel model, CancellationToken cancellationToken = default);
-    Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(int doctorId, DoctorProfileEditModel model, IFormFile? photo, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(int doctorId, DoctorProfileEditModel model, IFormFile? photo, IFormFile? video = null, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService
@@ -149,6 +149,7 @@ public class ProfileService : IProfileService
             ZipCode = doctor.ZipCode,
             OfficePhoneNumber = doctor.OfficePhoneNumber,
             GmbPhotoLink = doctor.GmbPhotoLink,
+            VideoUrl = doctor.VideoUrl,
             TagLine = doctor.TagLine,
             Niche = doctor.Niche,
             InsuranceCarrierIds = doctor.DoctorInsurances.Select(di => di.InsuranceCarrierId).ToList()
@@ -188,6 +189,7 @@ public class ProfileService : IProfileService
         int doctorId,
         DoctorProfileEditModel model,
         IFormFile? photo,
+        IFormFile? video = null,
         CancellationToken cancellationToken = default)
     {
         var doctor = await _db.Doctors
@@ -239,6 +241,22 @@ public class ProfileService : IProfileService
         }
 
         doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink);
+
+        if (video != null && video.Length > 0)
+        {
+            var videoUrl = await _fileService.SaveUploadedVideoAsync(video, cancellationToken);
+            if (videoUrl == null)
+                return (false, "Please upload a valid video (mp4, webm, mov, ogg, m4v — up to 100 MB).");
+            doctor.VideoUrl = videoUrl;
+        }
+        else if (!string.IsNullOrWhiteSpace(model.VideoUrl))
+        {
+            doctor.VideoUrl = model.VideoUrl.Trim();
+        }
+        else
+        {
+            doctor.VideoUrl = null;
+        }
 
         _db.DoctorInsurances.RemoveRange(doctor.DoctorInsurances);
         var validIds = await _db.InsuranceCarriers.AsNoTracking()

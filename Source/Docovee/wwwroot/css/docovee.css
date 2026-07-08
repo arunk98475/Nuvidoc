@@ -432,6 +432,113 @@ nav {
 
 .nuvi-office-hours { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
+/* Inline doctor profile in chat (final recommendation) */
+.nuvi-profile-wrap { align-items: flex-start; }
+.nuvi-profile-bubble {
+  max-width: 100%;
+  width: 100%;
+  padding: 0 !important;
+  overflow: hidden;
+  background: var(--white) !important;
+  border: 1px solid var(--rule);
+}
+.nuvi-profile-loading {
+  padding: 16px 18px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.nuvi-profile-header {
+  display: flex;
+  gap: 14px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--sage-lt);
+}
+.nuvi-profile-photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid var(--white);
+}
+.nuvi-profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  background: var(--sage);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fraunces', serif;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.nuvi-profile-name {
+  font-family: 'Fraunces', serif;
+  font-size: 17px;
+  font-weight: 400;
+  margin: 0 0 4px;
+  line-height: 1.2;
+}
+.nuvi-profile-spec { font-size: 12px; color: var(--muted); }
+.nuvi-profile-loc { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.nuvi-profile-rating { font-size: 12px; margin-top: 6px; color: var(--ink); }
+.nuvi-profile-video {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  background: #111;
+}
+.nuvi-profile-video iframe,
+.nuvi-profile-video video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  object-fit: cover;
+}
+.nuvi-profile-video-link {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.nuvi-profile-video-link a {
+  color: var(--sage);
+  font-weight: 500;
+  font-size: 13px;
+  text-decoration: none;
+}
+.nuvi-profile-video-link a:hover { text-decoration: underline; }
+.nuvi-profile-section {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rule);
+}
+.nuvi-profile-section:last-child { border-bottom: none; }
+.nuvi-profile-section h4 {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sage);
+  margin: 0 0 8px;
+}
+.nuvi-profile-section p {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 0;
+}
+.nuvi-profile-review {
+  padding: 10px 0;
+  border-top: 1px solid var(--rule);
+}
+.nuvi-profile-review:first-child { border-top: none; padding-top: 0; }
+.nuvi-profile-review-stars { color: #e6a817; font-size: 12px; margin-bottom: 4px; }
+.nuvi-profile-review-text { font-size: 13px; font-style: italic; line-height: 1.45; }
+.nuvi-profile-review-author { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
 .chat-input-area {
   padding: 16px;
   border-top: 1px solid var(--rule);

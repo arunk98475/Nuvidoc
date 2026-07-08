@@ -14,6 +14,7 @@ public class Doctor
     public string? OfficePhoneNumber { get; set; }
     public string? PhotoUrl { get; set; }
     public string? GmbPhotoLink { get; set; }
+    public string? VideoUrl { get; set; }
     public string? SummaryOfReviews { get; set; }
     public string? Top3Procedures { get; set; }
     public string? Niche { get; set; }

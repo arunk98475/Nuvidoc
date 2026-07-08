@@ -138,8 +138,8 @@ function addMessage(text, role, extras = {}) {
     addDoctorCards(extras.doctorCards);
   }
 
-  if (extras.selectedDoctor?.officePhoneNumber) {
-    addPhoneLink(extras.selectedDoctor);
+  if (extras.selectedDoctor?.id) {
+    addDoctorProfileInChat(extras.selectedDoctor.id);
   }
 
   msgs.scrollTop = msgs.scrollHeight;
@@ -180,19 +180,115 @@ function addDoctorCards(doctors) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function addPhoneLink(doctor) {
+function toVideoEmbedUrl(url) {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const yt = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)/i);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = trimmed.match(/vimeo\.com\/(?:video\/)?(\d+)/i);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  const loom = trimmed.match(/loom\.com\/share\/([\w-]+)/i);
+  if (loom) return `https://www.loom.com/embed/${loom[1]}`;
+  if (/\.(mp4|webm|ogg)(\?|$)/i.test(trimmed)) return trimmed;
+  return null;
+}
+
+function buildVideoHtml(videoUrl) {
+  if (!videoUrl) return "";
+  const embed = toVideoEmbedUrl(videoUrl);
+  if (embed) {
+    return `<div class="nuvi-profile-video">
+      <iframe src="${escapeHtml(embed)}" title="Doctor introduction video" allowfullscreen loading="lazy"></iframe>
+    </div>`;
+  }
+  if (/\.(mp4|webm|ogg)(\?|$)/i.test(videoUrl)) {
+    return `<div class="nuvi-profile-video">
+      <video controls preload="metadata" src="${escapeHtml(videoUrl)}"></video>
+    </div>`;
+  }
+  return `<div class="nuvi-profile-video-link">
+    <a href="${escapeHtml(videoUrl)}" target="_blank" rel="noopener noreferrer">▶ Watch introduction video</a>
+  </div>`;
+}
+
+function buildDoctorProfileHtml(data, { modal = false } = {}) {
+  const location = [data.city, data.state].filter((p) => p && p !== "NA").join(", ");
+  const photoHtml = data.photoUrl
+    ? `<img class="${modal ? "hp-doctor-modal-photo" : "nuvi-profile-photo"}" src="${escapeHtml(data.photoUrl)}" alt="" />`
+    : `<div class="${modal ? "hp-doctor-modal-avatar" : "nuvi-profile-avatar"}">${escapeHtml(data.avatarInitials || "DR")}</div>`;
+
+  const phoneHtml = data.officePhoneNumber
+    ? `<a class="${modal ? "hp-doctor-modal-phone" : "nuvi-phone-link"}" href="tel:${data.officePhoneNumber.replace(/\D/g, "")}">📞 Call ${escapeHtml(data.name)} — ${escapeHtml(data.officePhoneNumber)}</a>`
+    : "<p>Contact number not available</p>";
+
+  const reviewsHtml = (data.reviews || []).length
+    ? data.reviews.map((r) => `
+        <div class="${modal ? "hp-doctor-modal-review" : "nuvi-profile-review"}">
+          <div class="${modal ? "hp-doctor-modal-review-stars" : "nuvi-profile-review-stars"}">${renderStars(r.rating)}</div>
+          <div class="${modal ? "hp-doctor-modal-review-text" : "nuvi-profile-review-text"}">"${escapeHtml(r.reviewText)}"</div>
+          <div class="${modal ? "hp-doctor-modal-review-author" : "nuvi-profile-review-author"}">— ${escapeHtml(r.reviewerName)}</div>
+        </div>`).join("")
+    : data.summaryOfReviews
+      ? `<p>${escapeHtml(data.summaryOfReviews)}</p>`
+      : "<p>No patient reviews yet.</p>";
+
+  const videoHtml = buildVideoHtml(data.videoUrl);
+  const sectionClass = modal ? "hp-doctor-modal-section" : "nuvi-profile-section";
+  const headerClass = modal ? "hp-doctor-modal-header" : "nuvi-profile-header";
+
+  return `
+    <div class="${headerClass}">
+      ${photoHtml}
+      <div>
+        <h3 class="${modal ? "hp-doctor-modal-name" : "nuvi-profile-name"}"${modal ? ' id="doctor-modal-title"' : ""}>${escapeHtml(data.name)}</h3>
+        <div class="${modal ? "hp-doctor-modal-spec" : "nuvi-profile-spec"}">${escapeHtml(data.specialty)}${data.practiceName ? ` · ${escapeHtml(data.practiceName)}` : ""}</div>
+        <div class="${modal ? "hp-doctor-modal-loc" : "nuvi-profile-loc"}">${escapeHtml(location)}${data.address ? `<br>${escapeHtml(data.address)}` : ""}</div>
+        ${data.googleRating > 0 ? `<div class="${modal ? "hp-doctor-modal-rating" : "nuvi-profile-rating"}">${renderStars(data.googleRating)} ${Number(data.googleRating).toFixed(1)} (${data.googleReviewCount || 0} Google reviews)</div>` : ""}
+      </div>
+    </div>
+    ${videoHtml}
+    <div class="${sectionClass}">
+      <h4>Contact</h4>
+      ${phoneHtml}
+    </div>
+    ${data.niche ? `<div class="${sectionClass}"><h4>Focus</h4><p>${escapeHtml(data.niche)}</p></div>` : ""}
+    ${data.yearsOfPractice ? `<div class="${sectionClass}"><h4>Experience</h4><p>${data.yearsOfPractice} years in practice</p></div>` : ""}
+    ${data.top3Procedures ? `<div class="${sectionClass}"><h4>Top procedures</h4><p>${escapeHtml(data.top3Procedures)}</p></div>` : ""}
+    <div class="${sectionClass}">
+      <h4>Reviews</h4>
+      ${reviewsHtml}
+    </div>`;
+}
+
+async function fetchDoctorProfile(doctorId) {
+  const res = await fetch(`/api/doctors/${doctorId}`, { credentials: "same-origin" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return null;
+  return data;
+}
+
+async function addDoctorProfileInChat(doctorId) {
   const msgs = document.getElementById("chat-messages");
   const wrap = document.createElement("div");
-  wrap.className = "msg ai";
-  const phone = doctor.officePhoneNumber.replace(/\D/g, "");
-  const display = doctor.officePhoneNumber;
-  wrap.innerHTML = `
-    <div class="msg-avatar">${NUVI_AVATAR}</div>
-    <div class="msg-bubble">
-      <a href="tel:${phone}" class="nuvi-phone-link">📞 Call ${escapeHtml(doctor.name)} — ${escapeHtml(display)}</a>
-      ${doctor.officeHours ? `<div class="nuvi-office-hours">Hours: ${escapeHtml(doctor.officeHours)}</div>` : ""}
+  wrap.className = "msg ai nuvi-profile-wrap";
+  wrap.innerHTML = `<div class="msg-avatar">${NUVI_AVATAR}</div>
+    <div class="msg-bubble nuvi-profile-bubble">
+      <div class="nuvi-profile-loading">Loading doctor profile…</div>
     </div>`;
   msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  const bubble = wrap.querySelector(".nuvi-profile-bubble");
+  try {
+    const data = await fetchDoctorProfile(doctorId);
+    if (!data) {
+      bubble.innerHTML = '<div class="nuvi-profile-loading">Unable to load this doctor profile.</div>';
+      return;
+    }
+    bubble.innerHTML = buildDoctorProfileHtml(data, { modal: false });
+  } catch {
+    bubble.innerHTML = '<div class="nuvi-profile-loading">Unable to load this doctor profile.</div>';
+  }
   msgs.scrollTop = msgs.scrollHeight;
 }
 
@@ -538,54 +634,12 @@ async function openDoctorProfileModal(doctorId) {
   body.innerHTML = '<div class="hp-doctor-modal-loading">Loading profile…</div>';
 
   try {
-    const res = await fetch(`/api/doctors/${doctorId}`, { credentials: "same-origin" });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const data = await fetchDoctorProfile(doctorId);
+    if (!data) {
       body.innerHTML = '<div class="hp-doctor-modal-loading">Unable to load this doctor profile.</div>';
       return;
     }
-
-    const location = [data.city, data.state].filter(Boolean).join(", ");
-    const photoHtml = data.photoUrl
-      ? `<img class="hp-doctor-modal-photo" src="${escapeHtml(data.photoUrl)}" alt="" />`
-      : `<div class="hp-doctor-modal-avatar">${escapeHtml(data.avatarInitials || "DR")}</div>`;
-
-    const phoneHtml = data.officePhoneNumber
-      ? `<a class="hp-doctor-modal-phone" href="tel:${data.officePhoneNumber.replace(/\D/g, "")}">📞 ${escapeHtml(data.officePhoneNumber)}</a>`
-      : "<p>Contact number not available</p>";
-
-    const reviewsHtml = (data.reviews || []).length
-      ? data.reviews.map((r) => `
-          <div class="hp-doctor-modal-review">
-            <div class="hp-doctor-modal-review-stars">${renderStars(r.rating)}</div>
-            <div class="hp-doctor-modal-review-text">"${escapeHtml(r.reviewText)}"</div>
-            <div class="hp-doctor-modal-review-author">— ${escapeHtml(r.reviewerName)}</div>
-          </div>`).join("")
-      : data.summaryOfReviews
-        ? `<p>${escapeHtml(data.summaryOfReviews)}</p>`
-        : "<p>No patient reviews yet.</p>";
-
-    body.innerHTML = `
-      <div class="hp-doctor-modal-header">
-        ${photoHtml}
-        <div>
-          <h3 class="hp-doctor-modal-name" id="doctor-modal-title">${escapeHtml(data.name)}</h3>
-          <div class="hp-doctor-modal-spec">${escapeHtml(data.specialty)}${data.practiceName ? ` · ${escapeHtml(data.practiceName)}` : ""}</div>
-          <div class="hp-doctor-modal-loc">${escapeHtml(location)}${data.address ? `<br>${escapeHtml(data.address)}` : ""}</div>
-          ${data.googleRating > 0 ? `<div class="hp-doctor-modal-rating">${renderStars(data.googleRating)} ${Number(data.googleRating).toFixed(1)} (${data.googleReviewCount || 0} Google reviews)</div>` : ""}
-        </div>
-      </div>
-      <div class="hp-doctor-modal-section">
-        <h4>Contact</h4>
-        ${phoneHtml}
-      </div>
-      ${data.niche ? `<div class="hp-doctor-modal-section"><h4>Focus</h4><p>${escapeHtml(data.niche)}</p></div>` : ""}
-      ${data.yearsOfPractice ? `<div class="hp-doctor-modal-section"><h4>Experience</h4><p>${data.yearsOfPractice} years in practice</p></div>` : ""}
-      ${data.top3Procedures ? `<div class="hp-doctor-modal-section"><h4>Top procedures</h4><p>${escapeHtml(data.top3Procedures)}</p></div>` : ""}
-      <div class="hp-doctor-modal-section">
-        <h4>Reviews</h4>
-        ${reviewsHtml}
-      </div>`;
+    body.innerHTML = buildDoctorProfileHtml(data, { modal: true });
   } catch {
     body.innerHTML = '<div class="hp-doctor-modal-loading">Unable to load this doctor profile.</div>';
   }

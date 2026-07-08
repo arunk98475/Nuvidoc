@@ -45,6 +45,7 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.OfficePhoneNumber).HasMaxLength(30);
             entity.Property(e => e.PhotoUrl).HasColumnType("text");
             entity.Property(e => e.GmbPhotoLink).HasColumnType("text");
+            entity.Property(e => e.VideoUrl).HasColumnType("text");
             entity.Property(e => e.SummaryOfReviews).HasColumnType("text");
             entity.Property(e => e.Top3Procedures).HasMaxLength(500);
             entity.Property(e => e.Niche).HasMaxLength(200);

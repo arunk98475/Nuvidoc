@@ -127,6 +127,7 @@ public class DoctorProfileEditModel
     public string ZipCode { get; set; } = string.Empty;
     public string? OfficePhoneNumber { get; set; }
     public string? GmbPhotoLink { get; set; }
+    public string? VideoUrl { get; set; }
     public string? TagLine { get; set; }
     public string? Niche { get; set; }
     public string? NewPassword { get; set; }

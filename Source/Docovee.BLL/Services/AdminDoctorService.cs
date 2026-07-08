@@ -225,6 +225,7 @@ public class AdminDoctorService : IAdminDoctorService
                     Address = GetValue(row, "Address"),
                     OfficePhoneNumber = GetValue(row, "Office Phone Number", "Phone"),
                     GmbPhotoLink = gmbLink,
+                    VideoUrl = GetValue(row, "Video Url", "VideoUrl", "Video Link", "Video"),
                     SummaryOfReviews = GetValue(row, "Summary of Reviews"),
                     Top3Procedures = GetValue(row, "Top 3 Procedures", "Top3Procedures"),
                     Niche = GetValue(row, "Niche"),
@@ -313,6 +314,7 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.OfficePhoneNumber = model.OfficePhoneNumber?.Trim();
         doctor.GmbPhotoLink = DoctorPhotoHelper.NormalizeStoredLink(model.GmbPhotoLink);
         doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(model.PhotoUrl, doctor.GmbPhotoLink);
+        doctor.VideoUrl = string.IsNullOrWhiteSpace(model.VideoUrl) ? null : model.VideoUrl.Trim();
         doctor.SummaryOfReviews = model.SummaryOfReviews?.Trim();
         doctor.Top3Procedures = model.Top3Procedures?.Trim();
         doctor.Niche = model.Niche?.Trim();
@@ -385,6 +387,7 @@ public class AdminDoctorService : IAdminDoctorService
         OfficePhoneNumber = doctor.OfficePhoneNumber,
         PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink),
         GmbPhotoLink = doctor.GmbPhotoLink,
+        VideoUrl = doctor.VideoUrl,
         SummaryOfReviews = doctor.SummaryOfReviews,
         Top3Procedures = doctor.Top3Procedures,
         Niche = doctor.Niche,
