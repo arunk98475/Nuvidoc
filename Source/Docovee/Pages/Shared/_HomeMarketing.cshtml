@@ -124,9 +124,10 @@
                     var highlight = string.IsNullOrWhiteSpace(doctor.HighlightText)
                         ? $"Trusted {doctor.Specialty} in {location}."
                         : doctor.HighlightText;
-                    <button type="button"
+                    <a href="/doctors/@doctor.Id"
                             class="hp-testimonial hp-doctor-card@(doctor.IsFeatured ? " hp-testimonial-featured" : "")"
-                            onclick="openDoctorProfileModal(@doctor.Id)"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             aria-label="View profile for @doctor.Name">
                         <div class="hp-stars" title="@doctor.GoogleRating.ToString("0.0") rating">@stars</div>
                         <p>@highlight</p>
@@ -148,7 +149,7 @@
                                 }
                             </div>
                         </footer>
-                    </button>
+                    </a>
                 }
             </div>
         }

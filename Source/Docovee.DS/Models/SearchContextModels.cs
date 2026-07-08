@@ -66,6 +66,8 @@ public class SearchContextData
     public int? CurrentPollingQuestionId { get; set; }
     public bool PollingComplete { get; set; }
     public List<int>? MatchedDoctorIds { get; set; }
+    /// <summary>Doctors who already received a concierge recommendation in this session.</summary>
+    public List<int> RecommendedDoctorIds { get; set; } = new();
     public int? SelectedDoctorId { get; set; }
     public bool BookingConfirmed { get; set; }
     public string? PendingNormalizedAnswer { get; set; }

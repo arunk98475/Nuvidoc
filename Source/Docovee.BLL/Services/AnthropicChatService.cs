@@ -98,6 +98,7 @@ public class AnthropicChatService : IAnthropicChatService
         FORBIDDEN — never ask about:
         - Whether they already have a dentist, doctor, or provider ("are you currently seeing...", "already working with...", "do you have a dentist")
         - Pain quality (sharp, dull, throbbing), severity scales, or symptom characterization
+        - When symptoms started, how long they've had them, or whether something is recent vs building up over time
         - Swelling, fever, triggers, hot/cold sensitivity, or other clinical detail
         - Medications, test results, or anything that narrows a diagnosis
 
@@ -106,7 +107,9 @@ public class AnthropicChatService : IAnthropicChatService
 
         Even when the patient names a clear specialty or symptom (e.g. tooth pain, back pain, skin rash), still ask ONE matching-focused clarifying question before routing — never skip straight to the routing signal on the first response.
 
-        Ask ONE question per turn.
+        After the patient answers your ONE clarifying question (e.g. "both", "pain first", "long-term"), output the ROUTING SIGNAL immediately on that turn. Do NOT ask another question — especially not about symptom onset, duration, severity, or whether something is recent or ongoing.
+
+        Ask ONE question per turn. Only ONE clarifying question total before routing.
 
         RULES:
         - SHORT responses — empathy + one question (2–3 sentences max)
@@ -136,8 +139,9 @@ public class AnthropicChatService : IAnthropicChatService
             return matchResponse;
         }
 
+        var isDoctorCardOnly = IsDoctorCardOnlyRequest(request);
         var effectiveMessage = request.Message ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(request.Message) && !IsPasswordSubmission(context))
+        if (!string.IsNullOrWhiteSpace(request.Message) && !isDoctorCardOnly && !IsPasswordSubmission(context))
         {
             var validationBlock = await TryValidateIncomingMessageAsync(
                 session, context, request.Message, cancellationToken);
@@ -151,7 +155,7 @@ public class AnthropicChatService : IAnthropicChatService
             context.PendingNormalizedAnswer = null;
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Message))
+        if (!string.IsNullOrWhiteSpace(request.Message) && !isDoctorCardOnly)
         {
             _db.ChatMessages.Add(new ChatMessage
             {
@@ -307,6 +311,12 @@ public class AnthropicChatService : IAnthropicChatService
     {
         context.TriageQuestionCount++;
 
+        if (context.TriageQuestionCount >= 2)
+        {
+            var empathy = GetTriageCompletionEmpathy(message);
+            return await CompleteTriageWithInferenceAsync(session, context, empathy, cancellationToken);
+        }
+
         if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
         {
             return await HandleTriageFallbackAsync(session, context, message, cancellationToken);
@@ -336,13 +346,27 @@ public class AnthropicChatService : IAnthropicChatService
 
             if (LooksLikeDiagnosticQuestion(aiText) && !RoutingRegex.IsMatch(aiText))
             {
-                _logger.LogInformation("Triage response looked diagnostic; substituting matching question.");
+                _logger.LogInformation("Triage response looked diagnostic; moving to logistics.");
+                if (context.TriageQuestionCount >= 2)
+                {
+                    return await CompleteTriageWithInferenceAsync(session, context,
+                        "Got it — I have a good sense of what you need. Let me ask a few quick logistics questions.",
+                        cancellationToken);
+                }
+
                 aiText = GetFollowUpQuestion(message, context.TriageQuestionCount);
             }
 
             if (LooksLikeAlreadySeeingQuestion(aiText) && !RoutingRegex.IsMatch(aiText))
             {
-                _logger.LogInformation("Triage response asked about existing provider; substituting matching question.");
+                _logger.LogInformation("Triage response asked about existing provider; moving to logistics.");
+                if (context.TriageQuestionCount >= 2)
+                {
+                    return await CompleteTriageWithInferenceAsync(session, context,
+                        "Got it — I have a good sense of what you need. Let me ask a few quick logistics questions.",
+                        cancellationToken);
+                }
+
                 aiText = GetFollowUpQuestion(message, context.TriageQuestionCount);
             }
 
@@ -374,6 +398,12 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> HandleTriageFallbackAsync(
         SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
     {
+        if (context.TriageQuestionCount >= 2)
+        {
+            var empathy = GetTriageCompletionEmpathy(message);
+            return await CompleteTriageWithInferenceAsync(session, context, empathy, cancellationToken);
+        }
+
         if (context.TriageQuestionCount <= MaxTriageQuestions)
         {
             var question = GetFollowUpQuestion(message, context.TriageQuestionCount);
@@ -1168,6 +1198,7 @@ public class AnthropicChatService : IAnthropicChatService
 
         var doctors = await SearchTopMatchesAsync(session, context, cancellationToken);
         context.MatchedDoctorIds = doctors.Select(d => d.Id).ToList();
+        context.RecommendedDoctorIds.Clear();
 
         var displayName = GetDisplayName(context);
         var revealText = doctors.Count > 0
@@ -1257,12 +1288,21 @@ public class AnthropicChatService : IAnthropicChatService
                 stage: NuviConversationStage.RecommendationReveal,
                 doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
 
-        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
-        var text = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, cancellationToken);
+        var doctorDetail = MapDoctorDetail(doctor, session);
         context.Stage = NuviConversationStage.RecommendationReveal;
 
+        if (context.RecommendedDoctorIds.Contains(doctorId.Value))
+        {
+            return BuildResponse(session, context, string.Empty, stage: NuviConversationStage.RecommendationReveal,
+                selectedDoctor: doctorDetail,
+                options: GetOtherMatchesOptions(context, doctorId));
+        }
+
+        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+        var text = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, cancellationToken);
+        context.RecommendedDoctorIds.Add(doctorId.Value);
+
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        var doctorDetail = MapDoctorDetail(doctor, session);
 
         if (session.PatientId.HasValue)
         {
@@ -1985,6 +2025,18 @@ public class AnthropicChatService : IAnthropicChatService
         return messages.FirstOrDefault(m => m != RedactedPasswordPlaceholder) ?? string.Empty;
     }
 
+    private static string GetTriageCompletionEmpathy(string latestMessage)
+    {
+        var lower = latestMessage.Trim().ToLowerInvariant();
+        if (lower is "both" or "all" or "all of the above" || lower.Contains("both"))
+            return "Got it — let's make sure we get you matched with the right person to handle both.";
+        if (lower.Contains("pain") && (lower.Contains("first") || lower.Contains("asap") || lower.Contains("soon")))
+            return "Got it — let's find someone who can get you relief soon.";
+        if (lower.Contains("long") || lower.Contains("ongoing") || lower.Contains("manage"))
+            return "Got it — I'll look for someone who can support you long-term.";
+        return "That's really helpful — I have a good sense of what you need.";
+    }
+
     private static string GetFollowUpQuestion(string userMessage, int turnCount)
     {
         var lower = userMessage.ToLowerInvariant();
@@ -2009,6 +2061,11 @@ public class AnthropicChatService : IAnthropicChatService
 
         return "Is there anything else that would help me find the best doctor for you — like timing, or what matters most in a provider?";
     }
+
+    private static bool IsDoctorCardOnlyRequest(ChatMessageRequest request) =>
+        request.SelectedDoctorId.HasValue
+        && (string.IsNullOrWhiteSpace(request.Message)
+            || string.Equals(request.Message.Trim(), "continue", StringComparison.OrdinalIgnoreCase));
 
     private static bool LooksLikeAlreadySeeingQuestion(string text)
     {
@@ -2041,8 +2098,9 @@ public class AnthropicChatService : IAnthropicChatService
             "better when", "rate your pain", "pain scale", "how severe",
             "any fever", "any bleeding", "describe the pain", "type of pain",
             "location of the pain", "on a scale", "diagnos",
-            "come up recently", "something new", "ongoing issue", "bothering you for a while",
-            "just started recently", "how long has", "when did it start", "when did this start",
+            "come up recently", "come on recently", "something new", "ongoing issue", "bothering you for a while",
+            "building up", "building up for a while", "for a while",
+            "just started recently", "started recently", "how long has", "when did it start", "when did this start",
             "been going on", "first noticed", "spread", "itchy", "oozing", "blister"
         ];
         return patterns.Any(lower.Contains);

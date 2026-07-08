@@ -1,0 +1,317 @@
+@page "/doctors/{id:int}"
+@model Docovee.Pages.Doctors.ProfileModel
+@{
+    Layout = null;
+    var doctor = Model.Doctor;
+    var location = string.Join(", ", new[] { doctor.City, doctor.State }.Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA"));
+    var procedures = string.IsNullOrWhiteSpace(doctor.Top3Procedures)
+        ? Array.Empty<string>()
+        : doctor.Top3Procedures.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+    ViewData["Title"] = $"{doctor.Name} — {doctor.Specialty} | {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <meta name="description" content="@doctor.Name — @doctor.Specialty in @location. Book an appointment with @Branding.SiteName." />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body class="pp-page">
+
+<nav>
+    <div class="nav-left">
+        <partial name="Shared/_SiteLogo" />
+    </div>
+    <div class="nav-right">
+        <a href="/" class="nav-link">Find a Doctor</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <a href="/Account/Logout" class="nav-link">Logout</a>
+        }
+        else
+        {
+            <a href="/Account/Login" class="nav-link">Sign in</a>
+            <a href="/Account/Register" class="nav-cta">Get Started</a>
+        }
+    </div>
+</nav>
+
+<div class="pp-wrap">
+    <div class="pp-breadcrumb">
+        <a href="/">Home</a>
+        <span>/</span>
+        <span>@doctor.Specialty</span>
+        <span>/</span>
+        <span>@doctor.Name</span>
+    </div>
+
+    <div class="pp-grid">
+        <div class="pp-main">
+            <section class="pp-card pp-hero">
+                <div class="pp-hero-top">
+                    @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+                    {
+                        <img class="pp-photo" src="@doctor.PhotoUrl" alt="@doctor.Name" />
+                    }
+                    else
+                    {
+                        <div class="pp-avatar">@doctor.AvatarInitials</div>
+                    }
+                    <div class="pp-hero-info">
+                        <p class="pp-eyebrow">@doctor.Specialty</p>
+                        <h1 class="pp-name">@doctor.Name</h1>
+                        @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                        {
+                            <p class="pp-practice">@doctor.PracticeName</p>
+                        }
+                        <p class="pp-location">
+                            @if (!string.IsNullOrWhiteSpace(location))
+                            {
+                                <span>@location</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(doctor.Address))
+                            {
+                                <span class="pp-address">@doctor.Address</span>
+                            }
+                        </p>
+                        @if (doctor.GoogleRating > 0)
+                        {
+                            <div class="pp-rating">
+                                <span class="pp-stars">@RenderStars(doctor.GoogleRating)</span>
+                                <strong>@doctor.GoogleRating.ToString("0.0")</strong>
+                                <span class="pp-muted">(@doctor.GoogleReviewCount Google reviews)</span>
+                            </div>
+                        }
+                        <div class="pp-badges">
+                            @if (doctor.YearsOfPractice is > 0)
+                            {
+                                <span class="pp-badge">@doctor.YearsOfPractice+ years experience</span>
+                            }
+                            <span class="pp-badge">Accepting new patients</span>
+                            <span class="pp-badge">In-person visits</span>
+                        </div>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(doctor.Niche))
+                {
+                    <p class="pp-tagline">@doctor.Niche</p>
+                }
+            </section>
+
+            @if (procedures.Length > 0)
+            {
+                <section class="pp-card">
+                    <h2 class="pp-section-title">Top procedures</h2>
+                    <div class="pp-chip-row">
+                        @foreach (var proc in procedures)
+                        {
+                            <span class="pp-chip">@proc</span>
+                        }
+                    </div>
+                </section>
+            }
+
+            <section class="pp-card">
+                <h2 class="pp-section-title">About</h2>
+                <p class="pp-body">
+                    @doctor.Name is a @doctor.Specialty.ToLowerInvariant() practitioner
+                    @if (!string.IsNullOrWhiteSpace(location))
+                    {
+                        <text> serving patients in @location</text>
+                    }
+                    .
+                    @if (doctor.YearsOfPractice is > 0)
+                    {
+                        <text> With @doctor.YearsOfPractice years in practice, patients often highlight attentive care and a welcoming office experience.</text>
+                    }
+                    else
+                    {
+                        <text> Patients often highlight attentive care and a welcoming office experience.</text>
+                    }
+                </p>
+                @if (!string.IsNullOrWhiteSpace(doctor.SummaryOfReviews))
+                {
+                    <div class="pp-highlight">
+                        <strong>What patients say</strong>
+                        <p>@doctor.SummaryOfReviews</p>
+                    </div>
+                }
+            </section>
+
+            <section class="pp-card" id="reviews">
+                <h2 class="pp-section-title">Patient reviews</h2>
+                @if (doctor.Reviews.Count == 0)
+                {
+                    <p class="pp-muted">No patient reviews yet.</p>
+                }
+                else
+                {
+                    <div class="pp-reviews">
+                        @foreach (var review in doctor.Reviews)
+                        {
+                            <article class="pp-review">
+                                <div class="pp-review-top">
+                                    <span class="pp-stars">@RenderStars(review.Rating)</span>
+                                    <strong>@review.ReviewerName</strong>
+                                </div>
+                                <p class="pp-review-text">“@review.ReviewText”</p>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="pp-card">
+                <h2 class="pp-section-title">Location & contact</h2>
+                <div class="pp-contact-grid">
+                    <div>
+                        <h3 class="pp-subhead">Office</h3>
+                        @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                        {
+                            <p class="pp-body">@doctor.PracticeName</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(doctor.Address))
+                        {
+                            <p class="pp-body">@doctor.Address</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(location))
+                        {
+                            <p class="pp-body">@location</p>
+                        }
+                    </div>
+                    <div>
+                        <h3 class="pp-subhead">Call the office</h3>
+                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                        {
+                            <a class="pp-phone-btn" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">
+                                Call @doctor.Name — @doctor.OfficePhoneNumber
+                            </a>
+                        }
+                        else
+                        {
+                            <p class="pp-muted">Phone number not available</p>
+                        }
+                        <p class="pp-hint">Typical office hours: Mon–Fri 8:00 AM – 5:00 PM</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <aside class="pp-sidebar">
+            <div class="pp-booking-card" id="pp-booking">
+                <h2 class="pp-booking-title">Book a visit</h2>
+                <p class="pp-booking-sub">Choose a time that works for you. Demo slots only — no real booking yet.</p>
+
+                <label class="pp-field-label" for="pp-visit-reason">Reason for visit</label>
+                <select id="pp-visit-reason" class="pp-select">
+                    <option>Tooth pain / emergency dental</option>
+                    <option>New patient exam</option>
+                    <option>Cleaning</option>
+                    <option>Filling / restoration</option>
+                    <option>Consultation</option>
+                    <option selected>General checkup</option>
+                </select>
+
+                <div class="pp-day-tabs" role="tablist" aria-label="Available days">
+                    @for (var i = 0; i < Model.BookingDays.Count; i++)
+                    {
+                        var day = Model.BookingDays[i];
+                        <button type="button"
+                                class="pp-day-tab@(i == 0 ? " is-active" : "")"
+                                data-day-index="@i"
+                                onclick="ppSelectDay(@i)">
+                            <span class="pp-day-name">@day.DayLabel</span>
+                            <span class="pp-day-date">@day.DateLabel</span>
+                        </button>
+                    }
+                </div>
+
+                @for (var i = 0; i < Model.BookingDays.Count; i++)
+                {
+                    var day = Model.BookingDays[i];
+                    <div class="pp-slot-grid@(i == 0 ? " is-active" : "")" data-day-panel="@i"@Html.Raw(i == 0 ? "" : " hidden")>
+                        @foreach (var slot in day.Slots)
+                        {
+                            <button type="button"
+                                    class="pp-slot"
+                                    data-day="@day.DateLabel"
+                                    data-time="@slot.TimeLabel"
+                                    onclick="ppSelectSlot(this)">
+                                @slot.TimeLabel
+                            </button>
+                        }
+                    </div>
+                }
+
+                <button type="button" class="pp-book-btn" id="pp-book-btn" disabled onclick="ppConfirmBooking()">
+                    Select a time to continue
+                </button>
+                <p class="pp-booking-note" id="pp-booking-note" hidden></p>
+            </div>
+        </aside>
+    </div>
+</div>
+
+<footer class="site-footer site-footer-rich">
+    <div class="site-footer-inner">
+        <div class="site-footer-brand">@Branding.SiteName.ToLowerInvariant().</div>
+        <div class="site-footer-copy">© @DateTime.UtcNow.Year @Branding.SiteName · Not medical advice · For emergencies call 911</div>
+    </div>
+</footer>
+
+<script>
+(function () {
+  let selectedSlot = null;
+
+  window.ppSelectDay = function (index) {
+    document.querySelectorAll(".pp-day-tab").forEach((tab) => {
+      tab.classList.toggle("is-active", Number(tab.dataset.dayIndex) === index);
+    });
+    document.querySelectorAll("[data-day-panel]").forEach((panel) => {
+      const active = Number(panel.dataset.dayPanel) === index;
+      panel.classList.toggle("is-active", active);
+      panel.hidden = !active;
+    });
+  };
+
+  window.ppSelectSlot = function (btn) {
+    document.querySelectorAll(".pp-slot").forEach((el) => el.classList.remove("is-selected"));
+    btn.classList.add("is-selected");
+    selectedSlot = { day: btn.dataset.day, time: btn.dataset.time };
+    const bookBtn = document.getElementById("pp-book-btn");
+    bookBtn.disabled = false;
+    bookBtn.textContent = "Request " + selectedSlot.day + " · " + selectedSlot.time;
+    const note = document.getElementById("pp-booking-note");
+    note.hidden = true;
+  };
+
+  window.ppConfirmBooking = function () {
+    if (!selectedSlot) return;
+    const reason = document.getElementById("pp-visit-reason").value;
+    const note = document.getElementById("pp-booking-note");
+    note.hidden = false;
+    note.textContent = "Thanks! Your request for " + selectedSlot.day + " at " + selectedSlot.time
+      + " (" + reason + ") was recorded for demo purposes. A real booking backend is not connected yet — please call the office to confirm.";
+    document.getElementById("pp-book-btn").textContent = "Request sent (demo)";
+  };
+})();
+</script>
+</body>
+</html>
+
+@functions {
+    private static string RenderStars(decimal rating)
+    {
+        var full = (int)Math.Round(rating, MidpointRounding.AwayFromZero);
+        full = Math.Clamp(full, 0, 5);
+        return new string('★', full) + new string('☆', 5 - full);
+    }
+
+    private static string RenderStars(int rating) => RenderStars((decimal)rating);
+
+    private static string RegexPhone(string phone) =>
+        new string(phone.Where(char.IsDigit).ToArray());
+}
