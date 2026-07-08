@@ -60,9 +60,38 @@
                     <p class="profile-meta">@Model.Profile.PracticeName</p>
                 }
             </div>
-            <a href="/Account/DoctorProfile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
+            <div class="profile-header-actions">
+                <a href="/doctors/@Model.Profile.Id" class="btn-secondary btn-sm" target="_blank" rel="noopener noreferrer">View my public profile</a>
+                <a href="/Account/DoctorProfile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
+            </div>
         </div>
     </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Profile.VideoUrl))
+    {
+        var videoUrl = Model.Profile.VideoUrl!;
+        var embedUrl = GetVideoEmbedUrl(videoUrl);
+        <div class="card profile-video-card">
+            <h2 style="font-size:18px;margin-bottom:8px;">Introduction video</h2>
+            <p class="profile-section-hint">This video appears on your public profile for patients.</p>
+            @if (!string.IsNullOrEmpty(embedUrl))
+            {
+                <div class="profile-video-frame">
+                    <iframe src="@embedUrl" title="Introduction video" allowfullscreen loading="lazy"></iframe>
+                </div>
+            }
+            else if (IsDirectVideoFile(videoUrl))
+            {
+                <div class="profile-video-frame">
+                    <video controls preload="metadata" src="@videoUrl"></video>
+                </div>
+            }
+            else
+            {
+                <a class="profile-video-link" href="@videoUrl" target="_blank" rel="noopener noreferrer">▶ Watch introduction video</a>
+            }
+        </div>
+    }
 
     <div class="card">
         <h2 style="font-size:18px;margin-bottom:16px;">Practice Details</h2>
@@ -113,3 +142,38 @@
 </div>
 </body>
 </html>
+
+@functions {
+    private static string? GetVideoEmbedUrl(string url)
+    {
+        var trimmed = url.Trim();
+        var yt = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (yt.Success)
+            return $"https://www.youtube.com/embed/{yt.Groups[1].Value}";
+
+        var vimeo = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"vimeo\.com\/(?:video\/)?(\d+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (vimeo.Success)
+            return $"https://player.vimeo.com/video/{vimeo.Groups[1].Value}";
+
+        var loom = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"loom\.com\/share\/([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (loom.Success)
+            return $"https://www.loom.com/embed/{loom.Groups[1].Value}";
+
+        return null;
+    }
+
+    private static bool IsDirectVideoFile(string url) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            url,
+            @"\.(mp4|webm|ogg|mov|m4v)(\?|$)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+}

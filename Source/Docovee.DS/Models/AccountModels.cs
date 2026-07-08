@@ -72,6 +72,7 @@ public class DoctorProfileDto
     public decimal? PatientReviewAverage { get; set; }
     public string? TagLine { get; set; }
     public string? Niche { get; set; }
+    public string? VideoUrl { get; set; }
     public bool IsActive { get; set; }
     public DateTime MemberSince { get; set; }
     public int ProfileCompletionPercent { get; set; }

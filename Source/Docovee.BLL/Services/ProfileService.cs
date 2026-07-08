@@ -105,6 +105,9 @@ public class ProfileService : IProfileService
             PatientReviewAverage = reviewAvg,
             TagLine = doctor.TagLine,
             Niche = doctor.Niche,
+            VideoUrl = !string.IsNullOrWhiteSpace(doctor.VideoUrl)
+                ? doctor.VideoUrl.Trim()
+                : DoctorProfileHelper.ExtractVideoUrl(doctor.OnboardingProfileJson),
             IsActive = doctor.IsActive,
             MemberSince = doctor.CreatedAt,
             ProfileCompletionPercent = doctor.ProfileCompletionPercent,

@@ -101,6 +101,31 @@
                 }
             </section>
 
+            @if (!string.IsNullOrWhiteSpace(doctor.VideoUrl))
+            {
+                var videoUrl = doctor.VideoUrl!;
+                var embedUrl = GetVideoEmbedUrl(videoUrl);
+                <section class="pp-card">
+                    <h2 class="pp-section-title">Introduction video</h2>
+                    @if (!string.IsNullOrEmpty(embedUrl))
+                    {
+                        <div class="pp-video-frame">
+                            <iframe src="@embedUrl" title="Introduction video" allowfullscreen loading="lazy"></iframe>
+                        </div>
+                    }
+                    else if (IsDirectVideoFile(videoUrl))
+                    {
+                        <div class="pp-video-frame">
+                            <video controls preload="metadata" src="@videoUrl"></video>
+                        </div>
+                    }
+                    else
+                    {
+                        <a class="pp-video-link" href="@videoUrl" target="_blank" rel="noopener noreferrer">▶ Watch introduction video</a>
+                    }
+                </section>
+            }
+
             @if (procedures.Length > 0)
             {
                 <section class="pp-card">
@@ -314,4 +339,37 @@
 
     private static string RegexPhone(string phone) =>
         new string(phone.Where(char.IsDigit).ToArray());
+
+    private static string? GetVideoEmbedUrl(string url)
+    {
+        var trimmed = url.Trim();
+        var yt = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (yt.Success)
+            return $"https://www.youtube.com/embed/{yt.Groups[1].Value}";
+
+        var vimeo = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"vimeo\.com\/(?:video\/)?(\d+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (vimeo.Success)
+            return $"https://player.vimeo.com/video/{vimeo.Groups[1].Value}";
+
+        var loom = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"loom\.com\/share\/([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (loom.Success)
+            return $"https://www.loom.com/embed/{loom.Groups[1].Value}";
+
+        return null;
+    }
+
+    private static bool IsDirectVideoFile(string url) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            url,
+            @"\.(mp4|webm|ogg|mov|m4v)(\?|$)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 }
