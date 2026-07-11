@@ -3,6 +3,7 @@
 @{
     Layout = null;
     ViewData["Title"] = $"My Profile — {Branding.SiteName}";
+    var section = Model.Section;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -12,169 +13,362 @@
     <title>@ViewData["Title"]</title>
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
-<body>
-<nav>
-    <partial name="Shared/_SiteLogo" />
-    <div class="nav-right">
-        <a href="/" class="nav-link">Home</a>
-        <a href="/Account/Logout" class="nav-link">Logout</a>
-    </div>
-</nav>
+<body class="pat-body">
+<div class="pat-shell">
+    <aside class="pat-sidebar" aria-label="Account menu">
+        <a class="pat-logo" href="/">
+            <span class="pat-logo-mark">@(Branding.SiteName.Length > 0 ? Branding.SiteName[0].ToString().ToUpperInvariant() : "N")</span>
+            <span>@Branding.SiteName</span>
+        </a>
 
-<div class="main profile-page">
-    @if (Model.Saved)
-    {
-        <div class="alert-success">Your profile has been updated.</div>
-    }
-    @if (Model.ReviewSubmitted)
-    {
-        <div class="alert-success">Thank you — your review has been submitted.</div>
-    }
-    @if (!string.IsNullOrEmpty(Model.ReviewError))
-    {
-        <div class="alert-error">@Model.ReviewError</div>
-    }
-
-    <div class="card">
-        <div class="profile-card-top">
+        <div class="pat-sidebar-head">
+            <div class="pat-avatar">@(Model.Profile!.FullName.Length > 0 ? Model.Profile.FullName[0].ToString().ToUpperInvariant() : "P")</div>
             <div>
-                <div class="card-label">Patient Profile</div>
-                <h1>@Model.Profile!.FullName</h1>
-                <p class="profile-meta">Member since @Model.Profile.MemberSince.ToString("MMMM d, yyyy")</p>
+                <div class="pat-sidebar-name">@Model.Profile.FullName</div>
+                <div class="pat-sidebar-meta">Patient account</div>
             </div>
-            <a href="/Account/Profile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
         </div>
-    </div>
 
-    <div class="card">
-        <h2 style="font-size:18px;margin-bottom:16px;">Account Details</h2>
-        <dl class="profile-dl">
-            <dt>Username</dt><dd>@Model.Profile.Username</dd>
-            <dt>Full name</dt><dd>@Model.Profile.FullName</dd>
-            <dt>Date of birth</dt><dd>@Model.Profile.DateOfBirth.ToString("MMMM d, yyyy")</dd>
-            <dt>Phone</dt><dd>@Model.Profile.Phone</dd>
-        </dl>
-    </div>
-
-    <div class="card">
-        <h2 style="font-size:18px;margin-bottom:8px;">Doctors You've Contacted</h2>
-        <p class="profile-section-hint">Doctors you asked Nuvi to contact on your behalf. You can leave a review for each one.</p>
-        @if (Model.Profile.ViewedDoctors.Count == 0)
-        {
-            <p class="profile-empty">No doctors yet. When you choose "Yes, contact their office" in chat, they'll appear here so you can leave a review.</p>
-        }
-        else
-        {
-            <div class="viewed-doctors-list">
-                @foreach (var doctor in Model.Profile.ViewedDoctors)
+        <div class="pat-nav" role="navigation" aria-label="Profile sections">
+            <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal Information</a>
+            <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and Security</a>
+            <a class="pat-nav-item @(section == "notifications" ? "active" : "")" href="/Account/Profile?section=notifications">
+                <span>Notifications</span>
+                @if (Model.UpcomingAppointments.Count > 0)
                 {
-                    <div class="viewed-doctor-card">
-                        <div class="viewed-doctor-header">
-                            <div class="viewed-doctor-avatar">@doctor.AvatarInitials</div>
-                            <div>
-                                <div class="viewed-doctor-name">@doctor.Name</div>
-                                <div class="viewed-doctor-meta">@doctor.Specialty · @doctor.Location</div>
-                                @if (!string.IsNullOrEmpty(doctor.OfficePhoneNumber))
-                                {
-                                    <div class="viewed-doctor-phone">@doctor.OfficePhoneNumber</div>
-                                }
-                                <div class="profile-list-meta">Contact viewed @doctor.ViewedAt.ToString("MMM d, yyyy")</div>
-                            </div>
-                        </div>
+                    <span class="pat-nav-badge">@Model.UpcomingAppointments.Count</span>
+                }
+            </a>
+            <a class="pat-nav-item @(section == "history" ? "active" : "")" href="/Account/Profile?section=history">Appointment History</a>
+        </div>
 
-                        @if (doctor.HasReview)
+        <div class="pat-sidebar-foot">
+            <a href="/">Find a doctor</a>
+            <a href="/Account/Logout">Sign out</a>
+        </div>
+    </aside>
+
+    <main class="pat-main">
+        @if (Model.Saved)
+        {
+            <div class="alert-success">Your personal information has been updated.</div>
+        }
+        @if (Model.PasswordChanged)
+        {
+            <div class="alert-success">Your password has been changed.</div>
+        }
+        @if (Model.ReviewSubmitted)
+        {
+            <div class="alert-success">Thank you — your review has been submitted.</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.ReviewError))
+        {
+            <div class="alert-error">@Model.ReviewError</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.FormError))
+        {
+            <div class="alert-error">@Model.FormError</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.FormSuccess))
+        {
+            <div class="alert-success">@Model.FormSuccess</div>
+        }
+
+        @if (section == "personal")
+        {
+            <div class="pat-panel-head">
+                <h1>Personal Information</h1>
+                <p>Your current account details used across @Branding.SiteName.</p>
+            </div>
+
+            <div class="card">
+                <h2 class="pat-card-title">Current information</h2>
+                <dl class="profile-dl">
+                    <dt>Email / username</dt><dd>@Model.Profile.Username</dd>
+                    <dt>Full name</dt><dd>@Model.Profile.FullName</dd>
+                    <dt>Date of birth</dt><dd>@Model.Profile.DateOfBirth.ToString("MMMM d, yyyy")</dd>
+                    <dt>Phone</dt><dd>@Model.Profile.Phone</dd>
+                    <dt>Member since</dt><dd>@Model.Profile.MemberSince.ToString("MMMM d, yyyy")</dd>
+                </dl>
+            </div>
+
+            <div class="card">
+                <h2 class="pat-card-title">Update details</h2>
+                <form method="post" asp-page-handler="UpdatePersonal" class="pat-form">
+                    <input type="hidden" asp-for="PersonalInput.Username" />
+                    <div class="form-group">
+                        <label asp-for="PersonalInput.FullName">Full name</label>
+                        <input asp-for="PersonalInput.FullName" class="field-input" />
+                    </div>
+                    <div class="form-group">
+                        <label asp-for="PersonalInput.DateOfBirth">Date of birth</label>
+                        <input asp-for="PersonalInput.DateOfBirth" type="date" class="field-input" />
+                    </div>
+                    <div class="form-group">
+                        <label asp-for="PersonalInput.Phone">Phone number</label>
+                        <input asp-for="PersonalInput.Phone" type="tel" class="field-input" />
+                    </div>
+                    <button type="submit" class="btn-primary">Save changes</button>
+                </form>
+            </div>
+        }
+        else if (section == "security")
+        {
+            <div class="pat-panel-head">
+                <h1>Login and Security</h1>
+                <p>Manage your password and verification options.</p>
+            </div>
+
+            <div class="card">
+                <h2 class="pat-card-title">Change password</h2>
+                <form method="post" asp-page-handler="ChangePassword" class="pat-form">
+                    <div class="form-group">
+                        <label for="NewPassword">New password</label>
+                        <input id="NewPassword" name="NewPassword" type="password" class="field-input" autocomplete="new-password" />
+                        <p class="hint">At least 6 characters.</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="ConfirmPassword">Confirm new password</label>
+                        <input id="ConfirmPassword" name="ConfirmPassword" type="password" class="field-input" autocomplete="new-password" />
+                    </div>
+                    <button type="submit" class="btn-primary">Update password</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2 class="pat-card-title">Email verification</h2>
+                <div class="pat-verify-row">
+                    <div>
+                        <div class="pat-verify-label">@Model.Profile.Username</div>
+                        <span class="pat-pill pat-pill-warn">Not verified</span>
+                        <p class="hint" style="margin-top:8px;">Verification emails will send once the site email service is set up.</p>
+                    </div>
+                    <form method="post" asp-page-handler="RequestEmailVerification">
+                        <button type="submit" class="btn-secondary btn-sm">Send verification email</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="pat-card-title">Phone number verification</h2>
+                <div class="pat-verify-row">
+                    <div>
+                        <div class="pat-verify-label">@(string.IsNullOrWhiteSpace(Model.Profile.Phone) ? "No phone on file" : Model.Profile.Phone)</div>
+                        <span class="pat-pill pat-pill-warn">Not verified</span>
+                        <p class="hint" style="margin-top:8px;">SMS verification will be available in a future update.</p>
+                    </div>
+                    <form method="post" asp-page-handler="RequestPhoneVerification">
+                        <button type="submit" class="btn-secondary btn-sm" @(string.IsNullOrWhiteSpace(Model.Profile.Phone) ? "disabled" : null)>Send verification code</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else if (section == "notifications")
+        {
+            <div class="pat-panel-head">
+                <h1>Notifications</h1>
+                <p>Upcoming appointments and booking updates.</p>
+            </div>
+
+            <div class="card">
+                <h2 class="pat-card-title">Upcoming appointments</h2>
+                @if (Model.UpcomingAppointments.Count == 0)
+                {
+                    <p class="profile-empty">No upcoming appointments. <a href="/">Find a doctor</a> to book a visit.</p>
+                }
+                else
+                {
+                    <div class="pat-appt-list">
+                        @foreach (var a in Model.UpcomingAppointments)
                         {
-                            <div class="patient-review-submitted">
-                                <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
-                                <p>@doctor.ReviewText</p>
-                                <div class="patient-review-meta-row">
-                                    @if (!string.IsNullOrWhiteSpace(doctor.ReviewWaitingTime))
-                                    {
-                                        <span><strong>Waiting time:</strong> @doctor.ReviewWaitingTime</span>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(doctor.ReviewRecommendation))
-                                    {
-                                        <span><strong>Recommendation:</strong> @doctor.ReviewRecommendation</span>
-                                    }
+                            <div class="pat-appt-card">
+                                <div class="pat-appt-when">
+                                    <strong>@a.StartsAt.ToString("ddd, MMM d")</strong>
+                                    <span>@a.StartsAt.ToString("h:mm tt")</span>
                                 </div>
-                                <div class="profile-list-meta">Submitted @doctor.ReviewedAt?.ToString("MMM d, yyyy")</div>
+                                <div class="pat-appt-body">
+                                    <div class="pat-appt-doctor">@a.DoctorName</div>
+                                    <div class="pat-appt-meta">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</div>
+                                    <div class="pat-appt-meta">@a.VisitReason</div>
+                                    <span class="pat-pill">@ProfileModel.StatusLabel(a.Status)</span>
+                                </div>
+                                <a class="btn-secondary btn-sm" href="/doctors/@a.DoctorId">View doctor</a>
                             </div>
-                        }
-                        else
-                        {
-                            <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
-                                <input type="hidden" name="doctorId" value="@doctor.DoctorId" />
-                                <label class="review-label">Your rating</label>
-                                <div class="review-rating-row">
-                                    @for (var star = 1; star <= 5; star++)
-                                    {
-                                        <label class="review-star-label">
-                                            <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
-                                            <span>@star</span>
-                                        </label>
-                                    }
-                                </div>
-
-                                <label class="review-label">Waiting time</label>
-                                <div class="review-choice-row">
-                                    @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
-                                    {
-                                        <label class="review-choice-label">
-                                            <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
-                                            <span>@option</span>
-                                        </label>
-                                    }
-                                </div>
-
-                                <label class="review-label">How would you recommend this doctor?</label>
-                                <div class="review-choice-row">
-                                    @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
-                                    {
-                                        <label class="review-choice-label">
-                                            <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
-                                            <span>@option</span>
-                                        </label>
-                                    }
-                                </div>
-
-                                <label class="review-label" for="review-@doctor.DoctorId">Your review</label>
-                                <textarea id="review-@doctor.DoctorId" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
-                                <button type="submit" class="btn-primary btn-sm">Submit review</button>
-                            </form>
                         }
                     </div>
                 }
             </div>
         }
-    </div>
+        else if (section == "history")
+        {
+            <div class="pat-panel-head">
+                <h1>Appointment History</h1>
+                <p>Past visits — leave a review if you haven’t already.</p>
+            </div>
 
-    <div class="card">
-        <h2 style="font-size:18px;margin-bottom:16px;">Search History</h2>
-        @if (Model.Profile.SearchHistory.Count == 0)
-        {
-            <p class="profile-empty">No saved searches yet. <a href="/">Find a doctor</a> to get started.</p>
-        }
-        else
-        {
-            <ul class="profile-list">
-                @foreach (var search in Model.Profile.SearchHistory)
+            <div class="card">
+                @if (Model.PastAppointments.Count == 0)
                 {
-                    <li>
-                        <strong>@(search.Specialty ?? "General search")</strong>
-                        @if (!string.IsNullOrEmpty(search.Location))
-                        {
-                            <span> · @search.Location</span>
-                        }
-                        <div class="profile-list-meta">@search.Date.ToString("MMM d, yyyy h:mm tt")</div>
-                        @if (!string.IsNullOrEmpty(search.MedicalIssuesSummary))
-                        {
-                            <div class="profile-list-note">@search.MedicalIssuesSummary</div>
-                        }
-                    </li>
+                    <p class="profile-empty">No past appointments yet.</p>
                 }
-            </ul>
+                else
+                {
+                    <div class="pat-appt-list">
+                        @foreach (var a in Model.PastAppointments)
+                        {
+                            <div class="pat-appt-card pat-appt-card-stack">
+                                <div class="pat-appt-top">
+                                    <div class="pat-appt-when">
+                                        <strong>@a.StartsAt.ToString("MMM d, yyyy")</strong>
+                                        <span>@a.StartsAt.ToString("h:mm tt")</span>
+                                    </div>
+                                    <div class="pat-appt-body">
+                                        <div class="pat-appt-doctor">@a.DoctorName</div>
+                                        <div class="pat-appt-meta">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</div>
+                                        <div class="pat-appt-meta">@a.VisitReason</div>
+                                        <span class="pat-pill">@ProfileModel.StatusLabel(a.Status)</span>
+                                    </div>
+                                    <a class="btn-secondary btn-sm" href="/doctors/@a.DoctorId">Profile</a>
+                                </div>
+
+                                @if (a.Status != AppointmentStatuses.Cancelled)
+                                {
+                                    if (a.HasReview)
+                                    {
+                                        <div class="patient-review-submitted">
+                                            <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", a.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (a.ReviewRating ?? 0)))</div>
+                                            <p>@a.ReviewText</p>
+                                            <div class="patient-review-meta-row">
+                                                @if (!string.IsNullOrWhiteSpace(a.ReviewWaitingTime))
+                                                {
+                                                    <span><strong>Waiting time:</strong> @a.ReviewWaitingTime</span>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(a.ReviewRecommendation))
+                                                {
+                                                    <span><strong>Recommendation:</strong> @a.ReviewRecommendation</span>
+                                                }
+                                            </div>
+                                            <div class="profile-list-meta">Submitted @a.ReviewedAt?.ToString("MMM d, yyyy")</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
+                                            <input type="hidden" name="doctorId" value="@a.DoctorId" />
+                                            <label class="review-label">Review @a.DoctorName</label>
+                                            <div class="review-rating-row">
+                                                @for (var star = 1; star <= 5; star++)
+                                                {
+                                                    <label class="review-star-label">
+                                                        <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
+                                                        <span>@star</span>
+                                                    </label>
+                                                }
+                                            </div>
+
+                                            <label class="review-label">Waiting time</label>
+                                            <div class="review-choice-row">
+                                                @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
+                                                {
+                                                    <label class="review-choice-label">
+                                                        <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
+                                                        <span>@option</span>
+                                                    </label>
+                                                }
+                                            </div>
+
+                                            <label class="review-label">How would you recommend this doctor?</label>
+                                            <div class="review-choice-row">
+                                                @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
+                                                {
+                                                    <label class="review-choice-label">
+                                                        <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
+                                                        <span>@option</span>
+                                                    </label>
+                                                }
+                                            </div>
+
+                                            <label class="review-label" for="review-@a.Id">Your review</label>
+                                            <textarea id="review-@a.Id" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
+                                            <button type="submit" class="btn-primary btn-sm">Submit review</button>
+                                        </form>
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @if (Model.Profile.ViewedDoctors.Any(d => !d.HasReview && Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
+            {
+                <div class="card">
+                    <h2 class="pat-card-title">Doctors you’ve contacted</h2>
+                    <p class="profile-section-hint">Doctors from Nuvi chat that aren’t in your appointment history yet.</p>
+                    <div class="viewed-doctors-list">
+                        @foreach (var doctor in Model.Profile.ViewedDoctors.Where(d => Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
+                        {
+                            <div class="viewed-doctor-card">
+                                <div class="viewed-doctor-header">
+                                    <div class="viewed-doctor-avatar">@doctor.AvatarInitials</div>
+                                    <div>
+                                        <div class="viewed-doctor-name">@doctor.Name</div>
+                                        <div class="viewed-doctor-meta">@doctor.Specialty · @doctor.Location</div>
+                                    </div>
+                                </div>
+                                @if (doctor.HasReview)
+                                {
+                                    <div class="patient-review-submitted">
+                                        <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
+                                        <p>@doctor.ReviewText</p>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
+                                        <input type="hidden" name="doctorId" value="@doctor.DoctorId" />
+                                        <label class="review-label">Your rating</label>
+                                        <div class="review-rating-row">
+                                            @for (var star = 1; star <= 5; star++)
+                                            {
+                                                <label class="review-star-label">
+                                                    <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
+                                                    <span>@star</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        <label class="review-label">Waiting time</label>
+                                        <div class="review-choice-row">
+                                            @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
+                                            {
+                                                <label class="review-choice-label">
+                                                    <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
+                                                    <span>@option</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        <label class="review-label">Recommendation</label>
+                                        <div class="review-choice-row">
+                                            @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
+                                            {
+                                                <label class="review-choice-label">
+                                                    <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
+                                                    <span>@option</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        <label class="review-label" for="creview-@doctor.DoctorId">Your review</label>
+                                        <textarea id="creview-@doctor.DoctorId" name="reviewText" class="review-textarea" rows="3" required></textarea>
+                                        <button type="submit" class="btn-primary btn-sm">Submit review</button>
+                                    </form>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
-    </div>
+    </main>
 </div>
 </body>
 </html>

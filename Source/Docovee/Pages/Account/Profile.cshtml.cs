@@ -1,7 +1,8 @@
 using System.Security.Claims;
 using Docovee.BLL.Auth;
-using Docovee.DS.Models;
 using Docovee.BLL.Services;
+using Docovee.DS.Entities;
+using Docovee.DS.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -13,27 +14,130 @@ public class ProfileModel : PageModel
 {
     private readonly IProfileService _profileService;
     private readonly IDoctorReviewService _reviewService;
+    private readonly IAppointmentService _appointments;
 
-    public ProfileModel(IProfileService profileService, IDoctorReviewService reviewService)
+    public ProfileModel(
+        IProfileService profileService,
+        IDoctorReviewService reviewService,
+        IAppointmentService appointments)
     {
         _profileService = profileService;
         _reviewService = reviewService;
+        _appointments = appointments;
     }
 
     public PatientProfileDto? Profile { get; set; }
+    public string Section { get; set; } = "personal";
     public bool Saved { get; set; }
+    public bool PasswordChanged { get; set; }
     public bool ReviewSubmitted { get; set; }
     public string? ReviewError { get; set; }
+    public string? FormError { get; set; }
+    public string? FormSuccess { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(bool saved = false, bool reviewSubmitted = false)
+    public IReadOnlyList<PatientAppointmentDto> UpcomingAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
+    public IReadOnlyList<PatientAppointmentDto> PastAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
+
+    [BindProperty]
+    public PatientProfileEditModel PersonalInput { get; set; } = new();
+
+    [BindProperty]
+    public string? NewPassword { get; set; }
+
+    [BindProperty]
+    public string? ConfirmPassword { get; set; }
+
+    public async Task<IActionResult> OnGetAsync(
+        string? section = null,
+        bool saved = false,
+        bool passwordChanged = false,
+        bool reviewSubmitted = false)
     {
+        Section = NormalizeSection(section);
         Saved = saved;
+        PasswordChanged = passwordChanged;
         ReviewSubmitted = reviewSubmitted;
+
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
-        Profile = await _profileService.GetPatientProfileAsync(patientId);
+        await LoadAsync(patientId);
         if (Profile == null) return NotFound();
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostUpdatePersonalAsync()
+    {
+        Section = "personal";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        PersonalInput.NewPassword = null;
+        var (success, error) = await _profileService.UpdatePatientProfileAsync(patientId, PersonalInput);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "personal", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostChangePasswordAsync()
+    {
+        Section = "security";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        if (string.IsNullOrWhiteSpace(NewPassword) || NewPassword.Length < 6)
+        {
+            FormError = "Password must be at least 6 characters.";
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        if (NewPassword != ConfirmPassword)
+        {
+            FormError = "New password and confirmation do not match.";
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        var edit = await _profileService.GetPatientForEditAsync(patientId);
+        if (edit == null) return NotFound();
+        edit.NewPassword = NewPassword;
+
+        var (success, error) = await _profileService.UpdatePatientProfileAsync(patientId, edit);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "security", passwordChanged = true });
+    }
+
+    public async Task<IActionResult> OnPostRequestEmailVerificationAsync()
+    {
+        Section = "security";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        await LoadAsync(patientId);
+        FormSuccess = "Email verification will be available once the site email service (e.g. Amazon SES) is connected. Your login email is ready to use.";
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostRequestPhoneVerificationAsync()
+    {
+        Section = "security";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        await LoadAsync(patientId);
+        FormSuccess = "Phone verification (SMS) will be available in a future update. You can still update your phone number under Personal Information.";
         return Page();
     }
 
@@ -44,6 +148,7 @@ public class ProfileModel : PageModel
         string waitingTime,
         string recommendation)
     {
+        Section = "history";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
@@ -53,10 +158,58 @@ public class ProfileModel : PageModel
         if (!success)
         {
             ReviewError = error;
-            Profile = await _profileService.GetPatientProfileAsync(patientId);
+            await LoadAsync(patientId);
             return Page();
         }
 
-        return RedirectToPage(new { reviewSubmitted = true });
+        return RedirectToPage(new { section = "history", reviewSubmitted = true });
     }
+
+    private async Task LoadAsync(int patientId)
+    {
+        Profile = await _profileService.GetPatientProfileAsync(patientId);
+        if (Profile == null) return;
+
+        PersonalInput = new PatientProfileEditModel
+        {
+            Username = Profile.Username,
+            FullName = Profile.FullName,
+            DateOfBirth = Profile.DateOfBirth,
+            Phone = Profile.Phone
+        };
+
+        var all = await _appointments.GetForPatientAsync(patientId);
+        var startOfToday = DateTime.Today;
+        UpcomingAppointments = all
+            .Where(a => a.StartsAt >= startOfToday
+                        && a.Status != AppointmentStatuses.Cancelled
+                        && a.Status != AppointmentStatuses.Completed)
+            .OrderBy(a => a.StartsAt)
+            .ToList();
+        PastAppointments = all
+            .Where(a => a.StartsAt < startOfToday
+                        || a.Status == AppointmentStatuses.Completed
+                        || a.Status == AppointmentStatuses.Cancelled)
+            .OrderByDescending(a => a.StartsAt)
+            .ToList();
+    }
+
+    private static string NormalizeSection(string? section) =>
+        (section ?? "personal").Trim().ToLowerInvariant() switch
+        {
+            "security" => "security",
+            "notifications" or "notification" => "notifications",
+            "history" or "appointments" => "history",
+            _ => "personal"
+        };
+
+    public static string StatusLabel(string status) => status switch
+    {
+        AppointmentStatuses.New => "Pending confirmation",
+        AppointmentStatuses.Confirmed => "Confirmed",
+        AppointmentStatuses.Reschedule => "Reschedule requested",
+        AppointmentStatuses.Cancelled => "Cancelled",
+        AppointmentStatuses.Completed => "Completed",
+        _ => status
+    };
 }

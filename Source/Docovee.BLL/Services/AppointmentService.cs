@@ -28,6 +28,10 @@ public interface IAppointmentService
         DateOnly from,
         DateOnly to,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PatientAppointmentDto>> GetForPatientAsync(
+        int patientId,
+        CancellationToken cancellationToken = default);
 }
 
 public class AppointmentService : IAppointmentService
@@ -199,6 +203,71 @@ public class AppointmentService : IAppointmentService
             .ToListAsync(cancellationToken);
 
         return starts.ToHashSet();
+    }
+
+    public async Task<IReadOnlyList<PatientAppointmentDto>> GetForPatientAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null)
+            return Array.Empty<PatientAppointmentDto>();
+
+        var email = patient.Username;
+
+        var rows = await (
+            from a in _db.Appointments.AsNoTracking()
+            join d in _db.Doctors.AsNoTracking() on a.DoctorId equals d.Id
+            where a.PatientId == patientId
+                  || (a.PatientId == null && email != "" && a.PatientEmail == email)
+            orderby a.StartsAt descending
+            select new
+            {
+                a.Id,
+                a.DoctorId,
+                DoctorName = d.Name,
+                DoctorSpecialty = d.Specialty,
+                DoctorPhotoUrl = d.PhotoUrl,
+                DoctorGmb = d.GmbPhotoLink,
+                DoctorCity = d.City,
+                DoctorState = d.State,
+                a.VisitReason,
+                a.StartsAt,
+                a.Status
+            }).ToListAsync(cancellationToken);
+
+        var doctorIds = rows.Select(r => r.DoctorId).Distinct().ToList();
+        var reviews = await _db.DoctorPatientReviews.AsNoTracking()
+            .Where(r => r.PatientId == patientId && doctorIds.Contains(r.DoctorId))
+            .ToListAsync(cancellationToken);
+        var reviewByDoctor = reviews
+            .GroupBy(r => r.DoctorId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Id).First());
+
+        return rows.Select(r =>
+        {
+            reviewByDoctor.TryGetValue(r.DoctorId, out var review);
+            return new PatientAppointmentDto
+            {
+                Id = r.Id,
+                DoctorId = r.DoctorId,
+                DoctorName = r.DoctorName,
+                DoctorSpecialty = r.DoctorSpecialty ?? "",
+                DoctorPhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(r.DoctorPhotoUrl, r.DoctorGmb),
+                DoctorLocation = string.Join(", ", new[] { r.DoctorCity, r.DoctorState }
+                    .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA")),
+                VisitReason = r.VisitReason,
+                StartsAt = r.StartsAt,
+                Status = r.Status,
+                HasReview = review != null,
+                ReviewRating = review?.Rating,
+                ReviewText = review?.ReviewText,
+                ReviewWaitingTime = review?.WaitingTime,
+                ReviewRecommendation = review?.Recommendation,
+                ReviewedAt = review?.CreatedAt
+            };
+        }).ToList();
     }
 
     private static CreateAppointmentResponse Fail(string message) =>

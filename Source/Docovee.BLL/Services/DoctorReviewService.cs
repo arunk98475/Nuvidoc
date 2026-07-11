@@ -126,8 +126,13 @@ public class DoctorReviewService : IDoctorReviewService
 
         var hasViewed = await _db.PatientDoctorContactViews
             .AnyAsync(v => v.PatientId == patientId && v.DoctorId == doctorId, cancellationToken);
-        if (!hasViewed)
-            return (false, "You can only review doctors you asked Nuvi to contact.");
+        var hasAppointment = await _db.Appointments
+            .AnyAsync(a => a.DoctorId == doctorId
+                && (a.PatientId == patientId
+                    || (a.PatientId == null && a.PatientEmail == patient.Username)),
+                cancellationToken);
+        if (!hasViewed && !hasAppointment)
+            return (false, "You can only review doctors you've contacted or booked with.");
 
         if (await _db.DoctorPatientReviews.AnyAsync(
                 r => r.PatientId == patientId && r.DoctorId == doctorId, cancellationToken))
