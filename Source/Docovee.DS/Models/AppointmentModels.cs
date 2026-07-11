@@ -33,3 +33,22 @@ public class DoctorAppointmentDto
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
+
+public class PatientAppointmentDto
+{
+    public int Id { get; set; }
+    public int DoctorId { get; set; }
+    public string DoctorName { get; set; } = string.Empty;
+    public string DoctorSpecialty { get; set; } = string.Empty;
+    public string? DoctorPhotoUrl { get; set; }
+    public string? DoctorLocation { get; set; }
+    public string VisitReason { get; set; } = string.Empty;
+    public DateTime StartsAt { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public bool HasReview { get; set; }
+    public int? ReviewRating { get; set; }
+    public string? ReviewText { get; set; }
+    public string? ReviewWaitingTime { get; set; }
+    public string? ReviewRecommendation { get; set; }
+    public DateTime? ReviewedAt { get; set; }
+}

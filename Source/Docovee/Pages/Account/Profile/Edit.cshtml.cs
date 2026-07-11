@@ -49,6 +49,6 @@ public class EditModel : PageModel
             return Page();
         }
 
-        return Redirect("/Account/Profile?saved=true");
+        return Redirect("/Account/Profile?section=personal&saved=true");
     }
 }
