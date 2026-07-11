@@ -25,7 +25,7 @@ public class DoctorModel : PageModel
                     var doctor = await _db.Doctors.AsNoTracking()
                         .FirstOrDefaultAsync(d => d.Id == doctorId);
                     if (doctor != null && DoctorOnboardingProgress.IsOnboardingComplete(doctor))
-                        return Redirect("/Account/DoctorProfile");
+                        return Redirect("/Doctor");
                 }
                 return Page();
             }

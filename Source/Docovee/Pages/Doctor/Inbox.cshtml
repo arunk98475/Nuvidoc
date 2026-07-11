@@ -1,0 +1,91 @@
+@page
+@model Docovee.Pages.Doctor.InboxModel
+@{
+    ViewData["Title"] = "Inbox";
+    ViewData["Nav"] = "inbox";
+}
+
+<div class="dp-split">
+    <aside class="dp-rail">
+        <div class="dp-rail-title">Filters</div>
+        <a class="dp-rail-item active" href="/Doctor/Inbox"><span>All</span></a>
+        <a class="dp-rail-item" href="/Doctor/Inbox"><span>New bookings</span><span class="dp-rail-count">2</span></a>
+        <a class="dp-rail-item" href="/Doctor/Inbox"><span>Reschedules</span><span class="dp-rail-count">2</span></a>
+        <a class="dp-rail-item" href="/Doctor/Inbox"><span>Cancellations</span></a>
+        <a class="dp-rail-item" href="/Doctor/Inbox"><span>Intake submissions</span><span class="dp-rail-count">4</span></a>
+    </aside>
+
+    <div class="dp-panel">
+        <div class="dp-mock-banner">Mock preview — inbox items are sample data.</div>
+
+        <div class="dp-page-head">
+            <h1>Inbox</h1>
+            <div class="dp-page-actions">
+                <button type="button" class="dp-btn dp-btn-sm" disabled>Take a guided tour</button>
+                <button type="button" class="dp-btn dp-btn-primary" disabled>+ Send patient intake</button>
+            </div>
+        </div>
+
+        <div class="dp-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="search" placeholder="Search by patient name" disabled />
+        </div>
+
+        <div class="dp-table-wrap">
+            <table class="dp-table">
+                <thead>
+                    <tr>
+                        <th>Last updated</th>
+                        <th>Patient</th>
+                        <th>Appointment date</th>
+                        <th>Notifications</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2 days ago</td>
+                        <td>Skylar Alvarez</td>
+                        <td>Jul 14, 2026 · 10:00 AM</td>
+                        <td><span class="dp-tag green">New booking</span></td>
+                    </tr>
+                    <tr>
+                        <td>2 days ago</td>
+                        <td>Bob Martinez</td>
+                        <td>Jul 15, 2026 · 2:30 PM</td>
+                        <td><span class="dp-tag blue">Reschedule</span></td>
+                    </tr>
+                    <tr>
+                        <td>3 days ago</td>
+                        <td>Domico Kim</td>
+                        <td>Jul 16, 2026 · 9:00 AM</td>
+                        <td><span class="dp-tag yellow">Intake submission</span></td>
+                    </tr>
+                    <tr>
+                        <td>4 days ago</td>
+                        <td>Priya Shah</td>
+                        <td>Jul 18, 2026 · 11:15 AM</td>
+                        <td><span class="dp-tag green">New booking</span></td>
+                    </tr>
+                    <tr>
+                        <td>5 days ago</td>
+                        <td>James Ortega</td>
+                        <td>Jul 20, 2026 · 3:00 PM</td>
+                        <td><span class="dp-tag blue">Reschedule</span></td>
+                    </tr>
+                    <tr>
+                        <td>1 week ago</td>
+                        <td>Elena Brooks</td>
+                        <td>Jul 22, 2026 · 1:00 PM</td>
+                        <td><span class="dp-tag yellow">Intake submission</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="dp-footer-links">
+            <a href="/Doctor/Calendar">Go to Calendar</a>
+            <a href="#" onclick="return false;">View intake from the past 60 days</a>
+            <a href="#" onclick="return false;">Send Inbox feedback</a>
+        </div>
+    </div>
+</div>

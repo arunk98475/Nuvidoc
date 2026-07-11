@@ -192,7 +192,7 @@ function handleResponse(data) {
     input.disabled = true;
     document.getElementById("send-btn").disabled = true;
     if (data.signedIn) {
-      setTimeout(() => { window.location.href = "/Account/DoctorProfile"; }, 2000);
+      setTimeout(() => { window.location.href = "/Doctor"; }, 2000);
     }
   }
 }

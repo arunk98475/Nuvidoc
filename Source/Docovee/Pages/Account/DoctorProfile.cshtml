@@ -1,147 +1,139 @@
 @page
 @model Docovee.Pages.Account.DoctorProfileModel
 @{
-    Layout = null;
-    ViewData["Title"] = $"My Profile — {Branding.SiteName}";
+    Layout = "_DoctorPortalLayout";
+    ViewData["Title"] = "Settings";
+    ViewData["Nav"] = "settings";
 }
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"]</title>
-    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
-</head>
-<body>
-<nav>
-    <partial name="Shared/_SiteLogo" />
-    <div class="nav-right">
-        <a href="/" class="nav-link">Home</a>
-        <a href="/Account/Logout" class="nav-link">Logout</a>
-    </div>
-</nav>
 
-<div class="main profile-page">
-    @if (Model.Saved)
-    {
-        <div class="alert-success">Your profile has been updated.</div>
-    }
-
-    @if (Model.Profile!.ProfileCompletionPercent < 100)
-    {
-        var completionPct = Model.Profile.ProfileCompletionPercent;
-        <div class="profile-completion-banner">
-            <div class="profile-completion-banner-body">
-                <div class="profile-completion-banner-text">
-                    <strong>Profile @completionPct% complete</strong>
-                    <p>Finish your onboarding questionnaire so patients can find and match with you.</p>
-                </div>
-                <div class="profile-completion-banner-bar" aria-hidden="true">
-                    <div class="profile-completion-banner-bar-fill" style="width: @completionPct%;"></div>
-                </div>
-            </div>
-            <a href="/Account/Register/Doctor" class="profile-completion-banner-btn">Continue profile setup</a>
-        </div>
-    }
-
-    <div class="card profile-header-card">
-        <div class="profile-header">
-            <img src="@Model.Profile!.PhotoUrl" alt="" class="profile-avatar" />
-            <div class="profile-header-main">
-                <div class="card-label">Doctor Profile</div>
-                @if (Model.Profile.ProfileCompletionPercent < 100)
-                {
-                    <div class="profile-completion-pill">@Model.Profile.ProfileCompletionPercent% complete</div>
-                }
-                <h1>@Model.Profile.Name</h1>
-                <p class="profile-meta">@Model.Profile.Specialty</p>
-                @if (!string.IsNullOrEmpty(Model.Profile.PracticeName))
-                {
-                    <p class="profile-meta">@Model.Profile.PracticeName</p>
-                }
-            </div>
-            <div class="profile-header-actions">
-                <a href="/doctors/@Model.Profile.Id" class="btn-secondary btn-sm" target="_blank" rel="noopener noreferrer">View my public profile</a>
-                <a href="/Account/DoctorProfile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
-            </div>
+<div class="dp-content dp-profile-wrap">
+    <div class="dp-page-head">
+        <h1>Settings</h1>
+        <div class="dp-page-actions">
+            <a class="dp-btn dp-btn-sm" href="/Doctor">Back to Home</a>
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(Model.Profile.VideoUrl))
-    {
-        var videoUrl = Model.Profile.VideoUrl!;
-        var embedUrl = GetVideoEmbedUrl(videoUrl);
-        <div class="card profile-video-card">
-            <h2 style="font-size:18px;margin-bottom:8px;">Introduction video</h2>
-            <p class="profile-section-hint">This video appears on your public profile for patients.</p>
-            @if (!string.IsNullOrEmpty(embedUrl))
-            {
-                <div class="profile-video-frame">
-                    <iframe src="@embedUrl" title="Introduction video" allowfullscreen loading="lazy"></iframe>
-                </div>
-            }
-            else if (IsDirectVideoFile(videoUrl))
-            {
-                <div class="profile-video-frame">
-                    <video controls preload="metadata" src="@videoUrl"></video>
-                </div>
-            }
-            else
-            {
-                <a class="profile-video-link" href="@videoUrl" target="_blank" rel="noopener noreferrer">▶ Watch introduction video</a>
-            }
-        </div>
-    }
-
-    <div class="card">
-        <h2 style="font-size:18px;margin-bottom:16px;">Practice Details</h2>
-        <dl class="profile-dl">
-            <dt>Username</dt><dd>@(Model.Profile.Username ?? "—")</dd>
-            <dt>Location</dt><dd>@(Model.Profile.Location ?? "—")</dd>
-            <dt>Address</dt><dd>@(Model.Profile.Address ?? "—")</dd>
-            <dt>Phone</dt><dd>@(Model.Profile.OfficePhoneNumber ?? "—")</dd>
-            <dt>GMB photo link</dt><dd>@(string.IsNullOrEmpty(Model.Profile.GmbPhotoLink) ? "—" : Model.Profile.GmbPhotoLink)</dd>
-            <dt>Niche</dt><dd>@(Model.Profile.Niche ?? "—")</dd>
-            <dt>Insurance accepted</dt>
-            <dd>
-                @if (Model.Profile.InsuranceCarriers.Count == 0)
-                {
-                    <text>None listed</text>
-                }
-                else
-                {
-                    @string.Join(", ", Model.Profile.InsuranceCarriers)
-                }
-            </dd>
-            <dt>Status</dt><dd>@(Model.Profile.IsActive ? "Active" : "Inactive")</dd>
-            <dt>Member since</dt><dd>@Model.Profile.MemberSince.ToString("MMMM d, yyyy")</dd>
-        </dl>
-    </div>
-
-    <div class="card">
-        <h2 style="font-size:18px;margin-bottom:16px;">Ratings</h2>
-        <dl class="profile-dl">
-            <dt>Google rating</dt><dd>★ @Model.Profile.GoogleRating (@Model.Profile.GoogleReviewCount reviews)</dd>
-            <dt>Patient reviews</dt>
-            <dd>
-                @if (Model.Profile.PatientReviewCount > 0)
-                {
-                    <text>★ @Model.Profile.PatientReviewAverage?.ToString("0.0") (@Model.Profile.PatientReviewCount)</text>
-                }
-                else
-                {
-                    <text>No patient reviews yet</text>
-                }
-            </dd>
-        </dl>
-        @if (!string.IsNullOrEmpty(Model.Profile.TagLine))
+    <div class="main profile-page" style="padding:0;max-width:none;">
+        @if (Model.Saved)
         {
-            <p class="profile-tagline">"@Model.Profile.TagLine"</p>
+            <div class="alert-success">Your profile has been updated.</div>
         }
+
+        @if (Model.Profile!.ProfileCompletionPercent < 100)
+        {
+            var completionPct = Model.Profile.ProfileCompletionPercent;
+            <div class="profile-completion-banner">
+                <div class="profile-completion-banner-body">
+                    <div class="profile-completion-banner-text">
+                        <strong>Profile @completionPct% complete</strong>
+                        <p>Finish your onboarding questionnaire so patients can find and match with you.</p>
+                    </div>
+                    <div class="profile-completion-banner-bar" aria-hidden="true">
+                        <div class="profile-completion-banner-bar-fill" style="width: @completionPct%;"></div>
+                    </div>
+                </div>
+                <a href="/Account/Register/Doctor" class="profile-completion-banner-btn">Continue profile setup</a>
+            </div>
+        }
+
+        <div class="card profile-header-card">
+            <div class="profile-header">
+                <img src="@Model.Profile!.PhotoUrl" alt="" class="profile-avatar" />
+                <div class="profile-header-main">
+                    <div class="card-label">Doctor Profile</div>
+                    @if (Model.Profile.ProfileCompletionPercent < 100)
+                    {
+                        <div class="profile-completion-pill">@Model.Profile.ProfileCompletionPercent% complete</div>
+                    }
+                    <h1>@Model.Profile.Name</h1>
+                    <p class="profile-meta">@Model.Profile.Specialty</p>
+                    @if (!string.IsNullOrEmpty(Model.Profile.PracticeName))
+                    {
+                        <p class="profile-meta">@Model.Profile.PracticeName</p>
+                    }
+                </div>
+                <div class="profile-header-actions">
+                    <a href="/doctors/@Model.Profile.Id" class="btn-secondary btn-sm" target="_blank" rel="noopener noreferrer">View my public profile</a>
+                    <a href="/Account/DoctorProfile/Edit" class="btn-secondary btn-sm">Edit Profile</a>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Profile.VideoUrl))
+        {
+            var videoUrl = Model.Profile.VideoUrl!;
+            var embedUrl = GetVideoEmbedUrl(videoUrl);
+            <div class="card profile-video-card">
+                <h2 style="font-size:18px;margin-bottom:8px;">Introduction video</h2>
+                <p class="profile-section-hint">This video appears on your public profile for patients.</p>
+                @if (!string.IsNullOrEmpty(embedUrl))
+                {
+                    <div class="profile-video-frame">
+                        <iframe src="@embedUrl" title="Introduction video" allowfullscreen loading="lazy"></iframe>
+                    </div>
+                }
+                else if (IsDirectVideoFile(videoUrl))
+                {
+                    <div class="profile-video-frame">
+                        <video controls preload="metadata" src="@videoUrl"></video>
+                    </div>
+                }
+                else
+                {
+                    <a class="profile-video-link" href="@videoUrl" target="_blank" rel="noopener noreferrer">▶ Watch introduction video</a>
+                }
+            </div>
+        }
+
+        <div class="card">
+            <h2 style="font-size:18px;margin-bottom:16px;">Practice Details</h2>
+            <dl class="profile-dl">
+                <dt>Username</dt><dd>@(Model.Profile.Username ?? "—")</dd>
+                <dt>Location</dt><dd>@(Model.Profile.Location ?? "—")</dd>
+                <dt>Address</dt><dd>@(Model.Profile.Address ?? "—")</dd>
+                <dt>Phone</dt><dd>@(Model.Profile.OfficePhoneNumber ?? "—")</dd>
+                <dt>GMB photo link</dt><dd>@(string.IsNullOrEmpty(Model.Profile.GmbPhotoLink) ? "—" : Model.Profile.GmbPhotoLink)</dd>
+                <dt>Niche</dt><dd>@(Model.Profile.Niche ?? "—")</dd>
+                <dt>Insurance accepted</dt>
+                <dd>
+                    @if (Model.Profile.InsuranceCarriers.Count == 0)
+                    {
+                        <text>None listed</text>
+                    }
+                    else
+                    {
+                        @string.Join(", ", Model.Profile.InsuranceCarriers)
+                    }
+                </dd>
+                <dt>Status</dt><dd>@(Model.Profile.IsActive ? "Active" : "Inactive")</dd>
+                <dt>Member since</dt><dd>@Model.Profile.MemberSince.ToString("MMMM d, yyyy")</dd>
+            </dl>
+        </div>
+
+        <div class="card">
+            <h2 style="font-size:18px;margin-bottom:16px;">Ratings</h2>
+            <dl class="profile-dl">
+                <dt>Google rating</dt><dd>★ @Model.Profile.GoogleRating (@Model.Profile.GoogleReviewCount reviews)</dd>
+                <dt>Patient reviews</dt>
+                <dd>
+                    @if (Model.Profile.PatientReviewCount > 0)
+                    {
+                        <text>★ @Model.Profile.PatientReviewAverage?.ToString("0.0") (@Model.Profile.PatientReviewCount)</text>
+                    }
+                    else
+                    {
+                        <text>No patient reviews yet</text>
+                    }
+                </dd>
+            </dl>
+            @if (!string.IsNullOrEmpty(Model.Profile.TagLine))
+            {
+                <p class="profile-tagline">"@Model.Profile.TagLine"</p>
+            }
+        </div>
     </div>
 </div>
-</body>
-</html>
 
 @functions {
     private static string? GetVideoEmbedUrl(string url)

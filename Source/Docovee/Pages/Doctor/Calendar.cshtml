@@ -1,0 +1,126 @@
+@page
+@model Docovee.Pages.Doctor.CalendarModel
+@{
+    ViewData["Title"] = "Calendar";
+    ViewData["Nav"] = "calendar";
+    var hours = new[] { "9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", "6 PM" };
+    var days = new[] {
+        ("Sun", "5"), ("Mon", "6"), ("Tue", "7"), ("Wed", "8"), ("Thu", "9"), ("Fri", "10")
+    };
+}
+
+<div class="dp-cal-layout">
+    <aside class="dp-cal-rail">
+        <div class="dp-mini-cal">
+            <div class="dp-mini-cal-head">
+                <span>July 2026</span>
+                <span>
+                    <button type="button" class="dp-icon-btn" disabled aria-label="Previous">‹</button>
+                    <button type="button" class="dp-icon-btn" disabled aria-label="Next">›</button>
+                </span>
+            </div>
+            <div class="dp-mini-grid">
+                @foreach (var d in new[] { "S", "M", "T", "W", "T", "F", "S" })
+                {
+                    <div class="dow">@d</div>
+                }
+                @for (var i = 0; i < 2; i++)
+                {
+                    <div class="dp-mini-day muted"></div>
+                }
+                @for (var day = 1; day <= 31; day++)
+                {
+                    <div class="dp-mini-day @(day == 9 ? "today" : "")">@day</div>
+                }
+            </div>
+        </div>
+
+        <div class="dp-filter-block">
+            <div class="dp-filter-label">Time zone</div>
+            <select class="dp-select" disabled>
+                <option>Pacific (Los Angeles)</option>
+            </select>
+        </div>
+
+        <div class="dp-filter-block">
+            <div class="dp-filter-label">Display</div>
+            <label><input type="checkbox" checked disabled /> Appointments</label>
+            <label><input type="checkbox" checked disabled /> Availability</label>
+        </div>
+
+        <div class="dp-filter-block">
+            <div class="dp-filter-label">Providers</div>
+            <label><input type="checkbox" checked disabled /> @Model.ProviderName</label>
+        </div>
+
+        <div class="dp-filter-block">
+            <div class="dp-filter-label">Location</div>
+            <select class="dp-select" disabled>
+                <option>In person</option>
+            </select>
+        </div>
+    </aside>
+
+    <div class="dp-cal-main">
+        <div class="dp-cal-toolbar">
+            <h1>Jul 2026</h1>
+            <button type="button" class="dp-btn dp-btn-sm" disabled>Today</button>
+            <div class="dp-cal-nav">
+                <button type="button" class="dp-icon-btn" disabled>‹</button>
+                <button type="button" class="dp-icon-btn" disabled>›</button>
+            </div>
+            <div class="dp-search" style="flex:1;margin:0;max-width:280px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input type="search" placeholder="Search by patient name" disabled />
+            </div>
+        </div>
+
+        <div class="dp-provider-bar">
+            @if (!string.IsNullOrEmpty(Model.PhotoUrl))
+            {
+                <img src="@Model.PhotoUrl" alt="" />
+            }
+            else
+            {
+                <span class="dp-logo-mark" style="width:32px;height:32px;font-size:12px;">D</span>
+            }
+            @Model.ProviderName
+        </div>
+
+        <div class="dp-mock-banner" style="margin:12px 20px 0;">Mock preview — calendar appointments are sample data.</div>
+
+        <div class="dp-week">
+            <div class="dp-week-head"></div>
+            @foreach (var (name, num) in days)
+            {
+                <div class="dp-week-head">@name<span class="day-num">@num</span></div>
+            }
+
+            @for (var h = 0; h < hours.Length; h++)
+            {
+                <div class="dp-time-label">@hours[h]</div>
+                @for (var d = 0; d < days.Length; d++)
+                {
+                    <div class="dp-slot">
+                        @if (h == 1 && d == 1)
+                        {
+                            <div class="dp-appt">Skylar A.<small>Cleaning</small></div>
+                        }
+                        else if (h == 3 && d == 2)
+                        {
+                            <div class="dp-appt">Bob M.<small>Consult</small></div>
+                        }
+                        else if (h == 2 && d == 4)
+                        {
+                            <div class="dp-appt">Domico K.<small>Follow-up</small></div>
+                        }
+                        else if (h == 5 && d == 3)
+                        {
+                            <div class="dp-appt">Priya S.<small>New patient</small></div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>

@@ -40,6 +40,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizePage("/Account/Profile/Edit", AuthRoles.Patient);
     options.Conventions.AuthorizePage("/Account/DoctorProfile", AuthRoles.Doctor);
     options.Conventions.AuthorizePage("/Account/DoctorProfile/Edit", AuthRoles.Doctor);
+    options.Conventions.AuthorizeFolder("/Doctor", AuthRoles.Doctor);
     options.Conventions.AllowAnonymousToFolder("/Doctors");
 });
 builder.Services.AddControllers();

@@ -63,7 +63,7 @@ public class LoginModel : PageModel
                 if (doctor != null && !DoctorOnboardingProgress.IsOnboardingComplete(doctor))
                     return "/Account/Register/Doctor";
             }
-            return "/Account/DoctorProfile";
+            return "/Doctor";
         }
 
         return "/Account/Profile";

@@ -1,0 +1,116 @@
+@page
+@model Docovee.Pages.Doctor.PerformanceModel
+@{
+    ViewData["Title"] = "Performance overview";
+    ViewData["Nav"] = "performance";
+}
+
+<div class="dp-content">
+    <div class="dp-mock-banner">Mock preview — performance metrics are sample data.</div>
+
+    <div class="dp-page-head">
+        <div>
+            <h1>Performance overview</h1>
+            <select class="dp-select" style="width:auto;margin-top:10px;" disabled>
+                <option>Since last statement (07/01/26 – 07/09/26)</option>
+            </select>
+        </div>
+        <div class="dp-page-actions">
+            <button type="button" class="dp-btn" disabled>Manage spend</button>
+            <button type="button" class="dp-btn dp-btn-primary" disabled>Appointment report</button>
+        </div>
+    </div>
+
+    <div class="dp-tabs">
+        <a class="dp-tab active" href="/Doctor/Performance">Bookings</a>
+        <a class="dp-tab" href="/Doctor/Performance">Outcomes</a>
+    </div>
+
+    <div class="dp-kpi-row">
+        <div class="dp-card">
+            <div style="font-size:13px;color:var(--dp-muted);">Bookings</div>
+            <div class="dp-kpi-value">7</div>
+            <div class="dp-metric-compare">Compared to 2 at this time last month</div>
+        </div>
+        <div class="dp-card">
+            <div style="font-size:13px;color:var(--dp-muted);">Completed appointments</div>
+            <div class="dp-kpi-value">3</div>
+            <div class="dp-metric-compare">Compared to 3 at this time last month</div>
+        </div>
+        <div class="dp-card">
+            <div style="font-size:13px;color:var(--dp-muted);">Spend</div>
+            <div class="dp-kpi-value">$2,149</div>
+            <div class="dp-metric-compare">Average cost per booking is $307.00</div>
+        </div>
+    </div>
+
+    <div class="dp-charts-row">
+        <div class="dp-card">
+            <h2>Booking source over time</h2>
+            <div class="dp-bars-chart">
+                @{
+                    var bars = new[] {
+                        (new[] { 20, 40 }, "Jul 1"),
+                        (new[] { 0, 60 }, "Jul 2"),
+                        (new[] { 30, 20 }, "Jul 3"),
+                        (new[] { 0, 80 }, "Jul 4"),
+                        (new[] { 10, 30 }, "Jul 5"),
+                        (new[] { 0, 50 }, "Jul 6"),
+                        (new[] { 20, 70 }, "Jul 7"),
+                        (new[] { 0, 40 }, "Jul 8"),
+                        (new[] { 15, 55 }, "Jul 9"),
+                    };
+                }
+                @foreach (var (heights, label) in bars)
+                {
+                    <div class="dp-bars-col">
+                        <div class="dp-bars-stack">
+                            <span style="height:@(heights[0])%;background:#7bc47f;"></span>
+                            <span style="height:@(heights[1])%;background:var(--dp-yellow);"></span>
+                        </div>
+                        <div class="lbl">@label</div>
+                    </div>
+                }
+            </div>
+            <div class="dp-legend" style="flex-direction:row;gap:16px;margin-top:14px;">
+                <div class="dp-legend-row"><span class="dp-dot green"></span> Marketplace</div>
+                <div class="dp-legend-row"><span class="dp-dot yellow"></span> Sponsored</div>
+            </div>
+        </div>
+
+        <div class="dp-card">
+            <h2>Bookings breakdown</h2>
+            <div class="dp-section-label" style="margin-top:0;">Source</div>
+            <div class="dp-bar-track">
+                <div class="dp-bar-seg green" style="width:14%;"></div>
+                <div class="dp-bar-seg yellow" style="width:86%;"></div>
+            </div>
+            <div class="dp-legend">
+                <div class="dp-legend-row">
+                    <span class="dp-dot green"></span>
+                    <span>@Branding.SiteName Marketplace</span>
+                    <span class="count">1</span>
+                    <span class="pct">14%</span>
+                </div>
+                <div class="dp-legend-row">
+                    <span class="dp-dot yellow"></span>
+                    <span>Sponsored Results</span>
+                    <span class="count">6</span>
+                    <span class="pct">86%</span>
+                </div>
+                <div class="dp-legend-row">
+                    <span class="dp-dot orange"></span>
+                    <span>Google and others</span>
+                    <span class="count">0</span>
+                    <span class="pct">0%</span>
+                </div>
+            </div>
+
+            <div class="dp-section-label">Patient type</div>
+            <div class="dp-legend">
+                <div class="dp-legend-row"><span>New patients</span><span class="count">7</span></div>
+                <div class="dp-legend-row"><span>Existing patients (Free)</span><span class="count">0</span></div>
+            </div>
+        </div>
+    </div>
+</div>
