@@ -6,18 +6,12 @@
 }
 
 <div class="dp-content">
-    <div class="dp-mock-banner">Mock preview — sample data only. Booking and metrics are not live yet.</div>
-
     <div class="dp-page-head">
         <h1>Hello, @Model.DisplayName</h1>
         <div class="dp-page-actions">
             <a class="dp-link-action" href="/Account/DoctorProfile">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-                Manage your products
-            </a>
-            <a class="dp-link-action" href="#" onclick="return false;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
-                Get support
+                Manage profile
             </a>
         </div>
     </div>
@@ -27,7 +21,14 @@
             <div class="dp-card">
                 <h2>To-do list</h2>
                 <div class="dp-todo-row">
-                    <span>You have 4 bookings that require action</span>
+                    @if (Model.ActionRequiredCount == 0)
+                    {
+                        <span>You're all caught up — no bookings need action right now.</span>
+                    }
+                    else
+                    {
+                        <span>You have @Model.ActionRequiredCount booking@(Model.ActionRequiredCount == 1 ? "" : "s") that require action</span>
+                    }
                     <a class="dp-btn dp-btn-sm" href="/Doctor/Inbox">View bookings</a>
                 </div>
             </div>
@@ -35,48 +36,23 @@
             <div class="dp-card">
                 <h2>Recommendations for your practice</h2>
                 <div class="dp-rec-item">
-                    <div class="dp-rec-title">
-                        Get dedicated 1:1 support from @Branding.SiteName
-                        <span class="dp-pill">Processing</span>
-                    </div>
-                    <p class="dp-rec-desc">A practice advisor can help you optimize your profile and attract more patients.</p>
-                </div>
-                <div class="dp-rec-item">
-                    <div class="dp-rec-title">Request reviews from your existing patients</div>
-                    <p class="dp-rec-desc">Reviews help new patients choose your practice with confidence.</p>
+                    <div class="dp-rec-title">Keep your public profile up to date</div>
+                    <p class="dp-rec-desc">Patients book from your profile page — a complete photo and phone number helps them reach you.</p>
                 </div>
                 <div class="dp-card-foot" style="text-align:right;">
-                    <button type="button" class="dp-btn dp-btn-sm" disabled>Request reviews</button>
+                    <a class="dp-btn dp-btn-sm" href="/Account/DoctorProfile/Edit">Edit profile</a>
                 </div>
             </div>
         </div>
 
         <div class="dp-card">
             <h2>Performance overview</h2>
-            <div class="dp-metric-big">7</div>
+            <div class="dp-metric-big">@Model.BookingsThisMonth</div>
             <div class="dp-metric-label">Total bookings this month</div>
-            <div class="dp-metric-compare">Compared to 2 bookings this time last month.</div>
+            <div class="dp-metric-compare">Compared to @Model.BookingsLastMonthSamePoint booking@(Model.BookingsLastMonthSamePoint == 1 ? "" : "s") this time last month.</div>
 
-            <div class="dp-section-label">Bookings by patient type</div>
-            <div class="dp-bar-track">
-                <div class="dp-bar-seg yellow" style="width:100%;"></div>
-            </div>
-            <div class="dp-legend">
-                <div class="dp-legend-row">
-                    <span class="dp-dot yellow"></span>
-                    <span>New patients</span>
-                    <span class="count">7</span>
-                    <span class="pct">100%</span>
-                </div>
-                <div class="dp-legend-row">
-                    <span class="dp-dot blue"></span>
-                    <span>Existing patients</span>
-                    <span class="count">0</span>
-                    <span class="pct">0%</span>
-                </div>
-            </div>
             <div class="dp-card-foot">
-                <a class="dp-btn dp-btn-block" href="/Doctor/Performance">View more performance details</a>
+                <a class="dp-btn dp-btn-block" href="/Doctor/Inbox">Open inbox</a>
             </div>
         </div>
     </div>

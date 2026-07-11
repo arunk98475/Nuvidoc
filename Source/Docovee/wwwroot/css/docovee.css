@@ -3004,6 +3004,30 @@ footer.site-footer {
   color: white;
 }
 
+.pp-slot.is-unavailable,
+.pp-slot:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.pp-slot.is-unavailable:hover {
+  border-color: var(--rule);
+  background: white;
+}
+
+.pp-hint-inline {
+  font-weight: 400;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.pp-booking-note.is-error {
+  background: #fde8e8;
+  color: #8a1f1f;
+}
+
 .pp-book-btn {
   width: 100%;
   border: none;

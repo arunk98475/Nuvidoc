@@ -158,6 +158,31 @@ public static class SchemaUpdater
                 UNIQUE KEY `IX_doctor_onboarding_sessions_SessionKey` (`SessionKey`)
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `appointments` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `PatientId` int NULL,
+                `PatientName` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `PatientPhone` varchar(30) CHARACTER SET utf8mb4 NULL,
+                `PatientEmail` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `VisitReason` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `StartsAt` datetime(6) NOT NULL,
+                `Status` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `Source` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `SearchSessionId` int NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_appointments_DoctorId_StartsAt` (`DoctorId`, `StartsAt`),
+                KEY `IX_appointments_Status` (`Status`),
+                KEY `IX_appointments_PatientId` (`PatientId`),
+                CONSTRAINT `FK_appointments_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_appointments_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(

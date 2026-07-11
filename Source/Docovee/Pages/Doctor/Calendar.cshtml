@@ -3,20 +3,23 @@
 @{
     ViewData["Title"] = "Calendar";
     ViewData["Nav"] = "calendar";
-    var hours = new[] { "9 AM", "10 AM", "11 AM", "12 PM", "1 PM", "2 PM", "3 PM", "4 PM", "5 PM", "6 PM" };
-    var days = new[] {
-        ("Sun", "5"), ("Mon", "6"), ("Tue", "7"), ("Wed", "8"), ("Thu", "9"), ("Fri", "10")
-    };
+    var prevWeek = Model.WeekStart.AddDays(-7).ToString("yyyy-MM-dd");
+    var nextWeek = Model.WeekStart.AddDays(7).ToString("yyyy-MM-dd");
+    var todayWeek = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
+    var monthStart = new DateOnly(Model.MonthFocus.Year, Model.MonthFocus.Month, 1);
+    var daysInMonth = DateTime.DaysInMonth(Model.MonthFocus.Year, Model.MonthFocus.Month);
+    var lead = (int)monthStart.DayOfWeek;
+    var today = DateOnly.FromDateTime(DateTime.Today);
 }
 
 <div class="dp-cal-layout">
     <aside class="dp-cal-rail">
         <div class="dp-mini-cal">
             <div class="dp-mini-cal-head">
-                <span>July 2026</span>
+                <span>@Model.MonthFocus.ToString("MMMM yyyy")</span>
                 <span>
-                    <button type="button" class="dp-icon-btn" disabled aria-label="Previous">‹</button>
-                    <button type="button" class="dp-icon-btn" disabled aria-label="Next">›</button>
+                    <a class="dp-icon-btn" href="/Doctor/Calendar?week=@monthStart.AddMonths(-1).ToString("yyyy-MM-dd")" aria-label="Previous month">‹</a>
+                    <a class="dp-icon-btn" href="/Doctor/Calendar?week=@monthStart.AddMonths(1).ToString("yyyy-MM-dd")" aria-label="Next month">›</a>
                 </span>
             </div>
             <div class="dp-mini-grid">
@@ -24,54 +27,40 @@
                 {
                     <div class="dow">@d</div>
                 }
-                @for (var i = 0; i < 2; i++)
+                @for (var i = 0; i < lead; i++)
                 {
                     <div class="dp-mini-day muted"></div>
                 }
-                @for (var day = 1; day <= 31; day++)
+                @for (var day = 1; day <= daysInMonth; day++)
                 {
-                    <div class="dp-mini-day @(day == 9 ? "today" : "")">@day</div>
+                    var d = new DateOnly(Model.MonthFocus.Year, Model.MonthFocus.Month, day);
+                    var href = $"/Doctor/Calendar?week={d:yyyy-MM-dd}";
+                    <a class="dp-mini-day @(d == today ? "today" : "") @(Model.WeekDays.Contains(d) ? "in-week" : "")" href="@href">@day</a>
                 }
             </div>
         </div>
 
         <div class="dp-filter-block">
-            <div class="dp-filter-label">Time zone</div>
-            <select class="dp-select" disabled>
-                <option>Pacific (Los Angeles)</option>
-            </select>
-        </div>
-
-        <div class="dp-filter-block">
             <div class="dp-filter-label">Display</div>
             <label><input type="checkbox" checked disabled /> Appointments</label>
-            <label><input type="checkbox" checked disabled /> Availability</label>
         </div>
 
         <div class="dp-filter-block">
             <div class="dp-filter-label">Providers</div>
             <label><input type="checkbox" checked disabled /> @Model.ProviderName</label>
         </div>
-
-        <div class="dp-filter-block">
-            <div class="dp-filter-label">Location</div>
-            <select class="dp-select" disabled>
-                <option>In person</option>
-            </select>
-        </div>
     </aside>
 
     <div class="dp-cal-main">
         <div class="dp-cal-toolbar">
-            <h1>Jul 2026</h1>
-            <button type="button" class="dp-btn dp-btn-sm" disabled>Today</button>
+            <h1>@Model.WeekStart.ToString("MMM yyyy")</h1>
+            <a class="dp-btn dp-btn-sm" href="/Doctor/Calendar?week=@todayWeek">Today</a>
             <div class="dp-cal-nav">
-                <button type="button" class="dp-icon-btn" disabled>‹</button>
-                <button type="button" class="dp-icon-btn" disabled>›</button>
+                <a class="dp-icon-btn" href="/Doctor/Calendar?week=@prevWeek">‹</a>
+                <a class="dp-icon-btn" href="/Doctor/Calendar?week=@nextWeek">›</a>
             </div>
-            <div class="dp-search" style="flex:1;margin:0;max-width:280px;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-                <input type="search" placeholder="Search by patient name" disabled />
+            <div style="margin-left:auto;font-size:13px;color:var(--dp-muted);">
+                @Model.Appointments.Count appointment@(Model.Appointments.Count == 1 ? "" : "s") this week
             </div>
         </div>
 
@@ -87,36 +76,30 @@
             @Model.ProviderName
         </div>
 
-        <div class="dp-mock-banner" style="margin:12px 20px 0;">Mock preview — calendar appointments are sample data.</div>
-
         <div class="dp-week">
             <div class="dp-week-head"></div>
-            @foreach (var (name, num) in days)
+            @foreach (var day in Model.WeekDays)
             {
-                <div class="dp-week-head">@name<span class="day-num">@num</span></div>
+                <div class="dp-week-head">
+                    @day.ToString("ddd")
+                    <span class="day-num">@day.Day</span>
+                </div>
             }
 
-            @for (var h = 0; h < hours.Length; h++)
+            @foreach (var hour in Model.HourStarts)
             {
-                <div class="dp-time-label">@hours[h]</div>
-                @for (var d = 0; d < days.Length; d++)
+                var label = DateTime.Today.AddHours(hour).ToString("h tt");
+                <div class="dp-time-label">@label</div>
+                @foreach (var day in Model.WeekDays)
                 {
+                    var appt = Model.FindAppointment(day, hour);
                     <div class="dp-slot">
-                        @if (h == 1 && d == 1)
+                        @if (appt != null)
                         {
-                            <div class="dp-appt">Skylar A.<small>Cleaning</small></div>
-                        }
-                        else if (h == 3 && d == 2)
-                        {
-                            <div class="dp-appt">Bob M.<small>Consult</small></div>
-                        }
-                        else if (h == 2 && d == 4)
-                        {
-                            <div class="dp-appt">Domico K.<small>Follow-up</small></div>
-                        }
-                        else if (h == 5 && d == 3)
-                        {
-                            <div class="dp-appt">Priya S.<small>New patient</small></div>
+                            <div class="dp-appt" title="@appt.PatientName — @appt.VisitReason (@appt.Status)">
+                                @CalendarModel.ShortName(appt.PatientName)
+                                <small>@appt.VisitReason</small>
+                            </div>
                         }
                     </div>
                 }

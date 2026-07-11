@@ -553,12 +553,16 @@ button { font-family: inherit; cursor: pointer; }
   display: grid;
   place-items: center;
   color: var(--dp-ink);
+  text-decoration: none;
 }
 
 .dp-mini-day.muted { color: #c0c5c2; }
 .dp-mini-day.today {
   background: var(--dp-yellow);
   font-weight: 600;
+}
+.dp-mini-day.in-week:not(.today) {
+  background: #efefef;
 }
 
 .dp-filter-block {

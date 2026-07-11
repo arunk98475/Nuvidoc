@@ -241,7 +241,19 @@
         <aside class="pp-sidebar">
             <div class="pp-booking-card" id="pp-booking">
                 <h2 class="pp-booking-title">Book a visit</h2>
-                <p class="pp-booking-sub">Choose a time that works for you. Demo slots only — no real booking yet.</p>
+                <p class="pp-booking-sub">Choose a time and send a request — it will appear in the doctor’s inbox and calendar.</p>
+
+                <label class="pp-field-label" for="pp-patient-name">Your name</label>
+                <input id="pp-patient-name" class="pp-select" type="text" autocomplete="name"
+                       value="@Model.PrefillName" placeholder="Full name" />
+
+                <label class="pp-field-label" for="pp-patient-phone">Phone</label>
+                <input id="pp-patient-phone" class="pp-select" type="tel" autocomplete="tel"
+                       value="@Model.PrefillPhone" placeholder="(555) 555-5555" />
+
+                <label class="pp-field-label" for="pp-patient-email">Email <span class="pp-hint-inline">(optional)</span></label>
+                <input id="pp-patient-email" class="pp-select" type="email" autocomplete="email"
+                       value="@Model.PrefillEmail" placeholder="you@email.com" />
 
                 <label class="pp-field-label" for="pp-visit-reason">Reason for visit</label>
                 <select id="pp-visit-reason" class="pp-select">
@@ -273,13 +285,23 @@
                     <div class="pp-slot-grid@(i == 0 ? " is-active" : "")" data-day-panel="@i"@Html.Raw(i == 0 ? "" : " hidden")>
                         @foreach (var slot in day.Slots)
                         {
-                            <button type="button"
-                                    class="pp-slot"
-                                    data-day="@day.DateLabel"
-                                    data-time="@slot.TimeLabel"
-                                    onclick="ppSelectSlot(this)">
-                                @slot.TimeLabel
-                            </button>
+                            if (slot.Available)
+                            {
+                                <button type="button"
+                                        class="pp-slot"
+                                        data-date="@day.DateIso"
+                                        data-day="@day.DateLabel"
+                                        data-time="@slot.TimeLabel"
+                                        onclick="ppSelectSlot(this)">
+                                    @slot.TimeLabel
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="pp-slot is-unavailable" disabled title="Already booked">
+                                    @slot.TimeLabel
+                                </button>
+                            }
                         }
                     </div>
                 }
@@ -302,7 +324,9 @@
 
 <script>
 (function () {
+  const doctorId = @doctor.Id;
   let selectedSlot = null;
+  let submitting = false;
 
   window.ppSelectDay = function (index) {
     document.querySelectorAll(".pp-day-tab").forEach((tab) => {
@@ -316,24 +340,74 @@
   };
 
   window.ppSelectSlot = function (btn) {
+    if (btn.disabled) return;
     document.querySelectorAll(".pp-slot").forEach((el) => el.classList.remove("is-selected"));
     btn.classList.add("is-selected");
-    selectedSlot = { day: btn.dataset.day, time: btn.dataset.time };
+    selectedSlot = { date: btn.dataset.date, day: btn.dataset.day, time: btn.dataset.time };
     const bookBtn = document.getElementById("pp-book-btn");
     bookBtn.disabled = false;
     bookBtn.textContent = "Request " + selectedSlot.day + " · " + selectedSlot.time;
     const note = document.getElementById("pp-booking-note");
     note.hidden = true;
+    note.classList.remove("is-error");
   };
 
-  window.ppConfirmBooking = function () {
-    if (!selectedSlot) return;
+  window.ppConfirmBooking = async function () {
+    if (!selectedSlot || submitting) return;
+
+    const name = (document.getElementById("pp-patient-name").value || "").trim();
+    const phone = (document.getElementById("pp-patient-phone").value || "").trim();
+    const email = (document.getElementById("pp-patient-email").value || "").trim();
     const reason = document.getElementById("pp-visit-reason").value;
     const note = document.getElementById("pp-booking-note");
-    note.hidden = false;
-    note.textContent = "Thanks! Your request for " + selectedSlot.day + " at " + selectedSlot.time
-      + " (" + reason + ") was recorded for demo purposes. A real booking backend is not connected yet — please call the office to confirm.";
-    document.getElementById("pp-book-btn").textContent = "Request sent (demo)";
+    const bookBtn = document.getElementById("pp-book-btn");
+
+    if (name.length < 2) {
+      note.hidden = false;
+      note.classList.add("is-error");
+      note.textContent = "Please enter your name so the office can reach you.";
+      return;
+    }
+
+    submitting = true;
+    bookBtn.disabled = true;
+    bookBtn.textContent = "Sending request…";
+    note.hidden = true;
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doctorId: doctorId,
+          patientName: name,
+          patientPhone: phone || null,
+          patientEmail: email || null,
+          visitReason: reason,
+          date: selectedSlot.date,
+          timeLabel: selectedSlot.time,
+          source: "PublicProfile"
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Could not send booking request. Please try again.");
+      }
+      note.hidden = false;
+      note.classList.remove("is-error");
+      note.textContent = data.message
+        || ("Thanks! Your request for " + selectedSlot.day + " at " + selectedSlot.time
+          + " was sent. The office will confirm your appointment.");
+      bookBtn.textContent = "Request sent";
+      selectedSlot = null;
+    } catch (err) {
+      note.hidden = false;
+      note.classList.add("is-error");
+      note.textContent = err.message || "Something went wrong. Please try again.";
+      bookBtn.disabled = false;
+      bookBtn.textContent = "Try again";
+      submitting = false;
+    }
   };
 })();
 </script>
