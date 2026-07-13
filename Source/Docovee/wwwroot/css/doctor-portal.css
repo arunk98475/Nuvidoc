@@ -1183,6 +1183,45 @@ body.dp-drawer-open {
   font-size: 14px;
 }
 
+.dp-ins-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 14px;
+}
+
+.dp-ins-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fff4cc;
+  color: #8a6a00;
+}
+
+.dp-ins-network {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f7a45;
+}
+
+.dp-ins-network.is-out {
+  color: #6b6b6b;
+  font-weight: 500;
+}
+
+.dp-ins-empty {
+  margin: 0;
+  font-size: 14px;
+  color: #6b6b6b;
+}
+
 @keyframes dpFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

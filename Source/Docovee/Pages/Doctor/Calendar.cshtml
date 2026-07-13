@@ -120,6 +120,32 @@
 
             <div class="dp-drawer-section is-open" data-drawer-section>
                 <button type="button" class="dp-drawer-section-toggle" aria-expanded="true">
+                    <span>Insurance</span>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="dp-drawer-section-body">
+                    <div class="dp-ins-head" id="dp-drawer-ins-head" hidden>
+                        <span class="dp-ins-pill" id="dp-drawer-ins-pill">New submissions</span>
+                        <div class="dp-ins-network" id="dp-drawer-ins-network" hidden>
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg>
+                            <span>In-network</span>
+                        </div>
+                        <div class="dp-ins-network is-out" id="dp-drawer-ins-out" hidden>
+                            <span>Out-of-network / unverified</span>
+                        </div>
+                    </div>
+                    <dl class="dp-drawer-dl">
+                        <div><dt>Carrier</dt><dd id="dp-drawer-ins-carrier"></dd></div>
+                        <div><dt>Plan name</dt><dd id="dp-drawer-ins-plan"></dd></div>
+                        <div><dt>Member ID</dt><dd id="dp-drawer-ins-member"></dd></div>
+                        <div><dt>Submitted on</dt><dd id="dp-drawer-ins-submitted"></dd></div>
+                    </dl>
+                    <p class="dp-ins-empty" id="dp-drawer-ins-empty" hidden>No insurance details on file for this patient.</p>
+                </div>
+            </div>
+
+            <div class="dp-drawer-section is-open" data-drawer-section>
+                <button type="button" class="dp-drawer-section-toggle" aria-expanded="true">
                     <span>Demographic information</span>
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
@@ -229,6 +255,35 @@
       setText("dp-drawer-reason", data.visitReason);
       setText("dp-drawer-provider", data.providerName);
       setText("dp-drawer-location", data.location || data.practiceName);
+
+      const ins = data.insurance || {};
+      const insHead = document.getElementById("dp-drawer-ins-head");
+      const insEmpty = document.getElementById("dp-drawer-ins-empty");
+      const insNetwork = document.getElementById("dp-drawer-ins-network");
+      const insOut = document.getElementById("dp-drawer-ins-out");
+      const insFields = [
+        "dp-drawer-ins-carrier",
+        "dp-drawer-ins-plan",
+        "dp-drawer-ins-member",
+        "dp-drawer-ins-submitted"
+      ].map(function (id) { return document.getElementById(id).closest("div"); });
+
+      if (ins.hasDetails) {
+        insEmpty.hidden = true;
+        insHead.hidden = false;
+        insFields.forEach(function (el) { if (el) el.hidden = false; });
+        document.getElementById("dp-drawer-ins-pill").hidden = !ins.submittedOn;
+        insNetwork.hidden = ins.inNetwork !== true;
+        insOut.hidden = !(ins.inNetwork === false && !ins.isSelfPay);
+        setText("dp-drawer-ins-carrier", ins.isSelfPay ? "Self-pay" : ins.carrier, "Not specified");
+        setText("dp-drawer-ins-plan", ins.planName, "Not specified");
+        setText("dp-drawer-ins-member", ins.memberId, "Not specified");
+        setText("dp-drawer-ins-submitted", ins.submittedOn, "Not specified");
+      } else {
+        insHead.hidden = true;
+        insEmpty.hidden = false;
+        insFields.forEach(function (el) { if (el) el.hidden = true; });
+      }
 
       if (data.ageYears != null && data.dateOfBirth) {
         setText("dp-drawer-age", data.ageYears + " (DOB: " + data.dateOfBirth + ")");

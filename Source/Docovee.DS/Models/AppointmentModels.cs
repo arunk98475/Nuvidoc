@@ -25,6 +25,7 @@ public class DoctorAppointmentDto
 {
     public int Id { get; set; }
     public int? PatientId { get; set; }
+    public int? SearchSessionId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? PatientPhone { get; set; }
     public string? PatientEmail { get; set; }

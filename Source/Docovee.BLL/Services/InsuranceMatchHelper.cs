@@ -33,6 +33,24 @@ public static class InsuranceMatchHelper
         return 0;
     }
 
+    public static bool IsPlanAccepted(string? userInsurance, Doctor doctor) =>
+        InsuranceRankBoost(userInsurance, doctor) > 0;
+
+    public static bool IsPlanAccepted(string? userInsurance, IEnumerable<string> acceptedCarrierNames)
+    {
+        if (string.IsNullOrWhiteSpace(userInsurance))
+            return false;
+
+        var plan = userInsurance.Trim();
+        foreach (var name in acceptedCarrierNames)
+        {
+            if (IsInsuranceMatch(plan, name))
+                return true;
+        }
+
+        return false;
+    }
+
     private static bool IsInsuranceMatch(string userPlan, string? carrierValue)
     {
         if (string.IsNullOrWhiteSpace(carrierValue))

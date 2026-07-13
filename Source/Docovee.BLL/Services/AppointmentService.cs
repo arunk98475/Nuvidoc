@@ -169,6 +169,7 @@ public class AppointmentService : IAppointmentService
             {
                 Id = a.Id,
                 PatientId = a.PatientId,
+                SearchSessionId = a.SearchSessionId,
                 PatientName = a.PatientName,
                 PatientPhone = a.PatientPhone,
                 PatientEmail = a.PatientEmail,
@@ -193,6 +194,7 @@ public class AppointmentService : IAppointmentService
             {
                 Id = a.Id,
                 PatientId = a.PatientId,
+                SearchSessionId = a.SearchSessionId,
                 PatientName = a.PatientName,
                 PatientPhone = a.PatientPhone,
                 PatientEmail = a.PatientEmail,

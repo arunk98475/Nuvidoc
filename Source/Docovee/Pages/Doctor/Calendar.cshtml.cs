@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Services;
 using Docovee.DS;
@@ -88,6 +89,7 @@ public class CalendarModel : PageModel
         DateOnly? dateOfBirth = null;
         DateTime? memberSince = null;
         var hasAccount = false;
+        string? preferenceJson = null;
 
         IReadOnlyList<DoctorAppointmentDto> history;
 
@@ -103,6 +105,7 @@ public class CalendarModel : PageModel
                 email = string.IsNullOrWhiteSpace(patient.Username) ? appointment.PatientEmail : patient.Username;
                 dateOfBirth = patient.DateOfBirth;
                 memberSince = patient.CreatedAt;
+                preferenceJson = patient.PreferenceProfileJson;
             }
 
             history = (await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken))
@@ -133,6 +136,13 @@ public class CalendarModel : PageModel
                 ageYears--;
         }
 
+        var insurance = await ResolveInsuranceAsync(
+            doctorId,
+            appointment.PatientId,
+            appointment.SearchSessionId,
+            preferenceJson,
+            cancellationToken);
+
         return new JsonResult(new
         {
             appointmentId = appointment.Id,
@@ -152,6 +162,7 @@ public class CalendarModel : PageModel
             providerName = profile?.Name ?? ProviderName,
             practiceName = profile?.PracticeName,
             location = FormatLocation(profile),
+            insurance,
             history = history.Select(h => new
             {
                 id = h.Id,
@@ -178,6 +189,115 @@ public class CalendarModel : PageModel
         if (parts.Length == 0) return name;
         if (parts.Length == 1) return parts[0];
         return $"{parts[0]} {parts[^1][0]}.";
+    }
+
+    private async Task<object> ResolveInsuranceAsync(
+        int doctorId,
+        int? patientId,
+        int? searchSessionId,
+        string? preferenceJson,
+        CancellationToken cancellationToken)
+    {
+        string? planText = null;
+        string? category = null;
+        string? carrierName = null;
+        DateTime? submittedOn = null;
+
+        if (searchSessionId is int sessionId)
+        {
+            var session = await _db.SearchSessions.AsNoTracking()
+                .Include(s => s.InsuranceCarrier)
+                .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+            if (session != null)
+            {
+                planText = session.InsurancePlanText;
+                carrierName = session.InsuranceCarrier?.Name;
+                submittedOn = session.UpdatedAt;
+            }
+        }
+
+        if (patientId is int pid)
+        {
+            if (string.IsNullOrWhiteSpace(planText) || string.IsNullOrWhiteSpace(carrierName))
+            {
+                var lastSession = await _db.SearchSessions.AsNoTracking()
+                    .Include(s => s.InsuranceCarrier)
+                    .Where(s => s.PatientId == pid
+                        && ((s.InsurancePlanText != null && s.InsurancePlanText != "")
+                            || s.InsuranceCarrierId != null))
+                    .OrderByDescending(s => s.UpdatedAt)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (lastSession != null)
+                {
+                    planText ??= lastSession.InsurancePlanText;
+                    carrierName ??= lastSession.InsuranceCarrier?.Name;
+                    submittedOn ??= lastSession.UpdatedAt;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(preferenceJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(preferenceJson);
+                    var root = doc.RootElement;
+                    if (string.IsNullOrWhiteSpace(planText)
+                        && root.TryGetProperty("insurancePreference", out var pref)
+                        && pref.ValueKind == JsonValueKind.String)
+                    {
+                        planText = pref.GetString();
+                    }
+
+                    if (root.TryGetProperty("insuranceCategory", out var cat)
+                        && cat.ValueKind == JsonValueKind.String)
+                    {
+                        category = cat.GetString();
+                    }
+                }
+                catch
+                {
+                    // Ignore malformed preference JSON.
+                }
+            }
+        }
+
+        var doctorCarriers = await _db.DoctorInsurances.AsNoTracking()
+            .Where(di => di.DoctorId == doctorId)
+            .Select(di => di.InsuranceCarrier.Name)
+            .ToListAsync(cancellationToken);
+
+        var isSelfPay = string.Equals(planText, "Self-pay", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(category, "self-pay", StringComparison.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(carrierName) && !string.IsNullOrWhiteSpace(planText) && !isSelfPay)
+        {
+            carrierName = doctorCarriers.FirstOrDefault(c =>
+                planText.Contains(c, StringComparison.OrdinalIgnoreCase)
+                || c.Contains(planText, StringComparison.OrdinalIgnoreCase));
+            carrierName ??= planText;
+        }
+
+        bool? inNetwork = null;
+        if (!isSelfPay && (!string.IsNullOrWhiteSpace(planText) || !string.IsNullOrWhiteSpace(carrierName)))
+            inNetwork = InsuranceMatchHelper.IsPlanAccepted(planText ?? carrierName, doctorCarriers);
+
+        var hasDetails = !string.IsNullOrWhiteSpace(planText)
+            || !string.IsNullOrWhiteSpace(carrierName)
+            || isSelfPay;
+
+        return new
+        {
+            hasDetails,
+            isSelfPay,
+            inNetwork,
+            carrier = isSelfPay ? null : carrierName,
+            planName = isSelfPay ? "Self-pay" : planText,
+            memberId = (string?)null,
+            category,
+            submittedOn = submittedOn?.ToString("MM/dd/yyyy"),
+            acceptedByPractice = doctorCarriers
+        };
     }
 
     private static string StatusLabel(string status) => status switch
