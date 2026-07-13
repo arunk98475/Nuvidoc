@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Services;
 using Docovee.DS.Entities;
+using Docovee.DS.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -21,9 +22,26 @@ public class IndexModel : PageModel
     }
 
     public string DisplayName { get; private set; } = "Doctor";
-    public int ActionRequiredCount { get; private set; }
+
+    public int AppointmentsThisWeek { get; private set; }
+    public int TotalBookings { get; private set; }
+    public int PendingAppointments { get; private set; }
+    public int ConfirmedAppointments { get; private set; }
+    public int CompletedAppointments { get; private set; }
+    public int AppointmentsToday { get; private set; }
     public int BookingsThisMonth { get; private set; }
-    public int BookingsLastMonthSamePoint { get; private set; }
+    public int BookingsLastMonth { get; private set; }
+    public int CancelledThisMonth { get; private set; }
+
+    public int TotalReviews { get; private set; }
+    public decimal? AverageRating { get; private set; }
+    public int GoogleReviewCount { get; private set; }
+    public decimal GoogleRating { get; private set; }
+    public int CompletionRatePercent { get; private set; }
+    public int? BookingsMonthChangePercent { get; private set; }
+
+    public IReadOnlyList<UpcomingAppointmentRow> UpcomingThisWeek { get; private set; }
+        = Array.Empty<UpcomingAppointmentRow>();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken = default)
     {
@@ -32,27 +50,120 @@ public class IndexModel : PageModel
 
         var profile = await _profileService.GetDoctorProfileAsync(doctorId);
         if (profile != null)
+        {
             DisplayName = !string.IsNullOrWhiteSpace(profile.PracticeName) ? profile.PracticeName! : profile.Name;
+            TotalReviews = profile.PatientReviewCount;
+            AverageRating = profile.PatientReviewAverage;
+            GoogleReviewCount = profile.GoogleReviewCount;
+            GoogleRating = profile.GoogleRating;
+        }
 
-        ActionRequiredCount = await _appointments.CountActionRequiredAsync(doctorId, cancellationToken);
+        var all = await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken);
 
-        var now = DateTime.Today;
-        var monthStart = new DateTime(now.Year, now.Month, 1);
+        var today = DateTime.Today;
+        var weekStart = StartOfWeek(today);
+        var weekEnd = weekStart.AddDays(7);
+        var monthStart = new DateTime(today.Year, today.Month, 1);
         var nextMonth = monthStart.AddMonths(1);
         var lastMonthStart = monthStart.AddMonths(-1);
-        var lastMonthSamePoint = lastMonthStart.AddDays(Math.Min(now.Day, DateTime.DaysInMonth(lastMonthStart.Year, lastMonthStart.Month)) - 1)
-            .AddDays(1);
 
-        var monthAppts = await _appointments.GetForDoctorAsync(
-            doctorId, fromUtc: monthStart, toUtc: nextMonth, cancellationToken: cancellationToken);
-        BookingsThisMonth = monthAppts.Count(a =>
-            a.Status is not AppointmentStatuses.Cancelled);
+        bool NotCancelled(DoctorAppointmentDto a) =>
+            !string.Equals(a.Status, AppointmentStatuses.Cancelled, StringComparison.OrdinalIgnoreCase);
 
-        var lastMonthAppts = await _appointments.GetForDoctorAsync(
-            doctorId, fromUtc: lastMonthStart, toUtc: lastMonthSamePoint, cancellationToken: cancellationToken);
-        BookingsLastMonthSamePoint = lastMonthAppts.Count(a =>
-            a.Status is not AppointmentStatuses.Cancelled);
+        AppointmentsThisWeek = all.Count(a =>
+            NotCancelled(a) && a.StartsAt >= weekStart && a.StartsAt < weekEnd);
+
+        TotalBookings = all.Count(a =>
+            NotCancelled(a)
+            && string.Equals(a.Source, AppointmentSources.PublicProfile, StringComparison.OrdinalIgnoreCase));
+
+        PendingAppointments = all.Count(a =>
+            a.Status is AppointmentStatuses.New or AppointmentStatuses.Reschedule);
+
+        ConfirmedAppointments = all.Count(a =>
+            string.Equals(a.Status, AppointmentStatuses.Confirmed, StringComparison.OrdinalIgnoreCase)
+            && a.StartsAt >= today);
+
+        CompletedAppointments = all.Count(a =>
+            string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase));
+
+        AppointmentsToday = all.Count(a =>
+            NotCancelled(a) && a.StartsAt.Date == today);
+
+        BookingsThisMonth = all.Count(a =>
+            NotCancelled(a) && a.StartsAt >= monthStart && a.StartsAt < nextMonth);
+
+        BookingsLastMonth = all.Count(a =>
+            NotCancelled(a) && a.StartsAt >= lastMonthStart && a.StartsAt < monthStart);
+
+        CancelledThisMonth = all.Count(a =>
+            string.Equals(a.Status, AppointmentStatuses.Cancelled, StringComparison.OrdinalIgnoreCase)
+            && a.UpdatedAt >= monthStart && a.UpdatedAt < nextMonth);
+
+        var decided = CompletedAppointments + all.Count(a =>
+            string.Equals(a.Status, AppointmentStatuses.Cancelled, StringComparison.OrdinalIgnoreCase));
+        CompletionRatePercent = decided > 0
+            ? (int)Math.Round(100.0 * CompletedAppointments / decided)
+            : 0;
+
+        if (BookingsLastMonth > 0)
+            BookingsMonthChangePercent = (int)Math.Round(100.0 * (BookingsThisMonth - BookingsLastMonth) / BookingsLastMonth);
+        else if (BookingsThisMonth > 0)
+            BookingsMonthChangePercent = 100;
+
+        UpcomingThisWeek = all
+            .Where(a =>
+                NotCancelled(a)
+                && a.StartsAt >= today
+                && a.StartsAt < weekEnd)
+            .OrderBy(a => a.StartsAt)
+            .Take(8)
+            .Select(a => new UpcomingAppointmentRow
+            {
+                PatientName = a.PatientName,
+                VisitReason = a.VisitReason,
+                StartsAt = a.StartsAt,
+                Status = a.Status,
+                StatusLabel = StatusLabel(a.Status),
+                StatusTone = StatusTone(a.Status)
+            })
+            .ToList();
 
         return Page();
+    }
+
+    private static DateTime StartOfWeek(DateTime date)
+    {
+        var diff = ((int)date.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return date.Date.AddDays(-diff);
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        AppointmentStatuses.New => "Pending",
+        AppointmentStatuses.Reschedule => "Reschedule",
+        AppointmentStatuses.Confirmed => "Confirmed",
+        AppointmentStatuses.Completed => "Completed",
+        AppointmentStatuses.Cancelled => "Cancelled",
+        _ => status
+    };
+
+    private static string StatusTone(string status) => status switch
+    {
+        AppointmentStatuses.New => "amber",
+        AppointmentStatuses.Reschedule => "blue",
+        AppointmentStatuses.Confirmed => "green",
+        AppointmentStatuses.Completed => "muted",
+        _ => "muted"
+    };
+
+    public sealed class UpcomingAppointmentRow
+    {
+        public string PatientName { get; init; } = "";
+        public string VisitReason { get; init; } = "";
+        public DateTime StartsAt { get; init; }
+        public string Status { get; init; } = "";
+        public string StatusLabel { get; init; } = "";
+        public string StatusTone { get; init; } = "muted";
     }
 }

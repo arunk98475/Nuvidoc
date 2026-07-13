@@ -21,6 +21,11 @@ public interface IAppointmentService
         DateTime? toUtc = null,
         CancellationToken cancellationToken = default);
 
+    Task<DoctorAppointmentDto?> GetForDoctorByIdAsync(
+        int doctorId,
+        int appointmentId,
+        CancellationToken cancellationToken = default);
+
     Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default);
 
     Task<HashSet<DateTime>> GetBookedStartsAsync(
@@ -163,8 +168,10 @@ public class AppointmentService : IAppointmentService
             .Select(a => new DoctorAppointmentDto
             {
                 Id = a.Id,
+                PatientId = a.PatientId,
                 PatientName = a.PatientName,
                 PatientPhone = a.PatientPhone,
+                PatientEmail = a.PatientEmail,
                 VisitReason = a.VisitReason,
                 StartsAt = a.StartsAt,
                 Status = a.Status,
@@ -173,6 +180,30 @@ public class AppointmentService : IAppointmentService
                 UpdatedAt = a.UpdatedAt
             })
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<DoctorAppointmentDto?> GetForDoctorByIdAsync(
+        int doctorId,
+        int appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _db.Appointments.AsNoTracking()
+            .Where(a => a.DoctorId == doctorId && a.Id == appointmentId)
+            .Select(a => new DoctorAppointmentDto
+            {
+                Id = a.Id,
+                PatientId = a.PatientId,
+                PatientName = a.PatientName,
+                PatientPhone = a.PatientPhone,
+                PatientEmail = a.PatientEmail,
+                VisitReason = a.VisitReason,
+                StartsAt = a.StartsAt,
+                Status = a.Status,
+                Source = a.Source,
+                CreatedAt = a.CreatedAt,
+                UpdatedAt = a.UpdatedAt
+            })
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default)

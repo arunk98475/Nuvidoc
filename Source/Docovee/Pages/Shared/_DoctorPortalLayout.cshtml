@@ -18,6 +18,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@title — @Branding.SiteName</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/doctor-portal.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
@@ -31,9 +34,9 @@
         </a>
 
         <nav class="dp-nav">
-            <a class="dp-nav-item @(nav == "home" ? "active" : "")" href="/Doctor">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1v-10.5z"/></svg>
-                <span class="label">Home</span>
+            <a class="dp-nav-item @(nav == "dashboard" ? "active" : "")" href="/Doctor">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                <span class="label">Dashboard</span>
             </a>
             <a class="dp-nav-item @(nav == "inbox" ? "active" : "")" href="/Doctor/Inbox">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/></svg>

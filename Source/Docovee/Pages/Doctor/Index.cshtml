@@ -1,13 +1,16 @@
 @page
 @model Docovee.Pages.Doctor.IndexModel
 @{
-    ViewData["Title"] = "Home";
-    ViewData["Nav"] = "home";
+    ViewData["Title"] = "Dashboard";
+    ViewData["Nav"] = "dashboard";
 }
 
 <div class="dp-content">
     <div class="dp-page-head">
-        <h1>Hello, @Model.DisplayName</h1>
+        <div>
+            <h1>Dashboard</h1>
+            <p class="dp-page-sub">Hello, @Model.DisplayName — here’s a snapshot of your bookings.</p>
+        </div>
         <div class="dp-page-actions">
             <a class="dp-link-action" href="/Account/DoctorProfile">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
@@ -16,43 +19,182 @@
         </div>
     </div>
 
-    <div class="dp-home-grid">
-        <div class="dp-home-left">
-            <div class="dp-card">
-                <h2>To-do list</h2>
-                <div class="dp-todo-row">
-                    @if (Model.ActionRequiredCount == 0)
+    <div class="dp-dash-stats">
+        <a class="dp-stat-card" href="/Doctor/Calendar">
+            <div class="dp-stat-label">This week</div>
+            <div class="dp-stat-value">@Model.AppointmentsThisWeek</div>
+            <div class="dp-stat-hint">Appointments scheduled</div>
+        </a>
+        <a class="dp-stat-card" href="/Doctor/Inbox">
+            <div class="dp-stat-label">Pending</div>
+            <div class="dp-stat-value@(Model.PendingAppointments > 0 ? " is-alert" : "")">@Model.PendingAppointments</div>
+            <div class="dp-stat-hint">Need your action</div>
+        </a>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">Bookings</div>
+            <div class="dp-stat-value">@Model.TotalBookings</div>
+            <div class="dp-stat-hint">Total bookings from @Branding.SiteName</div>
+        </div>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">Today</div>
+            <div class="dp-stat-value">@Model.AppointmentsToday</div>
+            <div class="dp-stat-hint">On the schedule</div>
+        </div>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">Confirmed (upcoming)</div>
+            <div class="dp-stat-value">@Model.ConfirmedAppointments</div>
+            <div class="dp-stat-hint">Ready to see patients</div>
+        </div>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">Completed</div>
+            <div class="dp-stat-value">@Model.CompletedAppointments</div>
+            <div class="dp-stat-hint">All-time finished visits</div>
+        </div>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">This month</div>
+            <div class="dp-stat-value">@Model.BookingsThisMonth</div>
+            <div class="dp-stat-hint">Active bookings</div>
+        </div>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">Cancelled (month)</div>
+            <div class="dp-stat-value">@Model.CancelledThisMonth</div>
+            <div class="dp-stat-hint">Cancelled this month</div>
+        </div>
+        <div class="dp-stat-card">
+            <div class="dp-stat-label">Total reviews</div>
+            <div class="dp-stat-value">@Model.TotalReviews</div>
+            <div class="dp-stat-hint">
+                @if (Model.AverageRating is > 0)
+                {
+                    <text>@Model.AverageRating.Value.ToString("0.0")★ avg on @Branding.SiteName</text>
+                }
+                else
+                {
+                    <text>Patient reviews on @Branding.SiteName</text>
+                }
+            </div>
+        </div>
+        <a class="dp-stat-card" href="/Doctor/Performance">
+            <div class="dp-stat-label">Performance</div>
+            <div class="dp-stat-value">@Model.CompletionRatePercent%</div>
+            <div class="dp-stat-hint">
+                Completion rate
+                @if (Model.BookingsMonthChangePercent is int monthChange)
+                {
+                    var sign = monthChange > 0 ? "+" : "";
+                    <text>· @sign@monthChange% vs last month</text>
+                }
+            </div>
+        </a>
+    </div>
+
+    <div class="dp-card dp-dash-perf-card">
+        <div class="dp-card-head">
+            <h2>Reviews &amp; performance</h2>
+            <a class="dp-btn dp-btn-sm" href="/Doctor/Performance">View performance</a>
+        </div>
+        <div class="dp-perf-row">
+            <div class="dp-perf-item">
+                <div class="dp-perf-label">Site reviews</div>
+                <div class="dp-perf-value">@Model.TotalReviews</div>
+                <div class="dp-perf-hint">
+                    @if (Model.AverageRating is > 0)
                     {
-                        <span>You're all caught up — no bookings need action right now.</span>
+                        <text>@Model.AverageRating.Value.ToString("0.0") average rating</text>
                     }
                     else
                     {
-                        <span>You have @Model.ActionRequiredCount booking@(Model.ActionRequiredCount == 1 ? "" : "s") that require action</span>
+                        <text>No patient reviews yet</text>
                     }
-                    <a class="dp-btn dp-btn-sm" href="/Doctor/Inbox">View bookings</a>
                 </div>
             </div>
+            <div class="dp-perf-item">
+                <div class="dp-perf-label">Google reviews</div>
+                <div class="dp-perf-value">@Model.GoogleReviewCount</div>
+                <div class="dp-perf-hint">
+                    @if (Model.GoogleRating > 0)
+                    {
+                        <text>@Model.GoogleRating.ToString("0.0")★ on Google</text>
+                    }
+                    else
+                    {
+                        <text>Not linked yet</text>
+                    }
+                </div>
+            </div>
+            <div class="dp-perf-item">
+                <div class="dp-perf-label">Completion rate</div>
+                <div class="dp-perf-value">@Model.CompletionRatePercent%</div>
+                <div class="dp-perf-hint">@Model.CompletedAppointments completed visits</div>
+            </div>
+            <div class="dp-perf-item">
+                <div class="dp-perf-label">Bookings vs last month</div>
+                <div class="dp-perf-value">
+                    @if (Model.BookingsMonthChangePercent is int change)
+                    {
+                        var sign = change > 0 ? "+" : "";
+                        <span class="@(change > 0 ? "is-up" : change < 0 ? "is-down" : "")">@sign@change%</span>
+                    }
+                    else
+                    {
+                        <text>—</text>
+                    }
+                </div>
+                <div class="dp-perf-hint">@Model.BookingsThisMonth this month · @Model.BookingsLastMonth last month</div>
+            </div>
+        </div>
+    </div>
 
-            <div class="dp-card">
-                <h2>Recommendations for your practice</h2>
-                <div class="dp-rec-item">
-                    <div class="dp-rec-title">Keep your public profile up to date</div>
-                    <p class="dp-rec-desc">Patients book from your profile page — a complete photo and phone number helps them reach you.</p>
-                </div>
-                <div class="dp-card-foot" style="text-align:right;">
-                    <a class="dp-btn dp-btn-sm" href="/Account/DoctorProfile/Edit">Edit profile</a>
-                </div>
+    <div class="dp-dash-grid">
+        <div class="dp-card">
+            <div class="dp-card-head">
+                <h2>Upcoming this week</h2>
+                <a class="dp-btn dp-btn-sm" href="/Doctor/Calendar">Open calendar</a>
             </div>
+            @if (Model.UpcomingThisWeek.Count == 0)
+            {
+                <p class="dp-muted-empty">No upcoming appointments for the rest of this week.</p>
+            }
+            else
+            {
+                <ul class="dp-upcoming-list">
+                    @foreach (var row in Model.UpcomingThisWeek)
+                    {
+                        <li>
+                            <div class="dp-upcoming-when">
+                                <strong>@row.StartsAt.ToString("ddd")</strong>
+                                <span>@row.StartsAt.ToString("MMM d") · @row.StartsAt.ToString("h:mm tt")</span>
+                            </div>
+                            <div class="dp-upcoming-who">
+                                <strong>@row.PatientName</strong>
+                                <span>@row.VisitReason</span>
+                            </div>
+                            <span class="dp-status-chip @row.StatusTone">@row.StatusLabel</span>
+                        </li>
+                    }
+                </ul>
+            }
         </div>
 
         <div class="dp-card">
-            <h2>Performance overview</h2>
-            <div class="dp-metric-big">@Model.BookingsThisMonth</div>
-            <div class="dp-metric-label">Total bookings this month</div>
-            <div class="dp-metric-compare">Compared to @Model.BookingsLastMonthSamePoint booking@(Model.BookingsLastMonthSamePoint == 1 ? "" : "s") this time last month.</div>
-
-            <div class="dp-card-foot">
-                <a class="dp-btn dp-btn-block" href="/Doctor/Inbox">Open inbox</a>
+            <h2>Quick actions</h2>
+            <div class="dp-todo-row">
+                @if (Model.PendingAppointments == 0)
+                {
+                    <span>You're all caught up — no bookings need action right now.</span>
+                }
+                else
+                {
+                    <span>You have @Model.PendingAppointments booking@(Model.PendingAppointments == 1 ? "" : "s") that require action</span>
+                }
+                <a class="dp-btn dp-btn-sm" href="/Doctor/Inbox">View inbox</a>
+            </div>
+            <div class="dp-rec-item">
+                <div class="dp-rec-title">Keep your public profile up to date</div>
+                <p class="dp-rec-desc">Patients book from your profile page — a complete photo and phone number helps them reach you.</p>
+            </div>
+            <div class="dp-card-foot" style="text-align:right;">
+                <a class="dp-btn dp-btn-sm" href="/Account/DoctorProfile/Edit">Edit profile</a>
             </div>
         </div>
     </div>

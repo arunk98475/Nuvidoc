@@ -13,44 +13,6 @@
 }
 
 <div class="dp-cal-layout">
-    <aside class="dp-cal-rail">
-        <div class="dp-mini-cal">
-            <div class="dp-mini-cal-head">
-                <span>@Model.MonthFocus.ToString("MMMM yyyy")</span>
-                <span>
-                    <a class="dp-icon-btn" href="/Doctor/Calendar?week=@monthStart.AddMonths(-1).ToString("yyyy-MM-dd")" aria-label="Previous month">‹</a>
-                    <a class="dp-icon-btn" href="/Doctor/Calendar?week=@monthStart.AddMonths(1).ToString("yyyy-MM-dd")" aria-label="Next month">›</a>
-                </span>
-            </div>
-            <div class="dp-mini-grid">
-                @foreach (var d in new[] { "S", "M", "T", "W", "T", "F", "S" })
-                {
-                    <div class="dow">@d</div>
-                }
-                @for (var i = 0; i < lead; i++)
-                {
-                    <div class="dp-mini-day muted"></div>
-                }
-                @for (var day = 1; day <= daysInMonth; day++)
-                {
-                    var d = new DateOnly(Model.MonthFocus.Year, Model.MonthFocus.Month, day);
-                    var href = $"/Doctor/Calendar?week={d:yyyy-MM-dd}";
-                    <a class="dp-mini-day @(d == today ? "today" : "") @(Model.WeekDays.Contains(d) ? "in-week" : "")" href="@href">@day</a>
-                }
-            </div>
-        </div>
-
-        <div class="dp-filter-block">
-            <div class="dp-filter-label">Display</div>
-            <label><input type="checkbox" checked disabled /> Appointments</label>
-        </div>
-
-        <div class="dp-filter-block">
-            <div class="dp-filter-label">Providers</div>
-            <label><input type="checkbox" checked disabled /> @Model.ProviderName</label>
-        </div>
-    </aside>
-
     <div class="dp-cal-main">
         <div class="dp-cal-toolbar">
             <h1>@Model.WeekStart.ToString("MMM yyyy")</h1>
@@ -96,10 +58,14 @@
                     <div class="dp-slot">
                         @if (appt != null)
                         {
-                            <div class="dp-appt" title="@appt.PatientName — @appt.VisitReason (@appt.Status)">
+                            <button type="button"
+                                    class="dp-appt"
+                                    data-appointment-id="@appt.Id"
+                                    title="View patient — @appt.PatientName"
+                                    onclick="dpOpenPatientPanel(@appt.Id)">
                                 @CalendarModel.ShortName(appt.PatientName)
                                 <small>@appt.VisitReason</small>
-                            </div>
+                            </button>
                         }
                     </div>
                 }
@@ -107,3 +73,234 @@
         </div>
     </div>
 </div>
+
+<div class="dp-drawer-backdrop" id="dp-drawer-backdrop" hidden></div>
+<aside class="dp-drawer" id="dp-patient-drawer" aria-hidden="true" aria-label="Patient details">
+    <div class="dp-drawer-inner">
+        <button type="button" class="dp-drawer-close" id="dp-drawer-close" aria-label="Close">&times;</button>
+
+        <div class="dp-drawer-loading" id="dp-drawer-loading" hidden>Loading…</div>
+        <div class="dp-drawer-error" id="dp-drawer-error" hidden></div>
+
+        <div class="dp-drawer-body" id="dp-drawer-body" hidden>
+            <div class="dp-drawer-top">
+                <div class="dp-drawer-badge" id="dp-drawer-badge"></div>
+                <div class="dp-drawer-actions" aria-hidden="true">
+                    <span class="dp-drawer-action" title="Notes">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+                    </span>
+                    <span class="dp-drawer-action" title="Flag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 21V4h9l-1.5 3.5L14 11H5"/></svg>
+                    </span>
+                    <span class="dp-drawer-action" title="Message">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16v10H8l-4 3V6z"/></svg>
+                    </span>
+                    <span class="dp-drawer-action" title="More">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg>
+                    </span>
+                </div>
+            </div>
+            <h2 class="dp-drawer-name" id="dp-drawer-name"></h2>
+            <p class="dp-drawer-sub" id="dp-drawer-sub"></p>
+
+            <div class="dp-drawer-section is-open" data-drawer-section>
+                <button type="button" class="dp-drawer-section-toggle" aria-expanded="true">
+                    <span>Appointment details</span>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="dp-drawer-section-body">
+                    <dl class="dp-drawer-dl">
+                        <div><dt>Appointment time</dt><dd id="dp-drawer-time"></dd></div>
+                        <div><dt>Visit reason</dt><dd id="dp-drawer-reason"></dd></div>
+                        <div><dt>Provider</dt><dd id="dp-drawer-provider"></dd></div>
+                        <div><dt>Location</dt><dd id="dp-drawer-location"></dd></div>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="dp-drawer-section is-open" data-drawer-section>
+                <button type="button" class="dp-drawer-section-toggle" aria-expanded="true">
+                    <span>Demographic information</span>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="dp-drawer-section-body">
+                    <dl class="dp-drawer-dl">
+                        <div><dt>Age</dt><dd id="dp-drawer-age"></dd></div>
+                        <div><dt>Patient type</dt><dd id="dp-drawer-type"></dd></div>
+                        <div><dt>Member since</dt><dd id="dp-drawer-member"></dd></div>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="dp-drawer-section" data-drawer-section>
+                <button type="button" class="dp-drawer-section-toggle" aria-expanded="false">
+                    <span>Contact information</span>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="dp-drawer-section-body">
+                    <dl class="dp-drawer-dl">
+                        <div><dt>Phone</dt><dd id="dp-drawer-phone"></dd></div>
+                        <div><dt>Email</dt><dd id="dp-drawer-email"></dd></div>
+                    </dl>
+                </div>
+            </div>
+
+            <div class="dp-drawer-section" data-drawer-section>
+                <button type="button" class="dp-drawer-section-toggle" aria-expanded="false">
+                    <span>Booking activity</span>
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="dp-drawer-section-body">
+                    <ul class="dp-drawer-history" id="dp-drawer-history"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+@section Scripts {
+<script>
+(function () {
+  const backdrop = document.getElementById("dp-drawer-backdrop");
+  const drawer = document.getElementById("dp-patient-drawer");
+  const closeBtn = document.getElementById("dp-drawer-close");
+  const loading = document.getElementById("dp-drawer-loading");
+  const errorEl = document.getElementById("dp-drawer-error");
+  const body = document.getElementById("dp-drawer-body");
+
+  function setText(id, value, fallback) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = value && String(value).trim() ? value : (fallback || "Not available");
+  }
+
+  function setHtmlLink(id, hrefPrefix, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!value || !String(value).trim()) {
+      el.textContent = "Not provided";
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = hrefPrefix + value;
+    a.textContent = value;
+    el.replaceChildren(a);
+  }
+
+  function openDrawer() {
+    backdrop.hidden = false;
+    drawer.classList.add("is-open");
+    drawer.setAttribute("aria-hidden", "false");
+    document.body.classList.add("dp-drawer-open");
+  }
+
+  function closeDrawer() {
+    drawer.classList.remove("is-open");
+    drawer.setAttribute("aria-hidden", "true");
+    backdrop.hidden = true;
+    document.body.classList.remove("dp-drawer-open");
+  }
+
+  window.dpOpenPatientPanel = async function (appointmentId) {
+    openDrawer();
+    loading.hidden = false;
+    errorEl.hidden = true;
+    body.hidden = true;
+
+    try {
+      const res = await fetch("/Doctor/Calendar?handler=Panel&appointmentId=" + encodeURIComponent(appointmentId), {
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) throw new Error("Could not load patient details.");
+      const data = await res.json();
+
+      const badge = document.getElementById("dp-drawer-badge");
+      badge.textContent = data.statusLabel || data.status || "";
+      badge.className = "dp-drawer-badge status-" + String(data.status || "").toLowerCase();
+
+      setText("dp-drawer-name", data.patientName);
+      const patientType = data.patientType || (data.hasAccount ? "Existing patient" : "New patient");
+      const subParts = [];
+      if (data.dateOfBirth) subParts.push("DOB: " + data.dateOfBirth);
+      subParts.push(patientType);
+      setText("dp-drawer-sub", subParts.join(" | "), "");
+
+      setText("dp-drawer-time", data.startsAt);
+      setText("dp-drawer-reason", data.visitReason);
+      setText("dp-drawer-provider", data.providerName);
+      setText("dp-drawer-location", data.location || data.practiceName);
+
+      if (data.ageYears != null && data.dateOfBirth) {
+        setText("dp-drawer-age", data.ageYears + " (DOB: " + data.dateOfBirth + ")");
+      } else if (data.dateOfBirth) {
+        setText("dp-drawer-age", "DOB: " + data.dateOfBirth);
+      } else {
+        setText("dp-drawer-age", null);
+      }
+      setText("dp-drawer-type", patientType);
+      setText("dp-drawer-member", data.memberSince, data.hasAccount ? "Not available" : "—");
+
+      const phoneDigits = (data.phone || "").replace(/\D/g, "");
+      setHtmlLink("dp-drawer-phone", "tel:", phoneDigits ? data.phone : null);
+      if (phoneDigits) {
+        const phoneEl = document.getElementById("dp-drawer-phone").querySelector("a");
+        if (phoneEl) phoneEl.href = "tel:" + phoneDigits;
+      }
+      setHtmlLink("dp-drawer-email", "mailto:", data.email);
+
+      const history = document.getElementById("dp-drawer-history");
+      history.replaceChildren();
+      if (!data.history || !data.history.length) {
+        const li = document.createElement("li");
+        li.className = "dp-drawer-empty";
+        li.textContent = "No booking activity found.";
+        history.appendChild(li);
+      } else {
+        data.history.forEach(function (row) {
+          const li = document.createElement("li");
+          li.innerHTML =
+            "<div class=\"when\">" + escapeHtml(row.startsAt) + "</div>" +
+            "<div class=\"reason\">" + escapeHtml(row.visitReason) + "</div>" +
+            "<div class=\"status\">" + escapeHtml(row.statusLabel) + "</div>";
+          history.appendChild(li);
+        });
+      }
+
+      loading.hidden = true;
+      body.hidden = false;
+    } catch (err) {
+      loading.hidden = true;
+      errorEl.hidden = false;
+      errorEl.textContent = err.message || "Something went wrong.";
+    }
+  };
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  closeBtn.addEventListener("click", closeDrawer);
+  backdrop.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && drawer.classList.contains("is-open")) closeDrawer();
+  });
+
+  document.querySelectorAll("[data-drawer-section]").forEach(function (section) {
+    const toggle = section.querySelector(".dp-drawer-section-toggle");
+    if (!toggle) return;
+    toggle.addEventListener("click", function () {
+      const open = section.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const openId = params.get("appointmentId");
+  if (openId) dpOpenPatientPanel(Number(openId));
+})();
+</script>
+}

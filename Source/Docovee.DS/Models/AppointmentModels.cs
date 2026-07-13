@@ -24,8 +24,10 @@ public class CreateAppointmentResponse
 public class DoctorAppointmentDto
 {
     public int Id { get; set; }
+    public int? PatientId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public string? PatientPhone { get; set; }
+    public string? PatientEmail { get; set; }
     public string VisitReason { get; set; } = string.Empty;
     public DateTime StartsAt { get; set; }
     public string Status { get; set; } = string.Empty;
