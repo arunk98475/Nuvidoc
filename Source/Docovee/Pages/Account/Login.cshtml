@@ -2,7 +2,7 @@
 @model Docovee.Pages.Account.LoginModel
 @{
     Layout = null;
-    ViewData["Title"] = $"Sign In — {Branding.SiteName}";
+    ViewData["Title"] = $"Doctor sign in — {Branding.SiteName}";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -17,13 +17,14 @@
     <partial name="Shared/_SiteLogo" />
     <div class="nav-right">
         <a href="/" class="nav-link">Home</a>
+        <a href="/?login=patient" class="nav-link">Patient log in</a>
     </div>
 </nav>
 
 <div class="auth-page">
     <div class="auth-card">
-        <h1>Sign in</h1>
-        <p class="auth-subtitle">Access your patient or doctor profile.</p>
+        <h1>Doctor log in</h1>
+        <p class="auth-subtitle">Access your doctor portal.</p>
 
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))
         {
@@ -31,13 +32,7 @@
         }
 
         <form method="post">
-            <div class="form-group">
-                <label asp-for="Input.AccountType">I am a</label>
-                <select asp-for="Input.AccountType" class="field-select">
-                    <option value="Patient">Patient</option>
-                    <option value="Doctor">Doctor</option>
-                </select>
-            </div>
+            <input type="hidden" asp-for="Input.AccountType" />
             <div class="form-group">
                 <label asp-for="Input.Username">Email / username</label>
                 <input asp-for="Input.Username" class="field-input" autocomplete="username" />
@@ -46,8 +41,8 @@
                 <label asp-for="Input.Password">Password</label>
                 <input asp-for="Input.Password" type="password" class="field-input" autocomplete="current-password" />
             </div>
-            <button type="submit" class="btn-primary" style="width:100%;">Sign In</button>
-            <p class="auth-footer-link">New here? <a href="/Account/Register">Register with @Branding.SiteName</a></p>
+            <button type="submit" class="btn-primary" style="width:100%;">Log in</button>
+            <p class="auth-footer-link">New here? <a href="/Account/Register/Doctor">Sign up as a doctor</a></p>
         </form>
     </div>
 </div>

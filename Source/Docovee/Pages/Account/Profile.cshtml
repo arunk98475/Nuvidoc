@@ -20,15 +20,6 @@
             <span class="pat-logo-mark">@(Branding.SiteName.Length > 0 ? Branding.SiteName[0].ToString().ToUpperInvariant() : "N")</span>
             <span>@Branding.SiteName</span>
         </a>
-
-        <div class="pat-sidebar-head">
-            <div class="pat-avatar">@(Model.Profile!.FullName.Length > 0 ? Model.Profile.FullName[0].ToString().ToUpperInvariant() : "P")</div>
-            <div>
-                <div class="pat-sidebar-name">@Model.Profile.FullName</div>
-                <div class="pat-sidebar-meta">Patient account</div>
-            </div>
-        </div>
-
         <div class="pat-nav" role="navigation" aria-label="Profile sections">
             <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal Information</a>
             <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and Security</a>

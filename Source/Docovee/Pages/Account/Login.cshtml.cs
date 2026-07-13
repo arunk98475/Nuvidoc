@@ -24,12 +24,17 @@ public class LoginModel : PageModel
 
     public string? ErrorMessage { get; set; }
 
-    public async Task<IActionResult> OnGetAsync()
+    public async Task<IActionResult> OnGetAsync(string? type = null)
     {
         if (User.Identity?.IsAuthenticated == true)
             return Redirect(await GetRedirectUrlAsync());
 
-        Input.AccountType = AccountType.Patient;
+        Input.AccountType = ParseAccountType(type);
+
+        // Patient login uses the homepage modal (Zocdoc-style popup).
+        if (Input.AccountType == AccountType.Patient)
+            return Redirect("/?login=patient");
+
         return Page();
     }
 
@@ -38,18 +43,34 @@ public class LoginModel : PageModel
         if (Input.AccountType == AccountType.Admin)
         {
             ErrorMessage = "Please use the correct sign-in page for your account type.";
-            Input.AccountType = AccountType.Patient;
-            return Page();
+            return Redirect("/Account/Login?type=Doctor");
         }
 
         var (success, error) = await _auth.LoginAsync(Input, HttpContext);
         if (!success)
         {
+            if (Input.AccountType == AccountType.Patient)
+            {
+                var msg = Uri.EscapeDataString(error ?? "Invalid email or password.");
+                var email = Uri.EscapeDataString(Input.Username ?? "");
+                return Redirect($"/?login=patient&error={msg}&email={email}");
+            }
+
             ErrorMessage = error;
             return Page();
         }
 
         return Redirect(await GetRedirectForAccountTypeAsync(Input.AccountType));
+    }
+
+    private static AccountType ParseAccountType(string? type)
+    {
+        if (string.Equals(type, "Doctor", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "Dentists", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "Dentist", StringComparison.OrdinalIgnoreCase))
+            return AccountType.Doctor;
+
+        return AccountType.Patient;
     }
 
     private async Task<string> GetRedirectForAccountTypeAsync(AccountType accountType)

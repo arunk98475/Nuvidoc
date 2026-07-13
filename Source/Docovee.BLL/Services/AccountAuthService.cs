@@ -15,6 +15,12 @@ namespace Docovee.BLL.Services;
 public interface IAccountAuthService
 {
     Task<(bool Success, string? Error)> LoginAsync(AccountLoginRequest request, HttpContext httpContext, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SignInExternalPatientAsync(
+        string email,
+        string? fullName,
+        string provider,
+        HttpContext httpContext,
+        CancellationToken cancellationToken = default);
     Task LogoutAsync(HttpContext httpContext);
 }
 
@@ -51,6 +57,41 @@ public class AccountAuthService : IAccountAuthService
 
     public async Task LogoutAsync(HttpContext httpContext) =>
         await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+    public async Task<(bool Success, string? Error)> SignInExternalPatientAsync(
+        string email,
+        string? fullName,
+        string provider,
+        HttpContext httpContext,
+        CancellationToken cancellationToken = default)
+    {
+        var username = email?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(username) || !username.Contains('@'))
+            return (false, $"{provider} did not return an email address. Please try again or use email log in.");
+
+        var patient = await _db.Patients
+            .FirstOrDefaultAsync(p => p.Username == username, cancellationToken);
+
+        if (patient == null)
+        {
+            patient = new Patient
+            {
+                Username = username,
+                FullName = string.IsNullOrWhiteSpace(fullName) ? username.Split('@')[0] : fullName.Trim(),
+                // Social providers do not supply DOB; profile/booking can collect it later.
+                DateOfBirth = new DateOnly(1900, 1, 1),
+                Phone = string.Empty
+            };
+            patient.PasswordHash = _patientHasher.HashPassword(patient, Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"));
+            _db.Patients.Add(patient);
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Patient created via {Provider}: {Username}", provider, username);
+        }
+
+        await SignInAsync(httpContext, patient.Username, AuthRoles.Patient, patient.Id);
+        _logger.LogInformation("Patient logged in via {Provider}: {Username}", provider, username);
+        return (true, null);
+    }
 
     private async Task<(bool Success, string? Error)> LoginPatientAsync(
         AccountLoginRequest request,

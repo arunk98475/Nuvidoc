@@ -131,6 +131,25 @@ public class AnthropicChatService : IAnthropicChatService
         var context = SearchContextHelper.Load(session);
         await ApplyAuthenticatedPatientAsync(session, context, httpContext, cancellationToken);
 
+        if (string.Equals(request.Action, "signup", StringComparison.OrdinalIgnoreCase))
+        {
+            ChatMessageResponse signupResponse;
+            if (context.SkipAccountCreation)
+            {
+                var alreadyIn = "You're already signed in. Tell me what you're looking for and I'll find the right dentist.";
+                await SaveAssistantMessageAsync(session, alreadyIn, cancellationToken);
+                signupResponse = BuildResponse(session, context, alreadyIn, stage: context.Stage);
+            }
+            else
+            {
+                signupResponse = await BeginAccountCreationAsync(session, context, cancellationToken);
+            }
+
+            SearchContextHelper.Save(session, context);
+            await _db.SaveChangesAsync(cancellationToken);
+            return signupResponse;
+        }
+
         if (context.AwaitingMatchSearch
             && string.Equals(request.Action, "match_search", StringComparison.OrdinalIgnoreCase))
         {

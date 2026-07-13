@@ -4,7 +4,9 @@ using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
 using Docovee.BLL.Services;
 using Docovee.DS;
+using Docovee.Pages.Account;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Http;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +34,7 @@ builder.Services.AddRazorPages(options =>
 
     options.Conventions.AuthorizeFolder("/Account");
     options.Conventions.AllowAnonymousToPage("/Account/Login");
+    options.Conventions.AllowAnonymousToPage("/Account/ExternalLogin");
     options.Conventions.AllowAnonymousToPage("/Account/Register");
     options.Conventions.AllowAnonymousToPage("/Account/Register/Doctor");
     options.Conventions.AllowAnonymousToPage("/Account/Logout");
@@ -46,13 +49,32 @@ builder.Services.AddRazorPages(options =>
 builder.Services.AddControllers();
 builder.Services.AddDocoveeBll(builder.Configuration);
 
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/Login";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    })
+    .AddCookie(ExternalLoginModel.ExternalScheme, options =>
+    {
+        options.Cookie.Name = ".NuviDoc.External";
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
     });
+
+var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret))
+{
+    authBuilder.AddGoogle(options =>
+    {
+        options.ClientId = googleClientId;
+        options.ClientSecret = googleClientSecret;
+        options.SignInScheme = ExternalLoginModel.ExternalScheme;
+        options.CallbackPath = "/signin-google";
+        options.SaveTokens = false;
+    });
+}
 
 builder.Services.AddHttpsRedirection(options =>
 {

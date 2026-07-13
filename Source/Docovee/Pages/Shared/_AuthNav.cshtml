@@ -1,0 +1,167 @@
+@*
+  Zocdoc-style auth controls: Log in dropdown (Patients / Doctors) + Sign up.
+*@
+<div class="nav-auth" id="nav-auth">
+    <div class="nav-login-dropdown" id="nav-login-dropdown">
+        <a href="/Account/Register/Doctor" class="nav-practice-btn">List your practice in @Branding.SiteName</a>
+        <button type="button" class="nav-login-btn" id="nav-login-btn" aria-expanded="false" aria-haspopup="true">
+            Log in
+            <svg class="nav-login-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="nav-login-menu" id="nav-login-menu" role="menu" hidden>
+            <div class="nav-login-section">
+                <div class="nav-login-heading">Patients</div>
+                <button type="button" class="nav-login-item nav-login-item-btn" role="menuitem" id="nav-patient-login-open">Log in</button>
+            </div>
+            <div class="nav-login-divider"></div>
+            <div class="nav-login-section">
+                <div class="nav-login-heading">Doctors</div>
+                <a class="nav-login-item" role="menuitem" href="/Account/Login?type=Doctor">Log in</a>
+            </div>
+        </div>
+    </div>
+    <a href="/?signup=patient" class="nav-signup-btn" id="nav-signup-btn">Sign up</a>
+    
+</div>
+
+<partial name="Shared/_PatientLoginModal" />
+
+<script>
+(function () {
+  const root = document.getElementById("nav-login-dropdown");
+  const btn = document.getElementById("nav-login-btn");
+  const menu = document.getElementById("nav-login-menu");
+  const patientOpen = document.getElementById("nav-patient-login-open");
+  const backdrop = document.getElementById("patient-login-backdrop");
+  const modal = document.getElementById("patient-login-modal");
+  const closeBtn = document.getElementById("patient-login-close");
+  const continueBtn = document.getElementById("pl-continue");
+  const changeEmailBtn = document.getElementById("pl-change-email");
+  const emailInput = document.getElementById("pl-email");
+  const passwordInput = document.getElementById("pl-password");
+  const emailEcho = document.getElementById("pl-email-echo");
+  const emailStep = document.querySelector('[data-pl-step="email"]');
+  const passwordStep = document.querySelector('[data-pl-step="password"]');
+  const form = document.getElementById("patient-login-form");
+  const errorEl = document.getElementById("pl-error");
+
+  if (!root || !btn || !menu) return;
+
+  function closeMenu() {
+    menu.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    root.classList.remove("is-open");
+  }
+
+  function openMenu() {
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    root.classList.add("is-open");
+  }
+
+  function showEmailStep() {
+    if (!emailStep || !passwordStep) return;
+    emailStep.hidden = false;
+    emailStep.classList.add("is-active");
+    passwordStep.hidden = true;
+    passwordStep.classList.remove("is-active");
+    if (errorEl) errorEl.hidden = true;
+    document.getElementById("patient-login-title").textContent = "To log in, enter your email address";
+  }
+
+  function showPasswordStep() {
+    const email = (emailInput?.value || "").trim();
+    if (!email || !email.includes("@@")) {
+      emailInput?.focus();
+      return;
+    }
+    if (emailEcho) emailEcho.textContent = email;
+    emailStep.hidden = true;
+    emailStep.classList.remove("is-active");
+    passwordStep.hidden = false;
+    passwordStep.classList.add("is-active");
+    document.getElementById("patient-login-title").textContent = "Enter your password";
+    passwordInput?.focus();
+  }
+
+  function openPatientLogin() {
+    closeMenu();
+    if (!modal || !backdrop) return;
+    showEmailStep();
+    backdrop.hidden = false;
+    modal.hidden = false;
+    document.body.classList.add("pl-open");
+    setTimeout(function () { emailInput?.focus(); }, 50);
+  }
+
+  function closePatientLogin() {
+    if (!modal || !backdrop) return;
+    modal.hidden = true;
+    backdrop.hidden = true;
+    document.body.classList.remove("pl-open");
+  }
+
+  window.openPatientLoginModal = openPatientLogin;
+  window.closePatientLoginModal = closePatientLogin;
+
+  document.getElementById("nav-signup-btn")?.addEventListener("click", function (e) {
+    if (typeof window.startPatientSignupViaChat === "function" && document.getElementById("chat-input")) {
+      e.preventDefault();
+      window.startPatientSignupViaChat();
+    }
+  });
+
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (menu.hidden) openMenu();
+    else closeMenu();
+  });
+
+  patientOpen?.addEventListener("click", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    openPatientLogin();
+  });
+
+  closeBtn?.addEventListener("click", closePatientLogin);
+  backdrop?.addEventListener("click", closePatientLogin);
+  continueBtn?.addEventListener("click", showPasswordStep);
+  changeEmailBtn?.addEventListener("click", showEmailStep);
+
+  emailInput?.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      showPasswordStep();
+    }
+  });
+
+  document.addEventListener("click", function (e) {
+    if (!root.contains(e.target)) closeMenu();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      closeMenu();
+      closePatientLogin();
+    }
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("login") === "patient" || params.get("login") === "1") {
+    openPatientLogin();
+    const emailParam = params.get("email");
+    if (emailParam && emailInput) emailInput.value = decodeURIComponent(emailParam);
+    const err = params.get("error");
+    if (err && errorEl) {
+      showPasswordStep();
+      errorEl.textContent = decodeURIComponent(err);
+      errorEl.hidden = false;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.delete("login");
+    url.searchParams.delete("error");
+    url.searchParams.delete("email");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }
+})();
+</script>
