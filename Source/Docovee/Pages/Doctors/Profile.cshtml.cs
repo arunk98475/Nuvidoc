@@ -28,6 +28,7 @@ public class ProfileModel : PageModel
     public string PrefillName { get; private set; } = "";
     public string PrefillPhone { get; private set; } = "";
     public string PrefillEmail { get; private set; } = "";
+    public string PrefillDateOfBirth { get; private set; } = "";
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -47,6 +48,8 @@ public class ProfileModel : PageModel
                 PrefillName = patient.FullName;
                 PrefillPhone = patient.Phone;
                 PrefillEmail = patient.Username;
+                if (patient.DateOfBirth != default && patient.DateOfBirth != new DateOnly(1990, 1, 1))
+                    PrefillDateOfBirth = patient.DateOfBirth.ToString("yyyy-MM-dd");
             }
         }
 

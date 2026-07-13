@@ -95,11 +95,23 @@ public class AppointmentService : IAppointmentService
 
         string? phone = request.PatientPhone?.Trim();
         string? email = request.PatientEmail?.Trim();
+        DateOnly? patientDob = null;
+
+        if (!string.IsNullOrWhiteSpace(request.DateOfBirth))
+        {
+            if (!TryParseDateOfBirth(request.DateOfBirth, out var parsedDob))
+                return Fail("Please enter a valid date of birth (MM/DD/YYYY).");
+
+            var todayDob = DateOnly.FromDateTime(DateTime.Today);
+            if (parsedDob > todayDob || parsedDob < todayDob.AddYears(-120))
+                return Fail("Please enter a valid date of birth.");
+
+            patientDob = parsedDob;
+        }
 
         if (patientId is > 0)
         {
-            var patient = await _db.Patients.AsNoTracking()
-                .FirstOrDefaultAsync(p => p.Id == patientId.Value, cancellationToken);
+            var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId.Value, cancellationToken);
             if (patient != null)
             {
                 if (string.IsNullOrWhiteSpace(patientName))
@@ -108,8 +120,23 @@ public class AppointmentService : IAppointmentService
                     phone = patient.Phone;
                 if (string.IsNullOrWhiteSpace(email))
                     email = patient.Username;
+
+                var hasRealPatientDob = patient.DateOfBirth != default
+                    && patient.DateOfBirth != new DateOnly(1990, 1, 1);
+                if (patientDob is DateOnly bookingDob)
+                {
+                    if (!hasRealPatientDob)
+                        patient.DateOfBirth = bookingDob;
+                }
+                else if (hasRealPatientDob)
+                {
+                    patientDob = patient.DateOfBirth;
+                }
             }
         }
+
+        if (patientDob is null)
+            return Fail("Date of birth is required.");
 
         var now = DateTime.UtcNow;
         var appointment = new Appointment
@@ -119,6 +146,7 @@ public class AppointmentService : IAppointmentService
             PatientName = patientName,
             PatientPhone = phone,
             PatientEmail = email,
+            PatientDateOfBirth = patientDob,
             VisitReason = visitReason,
             StartsAt = startsAt,
             Status = AppointmentStatuses.New,
@@ -173,6 +201,7 @@ public class AppointmentService : IAppointmentService
                 PatientName = a.PatientName,
                 PatientPhone = a.PatientPhone,
                 PatientEmail = a.PatientEmail,
+                PatientDateOfBirth = a.PatientDateOfBirth,
                 VisitReason = a.VisitReason,
                 StartsAt = a.StartsAt,
                 Status = a.Status,
@@ -198,6 +227,7 @@ public class AppointmentService : IAppointmentService
                 PatientName = a.PatientName,
                 PatientPhone = a.PatientPhone,
                 PatientEmail = a.PatientEmail,
+                PatientDateOfBirth = a.PatientDateOfBirth,
                 VisitReason = a.VisitReason,
                 StartsAt = a.StartsAt,
                 Status = a.Status,
@@ -305,6 +335,21 @@ public class AppointmentService : IAppointmentService
 
     private static CreateAppointmentResponse Fail(string message) =>
         new() { Success = false, Message = message };
+
+    private static bool TryParseDateOfBirth(string value, out DateOnly dateOfBirth)
+    {
+        dateOfBirth = default;
+        var trimmed = value.Trim();
+        var formats = new[]
+        {
+            "M/d/yyyy", "MM/dd/yyyy", "M-d-yyyy", "MM-dd-yyyy", "yyyy-MM-dd"
+        };
+
+        if (DateOnly.TryParseExact(trimmed, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateOfBirth))
+            return true;
+
+        return DateOnly.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateOfBirth);
+    }
 
     public static bool TryParseTimeLabel(string? timeLabel, out TimeOnly time)
     {

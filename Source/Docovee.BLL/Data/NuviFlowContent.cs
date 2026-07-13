@@ -154,7 +154,13 @@ public static class NuviFlowContent
 
     public const string AccountPhoneQuestion =
 
-        "And a phone number? (We'll only use this if your matched doctor needs to confirm your appointment.)";
+        "And a phone number? (We'll only use this if your matched dentist needs to confirm your appointment.)";
+
+
+
+    public const string AccountDateOfBirthQuestion =
+
+        "What's your date of birth? (MM/DD/YYYY — dental offices need this to keep your chart accurate.)";
 
 
 

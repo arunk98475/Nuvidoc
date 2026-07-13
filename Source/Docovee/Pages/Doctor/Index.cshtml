@@ -177,23 +177,42 @@
         </div>
 
         <div class="dp-card">
-            <h2>Quick actions</h2>
-            <div class="dp-todo-row">
+            <div class="dp-card-head">
+                <h2>Inbox pulse</h2>
+                <a class="dp-btn dp-btn-sm" href="/Doctor/Inbox">Open inbox</a>
+            </div>
+            @if (Model.RecentNotifications.Count == 0)
+            {
+                <p class="dp-muted-empty">No new booking notifications.</p>
+            }
+            else
+            {
+                <ul class="dp-upcoming-list">
+                    @foreach (var row in Model.RecentNotifications)
+                    {
+                        <li>
+                            <div class="dp-upcoming-when">
+                                <strong>@row.StatusLabel</strong>
+                                <span>@row.UpdatedAt.ToString("MMM d · h:mm tt")</span>
+                            </div>
+                            <div class="dp-upcoming-who">
+                                <strong>@row.PatientName</strong>
+                                <span>@row.VisitReason · @row.StartsAt.ToString("MMM d, h:mm tt")</span>
+                            </div>
+                            <span class="dp-status-chip @row.StatusTone">@row.StatusLabel</span>
+                        </li>
+                    }
+                </ul>
+            }
+            <div class="dp-todo-row" style="margin-top:14px;">
                 @if (Model.PendingAppointments == 0)
                 {
-                    <span>You're all caught up — no bookings need action right now.</span>
+                    <span>You're all caught up.</span>
                 }
                 else
                 {
-                    <span>You have @Model.PendingAppointments booking@(Model.PendingAppointments == 1 ? "" : "s") that require action</span>
+                    <span>@Model.PendingAppointments need action</span>
                 }
-                <a class="dp-btn dp-btn-sm" href="/Doctor/Inbox">View inbox</a>
-            </div>
-            <div class="dp-rec-item">
-                <div class="dp-rec-title">Keep your public profile up to date</div>
-                <p class="dp-rec-desc">Patients book from your profile page — a complete photo and phone number helps them reach you.</p>
-            </div>
-            <div class="dp-card-foot" style="text-align:right;">
                 <a class="dp-btn dp-btn-sm" href="/Account/DoctorProfile/Edit">Edit profile</a>
             </div>
         </div>

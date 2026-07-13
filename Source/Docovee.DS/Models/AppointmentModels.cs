@@ -11,6 +11,8 @@ public class CreateAppointmentRequest
     public string Date { get; set; } = string.Empty;
     /// <summary>e.g. 9:00 AM</summary>
     public string TimeLabel { get; set; } = string.Empty;
+    /// <summary>Patient date of birth (yyyy-MM-dd or MM/dd/yyyy).</summary>
+    public string? DateOfBirth { get; set; }
     public string? Source { get; set; }
 }
 
@@ -29,6 +31,7 @@ public class DoctorAppointmentDto
     public string PatientName { get; set; } = string.Empty;
     public string? PatientPhone { get; set; }
     public string? PatientEmail { get; set; }
+    public DateOnly? PatientDateOfBirth { get; set; }
     public string VisitReason { get; set; } = string.Empty;
     public DateTime StartsAt { get; set; }
     public string Status { get; set; } = string.Empty;

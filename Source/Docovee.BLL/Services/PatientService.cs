@@ -46,11 +46,20 @@ public class PatientService : IPatientService
             return new PatientRegisterResponse { Success = false, Message = "Search session not found." };
         }
 
+        if (!request.DateOfBirth.HasValue)
+        {
+            return new PatientRegisterResponse
+            {
+                Success = false,
+                Message = "Date of birth is required."
+            };
+        }
+
         var patient = new Patient
         {
             Username = username,
             FullName = request.FullName,
-            DateOfBirth = request.DateOfBirth ?? new DateOnly(1990, 1, 1),
+            DateOfBirth = request.DateOfBirth.Value,
             Phone = request.Phone
         };
         patient.PasswordHash = _passwordHasher.HashPassword(patient, request.Password);

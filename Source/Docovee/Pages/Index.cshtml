@@ -4,7 +4,7 @@
 @model IndexModel
 @{
     Layout = null;
-    ViewData["Title"] = $"{Branding.SiteName} — Find the Best Doctor Near Me";
+    ViewData["Title"] = $"{Branding.SiteName} — Find a Dentist Near Me";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -12,7 +12,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
-    <meta name="description" content="Find the best doctor near you. @Branding.SiteName matches you with top-rated local doctors based on your needs." />
+    <meta name="description" content="Find the right dentist near you. @Branding.SiteName matches you with top-rated local dentists based on your needs." />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body>
@@ -21,18 +21,18 @@
     <div class="nav-left">
         <partial name="Shared/_SiteLogo" />
         <div class="nav-links">
-            <a class="nav-link" href="#" onclick="scrollToChat(); return false;">Find a Doctor</a>
+            <a class="nav-link" href="#" onclick="scrollToChat(); return false;">Find a Dentist</a>
             <div class="nav-dropdown">
-                <a class="nav-link" href="#">Specialties</a>
+                <a class="nav-link" href="#">Dental care</a>
                 <div class="nav-dropdown-menu">
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); return false;">🦷 Dentist</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a primary care doctor'); return false;">🩺 Primary Care</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I have back pain'); return false;">🦴 Orthopedics</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I have a skin rash'); return false;">🧴 Dermatology</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a cardiologist'); return false;">❤️ Cardiology</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a neurologist'); return false;">🧠 Neurology</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a pediatrician'); return false;">👶 Pediatrics</a>
-                    <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); return false;">🌿 View all specialties →</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); return false;">🦷 General Dentist</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an orthodontist'); return false;">😁 Orthodontist</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an oral surgeon'); return false;">🦴 Oral Surgeon</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a periodontist'); return false;">🦷 Periodontist</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want dental implants'); return false;">✨ Dental Implants</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want teeth whitening'); return false;">💎 Whitening</a>
+                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I am interested in Invisalign'); return false;">🦷 Invisalign</a>
+                    <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); return false;">🌿 Tell Nuvi what you need →</a>
                 </div>
             </div>
             <a class="nav-link" href="#how-it-works">How It Works</a>
@@ -98,7 +98,7 @@
                 <div class="ai-avatar">@Branding.ChatBotInitial</div>
                 <div>
                     <div class="ai-name">@Branding.ChatBotName</div>
-                    <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right doctor</div>
+                    <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right dentist</div>
                 </div>
             </div>
             <div class="chat-messages" id="chat-messages">
@@ -107,11 +107,11 @@
                     <div class="msg-bubble">
                         @if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient))
                         {
-                            @:Hi @(Model.PatientFullName ?? User.Identity!.Name)! 👋 I'm @Branding.ChatBotName — your personal doctor-matching concierge. Welcome back! What's been going on? Tell me anything — a symptom, a concern, or just that you need a new doctor.
+                            @:Hi @(Model.PatientFullName ?? User.Identity!.Name)! 👋 I'm @Branding.ChatBotName — your personal dentist-matching concierge. Welcome back! What's going on with your teeth or smile?
                         }
                         else
                         {
-                            @:Hi! I'm @Branding.ChatBotName 👋 I'm here to personally match you with the right doctor — not just any doctor, the right one for YOU. What's going on? Tell me what's been on your mind health-wise, or what kind of doctor you're looking for.
+                            @:Hi! I'm @Branding.ChatBotName 👋 I'm here to match you with the right dentist — not just any dentist, the right one for YOU. Tooth pain, cleaning, implants, or a new dental home — tell me what's going on.
                         }
                     </div>
                 </div>
@@ -120,9 +120,9 @@
                 <button class="chip" onclick="sendChip(this)">I need a dentist</button>
                 <button class="chip" onclick="sendChip(this)">Tooth pain</button>
                 <button class="chip" onclick="sendChip(this)">Dental implants</button>
-                <button class="chip" onclick="sendChip(this)">Back pain</button>
-                <button class="chip" onclick="sendChip(this)">Annual checkup</button>
-                <button class="chip" onclick="sendChip(this)">Skin rash</button>
+                <button class="chip" onclick="sendChip(this)">Teeth cleaning</button>
+                <button class="chip" onclick="sendChip(this)">Invisalign</button>
+                <button class="chip" onclick="sendChip(this)">Emergency dental</button>
             </div>
             <div class="chat-input-area" id="chat-input-area">
                 <textarea class="chat-input" id="chat-input" name="chat-message" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>

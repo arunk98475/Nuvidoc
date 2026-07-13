@@ -142,6 +142,7 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "OnboardingQuestionIndex", "int NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "ProfileCompletionPercent", "int NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "Recommendation", "varchar(50) NULL", cancellationToken);
 

@@ -28,12 +28,34 @@ public class PublicDoctorService : IPublicDoctorService
             .OrderByDescending(d => d.GoogleRating)
             .ThenByDescending(d => d.GoogleReviewCount)
             .ThenBy(d => d.Name)
-            .Take(take)
             .ToListAsync(cancellationToken);
 
-        return doctors
+        var dental = doctors
+            .Where(d => IsDentalSpecialty(d.Specialty))
+            .Take(take)
+            .ToList();
+
+        // Fall back if the network is not yet dentist-seeded.
+        if (dental.Count == 0)
+            dental = doctors.Take(take).ToList();
+
+        return dental
             .Select((doctor, index) => MapFeatured(doctor, index == 1))
             .ToList();
+    }
+
+    private static bool IsDentalSpecialty(string? specialty)
+    {
+        if (string.IsNullOrWhiteSpace(specialty))
+            return false;
+        var s = specialty.ToLowerInvariant();
+        return s.Contains("dent")
+            || s.Contains("oral")
+            || s.Contains("orthodont")
+            || s.Contains("periodont")
+            || s.Contains("endodont")
+            || s.Contains("prosthodont")
+            || s.Contains("hygien");
     }
 
     public async Task<PublicDoctorProfileDto?> GetPublicProfileAsync(

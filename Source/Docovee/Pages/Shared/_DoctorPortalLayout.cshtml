@@ -50,34 +50,9 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
                 <span class="label">Calendar</span>
             </a>
-
-            <div class="dp-nav-group">
-                <a class="dp-nav-item @(nav.StartsWith("performance") ? "active" : "")" href="/Doctor/Performance">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-8"/></svg>
-                    <span class="label">Performance</span>
-                </a>
-                @if (nav.StartsWith("performance"))
-                {
-                    <div class="dp-nav-sub">
-                        <a class="@(nav == "performance" ? "active" : "")" href="/Doctor/Performance">Dashboard</a>
-                        <a href="/Doctor/Performance">Breakdown</a>
-                        <a href="/Doctor/Performance">Patient choice</a>
-                        <a href="/Doctor/Performance">Appointment report</a>
-                    </div>
-                }
-            </div>
-
-            <a class="dp-nav-item" href="#" onclick="return false;" title="Coming soon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 4 7v5c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V7l-8-4z"/></svg>
-                <span class="label">Sponsored</span>
-            </a>
-            <a class="dp-nav-item" href="#" onclick="return false;" title="Coming soon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
-                <span class="label">Providers</span>
-            </a>
-            <a class="dp-nav-item" href="#" onclick="return false;" title="Coming soon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3"/></svg>
-                <span class="label">Features</span>
+            <a class="dp-nav-item @(nav.StartsWith("performance") ? "active" : "")" href="/Doctor/Performance">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-8"/></svg>
+                <span class="label">Performance</span>
             </a>
             <a class="dp-nav-item @(nav == "settings" ? "active" : "")" href="/Account/DoctorProfile">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>

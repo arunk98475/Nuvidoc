@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -729,6 +730,27 @@ public class AnthropicChatService : IAnthropicChatService
 
             case AccountCreationStep.Phone:
                 context.PendingPhone = answer;
+                context.AccountStep = AccountCreationStep.DateOfBirth;
+                await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthQuestion, stage: NuviConversationStage.AccountCreation);
+
+            case AccountCreationStep.DateOfBirth:
+                if (!TryParseDateOfBirth(answer, out var dob))
+                {
+                    return BuildResponse(session, context,
+                        "Please enter your date of birth as MM/DD/YYYY (for example, 04/09/1980).",
+                        stage: NuviConversationStage.AccountCreation);
+                }
+
+                var today = DateOnly.FromDateTime(DateTime.Today);
+                if (dob > today || dob < today.AddYears(-120))
+                {
+                    return BuildResponse(session, context,
+                        "That date doesn't look right — please enter a valid date of birth as MM/DD/YYYY.",
+                        stage: NuviConversationStage.AccountCreation);
+                }
+
+                context.PatientDateOfBirth = dob;
                 context.AccountStep = AccountCreationStep.Password;
                 await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPasswordQuestion, cancellationToken);
                 return BuildResponse(session, context, NuviFlowContent.AccountPasswordQuestion, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
@@ -751,6 +773,7 @@ public class AnthropicChatService : IAnthropicChatService
                 {
                     SessionKey = session.SessionKey,
                     FullName = context.PendingFullName ?? "Patient",
+                    DateOfBirth = context.PatientDateOfBirth,
                     Email = context.PendingEmail,
                     Phone = context.PendingPhone ?? "",
                     Username = context.PendingEmail ?? "",
@@ -857,6 +880,26 @@ public class AnthropicChatService : IAnthropicChatService
 
     private static bool IsReturningWithSavedLocation(SearchContextData context) =>
         context.SkipAccountCreation && !string.IsNullOrWhiteSpace(context.LastKnownLocation);
+
+    private static bool TryParseDateOfBirth(string answer, out DateOnly dateOfBirth)
+    {
+        dateOfBirth = default;
+        if (string.IsNullOrWhiteSpace(answer))
+            return false;
+
+        var trimmed = answer.Trim();
+        var formats = new[]
+        {
+            "M/d/yyyy", "MM/dd/yyyy", "M-d-yyyy", "MM-dd-yyyy",
+            "yyyy-MM-dd", "MMMM d, yyyy", "MMM d, yyyy"
+        };
+
+        if (DateOnly.TryParseExact(trimmed, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateOfBirth))
+            return true;
+
+        return DateOnly.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateOfBirth)
+            || DateOnly.TryParse(trimmed, CultureInfo.CurrentCulture, DateTimeStyles.None, out dateOfBirth);
+    }
 
     private static bool TryParseFirstVisitAnswer(string answer, out bool isFirstVisit)
     {

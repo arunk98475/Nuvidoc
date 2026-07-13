@@ -58,7 +58,7 @@ public class DoctorSearchService : IDoctorSearchService
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        var specialty = session.Specialty ?? "Family Medicine";
+        var specialty = session.Specialty ?? "General Dentist";
         var resultCount = await _appSettings.GetDoctorSearchResultCountAsync(cancellationToken);
         var locationQuery = NormalizeLocationInput(request.Location);
         var hasLocation = !string.IsNullOrWhiteSpace(locationQuery);

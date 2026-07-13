@@ -86,7 +86,7 @@ public class CalendarModel : PageModel
         string fullName = appointment.PatientName;
         string? phone = appointment.PatientPhone;
         string? email = appointment.PatientEmail;
-        DateOnly? dateOfBirth = null;
+        DateOnly? dateOfBirth = appointment.PatientDateOfBirth;
         DateTime? memberSince = null;
         var hasAccount = false;
         string? preferenceJson = null;
@@ -103,7 +103,10 @@ public class CalendarModel : PageModel
                 fullName = patient.FullName;
                 phone = string.IsNullOrWhiteSpace(patient.Phone) ? appointment.PatientPhone : patient.Phone;
                 email = string.IsNullOrWhiteSpace(patient.Username) ? appointment.PatientEmail : patient.Username;
-                dateOfBirth = patient.DateOfBirth;
+                dateOfBirth = patient.DateOfBirth != default
+                    && patient.DateOfBirth != new DateOnly(1990, 1, 1)
+                    ? patient.DateOfBirth
+                    : dateOfBirth;
                 memberSince = patient.CreatedAt;
                 preferenceJson = patient.PreferenceProfileJson;
             }

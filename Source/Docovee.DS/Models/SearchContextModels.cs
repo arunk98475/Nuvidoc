@@ -21,6 +21,7 @@ public enum AccountCreationStep
     Name,
     Email,
     Phone,
+    DateOfBirth,
     Password,
     ConfirmPassword,
     LoginPassword

@@ -219,6 +219,20 @@
                         {
                             <p class="pp-body">@location</p>
                         }
+                        @{
+                            var mapQuery = string.Join(", ", new[] { doctor.Address, doctor.City, doctor.State }
+                                .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA"));
+                        }
+                        @if (!string.IsNullOrWhiteSpace(mapQuery))
+                        {
+                            var mapSrc = $"https://maps.google.com/maps?q={Uri.EscapeDataString(mapQuery)}&z=15&output=embed";
+                            <div class="pp-map-frame">
+                                <iframe src="@mapSrc" title="Office map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                            </div>
+                            <a class="pp-map-link" href="https://www.google.com/maps/search/?api=1&query=@Uri.EscapeDataString(mapQuery)" target="_blank" rel="noopener noreferrer">
+                                Open in Google Maps
+                            </a>
+                        }
                     </div>
                     <div>
                         <h3 class="pp-subhead">Call the office</h3>
@@ -254,6 +268,10 @@
                 <label class="pp-field-label" for="pp-patient-email">Email <span class="pp-hint-inline">(optional)</span></label>
                 <input id="pp-patient-email" class="pp-select" type="email" autocomplete="email"
                        value="@Model.PrefillEmail" placeholder="you@email.com" />
+
+                <label class="pp-field-label" for="pp-patient-dob">Date of birth</label>
+                <input id="pp-patient-dob" class="pp-select" type="date" autocomplete="bday"
+                       value="@Model.PrefillDateOfBirth" max="@DateTime.Today.ToString("yyyy-MM-dd")" required />
 
                 <label class="pp-field-label" for="pp-visit-reason">Reason for visit</label>
                 <select id="pp-visit-reason" class="pp-select">
@@ -358,6 +376,7 @@
     const name = (document.getElementById("pp-patient-name").value || "").trim();
     const phone = (document.getElementById("pp-patient-phone").value || "").trim();
     const email = (document.getElementById("pp-patient-email").value || "").trim();
+    const dateOfBirth = (document.getElementById("pp-patient-dob").value || "").trim();
     const reason = document.getElementById("pp-visit-reason").value;
     const note = document.getElementById("pp-booking-note");
     const bookBtn = document.getElementById("pp-book-btn");
@@ -366,6 +385,13 @@
       note.hidden = false;
       note.classList.add("is-error");
       note.textContent = "Please enter your name so the office can reach you.";
+      return;
+    }
+
+    if (!dateOfBirth) {
+      note.hidden = false;
+      note.classList.add("is-error");
+      note.textContent = "Please enter your date of birth.";
       return;
     }
 
@@ -383,6 +409,7 @@
           patientName: name,
           patientPhone: phone || null,
           patientEmail: email || null,
+          dateOfBirth: dateOfBirth,
           visitReason: reason,
           date: selectedSlot.date,
           timeLabel: selectedSlot.time,

@@ -15,6 +15,7 @@ public class Appointment
     public string Status { get; set; } = AppointmentStatuses.New;
     public string Source { get; set; } = AppointmentSources.PublicProfile;
     public int? SearchSessionId { get; set; }
+    public DateOnly? PatientDateOfBirth { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

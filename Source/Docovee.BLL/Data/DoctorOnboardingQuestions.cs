@@ -7,7 +7,7 @@ public static class DoctorOnboardingQuestions
     public static IReadOnlyList<DoctorOnboardingQuestion> All { get; } = new List<DoctorOnboardingQuestion>
     {
         new(1, "Professional Background", "What is your full name and preferred professional title?", "Short Text", "e.g. Dr. Sarah Kim, MD", true),
-        new(2, "Professional Background", "What is your medical specialty?", "Dropdown", "Primary care, Cardiology, Dermatology, Orthopedics, Pediatrics, OB/GYN, Neurology, Psychiatry, Dentistry, Other", true),
+        new(2, "Professional Background", "What is your dental specialty?", "Dropdown", "General Dentistry, Orthodontics, Oral Surgery, Periodontics, Endodontics, Pediatric Dentistry, Prosthodontics, Other", true),
         new(3, "Professional Background", "Do you have any sub-specialties or areas of focused practice?", "Short Text", "e.g. Sports medicine, Cosmetic dermatology", true),
         new(4, "Professional Background", "What medical school did you graduate from?", "Short Text", "Name of institution", true),
         new(5, "Professional Background", "What year did you graduate from medical school?", "Number", "4-digit year (e.g. 2005)", true),

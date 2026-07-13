@@ -43,6 +43,9 @@ public class IndexModel : PageModel
     public IReadOnlyList<UpcomingAppointmentRow> UpcomingThisWeek { get; private set; }
         = Array.Empty<UpcomingAppointmentRow>();
 
+    public IReadOnlyList<InboxPulseRow> RecentNotifications { get; private set; }
+        = Array.Empty<InboxPulseRow>();
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
@@ -129,6 +132,22 @@ public class IndexModel : PageModel
             })
             .ToList();
 
+        RecentNotifications = all
+            .Where(a => a.Status is AppointmentStatuses.New or AppointmentStatuses.Reschedule or AppointmentStatuses.Cancelled)
+            .OrderByDescending(a => a.UpdatedAt)
+            .Take(5)
+            .Select(a => new InboxPulseRow
+            {
+                AppointmentId = a.Id,
+                PatientName = a.PatientName,
+                VisitReason = a.VisitReason,
+                StartsAt = a.StartsAt,
+                UpdatedAt = a.UpdatedAt,
+                StatusLabel = StatusLabel(a.Status),
+                StatusTone = StatusTone(a.Status)
+            })
+            .ToList();
+
         return Page();
     }
 
@@ -163,6 +182,17 @@ public class IndexModel : PageModel
         public string VisitReason { get; init; } = "";
         public DateTime StartsAt { get; init; }
         public string Status { get; init; } = "";
+        public string StatusLabel { get; init; } = "";
+        public string StatusTone { get; init; } = "muted";
+    }
+
+    public sealed class InboxPulseRow
+    {
+        public int AppointmentId { get; init; }
+        public string PatientName { get; init; } = "";
+        public string VisitReason { get; init; } = "";
+        public DateTime StartsAt { get; init; }
+        public DateTime UpdatedAt { get; init; }
         public string StatusLabel { get; init; } = "";
         public string StatusTone { get; init; } = "muted";
     }
