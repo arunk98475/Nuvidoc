@@ -15,7 +15,7 @@ public class InsuranceController : ControllerBase
     [HttpGet("carriers")]
     public async Task<ActionResult<IReadOnlyList<InsuranceCarrierDto>>> GetCarriers(CancellationToken cancellationToken)
     {
-        var carriers = await _insuranceService.GetCarriersAsync(cancellationToken);
+        var carriers = await _insuranceService.GetCarriersWithPlansAsync(cancellationToken);
         return Ok(carriers);
     }
 }

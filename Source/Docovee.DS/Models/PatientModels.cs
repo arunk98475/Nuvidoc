@@ -22,4 +22,11 @@ public class InsuranceCarrierDto
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
+    public IReadOnlyList<InsurancePlanDto> Plans { get; set; } = Array.Empty<InsurancePlanDto>();
+}
+
+public class InsurancePlanDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
 }

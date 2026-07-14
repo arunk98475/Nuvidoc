@@ -184,6 +184,22 @@ public static class SchemaUpdater
                 CONSTRAINT `FK_appointments_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE SET NULL
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `insurance_plans` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `InsuranceCarrierId` int NOT NULL,
+                `Name` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `IsActive` tinyint(1) NOT NULL,
+                `SortOrder` int NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_insurance_plans_Carrier_Name` (`InsuranceCarrierId`, `Name`),
+                KEY `IX_insurance_plans_InsuranceCarrierId` (`InsuranceCarrierId`),
+                CONSTRAINT `FK_insurance_plans_insurance_carriers_InsuranceCarrierId`
+                    FOREIGN KEY (`InsuranceCarrierId`) REFERENCES `insurance_carriers` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(

@@ -75,6 +75,7 @@ public class PublicDoctorProfileDto
     public string? PracticeName { get; set; }
     public string City { get; set; } = string.Empty;
     public string State { get; set; } = string.Empty;
+    public string ZipCode { get; set; } = string.Empty;
     public string? Address { get; set; }
     public string? PhotoUrl { get; set; }
     public string AvatarInitials { get; set; } = string.Empty;
@@ -83,8 +84,24 @@ public class PublicDoctorProfileDto
     public string? SummaryOfReviews { get; set; }
     public string? Top3Procedures { get; set; }
     public int? YearsOfPractice { get; set; }
+    public int? GraduationYear { get; set; }
     public decimal GoogleRating { get; set; }
     public int GoogleReviewCount { get; set; }
     public string? VideoUrl { get; set; }
+    public bool OffersDentalImplants { get; set; }
+    public bool OffersTmj { get; set; }
+    public bool OffersBotox { get; set; }
+    public IReadOnlyList<string> InsuranceCarriers { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<int> AcceptedInsuranceCarrierIds { get; set; } = Array.Empty<int>();
+    public IReadOnlyList<PublicDoctorInsuranceDto> AcceptedInsurances { get; set; } = Array.Empty<PublicDoctorInsuranceDto>();
+    public IReadOnlyList<string> Languages { get; set; } = Array.Empty<string>();
     public IReadOnlyList<PublicDoctorReviewDto> Reviews { get; set; } = Array.Empty<PublicDoctorReviewDto>();
+}
+
+public class PublicDoctorInsuranceDto
+{
+    public int CarrierId { get; set; }
+    public string CarrierName { get; set; } = string.Empty;
+    public string CarrierCode { get; set; } = string.Empty;
+    public IReadOnlyList<string> Plans { get; set; } = Array.Empty<string>();
 }

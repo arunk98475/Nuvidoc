@@ -197,5 +197,6 @@ public static class SeedData
         }
 
         await context.SaveChangesAsync();
+        await InsuranceCatalogSync.SyncAsync(context);
     }
 }

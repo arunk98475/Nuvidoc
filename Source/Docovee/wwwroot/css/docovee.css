@@ -3288,16 +3288,17 @@ footer.site-footer {
   min-height: 320px;
 }
 
-/* Public doctor profile page (/doctors/{id}) */
+/* Public doctor profile page (/doctors/{id}) — Zocdoc-style */
 .pp-page {
-  background: #f4f7f5;
+  background: #f6f7f8;
   min-height: 100vh;
+  color: #1b1b1b;
 }
 
 .pp-wrap {
-  max-width: 1120px;
+  max-width: 1140px;
   margin: 0 auto;
-  padding: 24px 20px 64px;
+  padding: 18px 20px 72px;
 }
 
 .pp-breadcrumb {
@@ -3306,190 +3307,220 @@ footer.site-footer {
   gap: 8px;
   align-items: center;
   font-size: 13px;
-  color: var(--muted);
+  color: #6b7280;
   margin-bottom: 18px;
 }
 
 .pp-breadcrumb a {
-  color: var(--sage);
+  color: #1b1b1b;
   text-decoration: none;
+  font-weight: 500;
 }
 
 .pp-breadcrumb a:hover { text-decoration: underline; }
 
 .pp-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 28px;
   align-items: start;
 }
 
-.pp-main { display: flex; flex-direction: column; gap: 16px; }
+.pp-main { display: flex; flex-direction: column; gap: 0; }
 
-.pp-card {
-  background: var(--white);
-  border: 1px solid var(--rule);
-  border-radius: 16px;
-  padding: 22px 24px;
-  box-shadow: 0 8px 24px rgba(26, 43, 34, 0.04);
+.pp-hero {
+  background: #fff;
+  border: 1px solid #e6e8ea;
+  border-radius: 12px 12px 0 0;
+  padding: 28px 28px 20px;
 }
 
 .pp-hero-top {
   display: flex;
-  gap: 20px;
+  gap: 22px;
   align-items: flex-start;
 }
 
 .pp-photo {
-  width: 112px;
-  height: 112px;
-  border-radius: 16px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
-  background: var(--sage-lt);
+  background: #eef1f3;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 1px #e6e8ea;
 }
 
 .pp-avatar {
-  width: 112px;
-  height: 112px;
-  border-radius: 16px;
-  background: var(--sage);
-  color: white;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: #2f6fed;
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
   flex-shrink: 0;
 }
 
-.pp-eyebrow {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--sage);
-  margin: 0 0 6px;
-}
-
 .pp-name {
-  font-size: 28px;
-  line-height: 1.2;
+  font-family: inherit;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
   margin: 0 0 4px;
-  color: var(--ink);
+  color: #111;
+  letter-spacing: -0.02em;
 }
 
-.pp-practice {
-  margin: 0;
-  font-size: 15px;
-  color: var(--ink);
-}
-
-.pp-location {
-  margin: 8px 0 0;
-  font-size: 14px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-.pp-address {
-  display: block;
-  margin-top: 2px;
+.pp-specialty {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: #4b5563;
 }
 
 .pp-rating {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 8px;
+  margin-bottom: 10px;
   font-size: 14px;
 }
 
-.pp-stars { color: #e6a817; letter-spacing: 1px; }
+.pp-stars { color: #f5c518; letter-spacing: 1px; font-size: 15px; }
 
-.pp-muted { color: var(--muted); }
+.pp-rating-link {
+  color: #2f6fed;
+  text-decoration: none;
+  font-weight: 500;
+}
 
-.pp-badges {
+.pp-rating-link:hover { text-decoration: underline; }
+
+.pp-location-line {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: #374151;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 14px;
+  align-items: center;
 }
 
-.pp-badge {
+.pp-inline-link {
+  color: #2f6fed;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.pp-inline-link:hover { text-decoration: underline; }
+
+.pp-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pp-fact {
+  display: inline-flex;
+  align-items: center;
   font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: var(--sage-lt);
-  color: var(--sage);
   font-weight: 600;
+  color: #1f2937;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 6px 12px;
 }
 
 .pp-tagline {
   margin: 18px 0 0;
   padding-top: 16px;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid #eef0f2;
   font-size: 15px;
-  line-height: 1.5;
-  color: var(--ink);
+  color: #374151;
+  line-height: 1.55;
 }
 
-.pp-video-frame {
-  position: relative;
-  width: 100%;
-  max-width: 720px;
-  aspect-ratio: 16 / 9;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #111;
+.pp-tabs {
+  display: flex;
+  gap: 0;
+  background: #fff;
+  border-left: 1px solid #e6e8ea;
+  border-right: 1px solid #e6e8ea;
+  border-bottom: 1px solid #e6e8ea;
+  padding: 0 12px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-.pp-video-frame iframe,
-.pp-video-frame video {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
-}
-
-.pp-video-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: var(--sage-lt);
-  color: var(--sage);
+.pp-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: #4b5563;
+  font: inherit;
+  font-size: 14px;
   font-weight: 600;
+  padding: 14px 16px;
   text-decoration: none;
+  cursor: pointer;
 }
 
-.pp-video-link:hover {
-  background: var(--sage-md);
-  color: var(--ink);
+.pp-tab:hover { color: #111; }
+
+.pp-tab.is-active {
+  color: #111;
+  border-bottom-color: #f5c518;
+}
+
+.pp-panel {
+  background: #fff;
+  border: 1px solid #e6e8ea;
+  border-top: none;
+  padding: 28px;
+  margin-bottom: 0;
+}
+
+.pp-panel + .pp-panel {
+  margin-top: 16px;
+  border-top: 1px solid #e6e8ea;
+  border-radius: 12px;
+}
+
+.pp-panel:last-of-type {
+  border-radius: 0 0 12px 12px;
+  margin-bottom: 16px;
 }
 
 .pp-section-title {
-  font-size: 18px;
   margin: 0 0 14px;
-  color: var(--ink);
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
 }
 
 .pp-subhead {
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  margin: 0 0 8px;
+  margin: 22px 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
 }
 
 .pp-body {
   margin: 0 0 10px;
   font-size: 15px;
-  line-height: 1.55;
-  color: var(--ink);
+  line-height: 1.65;
+  color: #374151;
 }
+
+.pp-muted { color: #6b7280; font-size: 14px; }
 
 .pp-chip-row {
   display: flex;
@@ -3498,273 +3529,471 @@ footer.site-footer {
 }
 
 .pp-chip {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--mist);
-  border: 1px solid var(--rule);
   font-size: 13px;
-  color: var(--ink);
+  color: #1f2937;
 }
 
 .pp-highlight {
-  margin-top: 14px;
+  margin: 16px 0 0;
   padding: 14px 16px;
-  border-radius: 12px;
-  background: var(--sage-lt);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
 }
 
 .pp-highlight strong {
   display: block;
   margin-bottom: 6px;
   font-size: 13px;
-  color: var(--sage);
+  color: #92400e;
 }
 
 .pp-highlight p {
   margin: 0;
   font-size: 14px;
-  line-height: 1.5;
-  color: var(--ink);
+  line-height: 1.55;
+  color: #78350f;
 }
 
-.pp-reviews { display: flex; flex-direction: column; gap: 14px; }
-
-.pp-review {
-  padding-top: 14px;
-  border-top: 1px solid var(--rule);
-}
-
-.pp-review:first-child {
-  padding-top: 0;
-  border-top: none;
-}
-
-.pp-review-top {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-
-.pp-review-text {
+.pp-list {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-  font-style: italic;
-  color: var(--ink);
+  padding-left: 18px;
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.7;
 }
 
-.pp-contact-grid {
+.pp-insurer-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.pp-insurer {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.pp-insurer-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
+}
+
+.pp-insurer-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 8px;
+}
+
+.pp-insurer-plans {
+  margin: 0;
+  padding-left: 16px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.pp-insurer-more {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.pp-ins-count {
+  margin: 0 0 14px;
+}
+
+.pp-insurance-check {
+  margin-bottom: 14px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #eef0f2;
+}
+
+.pp-network-status {
+  margin: -6px 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.pp-network-status.is-in-network {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.pp-network-status.is-out-network {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.pp-video-frame {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+  margin-top: 8px;
+}
+
+.pp-video-frame iframe,
+.pp-video-frame video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.pp-video-link {
+  display: inline-flex;
+  margin-top: 8px;
+  color: #2f6fed;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pp-video-link:hover { text-decoration: underline; }
+
+.pp-location-card {
+  display: grid;
+  gap: 16px;
 }
 
 .pp-phone-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: var(--sage);
-  color: white;
+  margin: 8px 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #111;
+  color: #fff;
   text-decoration: none;
-  font-weight: 600;
   font-size: 14px;
+  font-weight: 600;
 }
 
-.pp-phone-btn:hover { background: var(--ink); color: white; }
+.pp-phone-btn:hover { background: #333; color: #fff; }
 
 .pp-map-frame {
-  margin-top: 14px;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid var(--line, #e6e8e6);
-  aspect-ratio: 16 / 10;
-  background: #f3f4f3;
+  border: 1px solid #e5e7eb;
+  min-height: 220px;
+  background: #eef1f3;
 }
 
 .pp-map-frame iframe {
   width: 100%;
-  height: 100%;
+  height: 240px;
   border: 0;
   display: block;
 }
 
 .pp-map-link {
   display: inline-block;
-  margin-top: 8px;
-  font-size: 13px;
+  color: #2f6fed;
   font-weight: 600;
-  color: var(--accent, #3d6b5a);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  font-size: 14px;
+  text-decoration: none;
 }
 
+.pp-map-link:hover { text-decoration: underline; }
+
 .pp-hint {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--muted);
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6b7280;
 }
+
+.pp-reviews-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.pp-reviews-head .pp-section-title { margin: 0; }
+
+.pp-reviews-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.pp-reviews { display: flex; flex-direction: column; gap: 0; }
+
+.pp-review {
+  padding: 18px 0;
+  border-top: 1px solid #eef0f2;
+}
+
+.pp-review:first-child { border-top: none; }
+
+.pp-review-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.pp-review-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pp-review-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #1f2937;
+}
+
+.pp-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.pp-review-meta span { margin-right: 0; }
 
 .pp-sidebar { position: sticky; top: 18px; }
 
 .pp-booking-card {
-  background: var(--white);
-  border: 1px solid var(--rule);
-  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e6e8ea;
+  border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 12px 28px rgba(26, 43, 34, 0.08);
+  box-shadow: 0 8px 28px rgba(17, 17, 17, 0.06);
 }
 
 .pp-booking-title {
+  margin: 0 0 4px;
   font-size: 20px;
-  margin: 0 0 6px;
-  color: var(--ink);
+  font-weight: 700;
 }
 
 .pp-booking-sub {
   margin: 0 0 16px;
   font-size: 13px;
-  color: var(--muted);
+  color: #6b7280;
   line-height: 1.45;
+}
+
+.pp-patient-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-bottom: 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pp-toggle-btn {
+  appearance: none;
+  border: none;
+  background: #fff;
+  color: #374151;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 8px;
+  cursor: pointer;
+}
+
+.pp-toggle-btn + .pp-toggle-btn {
+  border-left: 1px solid #d1d5db;
+}
+
+.pp-toggle-btn.is-active {
+  background: #111;
+  color: #fff;
 }
 
 .pp-field-label {
   display: block;
-  font-size: 12px;
+  margin: 0 0 6px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 6px;
+  color: #111;
 }
 
 .pp-select {
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--rule);
-  background: var(--mist);
+  box-sizing: border-box;
+  margin-bottom: 14px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 11px 12px;
+  font: inherit;
   font-size: 14px;
-  margin-bottom: 16px;
-  color: var(--ink);
+  background: #fff;
+}
+
+.pp-select:focus {
+  outline: 2px solid #f5c518;
+  border-color: #f5c518;
+}
+
+.pp-avail-label {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111;
 }
 
 .pp-day-tabs {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .pp-day-tab {
-  border: 1px solid var(--rule);
-  background: var(--mist);
-  border-radius: 10px;
+  appearance: none;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
   padding: 8px 4px;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  font: inherit;
+  text-align: center;
 }
 
 .pp-day-tab.is-active {
-  border-color: var(--sage);
-  background: var(--sage-lt);
+  border-color: #111;
+  background: #111;
+  color: #fff;
 }
 
 .pp-day-name {
+  display: block;
   font-size: 11px;
-  font-weight: 700;
-  color: var(--ink);
+  font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .pp-day-date {
-  font-size: 11px;
-  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 2px;
 }
 
 .pp-slot-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 14px;
 }
 
 .pp-slot {
-  border: 1px solid var(--rule);
-  background: white;
-  border-radius: 10px;
+  appearance: none;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
   padding: 10px 8px;
+  font: inherit;
   font-size: 13px;
   font-weight: 600;
-  color: var(--sage);
   cursor: pointer;
 }
 
 .pp-slot:hover {
-  border-color: var(--sage);
-  background: var(--sage-lt);
+  border-color: #111;
 }
 
 .pp-slot.is-selected {
-  background: var(--sage);
-  border-color: var(--sage);
-  color: white;
+  background: #111;
+  border-color: #111;
+  color: #fff;
 }
 
 .pp-slot.is-unavailable,
 .pp-slot:disabled {
-  opacity: 0.4;
+  color: #9ca3af;
+  background: #f9fafb;
   cursor: not-allowed;
   text-decoration: line-through;
-  color: var(--muted);
 }
 
 .pp-slot.is-unavailable:hover {
-  border-color: var(--rule);
-  background: white;
+  border-color: #d1d5db;
 }
 
 .pp-hint-inline {
   font-weight: 400;
-  color: var(--muted);
-  text-transform: none;
+  color: #9ca3af;
 }
 
-.pp-booking-note.is-error {
-  background: #fde8e8;
-  color: #8a1f1f;
+.pp-patient-details {
+  border-top: 1px solid #eef0f2;
+  padding-top: 12px;
+  margin-top: 4px;
 }
 
 .pp-book-btn {
   width: 100%;
   border: none;
-  border-radius: 10px;
-  padding: 13px 16px;
-  background: var(--sage);
-  color: white;
-  font-size: 14px;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #111;
+  font: inherit;
+  font-size: 15px;
   font-weight: 700;
+  padding: 14px 16px;
   cursor: pointer;
 }
 
 .pp-book-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-.pp-book-btn:not(:disabled):hover { background: var(--ink); }
+.pp-book-btn:not(:disabled):hover { background: #e6b800; }
 
 .pp-booking-note {
   margin: 12px 0 0;
   padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--sage-lt);
-  color: var(--ink);
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #065f46;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.pp-booking-note.is-error {
+  background: #fef2f2;
+  color: #991b1b;
 }
 
 .nuvi-profile-linkable {
@@ -3794,19 +4023,31 @@ footer.site-footer {
 
   .pp-sidebar { position: static; }
 
-  .pp-contact-grid {
-    grid-template-columns: 1fr;
-  }
+  .pp-tabs { position: static; }
 }
 
 @media (max-width: 640px) {
   .pp-hero-top {
     flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .pp-hero-info { width: 100%; }
+
+  .pp-rating,
+  .pp-location-line,
+  .pp-facts {
+    justify-content: center;
   }
 
   .pp-name { font-size: 24px; }
 
   .pp-day-tabs {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .pp-tabs {
+    overflow-x: auto;
   }
 }

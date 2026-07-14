@@ -64,6 +64,8 @@ public class PublicDoctorService : IPublicDoctorService
         var doctor = await _db.Doctors
             .AsNoTracking()
             .Include(d => d.PatientReviews)
+            .Include(d => d.DoctorInsurances).ThenInclude(di => di.InsuranceCarrier).ThenInclude(c => c.Plans)
+            .Include(d => d.DoctorLanguages).ThenInclude(dl => dl.DoctorLanguage)
             .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive, cancellationToken);
 
         return doctor == null ? null : MapProfile(doctor);
@@ -90,7 +92,7 @@ public class PublicDoctorService : IPublicDoctorService
         var reviews = doctor.PatientReviews
             .OrderByDescending(r => r.Rating)
             .ThenByDescending(r => r.CreatedAt)
-            .Take(5)
+            .Take(8)
             .Select(r => new PublicDoctorReviewDto
             {
                 ReviewerName = r.ReviewerName,
@@ -101,6 +103,36 @@ public class PublicDoctorService : IPublicDoctorService
             })
             .ToList();
 
+        var insurers = doctor.DoctorInsurances
+            .Where(di => di.InsuranceCarrier != null && di.InsuranceCarrier.IsActive)
+            .Select(di => di.InsuranceCarrier!)
+            .DistinctBy(c => c.Id)
+            .OrderBy(c => c.Name)
+            .ToList();
+
+        var acceptedInsurances = insurers
+            .Select(c => new PublicDoctorInsuranceDto
+            {
+                CarrierId = c.Id,
+                CarrierName = c.Name,
+                CarrierCode = c.Code,
+                Plans = c.Plans
+                    .Where(p => p.IsActive)
+                    .OrderBy(p => p.SortOrder)
+                    .ThenBy(p => p.Name)
+                    .Select(p => p.Name)
+                    .ToList()
+            })
+            .ToList();
+
+        var languages = doctor.DoctorLanguages
+            .Select(dl => dl.DoctorLanguage?.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n)
+            .ToList();
+
         return new PublicDoctorProfileDto
         {
             Id = doctor.Id,
@@ -109,6 +141,7 @@ public class PublicDoctorService : IPublicDoctorService
             PracticeName = doctor.PracticeName,
             City = doctor.City,
             State = doctor.State,
+            ZipCode = doctor.ZipCode,
             Address = doctor.Address,
             PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink),
             AvatarInitials = doctor.AvatarInitials,
@@ -117,11 +150,19 @@ public class PublicDoctorService : IPublicDoctorService
             SummaryOfReviews = doctor.SummaryOfReviews,
             Top3Procedures = doctor.Top3Procedures,
             YearsOfPractice = doctor.YearsOfPractice,
+            GraduationYear = doctor.GraduationYear,
             GoogleRating = doctor.GoogleRating,
             GoogleReviewCount = doctor.GoogleReviewCount,
             VideoUrl = !string.IsNullOrWhiteSpace(doctor.VideoUrl)
                 ? doctor.VideoUrl.Trim()
                 : DoctorProfileHelper.ExtractVideoUrl(doctor.OnboardingProfileJson),
+            OffersDentalImplants = doctor.OffersDentalImplants,
+            OffersTmj = doctor.OffersTmj,
+            OffersBotox = doctor.OffersBotox,
+            InsuranceCarriers = acceptedInsurances.Select(i => i.CarrierName).ToList(),
+            AcceptedInsuranceCarrierIds = acceptedInsurances.Select(i => i.CarrierId).ToList(),
+            AcceptedInsurances = acceptedInsurances,
+            Languages = languages,
             Reviews = reviews
         };
     }

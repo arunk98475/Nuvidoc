@@ -12,19 +12,23 @@ public class ProfileModel : PageModel
     private readonly IPublicDoctorService _publicDoctors;
     private readonly IAppointmentService _appointments;
     private readonly IProfileService _profileService;
+    private readonly IInsuranceService _insurance;
 
     public ProfileModel(
         IPublicDoctorService publicDoctors,
         IAppointmentService appointments,
-        IProfileService profileService)
+        IProfileService profileService,
+        IInsuranceService insurance)
     {
         _publicDoctors = publicDoctors;
         _appointments = appointments;
         _profileService = profileService;
+        _insurance = insurance;
     }
 
     public PublicDoctorProfileDto Doctor { get; private set; } = null!;
     public IReadOnlyList<BookingDayDto> BookingDays { get; private set; } = Array.Empty<BookingDayDto>();
+    public IReadOnlyList<InsuranceCarrierDto> InsuranceCatalog { get; private set; } = Array.Empty<InsuranceCarrierDto>();
     public string PrefillName { get; private set; } = "";
     public string PrefillPhone { get; private set; } = "";
     public string PrefillEmail { get; private set; } = "";
@@ -38,6 +42,7 @@ public class ProfileModel : PageModel
 
         Doctor = doctor;
         BookingDays = await BuildBookingDaysAsync(id, cancellationToken);
+        InsuranceCatalog = await _insurance.GetCarriersWithPlansAsync(cancellationToken);
 
         if (User.IsInRole(AuthRoles.Patient)
             && int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))

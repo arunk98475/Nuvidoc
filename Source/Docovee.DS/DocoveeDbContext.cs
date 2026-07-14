@@ -11,6 +11,7 @@ public class DocoveeDbContext : DbContext
 
     public DbSet<Doctor> Doctors => Set<Doctor>();
     public DbSet<InsuranceCarrier> InsuranceCarriers => Set<InsuranceCarrier>();
+    public DbSet<InsurancePlan> InsurancePlans => Set<InsurancePlan>();
     public DbSet<DoctorInsurance> DoctorInsurances => Set<DoctorInsurance>();
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<SearchSession> SearchSessions => Set<SearchSession>();
@@ -92,6 +93,18 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Name).HasMaxLength(150).IsRequired();
             entity.Property(e => e.Code).HasMaxLength(50).IsRequired();
             entity.HasIndex(e => e.Code).IsUnique();
+        });
+
+        modelBuilder.Entity<InsurancePlan>(entity =>
+        {
+            entity.ToTable("insurance_plans");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.HasIndex(e => new { e.InsuranceCarrierId, e.Name }).IsUnique();
+            entity.HasOne(e => e.InsuranceCarrier)
+                .WithMany(c => c.Plans)
+                .HasForeignKey(e => e.InsuranceCarrierId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<DoctorInsurance>(entity =>

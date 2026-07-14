@@ -8,4 +8,5 @@ public class InsuranceCarrier
     public bool IsActive { get; set; } = true;
 
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();
+    public ICollection<InsurancePlan> Plans { get; set; } = new List<InsurancePlan>();
 }
