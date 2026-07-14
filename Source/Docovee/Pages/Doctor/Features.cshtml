@@ -1,0 +1,163 @@
+@page
+@model Docovee.Pages.Doctor.FeaturesModel
+@{
+    ViewData["Title"] = "Features";
+    ViewData["Nav"] = "features";
+    var doctorId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    var bookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";
+}
+
+<div class="dp-content">
+    <div class="dp-page-head">
+        <div>
+            <h1>Features</h1>
+            <p class="dp-page-sub">Tools to grow bookings and run your practice on @Branding.SiteName.</p>
+        </div>
+    </div>
+
+    <div class="dp-feature-list">
+        <article class="dp-feature-card">
+            <div class="dp-feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 48" width="56" height="42" fill="none">
+                    <rect x="8" y="10" width="40" height="28" rx="4" fill="#f3f3f3" stroke="#ccc"/>
+                    <rect x="28" y="22" width="22" height="14" rx="3" fill="#ffef4b" stroke="#111"/>
+                    <path d="M44 36 52 44" stroke="#111" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="52" cy="44" r="3" fill="#111"/>
+                </svg>
+            </div>
+            <div class="dp-feature-body">
+                <span class="dp-feature-tag is-free">No additional cost</span>
+                <h2>Booking link</h2>
+                <p>Get new patient bookings from your website.</p>
+            </div>
+            <div class="dp-feature-actions">
+                <button type="button" class="dp-feature-learn" data-feature="booking-link">Learn more</button>
+                <button type="button" class="dp-btn dp-btn-primary" id="dp-copy-booking-link" data-link="@bookingLink">Get started</button>
+            </div>
+        </article>
+
+        <article class="dp-feature-card">
+            <div class="dp-feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 48" width="56" height="42" fill="none">
+                    <rect x="12" y="8" width="36" height="32" rx="4" fill="#fff" stroke="#ccc"/>
+                    <path d="M12 18h36" stroke="#ccc"/>
+                    <path d="M22 8v6M42 8v6" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+                    <rect x="20" y="24" width="8" height="8" rx="1.5" fill="#ffef4b"/>
+                    <rect x="32" y="24" width="8" height="8" rx="1.5" fill="#eee"/>
+                </svg>
+            </div>
+            <div class="dp-feature-body">
+                <span class="dp-feature-tag is-free">No additional cost</span>
+                <h2>Calendar integration</h2>
+                <p>Enable automatic calendar updates.</p>
+            </div>
+            <div class="dp-feature-actions">
+                <button type="button" class="dp-feature-learn" data-feature="calendar">Learn more</button>
+                <a class="dp-btn dp-btn-primary" href="/Doctor/Calendar">Get started</a>
+            </div>
+        </article>
+
+        <article class="dp-feature-card">
+            <div class="dp-feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 48" width="56" height="42" fill="none">
+                    <circle cx="34" cy="18" r="10" fill="#ffef4b" stroke="#111"/>
+                    <path d="m34 12 1.8 4.2 4.5.4-3.4 3.1 1 4.4L34 21.8l-3.9 2.3 1-4.4-3.4-3.1 4.5-.4z" fill="#111"/>
+                    <path d="M18 38c4-8 12-12 20-8" stroke="#111" stroke-width="2" stroke-linecap="round"/>
+                    <circle cx="18" cy="38" r="4" fill="#fff" stroke="#111"/>
+                </svg>
+            </div>
+            <div class="dp-feature-body">
+                <span class="dp-feature-tag is-paid">Pay per result</span>
+                <h2>Sponsored results</h2>
+                <p>Reach more patients by appearing at the top of @Branding.SiteName search.</p>
+            </div>
+            <div class="dp-feature-actions">
+                <button type="button" class="dp-feature-learn" data-feature="sponsored">Learn more</button>
+                <button type="button" class="dp-btn dp-btn-primary" data-feature-start="sponsored">Get started</button>
+            </div>
+        </article>
+
+        <article class="dp-feature-card">
+            <div class="dp-feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 64 48" width="56" height="42" fill="none">
+                    <rect x="16" y="6" width="28" height="36" rx="3" fill="#fff" stroke="#ccc"/>
+                    <path d="M22 16h16M22 22h16M22 28h10" stroke="#bbb" stroke-width="2" stroke-linecap="round"/>
+                    <rect x="34" y="30" width="14" height="10" rx="2" fill="#ffef4b" stroke="#111"/>
+                </svg>
+            </div>
+            <div class="dp-feature-body">
+                <span class="dp-feature-tag is-free">No additional cost</span>
+                <h2>Intake</h2>
+                <p>Collect insurance cards, IDs, and your office forms online. Patients do not need an account to complete.</p>
+            </div>
+            <div class="dp-feature-actions">
+                <button type="button" class="dp-feature-learn" data-feature="intake">Learn more</button>
+                <a class="dp-btn" href="/Account/DoctorProfile">Settings</a>
+            </div>
+        </article>
+    </div>
+
+    <p class="dp-feature-toast" id="dp-feature-toast" hidden></p>
+</div>
+
+<dialog class="dp-feature-dialog" id="dp-feature-dialog">
+    <form method="dialog" class="dp-feature-dialog-inner">
+        <h2 id="dp-feature-dialog-title">Feature</h2>
+        <p id="dp-feature-dialog-body"></p>
+        <button type="submit" class="dp-btn dp-btn-primary">Got it</button>
+    </form>
+</dialog>
+
+@section Scripts {
+<script>
+(function () {
+  const copyBtn = document.getElementById("dp-copy-booking-link");
+  const toast = document.getElementById("dp-feature-toast");
+  const dialog = document.getElementById("dp-feature-dialog");
+  const dialogTitle = document.getElementById("dp-feature-dialog-title");
+  const dialogBody = document.getElementById("dp-feature-dialog-body");
+
+  const blurbs = {
+    "booking-link": "Share your public booking link on your website, Google Business Profile, or social pages so patients can request appointments anytime.",
+    calendar: "Bookings already appear on your Calendar. Keep your availability accurate so patients can request times that work.",
+    sponsored: "Sponsored results put your practice higher in search when patients look for a dentist. Pricing and campaigns will be managed here when enabled.",
+    intake: "Send digital intake forms before the visit so your front desk has insurance and ID details ready. Configure office forms in Settings."
+  };
+
+  function showToast(msg) {
+    if (!toast) return;
+    toast.hidden = false;
+    toast.textContent = msg;
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => { toast.hidden = true; }, 2800);
+  }
+
+  copyBtn?.addEventListener("click", async () => {
+    const link = copyBtn.dataset.link || "";
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast("Booking link copied: " + link);
+    } catch {
+      prompt("Copy your booking link:", link);
+    }
+  });
+
+  document.querySelectorAll(".dp-feature-learn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.feature || "";
+      dialogTitle.textContent = btn.closest(".dp-feature-card")?.querySelector("h2")?.textContent || "Feature";
+      dialogBody.textContent = blurbs[key] || "More details coming soon.";
+      dialog?.showModal();
+    });
+  });
+
+  document.querySelectorAll("[data-feature-start='sponsored']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      dialogTitle.textContent = "Sponsored results";
+      dialogBody.textContent = "Sponsored campaigns are coming soon. We’ll notify your practice when you can launch pay-per-result listings.";
+      dialog?.showModal();
+    });
+  });
+})();
+</script>
+}

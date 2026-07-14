@@ -1403,6 +1403,136 @@ body.dp-drawer-open {
 
 .dp-profile-wrap nav { display: none; }
 
+.dp-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 960px;
+}
+
+.dp-feature-card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.dp-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dp-feature-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
+}
+
+.dp-feature-tag.is-free {
+  background: #eaf7ee;
+  color: #1f7a4c;
+}
+
+.dp-feature-tag.is-paid {
+  background: #f0f0f0;
+  color: #555;
+}
+
+.dp-feature-body h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.dp-feature-body p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--dp-muted, #666);
+  line-height: 1.45;
+}
+
+.dp-feature-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.dp-feature-learn {
+  appearance: none;
+  border: none;
+  background: none;
+  color: #111;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dp-feature-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  background: #111;
+  color: #fff;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  max-width: 360px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+}
+
+.dp-feature-dialog {
+  border: none;
+  border-radius: 14px;
+  padding: 0;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  box-shadow: 0 16px 48px rgba(0,0,0,.2);
+}
+
+.dp-feature-dialog::backdrop {
+  background: rgba(0,0,0,.35);
+}
+
+.dp-feature-dialog-inner {
+  padding: 22px 22px 18px;
+}
+
+.dp-feature-dialog-inner h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.dp-feature-dialog-inner p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
+}
+
+@media (max-width: 800px) {
+  .dp-feature-card {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  .dp-feature-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
 @media (max-width: 1100px) {
   .dp-dash-stats { grid-template-columns: repeat(2, 1fr); }
   .dp-dash-grid { grid-template-columns: 1fr; }
