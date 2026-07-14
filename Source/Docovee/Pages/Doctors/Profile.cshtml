@@ -274,12 +274,89 @@
 
                 <label class="pp-field-label" for="pp-visit-reason">Reason for visit</label>
                 <select id="pp-visit-reason" class="pp-select">
-                    <option>Tooth pain / emergency dental</option>
-                    <option>New patient exam</option>
-                    <option>Cleaning</option>
-                    <option>Filling / restoration</option>
-                    <option>Consultation</option>
-                    <option selected>General checkup</option>
+                    <option value="" disabled selected>Select a reason</option>
+                    <optgroup label="Popular Visit Reasons">
+                        <option>Bridge</option>
+                        <option>Dental Cleaning</option>
+                        <option>Dental Consultation</option>
+                        <option>Pediatric Dentist Consultation</option>
+                        <option>Root Canal</option>
+                    </optgroup>
+                    <optgroup label="All Visit Reasons">
+                        <option>Amalgam Removal Consultation</option>
+                        <option>Bad breath/Halitosis</option>
+                        <option>Bleeding Gums</option>
+                        <option>Braces / Clear Aligners / Retainer Removal</option>
+                        <option>Braces / Clear Aligners Repair or Replacement</option>
+                        <option>Broken Tooth</option>
+                        <option>Burning Mouth Syndrome</option>
+                        <option>Caries Risk Assessment</option>
+                        <option>Cavities</option>
+                        <option>Ceramic Dental Implants</option>
+                        <option>Clear Aligners / Invisalign Consultation</option>
+                        <option>Complete Dentures</option>
+                        <option>Cosmetic Dentist Consultation</option>
+                        <option>Cosmetic Dentist Emergency</option>
+                        <option>Cracked Tooth Repair</option>
+                        <option>Crown</option>
+                        <option>Dental Abscess</option>
+                        <option>Dental Bone Graft</option>
+                        <option>Dental Emergency</option>
+                        <option>Dental Follow Up</option>
+                        <option>Dental Implant Restoration</option>
+                        <option>Dental Implant(s)</option>
+                        <option>Dental Implants</option>
+                        <option>Dental Pain</option>
+                        <option>Dental Pain Consultation</option>
+                        <option>Dental Pain Emergency Visit</option>
+                        <option>Dental Pain Follow Up</option>
+                        <option>Dental Palliative Care</option>
+                        <option>Dental Preventive Care</option>
+                        <option>Dental Surgery</option>
+                        <option>Dental X-ray</option>
+                        <option>Denture Repair</option>
+                        <option>Dentures</option>
+                        <option>Filling</option>
+                        <option>Fluoride Treatment</option>
+                        <option>Gapped Teeth</option>
+                        <option>Gum Inflammation / Gingivitis</option>
+                        <option>Hybrid Dentures/ Implant Retained Dentures</option>
+                        <option>Install Clear Aligners / Invisalign</option>
+                        <option>Lingual Bar Retainers</option>
+                        <option>Missing Tooth</option>
+                        <option>Mouth Sores</option>
+                        <option>Mouthguard</option>
+                        <option>New Patient Dental Exam (Adult)</option>
+                        <option>New Patient Dental Exam (Child)</option>
+                        <option>Night Guard/Occlusal Guard</option>
+                        <option>Onlay(s)</option>
+                        <option>Oral Cancer Exam</option>
+                        <option>Partial Dentures</option>
+                        <option>Pediatric Broken Tooth</option>
+                        <option>Pediatric Dental Cleaning</option>
+                        <option>Pediatric Dentist Emergency</option>
+                        <option>Pediatric Dentist Preventive Visit</option>
+                        <option>Pediatric Tooth Extraction</option>
+                        <option>Periodontal Disease</option>
+                        <option>Periodontal Maintenance</option>
+                        <option>Periodontal Treatment</option>
+                        <option>Plaque / Tartar</option>
+                        <option>Pulpotomy</option>
+                        <option>Retainer Checkup</option>
+                        <option>Retainer Installation</option>
+                        <option>Routine Dental Exam</option>
+                        <option>Scaling and Root Planing</option>
+                        <option>Sealant</option>
+                        <option>Sensitive Teeth</option>
+                        <option>Smile Makeover</option>
+                        <option>Teeth Bonding</option>
+                        <option>Teeth Grinding / Bruxism</option>
+                        <option>Teeth Whitening</option>
+                        <option>Tooth Decay</option>
+                        <option>Tooth Extraction</option>
+                        <option>Tooth Jewelery</option>
+                        <option>Veneer(s)</option>
+                    </optgroup>
                 </select>
 
                 <div class="pp-day-tabs" role="tablist" aria-label="Available days">
@@ -391,6 +468,13 @@
       note.hidden = false;
       note.classList.add("is-error");
       note.textContent = "Please enter your date of birth.";
+      return;
+    }
+
+    if (!reason) {
+      note.hidden = false;
+      note.classList.add("is-error");
+      note.textContent = "Please select a reason for visit.";
       return;
     }
 
