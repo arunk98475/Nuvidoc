@@ -43,7 +43,7 @@ public class ProfileModel : PageModel
 
         Doctor = doctor;
         BookingDays = await BuildBookingDaysAsync(id, cancellationToken);
-        VisibleBookingDays = BookingDays.Take(7).ToList();
+        VisibleBookingDays = BookingDays.Take(14).ToList();
         InsuranceCatalog = await _insurance.GetCarriersWithPlansAsync(cancellationToken);
 
         if (User.IsInRole(AuthRoles.Patient)
@@ -79,12 +79,18 @@ public class ProfileModel : PageModel
         var rangeEnd = date.AddDays(28);
         var booked = await _appointments.GetBookedStartsAsync(doctorId, rangeStart, rangeEnd, cancellationToken);
 
-        while (days.Count < 14)
+        // Two weeks of consecutive calendar days (weekends shown as no appts), like Zocdoc.
+        while (days.Count < 28)
         {
-            if (date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday)
+            IReadOnlyList<BookingSlotDto> slots;
+            if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            {
+                slots = Array.Empty<BookingSlotDto>();
+            }
+            else
             {
                 var seed = date.DayNumber;
-                var slots = slotTemplates
+                var built = slotTemplates
                     .Where((_, i) => (seed + i) % 3 != 0)
                     .Take(6)
                     .Select(t =>
@@ -96,26 +102,28 @@ public class ProfileModel : PageModel
                     })
                     .ToList();
 
-                if (slots.Count == 0)
+                if (built.Count == 0)
                 {
-                    slots.Add(MakeSlot(date, "10:00 AM", booked));
-                    slots.Add(MakeSlot(date, "2:30 PM", booked));
+                    built.Add(MakeSlot(date, "10:00 AM", booked));
+                    built.Add(MakeSlot(date, "2:30 PM", booked));
                 }
 
-                // Zocdoc shows mix of available / empty days — force some empty for visual realism
+                // Mix of available / empty weekdays for visual realism
                 if (seed % 4 == 0)
-                    slots = slots.Select(s => new BookingSlotDto { TimeLabel = s.TimeLabel, Available = false }).ToList();
+                    built = built.Select(s => new BookingSlotDto { TimeLabel = s.TimeLabel, Available = false }).ToList();
 
-                days.Add(new BookingDayDto
-                {
-                    Date = date,
-                    DateIso = date.ToString("yyyy-MM-dd"),
-                    DayLabel = date.ToString("ddd"),
-                    DateLabel = date.ToString("MMM d"),
-                    AvailableCount = slots.Count(s => s.Available),
-                    Slots = slots
-                });
+                slots = built;
             }
+
+            days.Add(new BookingDayDto
+            {
+                Date = date,
+                DateIso = date.ToString("yyyy-MM-dd"),
+                DayLabel = date.ToString("ddd"),
+                DateLabel = date.ToString("MMM d"),
+                AvailableCount = slots.Count(s => s.Available),
+                Slots = slots
+            });
 
             date = date.AddDays(1);
         }

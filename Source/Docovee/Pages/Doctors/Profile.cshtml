@@ -359,17 +359,34 @@
                 <h2 class="zd-book-title">Book an appointment for free</h2>
                 <p class="zd-book-sub">The office partners with @Branding.SiteName to schedule appointments</p>
 
-                <label class="zd-field-label" for="pp-visit-reason">Reason for visit</label>
-                <select id="pp-visit-reason" class="zd-select">
+                <h3 class="zd-book-section">Scheduling details</h3>
+
+                <select id="pp-visit-reason" class="zd-select" aria-label="Reason for visit">
                     <partial name="Shared/_VisitReasonOptions" />
                 </select>
 
-                <label class="zd-field-label">Insurance carrier and plan</label>
-                <button type="button" class="zd-ins-pill" id="zd-ins-pill" onclick="document.getElementById('pp-insurance-carrier').focus()">
-                    <span id="zd-ins-pill-check" class="zd-ins-pill-check" hidden>✓</span>
-                    <span id="zd-ins-pill-text">Select insurance</span>
-                </button>
-                <div class="zd-book-ins-status" id="zd-book-ins-status" hidden>This dentist is In-network</div>
+                <div class="zd-book-ins" id="zd-book-ins">
+                    <button type="button" class="zd-book-ins-row" id="zd-ins-pill" aria-expanded="false" aria-controls="zd-book-ins-picker">
+                        <span id="zd-ins-pill-check" class="zd-book-ins-check" hidden aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="#1f7a4c"/><path d="M4.5 8.2 6.8 10.5 11.5 5.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
+                        <span class="zd-book-ins-label" id="zd-ins-pill-text">Select insurance</span>
+                    </button>
+                    <div class="zd-book-ins-picker" id="zd-book-ins-picker" hidden>
+                        <select id="pp-insurance-carrier-book" class="zd-select" aria-label="Insurance carrier">
+                            <option value="">Select insurance carrier and plan</option>
+                            <option value="none">I'm paying without insurance</option>
+                            @foreach (var carrier in Model.InsuranceCatalog)
+                            {
+                                <option value="@carrier.Id">@carrier.Name</option>
+                            }
+                        </select>
+                        <select id="pp-insurance-plan-book" class="zd-select zd-ins-plan" aria-label="Insurance plan" disabled>
+                            <option value="">Add plan</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="zd-book-ins-status" id="zd-book-ins-status" hidden>This dentist is in-network</div>
 
                 <div class="zd-patient-type" role="group" aria-label="Patient type">
                     <button type="button" class="zd-ptype@(isNewPatient ? " is-active" : "")" data-new="true">
@@ -381,9 +398,11 @@
                 </div>
 
                 <div class="zd-date-range">
-                    <button type="button" class="zd-range-arrow" id="zd-range-prev" aria-label="Previous dates">‹</button>
                     <span id="zd-range-label">@dateRangeLabel</span>
-                    <button type="button" class="zd-range-arrow" id="zd-range-next" aria-label="Next dates">›</button>
+                    <div class="zd-range-nav">
+                        <button type="button" class="zd-range-arrow" id="zd-range-prev" aria-label="Previous dates">‹</button>
+                        <button type="button" class="zd-range-arrow" id="zd-range-next" aria-label="Next dates">›</button>
+                    </div>
                 </div>
 
                 <div class="zd-days" id="zd-days" role="tablist">
@@ -391,66 +410,104 @@
                     {
                         var day = Model.BookingDays[i];
                         var has = day.AvailableCount > 0;
-                        if (i >= 7)
-                        {
-                            <button type="button"
-                                    class="zd-day@(has ? " has-appts" : " no-appts")"
-                                    data-day-index="@i"
-                                    hidden
-                                    onclick="ppSelectDay(@i)">
-                                <span class="zd-day-name">@day.DayLabel</span>
-                                <span class="zd-day-date">@day.Date.ToString("MMM d")</span>
-                                <span class="zd-day-count">@(has ? (day.AvailableCount == 1 ? "1 appt" : $"{day.AvailableCount} appts") : "No appts")</span>
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button"
-                                    class="zd-day@(has ? " has-appts" : " no-appts")@(i == 0 ? " is-active" : "")"
-                                    data-day-index="@i"
-                                    onclick="ppSelectDay(@i)">
-                                <span class="zd-day-name">@day.DayLabel</span>
-                                <span class="zd-day-date">@day.Date.ToString("MMM d")</span>
-                                <span class="zd-day-count">@(has ? (day.AvailableCount == 1 ? "1 appt" : $"{day.AvailableCount} appts") : "No appts")</span>
-                            </button>
-                        }
+                        <button type="button"
+                                class="zd-day@(has ? " has-appts" : " no-appts")@(i == 0 ? " is-active" : "")"
+                                data-day-index="@i"
+                                @(i >= 14 ? "hidden" : null)
+                                onclick="ppSelectDay(@i)">
+                            <span class="zd-day-name">@day.DayLabel</span>
+                            <span class="zd-day-date">@day.Date.ToString("MMM d")</span>
+                            <span class="zd-day-count">@(has ? (day.AvailableCount == 1 ? "1 appt" : $"{day.AvailableCount} appts") : "No appts")</span>
+                        </button>
                     }
                 </div>
                 <button type="button" class="zd-text-link zd-more-avail" id="zd-more-avail">View more availability</button>
-
-                @for (var i = 0; i < Model.BookingDays.Count; i++)
-                {
-                    var day = Model.BookingDays[i];
-                    <div class="zd-slots@(i == 0 ? " is-active" : "")" data-day-panel="@i" @Html.Raw(i == 0 ? "" : "hidden")>
-                        @foreach (var slot in day.Slots.Where(s => s.Available))
-                        {
-                            <button type="button" class="zd-slot"
-                                    data-date="@day.DateIso" data-day="@day.DateLabel" data-time="@slot.TimeLabel"
-                                    onclick="ppSelectSlot(this)">@slot.TimeLabel</button>
-                        }
-                        @if (day.AvailableCount == 0)
-                        {
-                            <p class="zd-muted">No times this day — try another date.</p>
-                        }
-                    </div>
-                }
-
-                <div class="zd-patient-form" id="pp-patient-details" hidden>
-                    <label class="zd-field-label" for="pp-patient-name">Your name</label>
-                    <input id="pp-patient-name" class="zd-select" type="text" value="@Model.PrefillName" autocomplete="name" />
-                    <label class="zd-field-label" for="pp-patient-phone">Phone</label>
-                    <input id="pp-patient-phone" class="zd-select" type="tel" value="@Model.PrefillPhone" autocomplete="tel" />
-                    <label class="zd-field-label" for="pp-patient-email">Email <span class="zd-optional">(optional)</span></label>
-                    <input id="pp-patient-email" class="zd-select" type="email" value="@Model.PrefillEmail" autocomplete="email" />
-                    <label class="zd-field-label" for="pp-patient-dob">Date of birth</label>
-                    <input id="pp-patient-dob" class="zd-select" type="date" value="@Model.PrefillDateOfBirth" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
-                    <button type="button" class="zd-book-btn" id="pp-book-btn" onclick="ppConfirmBooking()">Request appointment</button>
-                    <p class="zd-book-note" id="pp-booking-note" hidden></p>
-                </div>
             </div>
         </aside>
     </div>
 </div>
+
+<dialog class="zd-book-dialog" id="zd-book-dialog" aria-labelledby="zd-book-dialog-title">
+    <div class="zd-book-dialog-panel">
+        <header class="zd-book-dialog-head">
+            <h2 id="zd-book-dialog-title">Book an appointment</h2>
+            <button type="button" class="zd-book-dialog-close" id="zd-book-dialog-close" aria-label="Close">×</button>
+        </header>
+
+        <div class="zd-book-dialog-body">
+            <div class="zd-book-dialog-doctor">
+                @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+                {
+                    <img src="@doctor.PhotoUrl" alt="" class="zd-book-dialog-photo" />
+                }
+                else
+                {
+                    <div class="zd-book-dialog-photo zd-photo-fallback">@doctor.AvatarInitials</div>
+                }
+                <div class="zd-book-dialog-meta">
+                    <div class="zd-book-dialog-name">@doctor.Name <span class="zd-book-dialog-spec">(@doctor.Specialty)</span></div>
+                    @if (avgRating > 0)
+                    {
+                        <div class="zd-book-dialog-rating"><span class="zd-stars">★</span> @avgRating.ToString("0.00") · @totalReviews reviews</div>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(streetCity))
+                    {
+                        <div class="zd-book-dialog-loc">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 22s7-7.2 7-12a7 7 0 1 0-14 0c0 4.8 7 12 7 12z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="10" r="2.5" stroke="currentColor" stroke-width="1.8"/></svg>
+                            @streetCity
+                        </div>
+                    }
+                    <div class="zd-book-dialog-network" id="zd-dialog-network" hidden>
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5 13 3.5v4.2c0 3.4-2.1 5.8-5 6.8-2.9-1-5-3.4-5-6.8V3.5L8 1.5z" fill="#1f7a4c"/><path d="m5.2 8 1.9 1.9 3.7-3.8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <span id="zd-dialog-network-text">In-network</span>
+                    </div>
+                </div>
+            </div>
+
+            <section class="zd-book-dialog-section">
+                <h3>Scheduling details</h3>
+                <p class="zd-book-dialog-hint">Your selections will help show the right availability</p>
+
+                <div class="zd-dialog-field">
+                    <span class="zd-dialog-field-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 4v6a6 6 0 0 0 12 0V4M9 20h6M12 16v4" stroke="#555" stroke-width="1.7" stroke-linecap="round"/></svg>
+                    </span>
+                    <select id="pp-visit-reason-dialog" class="zd-dialog-select" aria-label="Reason for visit">
+                        <partial name="Shared/_VisitReasonOptions" />
+                    </select>
+                </div>
+
+                <button type="button" class="zd-dialog-ins" id="zd-dialog-ins-btn">
+                    <span class="zd-dialog-ins-check" id="zd-dialog-ins-check" hidden aria-hidden="true">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5 13 3.5v4.2c0 3.4-2.1 5.8-5 6.8-2.9-1-5-3.4-5-6.8V3.5L8 1.5z" fill="#1f7a4c"/><path d="m5.2 8 1.9 1.9 3.7-3.8" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span id="zd-dialog-ins-text">Select insurance</span>
+                </button>
+            </section>
+
+            <section class="zd-book-dialog-section" id="zd-dialog-appts-section">
+                <h3>Available appointments</h3>
+                <p class="zd-book-dialog-hint">Click a time to book for free.</p>
+                <div id="zd-dialog-appts" class="zd-dialog-appts"></div>
+                <button type="button" class="zd-dialog-more" id="zd-dialog-more">Show more availability</button>
+            </section>
+
+            <section class="zd-book-dialog-section zd-patient-form" id="pp-patient-details" hidden>
+                <h3>Your details</h3>
+                <label class="zd-field-label" for="pp-patient-name">Your name</label>
+                <input id="pp-patient-name" class="zd-select" type="text" value="@Model.PrefillName" autocomplete="name" />
+                <label class="zd-field-label" for="pp-patient-phone">Phone</label>
+                <input id="pp-patient-phone" class="zd-select" type="tel" value="@Model.PrefillPhone" autocomplete="tel" />
+                <label class="zd-field-label" for="pp-patient-email">Email <span class="zd-optional">(optional)</span></label>
+                <input id="pp-patient-email" class="zd-select" type="email" value="@Model.PrefillEmail" autocomplete="email" />
+                <label class="zd-field-label" for="pp-patient-dob">Date of birth</label>
+                <input id="pp-patient-dob" class="zd-select" type="date" value="@Model.PrefillDateOfBirth" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                <button type="button" class="zd-book-btn" id="pp-book-btn" onclick="ppConfirmBooking()">Request appointment</button>
+                <p class="zd-book-note" id="pp-booking-note" hidden></p>
+            </section>
+        </div>
+    </div>
+</dialog>
 
 <div class="zd-sticky-bar" id="zd-sticky-bar" hidden>
     <div class="zd-sticky-inner">
@@ -481,65 +538,170 @@
     Model.InsuranceCatalog,
     new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
   const allDays = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-    Model.BookingDays.Select(d => new { d.DateIso, d.DayLabel, d.DateLabel, d.AvailableCount, dateText = d.Date.ToString("ddd, MMM d") }),
+    Model.BookingDays.Select(d => new {
+        d.DateIso,
+        d.DayLabel,
+        d.DateLabel,
+        d.AvailableCount,
+        dateText = d.Date.ToString("ddd, MMM d"),
+        slots = d.Slots.Where(s => s.Available).Select(s => s.TimeLabel).ToList()
+    }),
     new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
 
   let selectedSlot = null;
   let submitting = false;
   let isNewPatient = @(isNewPatient ? "true" : "false");
   let dayPage = 0;
+  let dialogDayStart = 0;
+  let dialogGroupLimit = 3;
+  const pageSize = 14;
+  const dialogPageSize = 3;
 
   const carrierSelect = document.getElementById("pp-insurance-carrier");
   const planSelect = document.getElementById("pp-insurance-plan");
+  const carrierSelectBook = document.getElementById("pp-insurance-carrier-book");
+  const planSelectBook = document.getElementById("pp-insurance-plan-book");
   const networkStatus = document.getElementById("pp-network-status");
   const bookInsStatus = document.getElementById("zd-book-ins-status");
   const pillText = document.getElementById("zd-ins-pill-text");
   const pillCheck = document.getElementById("zd-ins-pill-check");
   const insCheck = document.getElementById("zd-ins-check");
+  const insPill = document.getElementById("zd-ins-pill");
+  const insPicker = document.getElementById("zd-book-ins-picker");
+  const bookDialog = document.getElementById("zd-book-dialog");
+  const reasonSelect = document.getElementById("pp-visit-reason");
+  const reasonSelectDialog = document.getElementById("pp-visit-reason-dialog");
+  const dialogInsText = document.getElementById("zd-dialog-ins-text");
+  const dialogInsCheck = document.getElementById("zd-dialog-ins-check");
+  const dialogNetwork = document.getElementById("zd-dialog-network");
+  const dialogNetworkText = document.getElementById("zd-dialog-network-text");
+  const dialogAppts = document.getElementById("zd-dialog-appts");
+  const dialogMore = document.getElementById("zd-dialog-more");
 
-  function syncInsuranceUi() {
-    const carrierId = carrierSelect.value;
+  function fillPlans(select, carrierId, selectedPlan) {
+    if (!select) return;
     const carrier = insuranceCatalog.find(c => String(c.id) === String(carrierId));
-    const plan = planSelect.value;
-    planSelect.innerHTML = '<option value=\"\">Add plan</option>';
-    planSelect.disabled = true;
-
-    if (!carrierId || carrierId === "none") {
-      pillCheck.hidden = true;
-      insCheck.hidden = true;
-      pillText.textContent = carrierId === "none" ? "Paying without insurance" : "Select insurance";
-      networkStatus.hidden = true;
-      bookInsStatus.hidden = true;
-      if (carrierId === "none") return;
-      return;
-    }
-
-    const plans = (carrier && carrier.plans) || [];
+    select.innerHTML = '<option value=\"\">Add plan</option>';
+    select.disabled = true;
+    if (!carrierId || carrierId === "none" || !carrier) return;
+    const plans = carrier.plans || [];
     plans.forEach(p => {
       const opt = document.createElement("option");
       opt.value = p.name;
       opt.textContent = p.name;
-      if (plan && plan === p.name) opt.selected = true;
-      planSelect.appendChild(opt);
+      if (selectedPlan && selectedPlan === p.name) opt.selected = true;
+      select.appendChild(opt);
     });
-    planSelect.disabled = plans.length === 0;
+    select.disabled = plans.length === 0;
+  }
 
-    const selectedPlan = planSelect.value;
-    const label = carrier.name + (selectedPlan ? " — " + selectedPlan : " — Add plan");
-    pillText.textContent = label;
-    const accepted = acceptedCarrierIds.map(String).includes(String(carrierId));
+  function setCarrierValue(value, source) {
+    [carrierSelect, carrierSelectBook].forEach(el => {
+      if (el && el !== source) el.value = value;
+    });
+  }
+
+  function setPlanValue(value, source) {
+    [planSelect, planSelectBook].forEach(el => {
+      if (el && el !== source) el.value = value;
+    });
+  }
+
+  function syncInsuranceUi(source) {
+    const activeCarrier = (source && (source === carrierSelect || source === carrierSelectBook))
+      ? source.value
+      : (carrierSelectBook?.value || carrierSelect?.value || "");
+    setCarrierValue(activeCarrier, source);
+
+    const selectedPlan = (source && (source === planSelect || source === planSelectBook))
+      ? source.value
+      : (planSelectBook?.value || planSelect?.value || "");
+
+    fillPlans(planSelect, activeCarrier, selectedPlan);
+    fillPlans(planSelectBook, activeCarrier, selectedPlan);
+    if (selectedPlan) {
+      if (planSelect) planSelect.value = selectedPlan;
+      if (planSelectBook) planSelectBook.value = selectedPlan;
+    }
+
+    if (!activeCarrier || activeCarrier === "none") {
+      pillCheck.hidden = true;
+      if (insCheck) insCheck.hidden = true;
+      if (dialogInsCheck) dialogInsCheck.hidden = true;
+      const label = activeCarrier === "none" ? "Paying without insurance" : "Select insurance";
+      pillText.innerHTML = label;
+      if (dialogInsText) dialogInsText.textContent = label;
+      networkStatus.hidden = true;
+      bookInsStatus.hidden = true;
+      if (dialogNetwork) dialogNetwork.hidden = true;
+      return;
+    }
+
+    const carrier = insuranceCatalog.find(c => String(c.id) === String(activeCarrier));
+    const planVal = planSelectBook?.value || planSelect?.value || "";
+    const name = carrier ? carrier.name : "Insurance";
+    const display = planVal ? (name + " — " + planVal) : (name + " — Add plan");
+    if (planVal) {
+      pillText.textContent = display;
+      if (dialogInsText) dialogInsText.textContent = display;
+    } else {
+      pillText.innerHTML = name + " — <span class=\"zd-book-ins-add\">Add plan</span>";
+      if (dialogInsText) dialogInsText.innerHTML = name + " — <span class=\"zd-book-ins-add\">Add plan</span>";
+    }
+
+    const accepted = acceptedCarrierIds.map(String).includes(String(activeCarrier));
     pillCheck.hidden = !accepted;
-    insCheck.hidden = !accepted;
+    if (insCheck) insCheck.hidden = !accepted;
+    if (dialogInsCheck) dialogInsCheck.hidden = !accepted;
     networkStatus.hidden = !accepted;
     bookInsStatus.hidden = !accepted;
+    if (dialogNetwork) dialogNetwork.hidden = !accepted;
     if (accepted) {
       networkStatus.textContent = "This dentist is in-network";
-      bookInsStatus.textContent = "This dentist is In-network";
+      bookInsStatus.textContent = "This dentist is in-network";
+      if (dialogNetworkText) dialogNetworkText.textContent = "In-network · " + name;
     }
   }
 
-  carrierSelect.addEventListener("change", syncInsuranceUi);
-  planSelect.addEventListener("change", syncInsuranceUi);
+  carrierSelect?.addEventListener("change", () => {
+    setCarrierValue(carrierSelect.value, carrierSelect);
+    if (planSelect) planSelect.value = "";
+    if (planSelectBook) planSelectBook.value = "";
+    syncInsuranceUi(carrierSelect);
+  });
+  planSelect?.addEventListener("change", () => {
+    setPlanValue(planSelect.value, planSelect);
+    syncInsuranceUi(planSelect);
+  });
+  carrierSelectBook?.addEventListener("change", () => {
+    setCarrierValue(carrierSelectBook.value, carrierSelectBook);
+    if (planSelect) planSelect.value = "";
+    if (planSelectBook) planSelectBook.value = "";
+    syncInsuranceUi(carrierSelectBook);
+  });
+  planSelectBook?.addEventListener("change", () => {
+    setPlanValue(planSelectBook.value, planSelectBook);
+    syncInsuranceUi(planSelectBook);
+  });
+
+  insPill?.addEventListener("click", () => {
+    const open = insPicker.hidden;
+    insPicker.hidden = !open;
+    insPill.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
+  document.getElementById("zd-dialog-ins-btn")?.addEventListener("click", () => {
+    bookDialog?.close();
+    insPicker.hidden = false;
+    carrierSelectBook?.focus();
+    document.getElementById("pp-booking")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
+  function syncReason(from, to) {
+    if (from && to) to.value = from.value;
+  }
+  reasonSelect?.addEventListener("change", () => syncReason(reasonSelect, reasonSelectDialog));
+  reasonSelectDialog?.addEventListener("change", () => syncReason(reasonSelectDialog, reasonSelect));
 
   document.querySelectorAll(".zd-ptype").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -560,16 +722,19 @@
   });
 
   function updateRangeLabel() {
-    const start = dayPage * 7;
-    const end = Math.min(start + 6, allDays.length - 1);
+    const start = dayPage * pageSize;
+    const end = Math.min(start + pageSize - 1, allDays.length - 1);
     const label = document.getElementById("zd-range-label");
     if (allDays[start] && allDays[end]) {
       label.textContent = allDays[start].dateText + " – " + allDays[end].dateText;
     }
     document.querySelectorAll(".zd-day").forEach((el, idx) => {
-      const show = idx >= start && idx < start + 7;
-      el.hidden = !show;
+      el.hidden = !(idx >= start && idx <= end);
     });
+    const maxPage = Math.max(0, Math.ceil(allDays.length / pageSize) - 1);
+    document.getElementById("zd-range-prev").disabled = dayPage <= 0;
+    document.getElementById("zd-range-next").disabled = dayPage >= maxPage;
+    // Keep "View more availability" always visible — it opens the booking popup.
   }
 
   document.getElementById("zd-range-prev")?.addEventListener("click", () => {
@@ -577,29 +742,136 @@
     updateRangeLabel();
   });
   document.getElementById("zd-range-next")?.addEventListener("click", () => {
-    const maxPage = Math.max(0, Math.ceil(allDays.length / 7) - 1);
+    const maxPage = Math.max(0, Math.ceil(allDays.length / pageSize) - 1);
     dayPage = Math.min(maxPage, dayPage + 1);
     updateRangeLabel();
   });
   document.getElementById("zd-more-avail")?.addEventListener("click", () => {
-    const maxPage = Math.max(0, Math.ceil(allDays.length / 7) - 1);
-    dayPage = Math.min(maxPage, dayPage + 1);
-    updateRangeLabel();
+    const active = document.querySelector(".zd-day.is-active");
+    const activeIndex = active ? Number(active.dataset.dayIndex) : (dayPage * pageSize);
+    openBookDialog(Number.isFinite(activeIndex) ? activeIndex : 0);
   });
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function buildAvailabilityGroups(fromIndex) {
+    const end = allDays.length;
+    const groups = [];
+    let i = fromIndex;
+    while (i < end) {
+      const day = allDays[i];
+      const slots = day.slots || [];
+      if (slots.length > 0) {
+        groups.push({ type: "day", index: i, day, slots });
+        i += 1;
+        continue;
+      }
+      let j = i;
+      while (j < end && (!(allDays[j].slots || []).length)) j += 1;
+      groups.push({
+        type: "empty",
+        start: allDays[i],
+        end: allDays[j - 1],
+        startIndex: i,
+        endIndex: j - 1
+      });
+      i = j;
+    }
+    return groups;
+  }
+
+  function renderDayGroupHtml(g) {
+    if (g.type === "day") {
+      const buttons = g.slots.map(t =>
+        `<button type="button" class="zd-dialog-slot" data-date="${escapeHtml(g.day.dateIso)}" data-day="${escapeHtml(g.day.dateText)}" data-time="${escapeHtml(t)}">${escapeHtml(t)}</button>`
+      ).join("");
+      return `<div class="zd-dialog-day-group"><div class="zd-dialog-day-label">${escapeHtml(g.day.dateText)}</div><div class="zd-dialog-slot-row">${buttons}</div></div>`;
+    }
+    const label = g.startIndex === g.endIndex
+      ? g.start.dateText
+      : (g.start.dateText + " – " + g.end.dateText);
+    return `<div class="zd-dialog-day-group is-empty"><div class="zd-dialog-day-label">${escapeHtml(label)}</div><p class="zd-dialog-empty">No available appointments</p></div>`;
+  }
+
+  function renderDialogAppts() {
+    if (!dialogAppts) return;
+    const allGroups = buildAvailabilityGroups(dialogDayStart);
+    const visible = allGroups.slice(0, dialogGroupLimit);
+    const initial = visible.slice(0, dialogPageSize);
+    const extra = visible.slice(dialogPageSize);
+
+    let html = initial.map(renderDayGroupHtml).join("");
+    if (extra.length > 0) {
+      html += `<div class="zd-dialog-more-label">More availability</div>` + extra.map(renderDayGroupHtml).join("");
+    }
+    dialogAppts.innerHTML = html;
+
+    dialogAppts.querySelectorAll(".zd-dialog-slot").forEach(btn => {
+      btn.addEventListener("click", () => ppSelectSlot(btn));
+    });
+
+    if (dialogMore) {
+      dialogMore.hidden = dialogGroupLimit >= allGroups.length;
+    }
+  }
+
+  function openBookDialog(focusIndex) {
+    dialogDayStart = Math.max(0, focusIndex || 0);
+    dialogGroupLimit = dialogPageSize;
+    selectedSlot = null;
+    const form = document.getElementById("pp-patient-details");
+    if (form) form.hidden = true;
+    const note = document.getElementById("pp-booking-note");
+    if (note) note.hidden = true;
+    const bookBtn = document.getElementById("pp-book-btn");
+    if (bookBtn) {
+      bookBtn.disabled = false;
+      bookBtn.textContent = "Request appointment";
+      submitting = false;
+    }
+    syncReason(reasonSelect, reasonSelectDialog);
+    syncInsuranceUi();
+    renderDialogAppts();
+    if (bookDialog && typeof bookDialog.showModal === "function") {
+      bookDialog.showModal();
+    } else if (bookDialog) {
+      bookDialog.setAttribute("open", "");
+    }
+  }
+
+  function closeBookDialog() {
+    if (bookDialog && typeof bookDialog.close === "function") bookDialog.close();
+    else bookDialog?.removeAttribute("open");
+  }
+
+  document.getElementById("zd-book-dialog-close")?.addEventListener("click", closeBookDialog);
+  bookDialog?.addEventListener("click", (e) => {
+    if (e.target === bookDialog) closeBookDialog();
+  });
+  dialogMore?.addEventListener("click", () => {
+    dialogGroupLimit += dialogPageSize;
+    renderDialogAppts();
+  });
+
+  updateRangeLabel();
+  syncInsuranceUi();
+  syncReason(reasonSelect, reasonSelectDialog);
 
   window.ppSelectDay = function (index) {
     document.querySelectorAll(".zd-day").forEach(tab => {
       tab.classList.toggle("is-active", Number(tab.dataset.dayIndex) === index);
     });
-    document.querySelectorAll("[data-day-panel]").forEach(panel => {
-      const active = Number(panel.dataset.dayPanel) === index;
-      panel.classList.toggle("is-active", active);
-      panel.hidden = !active;
-    });
+    openBookDialog(index);
   };
 
   window.ppSelectSlot = function (btn) {
-    document.querySelectorAll(".zd-slot").forEach(el => el.classList.remove("is-selected"));
+    document.querySelectorAll(".zd-dialog-slot").forEach(el => el.classList.remove("is-selected"));
     btn.classList.add("is-selected");
     selectedSlot = { date: btn.dataset.date, day: btn.dataset.day, time: btn.dataset.time };
     const form = document.getElementById("pp-patient-details");
@@ -631,7 +903,7 @@
     const phone = (document.getElementById("pp-patient-phone").value || "").trim();
     const email = (document.getElementById("pp-patient-email").value || "").trim();
     const dateOfBirth = (document.getElementById("pp-patient-dob").value || "").trim();
-    const reason = document.getElementById("pp-visit-reason").value;
+    const reason = reasonSelectDialog?.value || reasonSelect?.value || "";
     const note = document.getElementById("pp-booking-note");
     const bookBtn = document.getElementById("pp-book-btn");
 
@@ -658,8 +930,11 @@
           timeLabel: selectedSlot.time,
           source: "PublicProfile",
           isNewPatient,
-          insuranceCarrierId: (carrierSelect.value && carrierSelect.value !== "none") ? Number(carrierSelect.value) : null,
-          insurancePlan: (planSelect.value || "").trim() || null
+          insuranceCarrierId: (() => {
+            const v = carrierSelectBook?.value || carrierSelect?.value || "";
+            return (v && v !== "none") ? Number(v) : null;
+          })(),
+          insurancePlan: ((planSelectBook?.value || planSelect?.value || "").trim()) || null
         })
       });
       const data = await res.json().catch(() => ({}));

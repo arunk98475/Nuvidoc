@@ -27,7 +27,7 @@
 
 .zd-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) 380px;
   gap: 32px;
   align-items: start;
 }
@@ -437,21 +437,29 @@
   background: #fff;
   border: 1px solid var(--zd-border);
   border-radius: 12px;
-  padding: 20px;
+  padding: 22px 20px 20px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
 }
 
 .zd-book-title {
-  margin: 0 0 4px;
-  font-size: 20px;
+  margin: 0 0 6px;
+  font-size: 22px;
   font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
 }
 
 .zd-book-sub {
-  margin: 0 0 16px;
-  font-size: 12px;
+  margin: 0 0 18px;
+  font-size: 13px;
   color: var(--zd-muted);
   line-height: 1.4;
+}
+
+.zd-book-section {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 .zd-field-label {
@@ -466,57 +474,90 @@
   box-sizing: border-box;
   border: 1px solid #cfcfcf;
   border-radius: 8px;
-  padding: 11px 12px;
+  padding: 12px;
   font: inherit;
   font-size: 14px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   background: #fff;
 }
 
-.zd-ins-pill {
+select.zd-select {
+  padding-right: 36px;
+  appearance: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23666' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") right 12px center / 12px no-repeat;
+}
+
+.zd-book-ins {
+  margin-bottom: 10px;
+}
+
+.zd-book-ins-row {
   width: 100%;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid #cfcfcf;
-  border-radius: 8px;
-  padding: 11px 12px;
-  background: #fff;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  padding: 4px 0 8px;
   font: inherit;
   font-size: 14px;
   text-align: left;
   cursor: pointer;
+  color: #222;
+}
+
+.zd-book-ins-check {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.zd-book-ins-label {
+  line-height: 1.35;
+}
+
+.zd-book-ins-add {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.zd-book-ins-picker {
+  padding-bottom: 4px;
+}
+
+.zd-book-ins-picker .zd-select {
   margin-bottom: 8px;
 }
 
-.zd-ins-pill-check {
-  color: var(--zd-green);
-  font-weight: 700;
-}
-
 .zd-book-ins-status {
-  background: var(--zd-green-bg);
-  color: var(--zd-green);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 14px;
+  background: #dff5e6;
+  color: #0f6b45;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 14px;
+  border-radius: 4px;
+  border-left: 4px solid #0f6b45;
+  margin: 0 0 16px;
+  text-align: center;
 }
 
 .zd-patient-type {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 0;
+  margin-bottom: 18px;
+  border: 1px solid #c8c8c8;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .zd-ptype {
   appearance: none;
-  border: 2px solid #ddd;
+  border: none;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 0;
   padding: 14px 10px;
   font: inherit;
   font-size: 14px;
@@ -526,14 +567,19 @@
   position: relative;
 }
 
+.zd-ptype + .zd-ptype {
+  border-left: 1px solid #c8c8c8;
+}
+
 .zd-ptype-check {
   display: none;
   margin-right: 4px;
 }
 
 .zd-ptype.is-active {
-  border-color: #111;
-  box-shadow: inset 0 0 0 1px #111;
+  border: none;
+  box-shadow: inset 0 0 0 2px #111;
+  z-index: 1;
 }
 
 .zd-ptype.is-active .zd-ptype-check { display: inline; }
@@ -548,48 +594,64 @@
   font-weight: 600;
 }
 
+.zd-range-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .zd-range-arrow {
   appearance: none;
-  border: 1px solid #ddd;
-  background: #fff;
+  border: none;
+  background: transparent;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 20px;
   line-height: 1;
+  color: #333;
+}
+
+.zd-range-arrow:hover { background: #f3f3f3; }
+.zd-range-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .zd-days {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .zd-day {
   appearance: none;
   border: 1px solid transparent;
   background: #f3f3f3;
-  border-radius: 8px;
-  padding: 8px 2px;
+  border-radius: 6px;
+  padding: 8px 2px 6px;
   cursor: pointer;
   font: inherit;
   text-align: center;
-  min-height: 72px;
+  min-height: 70px;
 }
 
 .zd-day.has-appts {
-  background: var(--zd-yellow-day);
+  background: #fff568;
+  color: #111;
 }
 
 .zd-day.no-appts {
-  color: #888;
+  color: #b0b0b0;
   background: #f5f5f5;
+  cursor: default;
 }
 
 .zd-day.is-active {
   outline: 2px solid #111;
+  outline-offset: 0;
 }
 
 .zd-day-name {
@@ -603,6 +665,7 @@
   font-size: 12px;
   font-weight: 700;
   margin: 2px 0;
+  white-space: nowrap;
 }
 
 .zd-day-count {
@@ -613,32 +676,260 @@
 
 .zd-more-avail {
   display: inline-block;
-  margin-bottom: 12px;
-}
-
-.zd-slots {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.zd-slot {
+  margin: 2px 0 14px;
+  color: var(--zd-link);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
   appearance: none;
-  border: 1px solid #ccc;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.zd-dialog-slot.is-selected {
+  outline: 2px solid #111;
+  outline-offset: 1px;
+}
+
+.zd-book-dialog {
+  border: none;
+  border-radius: 14px;
+  padding: 0;
+  width: min(440px, calc(100vw - 24px));
+  max-height: min(92vh, 860px);
+  height: fit-content;
+  margin: auto;
+  position: fixed;
+  inset: 0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+  background: transparent;
+  overflow: visible;
+}
+
+.zd-book-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.zd-book-dialog-panel {
+  background: #fff;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 860px);
+  overflow: hidden;
+}
+
+.zd-book-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
+}
+
+.zd-book-dialog-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.zd-book-dialog-close {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: #444;
+  padding: 0 4px;
+}
+
+.zd-book-dialog-body {
+  overflow: auto;
+  padding: 16px 20px 22px;
+}
+
+.zd-book-dialog-doctor {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+
+.zd-book-dialog-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.zd-book-dialog-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.zd-book-dialog-spec {
+  font-weight: 500;
+  color: #555;
+}
+
+.zd-book-dialog-rating,
+.zd-book-dialog-loc,
+.zd-book-dialog-network {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #444;
+}
+
+.zd-book-dialog-network {
+  color: #1f7a4c;
+  font-weight: 600;
+}
+
+.zd-book-dialog-section {
+  margin-bottom: 22px;
+}
+
+.zd-book-dialog-section h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.zd-book-dialog-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--zd-muted);
+}
+
+.zd-dialog-field {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.zd-dialog-field-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  display: flex;
+}
+
+.zd-dialog-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 12px 36px 12px 40px;
+  font: inherit;
+  font-size: 14px;
+  appearance: none;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' stroke='%23666' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") right 12px center / 12px no-repeat;
+}
+
+.zd-dialog-ins {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.zd-dialog-ins-check {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.zd-dialog-appts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.zd-dialog-day-label {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.zd-dialog-slot-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.zd-dialog-slot {
+  appearance: none;
+  border: 1px solid #e6e000;
+  background: #fff568;
+  color: #111;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-width: 88px;
+}
+
+.zd-dialog-slot:hover {
+  background: #ffe94a;
+}
+
+.zd-dialog-empty {
+  margin: 0;
+  font-size: 14px;
+  color: #9a9a9a;
+}
+
+.zd-dialog-more {
+  width: 100%;
+  margin-top: 16px;
+  appearance: none;
+  border: 1px solid #111;
   background: #fff;
   border-radius: 8px;
-  padding: 10px;
+  padding: 12px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
-.zd-slot.is-selected {
-  background: #111;
-  border-color: #111;
-  color: #fff;
+.zd-dialog-more-label {
+  margin: 8px 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.zd-slots,
+.zd-slot {
+  display: none;
 }
 
 .zd-patient-form {
