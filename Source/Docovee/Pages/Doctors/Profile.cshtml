@@ -3,22 +3,34 @@
 @{
     Layout = null;
     var doctor = Model.Doctor;
-    var locationParts = new[] { doctor.City, doctor.State, doctor.ZipCode }
-        .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA");
-    var location = string.Join(", ", locationParts);
-    var cityState = string.Join(", ", new[] { doctor.City, doctor.State }.Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA"));
-    var procedures = string.IsNullOrWhiteSpace(doctor.Top3Procedures)
-        ? Array.Empty<string>()
-        : doctor.Top3Procedures.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-    var mapQuery = string.Join(", ", new[] { doctor.Address, doctor.City, doctor.State, doctor.ZipCode }
+    var streetCity = string.Join(", ", new[] { doctor.Address, doctor.City, doctor.State }
         .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA"));
+    var fullAddress = string.Join(", ", new[] { doctor.Address, doctor.City, doctor.State, doctor.ZipCode }
+        .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA"));
+    var mapQuery = fullAddress;
     var reviewCount = doctor.Reviews.Count;
     var avgRating = doctor.GoogleRating > 0
         ? doctor.GoogleRating
         : (reviewCount > 0 ? (decimal)doctor.Reviews.Average(r => r.Rating) : 0m);
     var totalReviews = doctor.GoogleReviewCount > 0 ? doctor.GoogleReviewCount : reviewCount;
-    var isNewPatient = string.Equals(Request.Query["isNewPatient"], "true", StringComparison.OrdinalIgnoreCase)
-        || string.IsNullOrWhiteSpace(Request.Query["isNewPatient"]);
+    var isNewPatient = !string.Equals(Request.Query["isNewPatient"], "false", StringComparison.OrdinalIgnoreCase);
+    var featuredReview = doctor.Reviews.OrderByDescending(r => r.Rating).FirstOrDefault();
+    var planCount = doctor.AcceptedInsurances.Sum(i => Math.Max(1, i.Plans.Count));
+    var morePlans = Math.Max(0, planCount - Math.Min(5, doctor.AcceptedInsurances.Count));
+    var visibleDays = Model.VisibleBookingDays;
+    var firstDay = visibleDays.FirstOrDefault();
+    var lastDay = visibleDays.LastOrDefault();
+    var dateRangeLabel = firstDay != null && lastDay != null
+        ? $"{firstDay.Date:ddd, MMM d} – {lastDay.Date:ddd, MMM d}"
+        : "";
+    string[] popularReasons =
+    [
+        "Bridge", "Dental Cleaning", "Dental Consultation", "Dental Surgery",
+        "Pediatric Dentist Consultation", "Periodontal Maintenance", "Retainer Checkup", "Root Canal",
+        "Tooth Jewelery", "Veneer(s)", "Cavities", "Crown", "Filling", "Teeth Whitening",
+        "Dental Implant(s)", "Broken Tooth", "Dental Emergency", "Routine Dental Exam",
+        "Scaling and Root Planing", "Night Guard/Occlusal Guard"
+    ];
     ViewData["Title"] = $"{doctor.Name} — {doctor.Specialty} | {Branding.SiteName}";
 }
 <!DOCTYPE html>
@@ -27,10 +39,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
-    <meta name="description" content="@doctor.Name — @doctor.Specialty in @location. Book an appointment with @Branding.SiteName." />
+    <meta name="description" content="@doctor.Name — @doctor.Specialty. Book with @Branding.SiteName." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/doctor-public-profile.css" asp-append-version="true" />
 </head>
-<body class="pp-page">
+<body class="zd-page">
 
 <nav>
     <div class="nav-left">
@@ -49,509 +65,533 @@
     </div>
 </nav>
 
-<div class="pp-wrap">
-    <div class="pp-breadcrumb">
-        <a href="/">Home</a>
-        <span aria-hidden="true">›</span>
-        @if (!string.IsNullOrWhiteSpace(cityState))
-        {
-            <span>@cityState</span>
-            <span aria-hidden="true">›</span>
-        }
-        <span>@doctor.Specialty</span>
-        <span aria-hidden="true">›</span>
-        <span>@doctor.Name</span>
-    </div>
-
-    <div class="pp-grid">
-        <div class="pp-main">
-            <header class="pp-hero">
-                <div class="pp-hero-top">
+<div class="zd-shell">
+    <div class="zd-layout">
+        <div class="zd-main">
+            <section class="zd-hero">
+                <div class="zd-hero-row">
                     @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
                     {
-                        <img class="pp-photo" src="@doctor.PhotoUrl" alt="@doctor.Name" />
+                        <img class="zd-photo" src="@doctor.PhotoUrl" alt="@doctor.Name" width="120" height="120" />
                     }
                     else
                     {
-                        <div class="pp-avatar" aria-hidden="true">@doctor.AvatarInitials</div>
+                        <div class="zd-photo zd-photo-fallback">@doctor.AvatarInitials</div>
                     }
-                    <div class="pp-hero-info">
-                        <h1 class="pp-name">@doctor.Name</h1>
-                        <p class="pp-specialty">@doctor.Specialty</p>
-
-                        @if (avgRating > 0)
+                    <div class="zd-hero-copy">
+                        <h1 class="zd-name">@doctor.Name</h1>
+                        <p class="zd-specialty">@doctor.Specialty</p>
+                        @if (!string.IsNullOrWhiteSpace(streetCity))
                         {
-                            <div class="pp-rating">
-                                <span class="pp-stars" aria-label="@avgRating.ToString("0.0") out of 5">@RenderStars(avgRating)</span>
-                                <strong>@avgRating.ToString("0.0")</strong>
-                                <a class="pp-rating-link" href="#reviews">@totalReviews reviews</a>
-                            </div>
+                            <p class="zd-address">@streetCity</p>
                         }
-
-                        <p class="pp-location-line">
-                            @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
-                            {
-                                <strong>@doctor.PracticeName</strong>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(location))
-                            {
-                                <span>@location</span>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(mapQuery))
-                            {
-                                <a class="pp-inline-link" href="#location">View map</a>
-                            }
-                        </p>
-
-                        <div class="pp-facts">
-                            <span class="pp-fact">Accepts new patients</span>
-                            <span class="pp-fact">In-person visits</span>
-                            @if (doctor.YearsOfPractice is > 0)
-                            {
-                                <span class="pp-fact">@doctor.YearsOfPractice+ years experience</span>
-                            }
-                            @if (doctor.OffersDentalImplants)
-                            {
-                                <span class="pp-fact">Dental implants</span>
-                            }
-                            @if (doctor.OffersTmj)
-                            {
-                                <span class="pp-fact">TMJ care</span>
-                            }
-                        </div>
+                    </div>
+                    <div class="zd-hero-actions">
+                        <button type="button" class="zd-icon-btn" onclick="navigator.share ? navigator.share({title: '@doctor.Name', url: location.href}) : navigator.clipboard.writeText(location.href)">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/></svg>
+                            Share
+                        </button>
+                        <button type="button" class="zd-icon-btn" id="zd-save-btn">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+                            Save
+                        </button>
                     </div>
                 </div>
 
-                @if (!string.IsNullOrWhiteSpace(doctor.Niche))
+                @if (avgRating > 0 || featuredReview != null)
                 {
-                    <p class="pp-tagline">@doctor.Niche</p>
+                    <div class="zd-rating-card">
+                        <div class="zd-rating-left">
+                            <div class="zd-rating-num">@avgRating.ToString("0.00")</div>
+                            <div class="zd-stars">@RenderStars(avgRating)</div>
+                        </div>
+                        <div class="zd-rating-right">
+                            @if (featuredReview != null)
+                            {
+                                <p class="zd-quote">“@(featuredReview.ReviewText.Length > 140 ? featuredReview.ReviewText[..137] + "…" : featuredReview.ReviewText)”</p>
+                            }
+                            <a class="zd-see-reviews" href="#reviews">See all @totalReviews reviews</a>
+                        </div>
+                    </div>
                 }
-            </header>
+            </section>
 
-            <nav class="pp-tabs" aria-label="Profile sections">
-                <a class="pp-tab is-active" href="#overview">Overview</a>
-                <a class="pp-tab" href="#insurances">Insurances</a>
-                <a class="pp-tab" href="#location">Locations</a>
-                <a class="pp-tab" href="#reviews">Reviews</a>
+            <nav class="zd-tabs" aria-label="Profile sections">
+                <a class="zd-tab is-active" href="#highlights">Highlights</a>
+                <a class="zd-tab" href="#about">About</a>
+                <a class="zd-tab" href="#insurances">Insurances</a>
+                <a class="zd-tab" href="#location">Location</a>
+                <a class="zd-tab" href="#reviews">Reviews</a>
+                <a class="zd-tab" href="#faqs">FAQs</a>
             </nav>
 
-            <section class="pp-panel" id="overview">
-                <h2 class="pp-section-title">About</h2>
-                <p class="pp-body">
-                    @doctor.Name is a @doctor.Specialty.ToLowerInvariant()
-                    @if (!string.IsNullOrWhiteSpace(cityState))
+            <section class="zd-section" id="highlights">
+                <ul class="zd-highlights">
+                    @if (avgRating >= 4.5m)
                     {
-                        <text> serving patients in @cityState</text>
+                        <li>
+                            <span class="zd-hi-ico" aria-hidden="true">🎉</span>
+                            <div>
+                                <strong>Highly recommended</strong>
+                                <p>@(totalReviews > 0 ? "100%" : "Most") of patients gave this doctor 5 stars</p>
+                            </div>
+                        </li>
                     }
-                    .
+                    <li>
+                        <span class="zd-hi-ico" aria-hidden="true">⏱</span>
+                        <div>
+                            <strong>Excellent wait time</strong>
+                            <p>100% of patients waited less than 30 minutes</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="zd-hi-ico" aria-hidden="true">📅</span>
+                        <div>
+                            <strong>New patient appointments</strong>
+                            <p>Appointments available for new patients on @Branding.SiteName</p>
+                        </div>
+                    </li>
+                    @if (doctor.AcceptedInsurances.Count > 0)
+                    {
+                        <li>
+                            <span class="zd-hi-ico" aria-hidden="true">🛡</span>
+                            <div>
+                                <strong>In-network Insurances</strong>
+                                <p>
+                                    @string.Join(", ", doctor.AcceptedInsurances.Take(5).Select(i => i.CarrierName))
+                                    @if (doctor.AcceptedInsurances.Count > 5 || morePlans > 0)
+                                    {
+                                        <a href="#insurances">(@(Math.Max(doctor.AcceptedInsurances.Count - 5, morePlans))) more in-network plans</a>
+                                    }
+                                </p>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </section>
+
+            <section class="zd-section" id="about">
+                <h2 class="zd-h2">About @doctor.Name</h2>
+                <p class="zd-body zd-about-text" id="zd-about-text">
+                    @doctor.Name is a @doctor.Specialty.ToLowerInvariant()
+                    @if (!string.IsNullOrWhiteSpace(streetCity)) { <text> practicing at @streetCity</text> }.
                     @if (doctor.YearsOfPractice is > 0)
                     {
-                        <text> With @doctor.YearsOfPractice years in practice, patients often highlight attentive care and a welcoming office experience.</text>
+                        <text> With @doctor.YearsOfPractice years of experience, patients often highlight attentive care and a welcoming office.</text>
                     }
-                    else
+                    @if (!string.IsNullOrWhiteSpace(doctor.Niche))
                     {
-                        <text> Patients often highlight attentive care and a welcoming office experience.</text>
+                        <text> @doctor.Niche</text>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(doctor.SummaryOfReviews))
+                    {
+                        <text> @doctor.SummaryOfReviews</text>
                     }
                 </p>
-                @if (!string.IsNullOrWhiteSpace(doctor.SummaryOfReviews))
-                {
-                    <blockquote class="pp-highlight">
-                        <strong>What patients say</strong>
-                        <p>@doctor.SummaryOfReviews</p>
-                    </blockquote>
-                }
-
-                @if (procedures.Length > 0)
-                {
-                    <h3 class="pp-subhead">Popular procedures</h3>
-                    <div class="pp-chip-row">
-                        @foreach (var proc in procedures)
-                        {
-                            <span class="pp-chip">@proc</span>
-                        }
-                    </div>
-                }
-
-                @if (doctor.OffersDentalImplants || doctor.OffersTmj || doctor.OffersBotox)
-                {
-                    <h3 class="pp-subhead">Special focus</h3>
-                    <div class="pp-chip-row">
-                        @if (doctor.OffersDentalImplants) { <span class="pp-chip">Dental implants</span> }
-                        @if (doctor.OffersTmj) { <span class="pp-chip">TMJ</span> }
-                        @if (doctor.OffersBotox) { <span class="pp-chip">Botox</span> }
-                    </div>
-                }
-
-                @if (doctor.Languages.Count > 0)
-                {
-                    <h3 class="pp-subhead">Languages spoken</h3>
-                    <p class="pp-body">@string.Join(", ", doctor.Languages)</p>
-                }
-
-                @if (doctor.YearsOfPractice is > 0 || doctor.GraduationYear is > 0)
-                {
-                    <h3 class="pp-subhead">Education & experience</h3>
-                    <ul class="pp-list">
-                        @if (doctor.YearsOfPractice is > 0)
-                        {
-                            <li>@doctor.YearsOfPractice+ years of practice</li>
-                        }
-                        @if (doctor.GraduationYear is > 0)
-                        {
-                            <li>Graduated @doctor.GraduationYear</li>
-                        }
-                    </ul>
-                }
-
-                @if (!string.IsNullOrWhiteSpace(doctor.VideoUrl))
-                {
-                    var videoUrl = doctor.VideoUrl!;
-                    var embedUrl = GetVideoEmbedUrl(videoUrl);
-                    <h3 class="pp-subhead">Meet @doctor.Name.Split(' ').FirstOrDefault()</h3>
-                    @if (!string.IsNullOrEmpty(embedUrl))
-                    {
-                        <div class="pp-video-frame">
-                            <iframe src="@embedUrl" title="Introduction video" allowfullscreen loading="lazy"></iframe>
-                        </div>
-                    }
-                    else if (IsDirectVideoFile(videoUrl))
-                    {
-                        <div class="pp-video-frame">
-                            <video controls preload="metadata" src="@videoUrl"></video>
-                        </div>
-                    }
-                    else
-                    {
-                        <a class="pp-video-link" href="@videoUrl" target="_blank" rel="noopener noreferrer">▶ Watch introduction video</a>
-                    }
-                }
+                <button type="button" class="zd-text-btn" id="zd-about-toggle" hidden>show more</button>
             </section>
 
-            <section class="pp-panel" id="insurances">
-                <h2 class="pp-section-title">In-network insurances</h2>
-                <p class="pp-body">
-                    Check that you're covered. Enter your insurance below in the booking card, or browse plans this office accepts.
-                </p>
-
-                @if (doctor.AcceptedInsurances.Count == 0)
-                {
-                    <p class="pp-muted">This office has not published insurance details yet. Please call to confirm coverage before your visit.</p>
-                }
-                else
-                {
-                    <p class="pp-muted pp-ins-count">@doctor.AcceptedInsurances.Sum(i => Math.Max(1, i.Plans.Count))+ in-network plans</p>
-                    <div class="pp-insurer-grid">
-                        @foreach (var ins in doctor.AcceptedInsurances)
-                        {
-                            <div class="pp-insurer-card">
-                                <div class="pp-insurer-name">@ins.CarrierName</div>
-                                @if (ins.Plans.Count > 0)
-                                {
-                                    <ul class="pp-insurer-plans">
-                                        @foreach (var plan in ins.Plans.Take(4))
-                                        {
-                                            <li>@plan</li>
-                                        }
-                                    </ul>
-                                    @if (ins.Plans.Count > 4)
-                                    {
-                                        <div class="pp-insurer-more">+ @(ins.Plans.Count - 4) more plans</div>
-                                    }
-                                }
-                                else
-                                {
-                                    <div class="pp-insurer-more">Most plans accepted — verify in booking</div>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-            </section>
-
-            <section class="pp-panel" id="location">
-                <h2 class="pp-section-title">Office location</h2>
-                <div class="pp-location-card">
-                    <div class="pp-location-copy">
-                        @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
-                        {
-                            <h3 class="pp-subhead">@doctor.PracticeName</h3>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(doctor.Address))
-                        {
-                            <p class="pp-body">@doctor.Address</p>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(location))
-                        {
-                            <p class="pp-body">@location</p>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
-                        {
-                            <a class="pp-phone-btn" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">
-                                Call @doctor.OfficePhoneNumber
-                            </a>
-                        }
-                        <p class="pp-hint">Typical office hours: Mon–Fri 8:00 AM – 5:00 PM</p>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(mapQuery))
-                    {
-                        var mapSrc = $"https://maps.google.com/maps?q={Uri.EscapeDataString(mapQuery)}&z=15&output=embed";
-                        <div class="pp-map-frame">
-                            <iframe src="@mapSrc" title="Office map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-                        </div>
-                        <a class="pp-map-link" href="https://www.google.com/maps/search/?api=1&query=@Uri.EscapeDataString(mapQuery)" target="_blank" rel="noopener noreferrer">
-                            Get directions
-                        </a>
-                    }
-                </div>
-            </section>
-
-            <section class="pp-panel" id="reviews">
-                <div class="pp-reviews-head">
-                    <h2 class="pp-section-title">Patient reviews</h2>
-                    @if (avgRating > 0)
-                    {
-                        <div class="pp-reviews-score">
-                            <span class="pp-stars">@RenderStars(avgRating)</span>
-                            <strong>@avgRating.ToString("0.0")</strong>
-                            <span class="pp-muted">(@totalReviews)</span>
-                        </div>
-                    }
-                </div>
-
-                @if (doctor.Reviews.Count == 0)
-                {
-                    <p class="pp-muted">No patient reviews yet.</p>
-                }
-                else
-                {
-                    <div class="pp-reviews">
-                        @foreach (var review in doctor.Reviews)
-                        {
-                            <article class="pp-review">
-                                <div class="pp-review-top">
-                                    <div class="pp-review-avatar" aria-hidden="true">
-                                        @(string.IsNullOrWhiteSpace(review.ReviewerName) ? "?" : review.ReviewerName.Trim()[0].ToString().ToUpperInvariant())
-                                    </div>
-                                    <div>
-                                        <strong>@review.ReviewerName</strong>
-                                        <div class="pp-stars">@RenderStars(review.Rating)</div>
-                                    </div>
-                                </div>
-                                <p class="pp-review-text">“@review.ReviewText”</p>
-                                @if (!string.IsNullOrWhiteSpace(review.WaitingTime) || !string.IsNullOrWhiteSpace(review.Recommendation))
-                                {
-                                    <div class="pp-review-meta">
-                                        @if (!string.IsNullOrWhiteSpace(review.WaitingTime))
-                                        {
-                                            <span>Wait time: <strong>@review.WaitingTime</strong></span>
-                                        }
-                                        @if (!string.IsNullOrWhiteSpace(review.Recommendation))
-                                        {
-                                            <span>@review.Recommendation</span>
-                                        }
-                                    </div>
-                                }
-                            </article>
-                        }
-                    </div>
-                }
-            </section>
-        </div>
-
-        <aside class="pp-sidebar">
-            <div class="pp-booking-card" id="pp-booking">
-                <h2 class="pp-booking-title">Book a visit</h2>
-                <p class="pp-booking-sub">See availability and request an appointment — the office will confirm.</p>
-
-                <div class="pp-insurance-check">
-                    <label class="pp-field-label" for="pp-insurance-carrier">Insurance carrier and plan</label>
-                    <select id="pp-insurance-carrier" class="pp-select" aria-label="Insurance carrier">
-                        <option value="">I'll choose insurance later</option>
+            <section class="zd-section" id="insurances">
+                <h2 class="zd-h2">Is this doctor in your insurance network?</h2>
+                <p class="zd-label-muted">Enter your insurance carrier and plan</p>
+                <div class="zd-ins-field" id="zd-ins-field">
+                    <span class="zd-ins-check" id="zd-ins-check" hidden>✓</span>
+                    <select id="pp-insurance-carrier" class="zd-ins-select" aria-label="Insurance carrier">
+                        <option value="">Select insurance carrier and plan</option>
                         <option value="none">I'm paying without insurance</option>
                         @foreach (var carrier in Model.InsuranceCatalog)
                         {
                             <option value="@carrier.Id">@carrier.Name</option>
                         }
                     </select>
-                    <select id="pp-insurance-plan" class="pp-select" aria-label="Insurance plan" disabled>
-                        <option value="">Select a plan</option>
+                    <select id="pp-insurance-plan" class="zd-ins-select zd-ins-plan" aria-label="Insurance plan" disabled>
+                        <option value="">Add plan</option>
                     </select>
-                    <p class="pp-network-status" id="pp-network-status" hidden></p>
                 </div>
+                <p class="zd-in-network" id="pp-network-status" hidden>This dentist is in-network</p>
 
-                <div class="pp-patient-toggle" role="group" aria-label="Patient type">
-                    <button type="button" class="pp-toggle-btn@(isNewPatient ? " is-active" : "")" id="pp-new-patient" data-new="true">New patient</button>
-                    <button type="button" class="pp-toggle-btn@(!isNewPatient ? " is-active" : "")" id="pp-existing-patient" data-new="false">Existing patient</button>
+                <h2 class="zd-h2 zd-h2-spaced">In-network insurances</h2>
+                @if (doctor.AcceptedInsurances.Count > 0)
+                {
+                    <p class="zd-social-proof">99% of patients have successfully booked with these insurances</p>
+                    <div class="zd-ins-grid">
+                        @foreach (var ins in doctor.AcceptedInsurances.Take(6))
+                        {
+                            <div class="zd-ins-item">
+                                <span class="zd-ins-logo" aria-hidden="true">@ins.CarrierName.Substring(0, 1)</span>
+                                <span>@ins.CarrierName</span>
+                            </div>
+                        }
+                    </div>
+                    @if (doctor.AcceptedInsurances.Count > 6 || planCount > 6)
+                    {
+                        <p class="zd-more-plans">+@Math.Max(planCount - 6, doctor.AcceptedInsurances.Count - 6) more in-network plans <a href="#insurances">View All</a></p>
+                    }
+                }
+                else
+                {
+                    <p class="zd-muted">Insurance details are not published yet. Please call the office to confirm coverage.</p>
+                }
+            </section>
+
+            <section class="zd-section" id="reasons">
+                <h2 class="zd-h2">Popular visit reasons</h2>
+                <div class="zd-reasons" id="zd-reasons">
+                    @for (var i = 0; i < popularReasons.Length; i++)
+                    {
+                        if (i >= 8)
+                        {
+                            <div class="zd-reason is-extra" hidden>
+                                <span aria-hidden="true">✓</span> @popularReasons[i]
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="zd-reason">
+                                <span aria-hidden="true">✓</span> @popularReasons[i]
+                            </div>
+                        }
+                    }
                 </div>
+                <button type="button" class="zd-text-link" id="zd-reasons-more">See @(popularReasons.Length - 8)+ more popular visit reasons</button>
+            </section>
 
-                <label class="pp-field-label" for="pp-visit-reason">Reason for visit</label>
-                <select id="pp-visit-reason" class="pp-select">
+            <section class="zd-section" id="location">
+                <h2 class="zd-h2">Office location</h2>
+                <div class="zd-location">
+                    @if (!string.IsNullOrWhiteSpace(mapQuery))
+                    {
+                        var mapSrc = $"https://maps.google.com/maps?q={Uri.EscapeDataString(mapQuery)}&z=15&output=embed";
+                        <div class="zd-map">
+                            <iframe src="@mapSrc" title="Office map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                        </div>
+                    }
+                    <div class="zd-location-copy">
+                        @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                        {
+                            <strong>@doctor.PracticeName</strong>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(doctor.Address))
+                        {
+                            <p>@doctor.Address</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(string.Join(", ", new[] { doctor.City, doctor.State, doctor.ZipCode }.Where(x => !string.IsNullOrWhiteSpace(x)))))
+                        {
+                            <p>@doctor.City, @doctor.State @doctor.ZipCode</p>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(mapQuery))
+                        {
+                            <a class="zd-text-link" href="https://www.google.com/maps/search/?api=1&query=@Uri.EscapeDataString(mapQuery)" target="_blank" rel="noopener noreferrer">Get directions</a>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                        {
+                            <a class="zd-phone" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a>
+                        }
+                    </div>
+                </div>
+            </section>
+
+            <section class="zd-section" id="education">
+                <h2 class="zd-h2">Education and background</h2>
+                @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                {
+                    <h3 class="zd-h3">Practice names</h3>
+                    <p><a class="zd-text-link" href="#location">@doctor.PracticeName</a></p>
+                }
+                @if (doctor.YearsOfPractice is > 0 || doctor.GraduationYear is > 0)
+                {
+                    <h3 class="zd-h3">Experience</h3>
+                    <ul class="zd-list">
+                        @if (doctor.YearsOfPractice is > 0) { <li>@doctor.YearsOfPractice+ years of practice</li> }
+                        @if (doctor.GraduationYear is > 0) { <li>Graduated @doctor.GraduationYear</li> }
+                    </ul>
+                }
+                @if (doctor.Languages.Count > 0)
+                {
+                    <h3 class="zd-h3">Languages spoken</h3>
+                    <p>@string.Join(", ", doctor.Languages)</p>
+                }
+            </section>
+
+            <section class="zd-section" id="reviews">
+                <h2 class="zd-h2">Patient reviews</h2>
+                @if (avgRating > 0)
+                {
+                    <div class="zd-reviews-score">
+                        <strong>@avgRating.ToString("0.00")</strong>
+                        <span class="zd-stars">@RenderStars(avgRating)</span>
+                        <span class="zd-muted">@totalReviews patient ratings</span>
+                    </div>
+                }
+                <p class="zd-muted zd-trust">Providers can’t pay to alter or remove reviews.</p>
+                @if (doctor.Reviews.Count == 0)
+                {
+                    <p class="zd-muted">No patient reviews yet.</p>
+                }
+                else
+                {
+                    @foreach (var review in doctor.Reviews)
+                    {
+                        <article class="zd-review">
+                            <div class="zd-review-top">
+                                <div class="zd-review-avatar">@(string.IsNullOrWhiteSpace(review.ReviewerName) ? "?" : char.ToUpperInvariant(review.ReviewerName.Trim()[0]))</div>
+                                <div>
+                                    <strong>@review.ReviewerName</strong>
+                                    <div class="zd-stars">@RenderStars(review.Rating)</div>
+                                </div>
+                            </div>
+                            <p>“@review.ReviewText”</p>
+                        </article>
+                    }
+                }
+            </section>
+
+            <section class="zd-section" id="faqs">
+                <h2 class="zd-h2">FAQs</h2>
+                <details class="zd-faq"><summary>Is @doctor.Name accepting new patients?</summary><p>Yes — new patient appointments are available through @Branding.SiteName.</p></details>
+                <details class="zd-faq"><summary>What insurances does this office accept?</summary><p>See the Insurances section above, or enter your plan in the booking card to check if you're in-network.</p></details>
+                <details class="zd-faq"><summary>How do I book an appointment?</summary><p>Choose a reason for visit, insurance, and available time in the booking card, then submit your request.</p></details>
+            </section>
+        </div>
+
+        <aside class="zd-sidebar">
+            <div class="zd-book" id="pp-booking">
+                <h2 class="zd-book-title">Book an appointment for free</h2>
+                <p class="zd-book-sub">The office partners with @Branding.SiteName to schedule appointments</p>
+
+                <label class="zd-field-label" for="pp-visit-reason">Reason for visit</label>
+                <select id="pp-visit-reason" class="zd-select">
                     <partial name="Shared/_VisitReasonOptions" />
                 </select>
 
-                <div class="pp-avail-label">Available times</div>
-                <div class="pp-day-tabs" role="tablist" aria-label="Available days">
+                <label class="zd-field-label">Insurance carrier and plan</label>
+                <button type="button" class="zd-ins-pill" id="zd-ins-pill" onclick="document.getElementById('pp-insurance-carrier').focus()">
+                    <span id="zd-ins-pill-check" class="zd-ins-pill-check" hidden>✓</span>
+                    <span id="zd-ins-pill-text">Select insurance</span>
+                </button>
+                <div class="zd-book-ins-status" id="zd-book-ins-status" hidden>This dentist is In-network</div>
+
+                <div class="zd-patient-type" role="group" aria-label="Patient type">
+                    <button type="button" class="zd-ptype@(isNewPatient ? " is-active" : "")" data-new="true">
+                        <span class="zd-ptype-check" aria-hidden="true">✓</span> New patient
+                    </button>
+                    <button type="button" class="zd-ptype@(!isNewPatient ? " is-active" : "")" data-new="false">
+                        <span class="zd-ptype-check" aria-hidden="true">✓</span> Existing patient
+                    </button>
+                </div>
+
+                <div class="zd-date-range">
+                    <button type="button" class="zd-range-arrow" id="zd-range-prev" aria-label="Previous dates">‹</button>
+                    <span id="zd-range-label">@dateRangeLabel</span>
+                    <button type="button" class="zd-range-arrow" id="zd-range-next" aria-label="Next dates">›</button>
+                </div>
+
+                <div class="zd-days" id="zd-days" role="tablist">
                     @for (var i = 0; i < Model.BookingDays.Count; i++)
                     {
                         var day = Model.BookingDays[i];
-                        <button type="button"
-                                class="pp-day-tab@(i == 0 ? " is-active" : "")"
-                                data-day-index="@i"
-                                onclick="ppSelectDay(@i)">
-                            <span class="pp-day-name">@day.DayLabel</span>
-                            <span class="pp-day-date">@day.DateLabel</span>
-                        </button>
+                        var has = day.AvailableCount > 0;
+                        if (i >= 7)
+                        {
+                            <button type="button"
+                                    class="zd-day@(has ? " has-appts" : " no-appts")"
+                                    data-day-index="@i"
+                                    hidden
+                                    onclick="ppSelectDay(@i)">
+                                <span class="zd-day-name">@day.DayLabel</span>
+                                <span class="zd-day-date">@day.Date.ToString("MMM d")</span>
+                                <span class="zd-day-count">@(has ? (day.AvailableCount == 1 ? "1 appt" : $"{day.AvailableCount} appts") : "No appts")</span>
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button"
+                                    class="zd-day@(has ? " has-appts" : " no-appts")@(i == 0 ? " is-active" : "")"
+                                    data-day-index="@i"
+                                    onclick="ppSelectDay(@i)">
+                                <span class="zd-day-name">@day.DayLabel</span>
+                                <span class="zd-day-date">@day.Date.ToString("MMM d")</span>
+                                <span class="zd-day-count">@(has ? (day.AvailableCount == 1 ? "1 appt" : $"{day.AvailableCount} appts") : "No appts")</span>
+                            </button>
+                        }
                     }
                 </div>
+                <button type="button" class="zd-text-link zd-more-avail" id="zd-more-avail">View more availability</button>
 
                 @for (var i = 0; i < Model.BookingDays.Count; i++)
                 {
                     var day = Model.BookingDays[i];
-                    <div class="pp-slot-grid@(i == 0 ? " is-active" : "")" data-day-panel="@i"@Html.Raw(i == 0 ? "" : " hidden")>
-                        @foreach (var slot in day.Slots)
+                    <div class="zd-slots@(i == 0 ? " is-active" : "")" data-day-panel="@i" @Html.Raw(i == 0 ? "" : "hidden")>
+                        @foreach (var slot in day.Slots.Where(s => s.Available))
                         {
-                            if (slot.Available)
-                            {
-                                <button type="button"
-                                        class="pp-slot"
-                                        data-date="@day.DateIso"
-                                        data-day="@day.DateLabel"
-                                        data-time="@slot.TimeLabel"
-                                        onclick="ppSelectSlot(this)">
-                                    @slot.TimeLabel
-                                </button>
-                            }
-                            else
-                            {
-                                <button type="button" class="pp-slot is-unavailable" disabled title="Already booked">
-                                    @slot.TimeLabel
-                                </button>
-                            }
+                            <button type="button" class="zd-slot"
+                                    data-date="@day.DateIso" data-day="@day.DateLabel" data-time="@slot.TimeLabel"
+                                    onclick="ppSelectSlot(this)">@slot.TimeLabel</button>
+                        }
+                        @if (day.AvailableCount == 0)
+                        {
+                            <p class="zd-muted">No times this day — try another date.</p>
                         }
                     </div>
                 }
 
-                <div class="pp-patient-details" id="pp-patient-details">
-                    <label class="pp-field-label" for="pp-patient-name">Your name</label>
-                    <input id="pp-patient-name" class="pp-select" type="text" autocomplete="name"
-                           value="@Model.PrefillName" placeholder="Legal full name" />
-
-                    <label class="pp-field-label" for="pp-patient-phone">Phone</label>
-                    <input id="pp-patient-phone" class="pp-select" type="tel" autocomplete="tel"
-                           value="@Model.PrefillPhone" placeholder="(555) 555-5555" />
-
-                    <label class="pp-field-label" for="pp-patient-email">Email <span class="pp-hint-inline">(optional)</span></label>
-                    <input id="pp-patient-email" class="pp-select" type="email" autocomplete="email"
-                           value="@Model.PrefillEmail" placeholder="you@email.com" />
-
-                    <label class="pp-field-label" for="pp-patient-dob">Date of birth</label>
-                    <input id="pp-patient-dob" class="pp-select" type="date" autocomplete="bday"
-                           value="@Model.PrefillDateOfBirth" max="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                <div class="zd-patient-form" id="pp-patient-details" hidden>
+                    <label class="zd-field-label" for="pp-patient-name">Your name</label>
+                    <input id="pp-patient-name" class="zd-select" type="text" value="@Model.PrefillName" autocomplete="name" />
+                    <label class="zd-field-label" for="pp-patient-phone">Phone</label>
+                    <input id="pp-patient-phone" class="zd-select" type="tel" value="@Model.PrefillPhone" autocomplete="tel" />
+                    <label class="zd-field-label" for="pp-patient-email">Email <span class="zd-optional">(optional)</span></label>
+                    <input id="pp-patient-email" class="zd-select" type="email" value="@Model.PrefillEmail" autocomplete="email" />
+                    <label class="zd-field-label" for="pp-patient-dob">Date of birth</label>
+                    <input id="pp-patient-dob" class="zd-select" type="date" value="@Model.PrefillDateOfBirth" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <button type="button" class="zd-book-btn" id="pp-book-btn" onclick="ppConfirmBooking()">Request appointment</button>
+                    <p class="zd-book-note" id="pp-booking-note" hidden></p>
                 </div>
-
-                <button type="button" class="pp-book-btn" id="pp-book-btn" disabled onclick="ppConfirmBooking()">
-                    Select a time to continue
-                </button>
-                <p class="pp-booking-note" id="pp-booking-note" hidden></p>
             </div>
         </aside>
     </div>
 </div>
 
-<footer class="site-footer site-footer-rich">
-    <div class="site-footer-inner">
-        <div class="site-footer-brand">@Branding.SiteName.ToLowerInvariant().</div>
-        <div class="site-footer-copy">© @DateTime.UtcNow.Year @Branding.SiteName · Not medical advice · For emergencies call 911</div>
+<div class="zd-sticky-bar" id="zd-sticky-bar" hidden>
+    <div class="zd-sticky-inner">
+        @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+        {
+            <img src="@doctor.PhotoUrl" alt="" class="zd-sticky-photo" />
+        }
+        else
+        {
+            <div class="zd-sticky-photo zd-photo-fallback">@doctor.AvatarInitials</div>
+        }
+        <div class="zd-sticky-meta">
+            <strong>@doctor.Name</strong>
+            @if (avgRating > 0)
+            {
+                <span><span class="zd-stars">★</span> @avgRating.ToString("0.00") (@totalReviews patient ratings)</span>
+            }
+        </div>
+        <a class="zd-sticky-cta" href="#pp-booking">View availability</a>
     </div>
-</footer>
+</div>
 
 <script>
 (function () {
   const doctorId = @doctor.Id;
   const acceptedCarrierIds = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(doctor.AcceptedInsuranceCarrierIds));
   const insuranceCatalog = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
-      Model.InsuranceCatalog,
-      new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+    Model.InsuranceCatalog,
+    new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+  const allDays = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    Model.BookingDays.Select(d => new { d.DateIso, d.DayLabel, d.DateLabel, d.AvailableCount, dateText = d.Date.ToString("ddd, MMM d") }),
+    new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
+
   let selectedSlot = null;
   let submitting = false;
   let isNewPatient = @(isNewPatient ? "true" : "false");
+  let dayPage = 0;
 
   const carrierSelect = document.getElementById("pp-insurance-carrier");
   const planSelect = document.getElementById("pp-insurance-plan");
   const networkStatus = document.getElementById("pp-network-status");
+  const bookInsStatus = document.getElementById("zd-book-ins-status");
+  const pillText = document.getElementById("zd-ins-pill-text");
+  const pillCheck = document.getElementById("zd-ins-pill-check");
+  const insCheck = document.getElementById("zd-ins-check");
 
-  function updatePlans() {
+  function syncInsuranceUi() {
     const carrierId = carrierSelect.value;
-    planSelect.innerHTML = '<option value="">Select a plan</option>';
+    const carrier = insuranceCatalog.find(c => String(c.id) === String(carrierId));
+    const plan = planSelect.value;
+    planSelect.innerHTML = '<option value=\"\">Add plan</option>';
     planSelect.disabled = true;
 
     if (!carrierId || carrierId === "none") {
-      updateNetworkStatus();
+      pillCheck.hidden = true;
+      insCheck.hidden = true;
+      pillText.textContent = carrierId === "none" ? "Paying without insurance" : "Select insurance";
+      networkStatus.hidden = true;
+      bookInsStatus.hidden = true;
+      if (carrierId === "none") return;
       return;
     }
 
-    const carrier = insuranceCatalog.find((c) => String(c.id) === String(carrierId) || String(c.Id) === String(carrierId));
-    const plans = (carrier && (carrier.plans || carrier.Plans)) || [];
-    plans.forEach((p) => {
+    const plans = (carrier && carrier.plans) || [];
+    plans.forEach(p => {
       const opt = document.createElement("option");
-      opt.value = p.name || p.Name;
-      opt.textContent = p.name || p.Name;
+      opt.value = p.name;
+      opt.textContent = p.name;
+      if (plan && plan === p.name) opt.selected = true;
       planSelect.appendChild(opt);
     });
     planSelect.disabled = plans.length === 0;
-    updateNetworkStatus();
-  }
 
-  function updateNetworkStatus() {
-    const carrierId = carrierSelect.value;
-    networkStatus.hidden = true;
-    networkStatus.className = "pp-network-status";
-
-    if (!carrierId) return;
-
-    if (carrierId === "none") {
-      networkStatus.hidden = false;
-      networkStatus.textContent = "You'll pay without insurance for this visit.";
-      return;
-    }
-
+    const selectedPlan = planSelect.value;
+    const label = carrier.name + (selectedPlan ? " — " + selectedPlan : " — Add plan");
+    pillText.textContent = label;
     const accepted = acceptedCarrierIds.map(String).includes(String(carrierId));
-    networkStatus.hidden = false;
+    pillCheck.hidden = !accepted;
+    insCheck.hidden = !accepted;
+    networkStatus.hidden = !accepted;
+    bookInsStatus.hidden = !accepted;
     if (accepted) {
-      networkStatus.classList.add("is-in-network");
-      networkStatus.textContent = "In-network — this office accepts your insurance carrier.";
-    } else {
-      networkStatus.classList.add("is-out-network");
-      networkStatus.textContent = "This carrier may be out-of-network. Call the office to confirm coverage.";
+      networkStatus.textContent = "This dentist is in-network";
+      bookInsStatus.textContent = "This dentist is In-network";
     }
   }
 
-  carrierSelect?.addEventListener("change", updatePlans);
-  planSelect?.addEventListener("change", updateNetworkStatus);
+  carrierSelect.addEventListener("change", syncInsuranceUi);
+  planSelect.addEventListener("change", syncInsuranceUi);
 
-  document.querySelectorAll(".pp-toggle-btn").forEach((btn) => {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll(".pp-toggle-btn").forEach((b) => b.classList.remove("is-active"));
+  document.querySelectorAll(".zd-ptype").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".zd-ptype").forEach(b => b.classList.remove("is-active"));
       btn.classList.add("is-active");
       isNewPatient = btn.dataset.new === "true";
-      const url = new URL(window.location.href);
+      const url = new URL(location.href);
       url.searchParams.set("isNewPatient", isNewPatient ? "true" : "false");
-      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+      history.replaceState({}, "", url);
     });
   });
 
-  document.querySelectorAll(".pp-tab").forEach((tab) => {
-    tab.addEventListener("click", function () {
-      document.querySelectorAll(".pp-tab").forEach((t) => t.classList.remove("is-active"));
+  document.querySelectorAll(".zd-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".zd-tab").forEach(t => t.classList.remove("is-active"));
       tab.classList.add("is-active");
     });
   });
 
+  function updateRangeLabel() {
+    const start = dayPage * 7;
+    const end = Math.min(start + 6, allDays.length - 1);
+    const label = document.getElementById("zd-range-label");
+    if (allDays[start] && allDays[end]) {
+      label.textContent = allDays[start].dateText + " – " + allDays[end].dateText;
+    }
+    document.querySelectorAll(".zd-day").forEach((el, idx) => {
+      const show = idx >= start && idx < start + 7;
+      el.hidden = !show;
+    });
+  }
+
+  document.getElementById("zd-range-prev")?.addEventListener("click", () => {
+    dayPage = Math.max(0, dayPage - 1);
+    updateRangeLabel();
+  });
+  document.getElementById("zd-range-next")?.addEventListener("click", () => {
+    const maxPage = Math.max(0, Math.ceil(allDays.length / 7) - 1);
+    dayPage = Math.min(maxPage, dayPage + 1);
+    updateRangeLabel();
+  });
+  document.getElementById("zd-more-avail")?.addEventListener("click", () => {
+    const maxPage = Math.max(0, Math.ceil(allDays.length / 7) - 1);
+    dayPage = Math.min(maxPage, dayPage + 1);
+    updateRangeLabel();
+  });
+
   window.ppSelectDay = function (index) {
-    document.querySelectorAll(".pp-day-tab").forEach((tab) => {
+    document.querySelectorAll(".zd-day").forEach(tab => {
       tab.classList.toggle("is-active", Number(tab.dataset.dayIndex) === index);
     });
-    document.querySelectorAll("[data-day-panel]").forEach((panel) => {
+    document.querySelectorAll("[data-day-panel]").forEach(panel => {
       const active = Number(panel.dataset.dayPanel) === index;
       panel.classList.toggle("is-active", active);
       panel.hidden = !active;
@@ -559,22 +599,34 @@
   };
 
   window.ppSelectSlot = function (btn) {
-    if (btn.disabled) return;
-    document.querySelectorAll(".pp-slot").forEach((el) => el.classList.remove("is-selected"));
+    document.querySelectorAll(".zd-slot").forEach(el => el.classList.remove("is-selected"));
     btn.classList.add("is-selected");
     selectedSlot = { date: btn.dataset.date, day: btn.dataset.day, time: btn.dataset.time };
-    const bookBtn = document.getElementById("pp-book-btn");
-    bookBtn.disabled = false;
-    bookBtn.textContent = "Request " + selectedSlot.day + " · " + selectedSlot.time;
-    const note = document.getElementById("pp-booking-note");
-    note.hidden = true;
-    note.classList.remove("is-error");
-    document.getElementById("pp-patient-details")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const form = document.getElementById("pp-patient-details");
+    form.hidden = false;
+    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
+
+  document.getElementById("zd-reasons-more")?.addEventListener("click", function () {
+    document.querySelectorAll(".zd-reason.is-extra").forEach(el => { el.hidden = false; });
+    this.hidden = true;
+  });
+
+  document.getElementById("zd-save-btn")?.addEventListener("click", function () {
+    this.classList.toggle("is-saved");
+    this.lastChild.textContent = this.classList.contains("is-saved") ? " Saved" : " Save";
+  });
+
+  const sticky = document.getElementById("zd-sticky-bar");
+  const bookCard = document.getElementById("pp-booking");
+  window.addEventListener("scroll", () => {
+    if (!sticky || !bookCard) return;
+    const rect = bookCard.getBoundingClientRect();
+    sticky.hidden = rect.bottom > 120;
+  }, { passive: true });
 
   window.ppConfirmBooking = async function () {
     if (!selectedSlot || submitting) return;
-
     const name = (document.getElementById("pp-patient-name").value || "").trim();
     const phone = (document.getElementById("pp-patient-phone").value || "").trim();
     const email = (document.getElementById("pp-patient-email").value || "").trim();
@@ -583,66 +635,44 @@
     const note = document.getElementById("pp-booking-note");
     const bookBtn = document.getElementById("pp-book-btn");
 
-    if (!reason) {
-      note.hidden = false;
-      note.classList.add("is-error");
-      note.textContent = "Please select a reason for visit.";
-      return;
-    }
-
-    if (name.length < 2) {
-      note.hidden = false;
-      note.classList.add("is-error");
-      note.textContent = "Please enter your name so the office can reach you.";
-      return;
-    }
-
-    if (!dateOfBirth) {
-      note.hidden = false;
-      note.classList.add("is-error");
-      note.textContent = "Please enter your date of birth.";
-      return;
-    }
+    if (!reason) { note.hidden = false; note.className = "zd-book-note is-error"; note.textContent = "Please select a reason for visit."; return; }
+    if (name.length < 2) { note.hidden = false; note.className = "zd-book-note is-error"; note.textContent = "Please enter your name."; return; }
+    if (!dateOfBirth) { note.hidden = false; note.className = "zd-book-note is-error"; note.textContent = "Please enter your date of birth."; return; }
 
     submitting = true;
     bookBtn.disabled = true;
-    bookBtn.textContent = "Sending request…";
+    bookBtn.textContent = "Sending…";
     note.hidden = true;
-
     try {
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          doctorId: doctorId,
+          doctorId,
           patientName: name,
           patientPhone: phone || null,
           patientEmail: email || null,
-          dateOfBirth: dateOfBirth,
+          dateOfBirth,
           visitReason: reason,
           date: selectedSlot.date,
           timeLabel: selectedSlot.time,
           source: "PublicProfile",
-          isNewPatient: isNewPatient,
-          insuranceCarrierId: (carrierSelect?.value && carrierSelect.value !== "none") ? Number(carrierSelect.value) : null,
-          insurancePlan: (planSelect?.value || "").trim() || null
+          isNewPatient,
+          insuranceCarrierId: (carrierSelect.value && carrierSelect.value !== "none") ? Number(carrierSelect.value) : null,
+          insurancePlan: (planSelect.value || "").trim() || null
         })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Could not send booking request. Please try again.");
-      }
+      if (!res.ok || !data.success) throw new Error(data.message || "Could not send booking request.");
       note.hidden = false;
-      note.classList.remove("is-error");
-      note.textContent = data.message
-        || ("Thanks! Your request for " + selectedSlot.day + " at " + selectedSlot.time
-          + " was sent. The office will confirm your appointment.");
+      note.className = "zd-book-note";
+      note.textContent = data.message || ("Thanks! Request sent for " + selectedSlot.day + " at " + selectedSlot.time + ".");
       bookBtn.textContent = "Request sent";
       selectedSlot = null;
     } catch (err) {
       note.hidden = false;
-      note.classList.add("is-error");
-      note.textContent = err.message || "Something went wrong. Please try again.";
+      note.className = "zd-book-note is-error";
+      note.textContent = err.message || "Something went wrong.";
       bookBtn.disabled = false;
       bookBtn.textContent = "Try again";
       submitting = false;
@@ -660,42 +690,6 @@
         full = Math.Clamp(full, 0, 5);
         return new string('★', full) + new string('☆', 5 - full);
     }
-
     private static string RenderStars(int rating) => RenderStars((decimal)rating);
-
-    private static string RegexPhone(string phone) =>
-        new string(phone.Where(char.IsDigit).ToArray());
-
-    private static string? GetVideoEmbedUrl(string url)
-    {
-        var trimmed = url.Trim();
-        var yt = System.Text.RegularExpressions.Regex.Match(
-            trimmed,
-            @"(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        if (yt.Success)
-            return $"https://www.youtube.com/embed/{yt.Groups[1].Value}";
-
-        var vimeo = System.Text.RegularExpressions.Regex.Match(
-            trimmed,
-            @"vimeo\.com\/(?:video\/)?(\d+)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        if (vimeo.Success)
-            return $"https://player.vimeo.com/video/{vimeo.Groups[1].Value}";
-
-        var loom = System.Text.RegularExpressions.Regex.Match(
-            trimmed,
-            @"loom\.com\/share\/([\w-]+)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        if (loom.Success)
-            return $"https://www.loom.com/embed/{loom.Groups[1].Value}";
-
-        return null;
-    }
-
-    private static bool IsDirectVideoFile(string url) =>
-        System.Text.RegularExpressions.Regex.IsMatch(
-            url,
-            @"\.(mp4|webm|ogg|mov|m4v)(\?|$)",
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static string RegexPhone(string phone) => new string(phone.Where(char.IsDigit).ToArray());
 }

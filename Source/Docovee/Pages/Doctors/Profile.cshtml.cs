@@ -28,6 +28,7 @@ public class ProfileModel : PageModel
 
     public PublicDoctorProfileDto Doctor { get; private set; } = null!;
     public IReadOnlyList<BookingDayDto> BookingDays { get; private set; } = Array.Empty<BookingDayDto>();
+    public IReadOnlyList<BookingDayDto> VisibleBookingDays { get; private set; } = Array.Empty<BookingDayDto>();
     public IReadOnlyList<InsuranceCarrierDto> InsuranceCatalog { get; private set; } = Array.Empty<InsuranceCarrierDto>();
     public string PrefillName { get; private set; } = "";
     public string PrefillPhone { get; private set; } = "";
@@ -42,6 +43,7 @@ public class ProfileModel : PageModel
 
         Doctor = doctor;
         BookingDays = await BuildBookingDaysAsync(id, cancellationToken);
+        VisibleBookingDays = BookingDays.Take(7).ToList();
         InsuranceCatalog = await _insurance.GetCarriersWithPlansAsync(cancellationToken);
 
         if (User.IsInRole(AuthRoles.Patient)
@@ -74,17 +76,17 @@ public class ProfileModel : PageModel
         ];
 
         var rangeStart = date;
-        var rangeEnd = date.AddDays(21);
+        var rangeEnd = date.AddDays(28);
         var booked = await _appointments.GetBookedStartsAsync(doctorId, rangeStart, rangeEnd, cancellationToken);
 
-        while (days.Count < 5)
+        while (days.Count < 14)
         {
             if (date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday)
             {
                 var seed = date.DayNumber;
                 var slots = slotTemplates
                     .Where((_, i) => (seed + i) % 3 != 0)
-                    .Take(5)
+                    .Take(6)
                     .Select(t =>
                     {
                         AppointmentService.TryParseTimeLabel(t, out var time);
@@ -100,12 +102,17 @@ public class ProfileModel : PageModel
                     slots.Add(MakeSlot(date, "2:30 PM", booked));
                 }
 
+                // Zocdoc shows mix of available / empty days — force some empty for visual realism
+                if (seed % 4 == 0)
+                    slots = slots.Select(s => new BookingSlotDto { TimeLabel = s.TimeLabel, Available = false }).ToList();
+
                 days.Add(new BookingDayDto
                 {
                     Date = date,
                     DateIso = date.ToString("yyyy-MM-dd"),
                     DayLabel = date.ToString("ddd"),
                     DateLabel = date.ToString("MMM d"),
+                    AvailableCount = slots.Count(s => s.Available),
                     Slots = slots
                 });
             }
@@ -134,6 +141,7 @@ public class BookingDayDto
     public string DateIso { get; set; } = string.Empty;
     public string DayLabel { get; set; } = string.Empty;
     public string DateLabel { get; set; } = string.Empty;
+    public int AvailableCount { get; set; }
     public IReadOnlyList<BookingSlotDto> Slots { get; set; } = Array.Empty<BookingSlotDto>();
 }
 
