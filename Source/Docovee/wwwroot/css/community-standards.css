@@ -1,0 +1,267 @@
+/* Community standards — public legal page */
+
+.cs-page {
+  margin: 0;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cs-hero {
+  background: #f7f4ef;
+}
+
+.cs-hero-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 28px 32px 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 420px);
+  gap: 24px;
+  align-items: end;
+}
+
+.cs-back {
+  display: inline-block;
+  margin-bottom: 18px;
+  font-size: 14px;
+  color: #5a5a5a;
+  text-decoration: none;
+}
+
+.cs-back:hover {
+  color: #111;
+  text-decoration: underline;
+}
+
+.cs-hero-copy h1 {
+  margin: 0 0 24px;
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.cs-hero-art {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cs-hero-art img {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  display: block;
+}
+
+.cs-main {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 40px 0 64px;
+}
+
+.cs-block {
+  position: relative;
+  display: grid;
+  grid-template-columns: 50% 50%;
+  gap: 0;
+  margin-bottom: 64px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.cs-side {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.cs-side-label {
+  position: sticky;
+  top: 32px;
+  margin: 0;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #1a1a1a;
+  box-sizing: border-box;
+}
+
+.cs-content {
+  min-width: 0;
+  padding: 0 clamp(24px, 4vw, 48px) 0 24px;
+  box-sizing: border-box;
+}
+
+.cs-intro {
+  margin: 0 0 28px;
+  text-align: left;
+}
+
+.cs-intro p {
+  margin: 0 0 16px;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.cs-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.cs-accordions {
+  min-width: 0;
+}
+
+.cs-item {
+  border-top: 1px solid #e4e4e4;
+}
+
+.cs-item:last-child {
+  border-bottom: 1px solid #e4e4e4;
+}
+
+.cs-item summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 4px;
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.cs-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.cs-icon {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cfcfcf;
+  border-radius: 6px;
+  background: #fff;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.cs-icon::before,
+.cs-icon::after {
+  content: "";
+  position: absolute;
+  background: #222;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.cs-icon::before {
+  width: 12px;
+  height: 2px;
+}
+
+.cs-icon::after {
+  width: 2px;
+  height: 12px;
+}
+
+.cs-item[open] > summary .cs-icon::after {
+  display: none;
+}
+
+.cs-body {
+  padding: 0 4px 22px;
+}
+
+.cs-body ul {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.cs-body li {
+  margin-bottom: 10px;
+  font-size: 16px;
+  line-height: 1.55;
+  color: #333;
+}
+
+.cs-body a {
+  color: #1557d6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cs-closing {
+  margin: 16px 0 0;
+  font-size: 16px;
+  line-height: 1.55;
+  color: #333;
+}
+
+.cs-footer {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 32px 36px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid #ececec;
+  font-size: 14px;
+  color: #777;
+}
+
+.cs-footer a {
+  color: #1557d6;
+  text-decoration: none;
+}
+
+.cs-footer a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 800px) {
+  .cs-hero-inner {
+    grid-template-columns: 1fr;
+    padding: 24px 20px 0;
+  }
+
+  .cs-hero-art {
+    justify-content: center;
+  }
+
+  .cs-hero-art img {
+    max-width: 300px;
+  }
+
+  .cs-main {
+    padding: 28px 0 48px;
+  }
+
+  .cs-block {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-bottom: 40px;
+  }
+
+  .cs-side-label {
+    position: static;
+    text-align: left;
+    padding: 0 20px;
+  }
+
+  .cs-content {
+    padding: 0 20px;
+  }
+
+  .cs-footer {
+    padding: 16px 20px 28px;
+    flex-direction: column;
+  }
+}

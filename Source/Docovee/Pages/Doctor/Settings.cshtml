@@ -9,14 +9,14 @@
 <div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" || Model.Section == "working-hours" ? " dp-content-practice" : "")">
     @if (Model.Section != "practice" && Model.Section != "visit-reasons" && Model.Section != "working-hours")
     {
-        <div class="dp-page-head@(Model.Section == "locations" || Model.Section == "insurance" ? " dp-locations-head" : "")">
+        <div class="dp-page-head@(Model.Section == "locations" || Model.Section == "insurance" || Model.Section == "legal" ? " dp-locations-head" : "")">
             <div>
                 <h1>@Model.SectionTitle</h1>
                 @if (Model.Section == "insurance")
                 {
                     <p class="dp-page-sub">Manage the insurances your practice is in-network with. Click on a carrier to view and make edits.</p>
                 }
-                else if (Model.Section != "locations")
+                else if (Model.Section != "locations" && Model.Section != "legal")
                 {
                     <p class="dp-page-sub">Manage your practice settings on @Branding.SiteName.</p>
                 }
@@ -858,11 +858,12 @@
     }
     else if (Model.Section == "legal")
     {
-        <div class="dp-card">
-            <p class="dp-page-sub" style="margin-top:0;">Agreements and legal documents for your practice listing.</p>
-            <ul class="dp-settings-list">
-                <li><a href="/Privacy">Privacy Policy</a></li>
-                <li>Terms of Service <span class="dp-muted">(coming soon)</span></li>
+        <div class="dp-legal">
+            <ul class="dp-legal-links">
+                <li><a href="/legal/User%20Agreement.pdf" download="User Agreement.pdf">User agreement</a></li>
+                <li><a href="/legal/Advertising%20Addendum.pdf" download="Advertising Addendum.pdf">Advertising addendum</a></li>
+                <li><a href="/Legal/CommunityStandards">@Branding.SiteName community standards</a></li>
+                <li><a href="/Privacy">Privacy policy</a></li>
             </ul>
         </div>
     }

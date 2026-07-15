@@ -1,0 +1,198 @@
+@page "/Legal/CommunityStandards"
+@{
+    Layout = null;
+    ViewData["Title"] = $"{Branding.SiteName}'s community standards";
+    var site = Branding.SiteName;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/community-standards.css" asp-append-version="true" />
+</head>
+<body class="cs-page">
+    <header class="cs-hero">
+        <div class="cs-hero-inner">
+            <div class="cs-hero-copy">
+                <a class="cs-back" href="/Doctor/Settings/legal">← Legal</a>
+                <h1>@site's<br />community<br />standards</h1>
+            </div>
+            <div class="cs-hero-art">
+                <img src="~/images/community-standards.svg" alt="" width="543" height="380" />
+            </div>
+        </div>
+    </header>
+
+    <main class="cs-main">
+        <section class="cs-block">
+            <div class="cs-side">
+                <h2 class="cs-side-label">For Patients</h2>
+            </div>
+            <div class="cs-content">
+                <div class="cs-intro">
+                    <p>
+                        @site’s mission is to give power to the patient, and our company’s No. 1 core value is “Patients First.” Our steadfast commitment to empowering patients guides how we orient our platform, our search results, and our business structure. In fact, that’s why booking through @site is free for patients. You should never have to pay fees — from @site or any of our participating providers — for finding and booking appointments with health care providers. @site will also never ask you for credit card or payment information over the phone or via email.
+                    </p>
+                    <p>
+                        We expect all @site users to be respectful of our service, the providers who participate, and other patients who are seeking care. To that end, the guidelines below outline our expectations for @site users’ behavior. Consistent with our Terms of Service, violation of these guidelines may be grounds for suspension or termination from @site’s platform.
+                    </p>
+                </div>
+                <div class="cs-accordions">
+                    <details class="cs-item">
+                        <summary>
+                            <span>Safety</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Always treat others with respect and follow all applicable laws.</li>
+                                <li>Never bully, harass, use profanity, threaten, intimidate, or inflict harm on providers, their office staff and administrators, or @site representatives.</li>
+                                <li>Never discriminate against, or use inappropriate, disparaging, derogatory, discriminatory, or racist/bigoted speech towards providers, their office staff and administrators, or @site representatives.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="cs-item">
+                        <summary>
+                            <span>Accuracy</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Always input accurate, complete and up-to-date information, including your in-network insurance plan, when completing pre-appointment paperwork from @site or your provider, etc.</li>
+                                <li>Only book appointments you plan to attend to respect both the provider’s time and other patients seeking care.</li>
+                                <li>Submit honest, fair and accurate reviews that adhere to our guidelines.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="cs-item">
+                        <summary>
+                            <span>@site User Obligations</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Make every effort to uphold your confirmed appointments; those are slots that will not be available to other patients seeking care.</li>
+                                <li>If your ability to attend your appointment changes, you are responsible for contacting your provider with as much advance notice as possible. Last-minute changes are very disruptive to providers and their staff and limit their ability to see other patients in need of care at that time.</li>
+                                <li>If you ‘no-show’, reschedule, or cancel appointments at a high volume, we reserve the right to limit or terminate your use of @site’s service.</li>
+                                <li>Arrive to your appointment on time. If for some reason you are unable to do so, reach out to the provider’s office to notify them, and understand that they reserve the right to reschedule the appointment.</li>
+                                <li>If @site or a participating provider suspects a patient is displaying unlawful drug-seeking behavior, we reserve the right to suspend or terminate that user’s use of @site’s service.</li>
+                            </ul>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </section>
+
+        <section class="cs-block">
+            <div class="cs-side">
+                <h2 class="cs-side-label">For Providers</h2>
+            </div>
+            <div class="cs-content">
+                <div class="cs-intro">
+                    <p>
+                        While @site exists to empower patients, we also recognize that delivering an exceptional patient experience requires a strong and trusting partnership with the providers that participate in our Marketplace.
+                    </p>
+                    <p>
+                        The guidelines below serve as a provider code of conduct that outline our expectations for participating providers’ behavior. Consistent with the @site User Agreement, violation of this code of conduct may be grounds for suspension or termination from @site’s platform.
+                    </p>
+                </div>
+                <div class="cs-accordions">
+                    <details class="cs-item">
+                        <summary>
+                            <span>Safety</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Always treat others with respect and follow all applicable laws.</li>
+                                <li>Never bully, harass, use profanity, threaten, intimidate, or inflict harm on @site users or representatives.</li>
+                                <li>Never discriminate against, or use inappropriate, disparaging, derogatory, discriminatory, or racist/bigoted speech towards @site users or representatives.</li>
+                                <li>Never take any unlawful or unethical actions against patients for posting reviews (critical, negative, or otherwise), or for any other reason.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="cs-item">
+                        <summary>
+                            <span>Professional Obligations</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Follow all applicable professional rules and ethical guidelines (including but not limited to the AMA’s Principles of Medical Ethics).</li>
+                                <li>Safeguard patient data, and adhere to HIPAA and other applicable guidelines in the use, maintenance, storage or disclosure of an individual’s health information.</li>
+                                <li>Always maintain a valid, up-to-date, and unrestricted license in all jurisdictions in which you practice and as necessary for @site to display your specialties.</li>
+                                <li>Your first priority should always be the best interest of the patient; you should separate your financial interests from the treatment(s) you recommend or provide.</li>
+                                <li>Never facilitate or enable any unlawful drug-seeking behavior.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="cs-item">
+                        <summary>
+                            <span>Accuracy</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Immediately notify @site should there be any changes in the status of your license or your ability to practice.</li>
+                                <li>When a @site user books with a specific provider, ensure that the user sees the provider they selected.</li>
+                                <li>@site users expect providers to honor their selected appointment times, venues and locations as confirmed at the time of booking. As such, make every effort to maintain accurate and up-to-date appointment availability and physical location information.</li>
+                                <li>Make every effort to honor and uphold @site users’ scheduled appointment times, and prevent canceling or rescheduling.</li>
+                                <li>Maintain accurate @site appointment records; this includes confirming appointments in a timely manner, marking cancellations and reschedules accurately, reporting patient no-shows, etc.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="cs-item">
+                        <summary>
+                            <span>Fraud</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Never charge fees that only pertain to @site users or pass any part of your @site fees on to @site users (e.g. do not institute a @site booking fee or charge a cancellation or no-show fee only to @site users).</li>
+                                <li>Never directly or indirectly discourage or prevent @site users from using the @site platform as they intend. Never direct, instruct, or encourage @site users to divert their bookings from the @site platform (e.g. do not list your contact info or website in your professional statement, or otherwise encourage @site users to book offsite).</li>
+                                <li>Never direct, instruct, or encourage @site users to take actions intended to avoid incurring @site fees (e.g. do not encourage @site users to cancel their @site bookings, or instruct @site users to incorrectly mark themselves as an existing patient).</li>
+                                <li>Always pay for services rendered (e.g. never fraudulently dispute or refuse payment for new patient bookings generated through @site’s marketplace).</li>
+                                <li>Never direct or instruct @site users to do anything that would violate @site’s Terms of Use and Acceptable Use Policy, including submitting false information.</li>
+                                <li>Never relay inaccurate, misleading or defamatory information about @site’s service, policies or procedures to our users or anyone else; never present yourself as a representative of @site.</li>
+                                <li>Never use @site’s trademark, logo, or intellectual property without our prior consent.</li>
+                            </ul>
+                        </div>
+                    </details>
+
+                    <details class="cs-item">
+                        <summary>
+                            <span>Content</span>
+                            <span class="cs-icon" aria-hidden="true"></span>
+                        </summary>
+                        <div class="cs-body">
+                            <ul>
+                                <li>Never request or accept reviews from someone with a conflict of interest. This includes, for example, current or former employees, competitors or peers, friends and family members, or anyone being paid or otherwise incentivized to leave a review.</li>
+                                <li>Never directly or indirectly attempt to prevent reviews (critical, negative, or otherwise), or to submit fraudulent reviews, for any purpose.</li>
+                            </ul>
+                            <p class="cs-closing">
+                                Maintain an accurate, honest, and up-to-date @site profile that includes your professional statement, location, and accepted in-network insurances and visit reasons. You can read more about our Profile Guidelines
+                                <a href="/Doctor/Settings/practice">here</a>.
+                            </p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="cs-footer">
+        <a href="/Doctor/Settings/legal">← Back to Legal</a>
+        <span>© @DateTime.UtcNow.Year @site</span>
+    </footer>
+</body>
+</html>
