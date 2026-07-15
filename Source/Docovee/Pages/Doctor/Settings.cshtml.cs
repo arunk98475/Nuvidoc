@@ -66,6 +66,7 @@ public class SettingsModel : PageModel
     public string LocationsJson { get; private set; } = "[]";
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
     public string BookingLink { get; private set; } = "";
+    public bool BookingLinkCreateStep { get; private set; }
     public bool Saved { get; private set; }
     public string? ErrorMessage { get; private set; }
 
@@ -88,12 +89,13 @@ public class SettingsModel : PageModel
         return dt.ToString("h:mm tt");
     }
 
-    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return RedirectToPage("/Account/Login");
 
         Saved = saved == true;
+        BookingLinkCreateStep = string.Equals(step, "create", StringComparison.OrdinalIgnoreCase);
         return await LoadPageAsync(doctorId, section, cancellationToken);
     }
 
@@ -251,7 +253,7 @@ public class SettingsModel : PageModel
             "visit-reasons" => "Visit reasons",
             "insurance" => "Insurance",
             "working-hours" => "Working hours",
-            "booking-link" => "Booking Link",
+            "booking-link" => BookingLinkCreateStep ? "Create a Booking Link" : "Booking Link",
             "legal" => "Legal",
             _ => "Practice profile"
         };

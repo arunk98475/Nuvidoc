@@ -3,8 +3,6 @@
 @{
     ViewData["Title"] = "Features";
     ViewData["Nav"] = "features";
-    var doctorId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-    var bookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";
 }
 
 <div class="dp-content">
@@ -32,7 +30,7 @@
             </div>
             <div class="dp-feature-actions">
                 <button type="button" class="dp-feature-learn" data-feature="booking-link">Learn more</button>
-                <button type="button" class="dp-btn dp-btn-primary" id="dp-copy-booking-link" data-link="@bookingLink">Get started</button>
+                <a class="dp-btn dp-btn-primary" href="/Doctor/Settings/booking-link">Get started</a>
             </div>
         </article>
 
@@ -111,8 +109,6 @@
 @section Scripts {
 <script>
 (function () {
-  const copyBtn = document.getElementById("dp-copy-booking-link");
-  const toast = document.getElementById("dp-feature-toast");
   const dialog = document.getElementById("dp-feature-dialog");
   const dialogTitle = document.getElementById("dp-feature-dialog-title");
   const dialogBody = document.getElementById("dp-feature-dialog-body");
@@ -123,24 +119,6 @@
     sponsored: "Sponsored results put your practice higher in search when patients look for a dentist. Pricing and campaigns will be managed here when enabled.",
     intake: "Send digital intake forms before the visit so your front desk has insurance and ID details ready. Configure office forms in Settings."
   };
-
-  function showToast(msg) {
-    if (!toast) return;
-    toast.hidden = false;
-    toast.textContent = msg;
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(() => { toast.hidden = true; }, 2800);
-  }
-
-  copyBtn?.addEventListener("click", async () => {
-    const link = copyBtn.dataset.link || "";
-    try {
-      await navigator.clipboard.writeText(link);
-      showToast("Booking link copied: " + link);
-    } catch {
-      prompt("Copy your booking link:", link);
-    }
-  });
 
   document.querySelectorAll(".dp-feature-learn").forEach((btn) => {
     btn.addEventListener("click", () => {
