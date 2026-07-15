@@ -17,6 +17,7 @@ public interface IProfileService
     Task<DoctorProfileEditModel?> GetDoctorForEditAsync(int doctorId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdatePatientProfileAsync(int patientId, PatientProfileEditModel model, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(int doctorId, DoctorProfileEditModel model, IFormFile? photo, IFormFile? video = null, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(int doctorId, PracticeProfileInput model, IFormFile? logo, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService
@@ -84,6 +85,8 @@ public class ProfileService : IProfileService
             ? (decimal)doctor.PatientReviews.Average(r => r.Rating)
             : null;
 
+        var (website, allowGoogle) = DoctorProfileHelper.ExtractPracticeSettings(doctor.OnboardingProfileJson);
+
         return new DoctorProfileDto
         {
             Id = doctor.Id,
@@ -114,7 +117,10 @@ public class ProfileService : IProfileService
             InsuranceCarriers = doctor.DoctorInsurances
                 .Select(di => di.InsuranceCarrier.Name)
                 .OrderBy(n => n)
-                .ToList()
+                .ToList(),
+            PracticeDescription = doctor.SummaryOfReviews,
+            PracticeWebsite = website,
+            AllowGoogleBookings = allowGoogle
         };
     }
 
@@ -279,6 +285,56 @@ public class ProfileService : IProfileService
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated profile {DoctorId}", doctorId);
         return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(
+        int doctorId,
+        PracticeProfileInput model,
+        IFormFile? logo,
+        CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null) return (false, "Doctor not found.");
+
+        if (string.IsNullOrWhiteSpace(model.PracticeName))
+            return (false, "Practice name is required.");
+
+        var description = model.PracticeDescription?.Trim();
+        if (description?.Length > 20000)
+            return (false, "Practice description must be 20,000 characters or fewer.");
+
+        var youtubeUrl = model.YoutubeVideoUrl?.Trim();
+        if (!string.IsNullOrWhiteSpace(youtubeUrl) && !IsYoutubeUrl(youtubeUrl))
+            return (false, "Please enter a valid YouTube video link (youtube.com or youtu.be).");
+
+        doctor.PracticeName = model.PracticeName.Trim();
+        doctor.SummaryOfReviews = string.IsNullOrWhiteSpace(description) ? null : description;
+        doctor.VideoUrl = string.IsNullOrWhiteSpace(youtubeUrl) ? null : youtubeUrl;
+        doctor.OnboardingProfileJson = DoctorProfileHelper.MergePracticeSettings(
+            doctor.OnboardingProfileJson,
+            model.PracticeWebsite,
+            model.AllowGoogleBookings);
+
+        if (logo != null && logo.Length > 0)
+        {
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(logo, cancellationToken);
+            if (photoUrl != null)
+                doctor.PhotoUrl = photoUrl;
+        }
+
+        doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink);
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Doctor updated practice profile {DoctorId}", doctorId);
+        return (true, null);
+    }
+
+    private static bool IsYoutubeUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return false;
+
+        var host = uri.Host.ToLowerInvariant();
+        return host is "youtube.com" or "www.youtube.com" or "m.youtube.com" or "youtu.be" or "www.youtu.be";
     }
 
     private static string BuildInitials(string name)

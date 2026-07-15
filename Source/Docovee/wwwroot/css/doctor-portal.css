@@ -132,15 +132,42 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: 2px;
 }
 
+.dp-nav-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.dp-nav-toggle .dp-nav-chevron {
+  margin-left: auto;
+  width: 10px;
+  height: 7px;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.dp-nav-group.is-open .dp-nav-toggle .dp-nav-chevron {
+  transform: rotate(180deg);
+}
+
 .dp-nav-sub {
-  margin: 2px 0 6px 28px;
+  margin: 2px 0 6px 18px;
+  padding-left: 12px;
+  border-left: 1px solid #e0e0e0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+.dp-nav-sub[hidden] {
+  display: none !important;
+}
+
 .dp-nav-sub a {
-  padding: 5px 10px;
+  padding: 6px 10px;
   border-radius: 6px;
   font-size: 14px;
   color: var(--dp-muted);
@@ -148,6 +175,319 @@ button { font-family: inherit; cursor: pointer; }
 
 .dp-nav-sub a:hover { background: #efefef; color: var(--dp-ink); }
 .dp-nav-sub a.active { background: #ececec; color: var(--dp-ink); font-weight: 500; }
+
+.dp-settings-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.dp-settings-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #eee;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 22px;
+}
+
+.dp-settings-dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.dp-settings-dl > div {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 14px;
+}
+
+.dp-settings-dl dt {
+  margin: 0;
+  color: var(--dp-muted);
+  font-weight: 500;
+}
+
+.dp-settings-dl dd {
+  margin: 0;
+  color: var(--dp-ink);
+}
+
+.dp-settings-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.dp-settings-list a {
+  color: var(--dp-accent, #1557d6);
+}
+
+.dp-settings-link-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dp-settings-link-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  background: #fff;
+}
+
+/* Practice profile layout — must override .dp-content max-width */
+.dp-shell:has(.dp-content-practice) {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dp-shell:has(.dp-content-practice) .dp-main {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+}
+
+.dp-content.dp-content-practice {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  width: 100%;
+  max-width: none !important;
+  padding: 0 !important;
+  min-height: 0;
+  background: #fff;
+}
+
+.dp-practice-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.dp-practice-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  background: #fff;
+}
+
+.dp-practice-inner {
+  max-width: 760px;
+  width: 100%;
+  padding: 28px 32px 40px;
+  box-sizing: border-box;
+}
+
+.dp-practice-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 32px;
+  border-top: 1px solid #e6e6e6;
+  background: #fff;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.04);
+  z-index: 2;
+}
+
+.dp-practice-hero h1 {
+  margin: 0 0 8px;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.dp-practice-hero p {
+  margin: 0 0 32px;
+  font-size: 18px;
+  color: var(--dp-muted);
+  line-height: 1.45;
+}
+
+.dp-practice-alert {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.dp-practice-alert.is-success {
+  background: #e8f6ee;
+  color: #1f7a4c;
+}
+
+.dp-practice-alert.is-error {
+  background: #fdecec;
+  color: #a11;
+}
+
+.dp-practice-block {
+  margin-bottom: 36px;
+}
+
+.dp-practice-block-divider {
+  padding-top: 28px;
+  border-top: 1px solid #e6e6e6;
+}
+
+.dp-practice-section-head h2 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.dp-practice-section-head p {
+  margin: 0 0 24px;
+  font-size: 18px;
+  color: var(--dp-muted);
+  line-height: 1.45;
+}
+
+.dp-practice-field {
+  margin-bottom: 28px;
+}
+
+.dp-practice-label {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--dp-ink);
+  line-height: 1.25;
+}
+
+.dp-practice-optional {
+  font-weight: 500;
+  color: var(--dp-muted);
+}
+
+.dp-practice-hint {
+  margin: -4px 0 12px;
+  font-size: 16px;
+  color: var(--dp-muted);
+  line-height: 1.45;
+}
+
+.dp-practice-hint a {
+  color: var(--dp-ink);
+  text-decoration: underline;
+}
+
+.dp-practice-input,
+.dp-practice-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font: inherit;
+  font-size: 18px;
+  color: var(--dp-ink);
+  background: #fff;
+}
+
+.dp-practice-textarea {
+  min-height: 180px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.dp-practice-logo-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dp-practice-logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #eee;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dp-practice-outline-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #222;
+  background: #fff;
+  color: #222;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dp-practice-outline-btn:hover {
+  background: #f7f7f7;
+}
+
+.dp-practice-count {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--dp-muted);
+}
+
+.dp-practice-radios {
+  display: flex;
+  gap: 28px;
+  margin-top: 8px;
+}
+
+.dp-practice-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dp-practice-radio input {
+  width: 18px;
+  height: 18px;
+  accent-color: #111;
+}
+
+.dp-practice-footer .dp-btn {
+  font-size: 16px;
+  padding: 12px 22px;
+}
 
 .dp-sidebar-foot {
   padding: 10px 12px 4px;
@@ -178,6 +518,12 @@ button { font-family: inherit; cursor: pointer; }
 .dp-content-wide {
   max-width: none;
   padding: 20px 24px 32px;
+}
+
+.dp-content.dp-content-practice {
+  max-width: none;
+  padding: 0;
+  width: 100%;
 }
 
 .dp-page-head {

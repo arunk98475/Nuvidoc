@@ -78,6 +78,18 @@ public class DoctorProfileDto
     public bool IsActive { get; set; }
     public DateTime MemberSince { get; set; }
     public int ProfileCompletionPercent { get; set; }
+    public string? PracticeDescription { get; set; }
+    public string? PracticeWebsite { get; set; }
+    public bool AllowGoogleBookings { get; set; } = true;
+}
+
+public class PracticeProfileInput
+{
+    public string PracticeName { get; set; } = string.Empty;
+    public string? PracticeDescription { get; set; }
+    public string? YoutubeVideoUrl { get; set; }
+    public string? PracticeWebsite { get; set; }
+    public bool AllowGoogleBookings { get; set; } = true;
 }
 
 public class AccountRegisterRequest

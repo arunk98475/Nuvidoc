@@ -58,10 +58,26 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 14.5 9.5 21 12 14.5 14.5 12 21 9.5 14.5 3 12 9.5 9.5z"/></svg>
                 <span class="label">Features</span>
             </a>
-            <a class="dp-nav-item @(nav == "settings" ? "active" : "")" href="/Account/DoctorProfile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-                <span class="label">Settings</span>
-            </a>
+            @{
+                var settingsOpen = nav.StartsWith("settings");
+                var settingsSection = nav.StartsWith("settings-") ? nav["settings-".Length..] : "practice";
+            }
+            <div class="dp-nav-group @(settingsOpen ? "is-open" : "")" id="dp-settings-group">
+                <button type="button" class="dp-nav-item dp-nav-toggle @(settingsOpen ? "active" : "")" id="dp-settings-toggle" aria-expanded="@(settingsOpen ? "true" : "false")" aria-controls="dp-settings-sub">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+                    <span class="label">Settings</span>
+                    <svg class="dp-nav-chevron" viewBox="0 0 12 8" width="10" height="7" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+                </button>
+                <div class="dp-nav-sub" id="dp-settings-sub" @(settingsOpen ? null : "hidden")>
+                    <a class="@(settingsSection == "practice" ? "active" : "")" href="/Doctor/Settings/practice">Practice details</a>
+                    <a class="@(settingsSection == "location" ? "active" : "")" href="/Doctor/Settings/location">Location</a>
+                    <a class="@(settingsSection == "visit-reasons" ? "active" : "")" href="/Doctor/Settings/visit-reasons">Visit reasons</a>
+                    <a class="@(settingsSection == "insurance" ? "active" : "")" href="/Doctor/Settings/insurance">Insurance</a>
+                    <a class="@(settingsSection == "working-hours" ? "active" : "")" href="/Doctor/Settings/working-hours">Working hours</a>
+                    <a class="@(settingsSection == "booking-link" ? "active" : "")" href="/Doctor/Settings/booking-link">Booking Link</a>
+                    <a class="@(settingsSection == "legal" ? "active" : "")" href="/Doctor/Settings/legal">Legal</a>
+                </div>
+            </div>
         </nav>
 
         <div class="dp-sidebar-foot">
@@ -73,6 +89,19 @@
         @RenderBody()
     </div>
 </div>
+<script>
+(function () {
+  const group = document.getElementById("dp-settings-group");
+  const toggle = document.getElementById("dp-settings-toggle");
+  const sub = document.getElementById("dp-settings-sub");
+  if (!group || !toggle || !sub) return;
+  toggle.addEventListener("click", function () {
+    const open = group.classList.toggle("is-open");
+    sub.hidden = !open;
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+})();
+</script>
 @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

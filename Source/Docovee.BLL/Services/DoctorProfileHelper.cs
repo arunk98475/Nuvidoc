@@ -73,4 +73,84 @@ public static class DoctorProfileHelper
         var lower = url.ToLowerInvariant();
         return VideoHostHints.Any(lower.Contains);
     }
+
+    public static (string? Website, bool AllowGoogleBookings) ExtractPracticeSettings(string? onboardingProfileJson)
+    {
+        if (string.IsNullOrWhiteSpace(onboardingProfileJson))
+            return (null, true);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(onboardingProfileJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return (null, true);
+
+            if (!doc.RootElement.TryGetProperty("practiceSettings", out var settings)
+                || settings.ValueKind != JsonValueKind.Object)
+                return (null, true);
+
+            string? website = settings.TryGetProperty("website", out var w) ? w.GetString() : null;
+            var allow = true;
+            if (settings.TryGetProperty("allowGoogleBookings", out var g))
+            {
+                allow = g.ValueKind switch
+                {
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.String => !string.Equals(g.GetString(), "no", StringComparison.OrdinalIgnoreCase),
+                    _ => true
+                };
+            }
+
+            return (website, allow);
+        }
+        catch (JsonException)
+        {
+            return (null, true);
+        }
+    }
+
+    public static string MergePracticeSettings(string? onboardingProfileJson, string? website, bool allowGoogleBookings)
+    {
+        var root = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(onboardingProfileJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(onboardingProfileJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        if (prop.NameEquals("practiceSettings"))
+                            continue;
+                        root[prop.Name] = prop.Value.Clone();
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // start fresh
+            }
+        }
+
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var kvp in root)
+            {
+                writer.WritePropertyName(kvp.Key);
+                kvp.Value.WriteTo(writer);
+            }
+            writer.WritePropertyName("practiceSettings");
+            writer.WriteStartObject();
+            writer.WriteString("website", website?.Trim() ?? "");
+            writer.WriteBoolean("allowGoogleBookings", allowGoogleBookings);
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
 }
