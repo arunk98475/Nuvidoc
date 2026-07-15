@@ -1,0 +1,96 @@
+@page "/Doctor/Settings/insurance/select"
+@model Docovee.Pages.Doctor.SettingsPages.SelectInsuranceModel
+@{
+    Layout = "_DoctorPortalLayout";
+    ViewData["Title"] = "Select Insurance";
+    ViewData["Nav"] = "settings-insurance";
+}
+
+<div class="dp-content dp-content-practice">
+    <form method="post" class="dp-practice-form dp-select-insurance-form" id="dp-select-insurance-form">
+        <div class="dp-practice-scroll">
+            <div class="dp-practice-inner dp-select-insurance-inner">
+                @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                {
+                    <div class="dp-location-alert is-error">@Model.ErrorMessage</div>
+                }
+
+                <header class="dp-select-insurance-hero">
+                    <a class="dp-select-insurance-back" href="/Doctor/Settings/insurance">← Back to Insurance</a>
+                    <h1>Select Insurance</h1>
+                </header>
+
+                <div class="dp-insurance-search dp-select-insurance-search">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                    <input type="search" id="dp-select-insurance-search" placeholder="Search insurance..." autocomplete="off" />
+                </div>
+
+                <div class="dp-select-insurance-list" id="dp-select-insurance-list">
+                    @if (Model.PopularCarriers.Count > 0)
+                    {
+                        <div class="dp-select-insurance-group" data-group="popular">
+                            <div class="dp-select-insurance-letter">Popular carriers</div>
+                            @foreach (var carrier in Model.PopularCarriers)
+                            {
+                                <label class="dp-select-insurance-item" data-name="@carrier.Name.ToLowerInvariant()">
+                                    <input type="checkbox" name="Input.CarrierIds" value="@carrier.Id" @(carrier.Selected ? "checked" : null) />
+                                    <span>@carrier.Name</span>
+                                </label>
+                            }
+                        </div>
+                    }
+
+                    @if (Model.OtherCarriers.Count > 0)
+                    {
+                        <div class="dp-select-insurance-group" data-group="other">
+                            <div class="dp-select-insurance-letter">All other carriers</div>
+                            @foreach (var carrier in Model.OtherCarriers)
+                            {
+                                <label class="dp-select-insurance-item" data-name="@carrier.Name.ToLowerInvariant()">
+                                    <input type="checkbox" name="Input.CarrierIds" value="@carrier.Id" @(carrier.Selected ? "checked" : null) />
+                                    <span>@carrier.Name</span>
+                                </label>
+                            }
+                        </div>
+                    }
+                </div>
+                <p class="dp-insurance-no-results" id="dp-select-insurance-none" hidden>No insurance matches your search.</p>
+            </div>
+        </div>
+
+        <footer class="dp-practice-footer">
+            <a class="dp-btn" href="/Doctor/Settings/insurance">Cancel</a>
+            <button type="submit" class="dp-btn dp-btn-primary">Save</button>
+        </footer>
+    </form>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+  const search = document.getElementById("dp-select-insurance-search");
+  const none = document.getElementById("dp-select-insurance-none");
+
+  function apply() {
+    const q = (search?.value || "").trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll(".dp-select-insurance-group").forEach(group => {
+      let groupVisible = 0;
+      group.querySelectorAll(".dp-select-insurance-item").forEach(item => {
+        const name = item.getAttribute("data-name") || "";
+        const show = !q || name.includes(q);
+        item.hidden = !show;
+        if (show) {
+          groupVisible++;
+          visible++;
+        }
+      });
+      group.hidden = groupVisible === 0;
+    });
+    if (none) none.hidden = visible > 0;
+  }
+
+  search?.addEventListener("input", apply);
+})();
+</script>
+}

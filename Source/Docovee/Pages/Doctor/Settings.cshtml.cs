@@ -27,11 +27,16 @@ public class SettingsModel : PageModel
 
     private readonly IProfileService _profileService;
     private readonly IDoctorLocationService _locationService;
+    private readonly IDoctorInsuranceService _insuranceService;
 
-    public SettingsModel(IProfileService profileService, IDoctorLocationService locationService)
+    public SettingsModel(
+        IProfileService profileService,
+        IDoctorLocationService locationService,
+        IDoctorInsuranceService insuranceService)
     {
         _profileService = profileService;
         _locationService = locationService;
+        _insuranceService = insuranceService;
     }
 
     [BindProperty]
@@ -43,11 +48,16 @@ public class SettingsModel : PageModel
     [BindProperty]
     public VisitReasonPreferencesInput VisitReasonsForm { get; set; } = new();
 
+    [BindProperty]
+    public AddDoctorInsurancesInput InsuranceForm { get; set; } = new();
+
     public string Section { get; private set; } = "practice";
     public string SectionTitle { get; private set; } = "Practice profile";
     public DoctorProfileDto? Profile { get; private set; }
     public IReadOnlyList<DoctorLocationDto> Locations { get; private set; } = Array.Empty<DoctorLocationDto>();
     public IReadOnlyList<VisitReasonCategoryViewModel> VisitReasonCategories { get; private set; } = Array.Empty<VisitReasonCategoryViewModel>();
+    public IReadOnlyList<DoctorInsuranceRowDto> InsuranceRows { get; private set; } = Array.Empty<DoctorInsuranceRowDto>();
+    public IReadOnlyList<InsuranceCarrierDto> AvailableCarriers { get; private set; } = Array.Empty<InsuranceCarrierDto>();
     public string LocationsJson { get; private set; } = "[]";
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
     public string BookingLink { get; private set; } = "";
@@ -158,6 +168,36 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "visit-reasons", saved = true });
     }
 
+    public async Task<IActionResult> OnPostAddInsuranceAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _insuranceService.AddCarriersAsync(doctorId, InsuranceForm.CarrierIds, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "insurance", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "insurance", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostRemoveInsuranceAsync(int carrierId, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _insuranceService.RemoveCarrierAsync(doctorId, carrierId, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "insurance", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "insurance", saved = true });
+    }
+
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)
     {
         Section = string.IsNullOrWhiteSpace(section) || !AllowedSections.Contains(section.Trim())
@@ -202,6 +242,12 @@ public class SettingsModel : PageModel
 
         if (Section == "visit-reasons")
             VisitReasonCategories = await _profileService.GetVisitReasonPreferencesAsync(doctorId, cancellationToken);
+
+        if (Section == "insurance")
+        {
+            InsuranceRows = await _insuranceService.GetDoctorInsurancesAsync(doctorId, cancellationToken);
+            AvailableCarriers = await _insuranceService.GetAvailableCarriersAsync(doctorId, cancellationToken);
+        }
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";
         return Page();
