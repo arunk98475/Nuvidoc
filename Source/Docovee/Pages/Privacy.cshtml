@@ -1,8 +1,2747 @@
-﻿@page
-@model PrivacyModel
+@page
 @{
+    Layout = null;
     ViewData["Title"] = "Privacy Policy";
+    var site = Branding.SiteName;
 }
-<h1>@ViewData["Title"]</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — @site</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/privacy-policy.css" asp-append-version="true" />
+</head>
+<body class="pp-page">
+    <header class="pp-topbar">
+        <div class="pp-topbar-inner">
+            <a class="pp-brand" href="/">@site</a>
+            <a class="pp-back" href="/Doctor/Settings/legal">← Legal</a>
+        </div>
+    </header>
 
-<p>Use this page to detail your site's privacy policy.</p>
+    <main class="pp-main">
+
+    <h1>Privacy Policy</h1>
+    <p>Effective Date: March 4, 2026</p>
+    <p>
+        At NuviDoc, Inc. (&ldquo;NuviDoc,&rdquo; &ldquo;we,&rdquo; or
+        &ldquo;us&rdquo;), we are committed to protecting your privacy. We take
+        great care with your personal information that we gather when you access
+        or use NuviDoc.com and related websites, applications, and services owned
+        and operated by NuviDoc and that link to this Privacy Policy
+        (collectively, the &ldquo;Services&rdquo;).&nbsp;
+    </p>
+
+    <p>
+        This Privacy Policy is meant to help consumers who use our Services
+        (&ldquo;you,&rdquo; or &ldquo;your&rdquo;) understand how we treat your
+        Personal Data. For the purposes of this Privacy Policy:&nbsp;
+    </p>
+    <ul>
+        <li>
+            <b
+                ><i
+                    >&ldquo;User&rdquo; means an individual who creates a NuviDoc
+                    account to use the Services;&nbsp;</i
+                ></b
+            >
+        </li>
+        <li>
+            <b
+                ><i
+                    >&ldquo;Visitor&rdquo; means an individual who engages with
+                    our Services but does not have a NuviDoc account (for
+                    example, if you visit our websites or download our mobile
+                    application without creating a NuviDoc account). Please note
+                    that some of our Services, including the ability to book an
+                    appointment through our Services are limited to Users with a
+                    NuviDoc account.&nbsp;</i
+                ></b
+            >
+        </li>
+        <li>
+            <b
+                ><i
+                    >&ldquo;Personal Data&rdquo; means any information that
+                    identifies or relates to a particular individual, and
+                    includes information referred to as &ldquo;personally
+                    identifiable information&rdquo; or &ldquo;personal
+                    information&rdquo; under applicable data privacy laws,
+                    rules, or regulations.&nbsp;</i
+                ></b
+            >
+        </li>
+        <li>
+            For doctors, dentists, or other healthcare providers that use our
+            marketing services, please click
+            <a href="#healthcare-provider"
+                ><b>here</b></a
+            >
+            to review the categories of information we collect.&nbsp;
+        </li>
+    </ul>
+    <p></p>
+    <p>
+        <span style="font-weight: 700">
+            BY USING OR ACCESSING THE SERVICES IN ANY MANNER, YOU ACKNOWLEDGE
+            THAT YOU HAVE READ AND UNDERSTAND THIS PRIVACY POLICY AND AGREE TO
+            THE PRACTICES AND POLICIES OUTLINED IN THIS PRIVACY POLICY. YOU
+            FURTHER CONSENT TO OUR COLLECTION, USE, AND SHARING OF YOUR
+            INFORMATION AS SET FORTH IN THIS PRIVACY POLICY. IF YOU DO NOT AGREE
+            WITH THIS PRIVACY POLICY, YOU MAY NOT USE THE SERVICES. IF YOU USE
+            THE SERVICES ON BEHALF OF SOMEONE ELSE (SUCH AS YOUR CHILD), YOU
+            REPRESENT THAT YOU ARE AUTHORIZED BY SUCH INDIVIDUAL TO ACCEPT THIS
+            PRIVACY POLICY ON THE INDIVIDUAL&rsquo;S BEHALF.&nbsp;
+        </span>
+    </p>
+
+    <p>
+        Any use of the Services is subject to the Agreement (as the term
+        &ldquo;Agreement&rdquo; is defined in our
+        <a href="/Doctor/Settings/legal">Terms of Use</a>, which
+        incorporates this Privacy Policy). You may print a copy of this Privacy
+        Policy by clicking <a href="javascript:window.print()">here</a>.
+    </p>
+
+    <h2>Privacy Policy Table of Contents</h2>
+    <ul style="list-style: none">
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#hipaa-and-phi"
+                        >HIPAA and PHI</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#notice-at-collection"
+                        >Notice at Collection</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#personal-data"
+                        >Categories of Personal Data We Collect</a
+                    ></u
+                >
+            </h3>
+            <ul>
+                <li>
+                    <h3>
+                        <u
+                            ><a style="color: black" href="#visitors"
+                                >Visitors</a
+                            ></u
+                        >
+                    </h3>
+                </li>
+                <li>
+                    <h3>
+                        <u><a style="color: black" href="#user">Users</a></u>
+                    </h3>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#user-categories-of-sources"
+                        >Categories of Sources of Personal Data</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a
+                        style="color: black"
+                        href="#user-categories-of-sources-commercial"
+                        >Commercial or Business Purposes for Collecting Personal
+                        Data</a
+                    ></u
+                >
+            </h3>
+            <ul>
+                <li>
+                    <h3>
+                        <u
+                            ><a
+                                style="color: black"
+                                href="#user-categories-of-sources-other"
+                                >Other Permitted Purposes for Processing
+                                Personal Data</a
+                            ></u
+                        >
+                    </h3>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#data-retention"
+                        >Data Retention</a
+                    ></u
+                >
+            </h3>
+            <ul>
+                <li>
+                    <h3>
+                        <u
+                            ><a
+                                style="color: black"
+                                href="#user-categories-of-sources-non-phi"
+                                >Data that is Not Personal Data or PHI</a
+                            ></u
+                        >
+                    </h3>
+                </li>
+            </ul>
+        </li>
+
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#user-how-we-disclose"
+                        >How We Disclose Your Personal Data</a
+                    ></u
+                >
+            </h3>
+        </li>
+
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#tracking-tools"
+                        >AI and Tracking Tools, Advertising, and Opt-Out</a
+                    ></u
+                >
+            </h3>
+            <ul>
+                <li>
+                    <h3>
+                        <u
+                            ><a
+                                style="color: black"
+                                href="#tracking-tools-ai-chatbot"
+                                >AI Chatbot</a
+                            ></u
+                        >
+                    </h3>
+                </li>
+                <li>
+                    <h3>
+                        <u
+                            ><a
+                                style="color: black"
+                                href="#tracking-tools-cookies"
+                                >Cookies</a
+                            ></u
+                        >
+                    </h3>
+                </li>
+                <li>
+                    <h3>
+                        <u
+                            ><a
+                                style="color: black"
+                                href="#tracking-tools-internet"
+                                >Information about Interest-Based
+                                Advertisements</a
+                            ></u
+                        >
+                    </h3>
+                </li>
+            </ul>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#data-security"
+                        >Data Security</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#childrens-privacy"
+                        >Children&rsquo;s Privacy</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a
+                        style="color: black"
+                        href="#controlling-personal-notifications"
+                        >Controlling Your Personal Data and Notifications</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#us-state-rights"
+                        >U.S. State Rights and Disclosures
+                    </a></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#exercising-rights"
+                        >Exercising Your Rights</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#changes-to-policy"
+                        >Changes to This Privacy Policy</a
+                    ></u
+                >
+            </h3>
+        </li>
+        <li>
+            <h3>
+                <u
+                    ><a style="color: black" href="#contact-information"
+                        >Contact Information</a
+                    ></u
+                >
+            </h3>
+        </li>
+    </ul>
+    <h3>
+        <u><a style="color: black" name="hipaa-and-phi"> HIPAA and PHI</a></u>
+    </h3>
+    <p>
+        Certain demographic, health and/or health-related information that
+        NuviDoc collects about Users on behalf of our Healthcare Providers as
+        part of providing the Services may be &ldquo;protected health
+        information&rdquo; (&ldquo;PHI&rdquo;) governed by the Health Insurance
+        Portability and Accountability Act (&ldquo;HIPAA&rdquo;). Specifically,
+        this may be true when (i) NuviDoc is providing administrative,
+        operational, or other services to a Healthcare Provider that is a
+        &ldquo;Covered Entity&rdquo; (as defined by HIPAA); and (ii) in order to
+        provide those services, NuviDoc receives identifiable information about a
+        User on behalf of the Healthcare Provider, where NuviDoc is acting as a
+        &ldquo;Business Associate&rdquo; (as defined by HIPAA); and (iii) this
+        identifiable information is regulated as PHI.
+    </p>
+    <p>
+        <span style="font-weight: 700">
+            This Privacy Policy does not apply to PHI, which is instead
+            regulated by HIPAA.
+        </span>
+        HIPAA provides specific protections for the privacy and security of PHI
+        and restricts how PHI is used and disclosed. Please read the Notice of
+        Privacy Practices of your Healthcare Provider to understand how your PHI
+        can be used and disclosed.
+    </p>
+    <p>
+        Personal data that a User provides to NuviDoc when NuviDoc is not acting
+        as a Business Associate is not PHI and NuviDoc&rsquo;s use of this
+        information is therefore covered by this Privacy Policy. To provide just
+        a few examples, we are collecting Personal Data when you: (i) create an
+        account, (ii) search for Healthcare Providers or available appointments
+        with Healthcare Providers; (iii) post reviews; (iv) provide device/IP
+        Information or Web Analytics information by browsing our websites (see
+        below); or (v) direct your Covered Entity healthcare provider to
+        disclose PHI to NuviDoc outside of its Business Associate capacity (e.g.
+        pursuant to a HIPAA Authorization or access request).
+    </p>
+
+    <h3>
+        <u
+            ><a style="color: black" name="notice-at-collection"
+                >Notice at Collection</a
+            ></u
+        >
+    </h3>
+
+    <h3>
+        <u
+            ><a style="color: black" name="personal-data"
+                >Categories of Personal Data We Collect and Disclose</a
+            ></u
+        >
+    </h3>
+    <p>
+        The tables below detail the categories of Personal Data that we may
+        collect and may have collected about you over the past twelve (12)
+        months, depending on your relationship with NuviDoc. What Personal Data
+        we collect depends on how you interact with the Services and what
+        products you choose to use. For instance, we collect limited data if you
+        are a Visitor and do not have an account with us.
+    </p>
+    <p>
+        For each category of Personal Data, the tables below also describe our
+        purposes for collection and certain Personal Data disclosures to third
+        parties. Depending on how you use the Services, we may disclose your
+        Personal Data to third parties such as advertising partners. Such
+        disclosures may constitute a &ldquo;sale&rdquo; or &ldquo;sharing&rdquo;
+        to &ldquo;third parties&rdquo; for &ldquo;targeted advertising&rdquo; as
+        such terms are defined under applicable U.S. privacy laws.
+    </p>
+    <p>
+        You may opt-out by clicking
+        <a href="#"><b>here</b></a
+        >.
+    </p>
+    <p>
+        You may also choose to enable, where available, a universal tool that
+        automatically communicates your opt-out preferences, such as the Global
+        Privacy Control (&ldquo;GPC&rdquo;). We will process the GPC signal as a
+        request to opt-out. We do not knowingly sell or share Personal
+        Information about persons under the age of 18.
+    </p>
+    <p>
+        We also disclose Personal Data to service providers and others where
+        such disclosures are not &ldquo;sales&rdquo; or &ldquo;sharing&rdquo;
+        for targeted advertising to third parties, as further described
+        <a href="#user-how-we-disclose"><b>here</b></a
+        >.
+    </p>
+
+    <p>
+        <span style="font-weight: 700"
+            >THE FOLLOWING SUBSECTIONS APPLY ONLY TO CONSUMERS. IF YOU ARE A
+            HEALTHCARE PROVIDER, PLEASE SEE THE
+            <a
+                href="#healthcare-provider"
+            >
+                HEALTHCARE PROVIDER PERSONAL DATA</a
+            >
+            SECTION ON THIS PAGE.
+        </span>
+    </p>
+
+    <div>
+        <i style="font-style: italic"
+            ><a name="visitors"
+                >Visitor Data: This is the data we collect for all Visitors of
+                our website, which may include Users with NuviDoc accounts.</a
+            ></i
+        >
+    </div>
+    <br />
+    <div class="pp-scroll">
+        <table>
+            <thead>
+                <tr style="padding: 10px">
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700">
+                            Category and Examples of Personal Data
+                        </p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700">Source of Data</p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700">
+                            Business or Commercial Purpose(s) for Collection
+                        </p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700; text-align: center">
+                            Disclosures of Personal Data
+                        </p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700; text-align: center">
+                            Third Parties to Whom we &ldquo;Sell&rdquo; or
+                            &ldquo;Share&rdquo; Personal Data
+                        </p>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Online Identifiers
+                            </span>
+                            such as IP Address, IP-address- based location data,
+                            device ID, domain server, type of device/operating
+                            system/browser used to access the Services
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Third Parties</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Marketing the Services</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                                as further detailed below
+                            </li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Certain Analytics Partners</li>
+                            <li>Ad Networks</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700">Web Analytics </span>
+                            such as webpage interactions, Web analytics,
+                            referring webpage/source through which you access
+                            the Services, non-identifiable request IDs,
+                            statistics associated with the interaction between
+                            your device or browser and the Services
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Third Parties</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Marketing the Services</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Certain Analytics Partners</li>
+                            <li>Ad Networks</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >User Demographic Data
+                            </span>
+                            such as your gender and date of birth
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Certain Analytics Partners</li>
+                            <li>Ad Networks</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Location Data,
+                            </span>
+                            including IP address-based location information and
+                            zip code, city, or address
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Marketing the Services</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Certain Analytics Partners</li>
+                            <li>Ad Networks</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Other Identifying Information That You
+                                Voluntarily Choose to Provide
+                            </span>
+                            such as in emails, letters, chats, or other
+                            communications you send us
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>N/A</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <br />
+    <br />
+    <div>
+        <i style="font-style: italic" id="user-personal-data"
+            ><a name="users" style="hyphens: none"
+                >Users Only: The table below includes the categories of data we
+                may collect if you have created an account and used our
+                Services. We do not sell or share any of this data to third
+                parties.</a
+            ></i
+        >
+    </div>
+    <br />
+    <div class="pp-scroll">
+        <table>
+            <thead>
+                <tr style="padding: 10px">
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                            width: 358px;
+                            min-width: 143px;
+                        "
+                    >
+                        <p style="font-weight: 700">
+                            Category of Personal Data
+                        </p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700">Source of Data</p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700">
+                            Business or Commercial Purpose(s) for Collection
+                        </p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                            text-align: center;
+                            vertical-align: middle;
+                        "
+                    >
+                        <p style="font-weight: 700; text-align: center">
+                            Disclosures of Personal Data
+                        </p>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Personal Identifiers
+                            </span>
+                            such as first and last name, email address, mailing
+                            address, zip code
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700">Phone number</span>
+                            and SMS preferences
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Corresponding with You</li>
+                            <li>
+                                Providing the Services in accordance with your
+                                preferences
+                            </li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Commercial Information
+                            </span>
+                            such as your payment card type, last four digits of
+                            your payment card, billing contact information
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Other Identifying Information That You
+                                Voluntarily Choose to Provide
+                            </span>
+                            such as social media credentials or in emails,
+                            letters, chats, or other communications you send us
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="4"
+                    >
+                        <p style="margin-bottom: 0px">
+                            <span style="font-weight: 700"
+                                >Sensitive Personal Data</span
+                            >
+                            <br />
+                            The following categories of Personal Data may be
+                            deemed &ldquo;sensitive&rdquo; depending on your
+                            state of residence. Please note we do not collect
+                            any of the following categories of Personal Data for
+                            the purpose of inferring characteristics about you.
+                        </p>
+                        <br />
+                        <p>
+                            <i
+                                >We process Sensitive Personal Data only as
+                                reasonably necessary to provide requested
+                                Services and in accordance with applicable
+                                law.</i
+                            >
+                        </p>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Booking Appointment Data
+                            </span>
+                            such as appointment date/time, provider information,
+                            visit reason, whether you are a new patient of a
+                            particular provider
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>Analytics Partners</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Health information
+                            </span>
+                            such as health conditions, Healthcare Providers
+                            visited, dates of visit, medical history, and other
+                            health information you provide us, which may include
+                            reproductive or sexual health information
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                            <li>Insurance Providers</li>
+                            <li>Health Information Exchanges</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Health Insurance information,
+                            </span>
+                            such as insurance plan, member ID, group ID, payer
+                            ID
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="padding: 10px">
+                    <td style="border: 1px black solid; padding: 10px">
+                        <p>
+                            <span style="font-weight: 700"
+                                >Sensitive Demographic Data,
+                            </span>
+                            such as gender identity (specifically status as
+                            transgender or non-binary), race, sexual orientation
+                        </p>
+                    </td>
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>You</li>
+                            <li>Healthcare Providers</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>
+                                Providing, Customizing, and Improving the
+                                Services
+                            </li>
+                            <li>Corresponding with You</li>
+                        </ul>
+                    </td>
+
+                    <td style="border: 1px black solid; padding: 10px">
+                        <ul>
+                            <li>Service Providers</li>
+                            <li>Healthcare Providers</li>
+                            <li>
+                                Parties you authorize, access, or authenticate
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="user-categories-of-sources"
+                >Categories of Sources of Personal Data</a
+            ></u
+        >
+    </h3>
+    <div class="pp-scroll">
+        <table
+            style="
+                border: 1px black solid;
+                padding: 10px;
+                max-width: 95vw;
+                overflow-x: scroll;
+            "
+        >
+            <thead>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                        "
+                        colspan="2"
+                    >
+                        <p style="font-weight: 700">
+                            Categories of Sources of Personal Data
+                        </p>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #f2f2f2;
+                        "
+                        colspan="2"
+                    >
+                        <p style="font-weight: 700">From You</p>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            When You Provide Information Directly to Us
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                When you create an account or use our
+                                interactive tools and services, such as
+                                searching for Healthcare Providers or available
+                                appointments with Healthcare Providers.
+                            </li>
+                            <li>
+                                When you provide information about yourself
+                                through booking an appointment with a Healthcare
+                                Provider.
+                            </li>
+                            <li>
+                                When you provide information in free-form text
+                                boxes through the Services, through responses to
+                                surveys and questionnaires, or post reviews.
+                            </li>
+                            <li>
+                                When you send us an email or otherwise contact
+                                us.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            When Personal Data is Automatically Collected When
+                            You Use the Services
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Through automated technologies when you navigate
+                                the Services, including Cookies (as defined and
+                                described in more detail below).
+                            </li>
+                            <li>
+                                If you download and install certain applications
+                                and software we make available, we may receive
+                                and collect information transmitted from your
+                                device for the purpose of providing you the
+                                relevant Services. This includes information
+                                such as when you are logged on and available to
+                                receive updates or alert notices.
+                            </li>
+                            <li>
+                                If you download our mobile application or use a
+                                location-enabled browser, we may receive
+                                information about your location and mobile
+                                device, as applicable.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #f2f2f2;
+                        "
+                        colspan="2"
+                    >
+                        <p style="font-weight: 700">From Other Sources</p>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Service Providers</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                We may use service providers to analyze how you
+                                interact and engage with the Services, or to
+                                help us provide you with customer support.
+                            </li>
+                            <li>
+                                We may use service providers to obtain
+                                information to generate leads and to create user
+                                profiles.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Analytics Partners</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                We may work with analytics partners to provide
+                                us analytics on website traffic or the usage of
+                                the Services.
+                            </li>
+                            <li>
+                                We use this data to optimize and market our
+                                Services.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Healthcare Providers</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                We may receive certain data from your Healthcare
+                                Provider(s) to facilitate booking appointments,
+                                provide you with information at your request,
+                                and billing for services such as virtual care.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Social Networks</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                If you provide your social network account
+                                credentials to us or otherwise sign in to the
+                                Services through a third-party site or service,
+                                you understand some content and/or information
+                                in those accounts may be transmitted into your
+                                account with us, depending on your permissions
+                                with that third-party site or service.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Ad Networks</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                We receive information about you from some of
+                                our service providers who assist us with
+                                marketing or promotional services related to how
+                                you interact with our Services, advertisements,
+                                or communications.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <br />
+    <h3>
+        <u
+            ><a
+                style="color: black"
+                name="user-categories-of-sources-commercial"
+                >Commercial or Business Purposes for Collecting Personal Data</a
+            ></u
+        >
+    </h3>
+    <ul>
+        <li>
+            <h3>Providing, Customizing, and Improving the Services</h3>
+            <ul>
+                <li>
+                    Creating and managing your account or other user profiles.
+                </li>
+                <li>Billing our healthcare provider clients.</li>
+                <li>
+                    Providing you with the products, services, and information
+                    you request.
+                </li>
+                <li>
+                    Meeting or fulfilling the reason you provided the
+                    information to us.
+                </li>
+                <li>Providing support and assistance for the Services.</li>
+                <li>
+                    Improving the Services, including testing, research,
+                    internal analytics, and product development.
+                </li>
+                <li>
+                    Personalizing the Services, website content, and
+                    communications based on your preferences.
+                </li>
+                <li>Fraud protection, security, and debugging.</li>
+            </ul>
+        </li>
+        <li>
+            <h3>Marketing the Services</h3>
+            <ul>
+                <li>Marketing and selling the Services.</li>
+                <li>
+                    Showing you advertisements, including interest-based or
+                    online behavioral advertising.
+                </li>
+            </ul>
+        </li>
+        <li>
+            <h3>Corresponding with You</h3>
+            <ul>
+                <li>
+                    Responding to correspondence that we receive from you,
+                    contacting you when necessary or requested, including to
+                    remind you of an upcoming appointment, and sending you
+                    information about NuviDoc or the Services.
+                </li>
+                <li>
+                    Sending emails and other communications that display content
+                    that we think will interest you and according to your
+                    preferences including notifying you about certain resources,
+                    Healthcare Providers or Services.
+                </li>
+            </ul>
+        </li>
+    </ul>
+    <br />
+    <div>
+        <i style="font-style: italic"
+            ><a name="user-categories-of-sources-other"
+                >Other Permitted Purposes for Processing Personal Data</a
+            ></i
+        >
+    </div>
+    <br />
+    <p>
+        In addition, each of the above referenced categories of Personal Data
+        may be collected, used, and disclosed with the government, including law
+        enforcement, or other parties to meet certain legal requirements and
+        enforcing legal terms including: fulfilling our legal obligations under
+        applicable law, regulation, court order or other legal process, such as
+        preventing, detecting and investigating security incidents and
+        potentially illegal or prohibited activities; protecting the rights,
+        property or safety of you, NuviDoc or another party; enforcing any
+        agreements with you; responding to claims that any posting or other
+        content violates third-party rights; and resolving disputes.
+    </p>
+    <br />
+    <h3>
+        <u><a style="color: black" name="data-retention">Data Retention</a></u>
+    </h3>
+    <p>
+        We retain Personal Data about you as necessary to provide our Services
+        or to perform our business or commercial purposes for collecting your
+        Personal Data. When establishing a retention period for specific
+        categories of data, we consider who we collected the data from, our need
+        for the Personal Data, why we collected the Personal Data, and the
+        sensitivity of the Personal Data. In some cases, we retain Personal Data
+        for longer, if doing so is necessary to comply with our legal
+        obligations, resolve disputes or collect fees owed, provide our
+        Services, or is otherwise permitted or required by applicable law, rule
+        or regulation. We may further retain information in a de-identified
+        and/or aggregated form where that information would not identify you
+        personally.
+    </p>
+    <p>For example:</p>
+    <ul>
+        <li>
+            We retain your account information and credentials for as long as
+            you have an account with us.
+        </li>
+        <li>
+            We retain your device/IP data for as long as we need it to ensure
+            that our systems are working appropriately, effectively, and
+            efficiently.
+        </li>
+    </ul>
+    <br />
+    <div>
+        <i style="font-style: italic"
+            ><a name="user-categories-of-sources-non-phi"
+                >Data that is Not Personal Data or PHI</a
+            ></i
+        >
+    </div>
+    <br />
+    <p>
+        Please note that we may de-identify or aggregate Personal Data so that
+        it will no longer be considered Personal Data and disclose such
+        information to other parties for purposes consistent with those
+        described in this Privacy Policy. We will protect de-identified
+        information in accordance with applicable law, will never attempt to
+        &ldquo;re-identify&rdquo; the information and require recipients not to
+        do so.
+    </p>
+
+    <h3>
+        <u
+            ><a style="color: black" name="user-how-we-disclose"
+                >How We Disclose Your Personal Data</a
+            ></u
+        >
+    </h3>
+    <p>
+        We may disclose your Personal Data to the following categories of
+        service providers and other third parties for the indicated purposes.
+        How we disclose your Personal Data depends on how you use our Services.
+    </p>
+    <br />
+    <div class="pp-scroll">
+        <table>
+            <thead>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                        "
+                        colspan="1"
+                    >
+                        <p style="font-weight: 700; text-align: center">
+                            Categories of Third Parties to Whom We Disclose
+                            Personal Data
+                        </p>
+                    </th>
+                    <th
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #bfbfbf;
+                        "
+                        colspan="1"
+                    >
+                        <p style="font-weight: 700; text-align: center">
+                            Purposes for Disclosing Data
+                        </p>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #f2f2f2;
+                        "
+                        colspan="2"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Service Providers</p>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                    >
+                        <p style="font-weight: 700">Payment Processors</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Our payment processing partner (currently
+                                Stripe) collects your voluntarily provided
+                                payment card information necessary to process
+                                your payment.
+                            </li>
+                            <li>
+                                Please see Stripe&rsquo;s
+                                <a href="https://stripe.com/legal/consumer"
+                                    >terms of service</a
+                                >
+                                and
+                                <a href="https://stripe.com/privacy"
+                                    >privacy policy</a
+                                >
+                                for information on its use and storage of
+                                Personal Data.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            Security and Fraud Prevention Consultants
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Detecting security incidents, protecting against
+                                malicious, deceptive, fraudulent, or illegal
+                                activity, and prosecuting those responsible for
+                                that activity.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p>
+                            <span style="font-weight: 700"
+                                >Hosting, Technology and Communications
+                                Providers;</span
+                            >
+                        </p>
+                        <p>
+                            <span style="font-weight: 700"
+                                >Fulfillment Providers;</span
+                            >
+                        </p>
+                        <p>
+                            <span style="font-weight: 700"
+                                >Data Storage Providers;</span
+                            >
+                        </p>
+                        <p>
+                            <span style="font-weight: 700"
+                                >Analytics Providers;</span
+                            >
+                        </p>
+                        <p>
+                            <span style="font-weight: 700"
+                                >Insurance Verification Providers;</span
+                            >
+                        </p>
+                        <p>
+                            <span style="font-weight: 700"
+                                >Staff Augmentation Personnel;</span
+                            >
+                        </p>
+                        <p>
+                            <span style="font-weight: 700"
+                                >Virtual Care Providers</span
+                            >
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                To perform operational services (such as
+                                hosting, billing, fulfillment, data storage,
+                                security, insurance verification, web service
+                                analytics) and/or make certain services,
+                                features or functionality available to our
+                                Users.
+                            </li>
+                            <li>
+                                Debugging to identify and repair errors that
+                                impair intended functionality.
+                            </li>
+                            <li>
+                                Short-term, transient use of Personal Data that
+                                is not used by another party to build a User
+                                profile or otherwise alter your user experience
+                                outside the current interaction.
+                            </li>
+                            <li>
+                                Maintaining or servicing accounts, providing
+                                customer service, processing or fulfilling
+                                orders and transactions, verifying customer
+                                information, processing payments, providing
+                                financing, providing analytic services, or
+                                providing similar services on behalf of the
+                                business or service provider.
+                            </li>
+                            <li>
+                                Undertaking internal research for technological
+                                development and demonstration.
+                            </li>
+                            <li>
+                                Undertaking activities to verify or maintain the
+                                quality or safety of our Services.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="
+                            border: 1px black solid;
+                            padding: 10px;
+                            background-color: #f2f2f2;
+                        "
+                        colspan="2"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            Selected Third-Party Recipients
+                        </p>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Analytics Partners</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                To track how users found or were referred to the
+                                Services and otherwise interact with the
+                                Services.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Ad Networks</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Ad customizing and serving, which may include
+                                social media networks, for the purposes of
+                                displaying or facilitating advertising to you,
+                                including targeted advertising.
+                            </li>
+                            <li>
+                                Auditing related to a current interaction and
+                                concurrent transactions, including, but not
+                                limited to, counting ad impressions to unique
+                                visitors, verifying positioning and quality of
+                                ad impressions, and auditing compliance with
+                                this specification and other standards.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Healthcare Providers</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Healthcare Providers with whom Users choose to
+                                schedule through the Services.
+                            </li>
+                            <li>
+                                If you choose to use the applicable Services,
+                                Healthcare Providers in order to enable such
+                                Healthcare Providers to refer you to, and make
+                                appointments with, other Healthcare Providers on
+                                your behalf or to perform analyses on potential
+                                health issues or treatments.
+                            </li>
+                            <li>In the event of an emergency.</li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">Insurance Providers</p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                To determine eligibility and cost-sharing
+                                obligations and to otherwise obtain benefit plan
+                                information on your behalf.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            Health Information Exchanges
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Health Information Exchanges and related
+                                organizations that collect and organize User
+                                information (such as Regional Health Information
+                                Organizations) to make your information more
+                                securely and easily accessible to your
+                                Healthcare Providers. The goal of such
+                                organizations is to facilitate access to health
+                                information to improve the safety, quality, and
+                                efficiency of patient-centered care. More
+                                information on Health Information Exchanges can
+                                be found
+                                <a
+                                    href="https://www.healthit.gov/topic/health-it-and-health-information-exchange-basics/health-information-exchange"
+                                    >here</a
+                                >.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            Other Uses that You Authorize
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                Any information that you may reveal in a review
+                                posting, online discussion, or forum is
+                                intentionally open to the public and is not in
+                                any way private. We recommend that you carefully
+                                consider whether to disclose any Personal Data
+                                in any public posting or forum. What you have
+                                written may be seen and/or collected by third
+                                parties and may be used by others in ways we are
+                                unable to control or predict. You can learn more
+                                about our reviews process
+                                <a
+                                    href="#"
+                                    >here</a
+                                >.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+                <tr style="border: 1px black solid; padding: 10px">
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <p style="font-weight: 700">
+                            Third-Party Business Partners You Access Through the
+                            Services
+                        </p>
+                    </td>
+                    <td
+                        style="border: 1px black solid; padding: 10px"
+                        colspan="1"
+                        rowspan="1"
+                    >
+                        <ul>
+                            <li>
+                                We will disclose certain Personal Data if you
+                                choose to use any service to log in to the
+                                Services. This includes logging in via social
+                                media platforms such as a Google or Facebook
+                                account.
+                            </li>
+                            <li>
+                                To meet or fulfill the reason you provided the
+                                information to us.
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <br />
+    <p>
+        In addition, we may disclose Personal Data in connection with the
+        following:
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Legal Obligations
+    </p>
+    <p>
+        We may disclose any Personal Data that we collect with third parties in
+        conjunction with any of the activities set forth under
+        <a href="#user-how-we-disclose"
+            >&ldquo;How We Disclose Your Personal Data&rdquo;</a
+        >
+        section above.
+    </p>
+    <br />
+    <p style="text-decoration: underline; font-style: italic">
+        Business Transfers
+    </p>
+    <p>
+        All Personal Data may be transferred to a third party in connection with
+        or if we undergo a merger, acquisition, bankruptcy, or other transaction
+        in which that third party assumes control of our business (in whole or
+        in part). Should one of these events occur, we will make reasonable
+        efforts to notify you before your information becomes subject to
+        different privacy and security policies and practices.
+    </p>
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="tracking-tools"
+                >AI and Tracking Tools, Advertising, and Opt-Out</a
+            ></u
+        >
+    </h3>
+    <p>
+        The following sections provide additional information about how we
+        collect your Personal Data through automated means.
+    </p>
+    <div>
+        <i style="font-style: italic"
+            ><a name="tracking-tools-ai-chatbot">AI Chatbot(s)</a></i
+        >
+    </div>
+    <br />
+    <p>
+        We may use artificial intelligence (&ldquo;AI&rdquo;) tools to enhance
+        or operate certain functions of the Services, such as chat and customer
+        service features. When you interact with our AI tools, we or the service
+        providers we engage may process information automatically.
+    </p>
+    <br />
+    <div>
+        <i style="font-style: italic"
+            ><a name="tracking-tools-cookies">Cookies</a></i
+        >
+    </div>
+    <br />
+    <p>
+        The Services use cookies and similar technologies such as pixel tags,
+        web beacons, clear GIFs, mobile identifiers, and JavaScript
+        (collectively, &ldquo;Cookies&rdquo;) to enable our servers to recognize
+        your device and web browser and tell us how and when you visit and use
+        our Services. We do this to analyze trends, learn about and advertise to
+        our user base, and operate and improve our Services. For example, we use
+        Cookies to tailor the Services or customize advertisements on and off of
+        our Service by tracking navigation habits, measuring performance,
+        storing authentication status so re-entering credentials is not
+        required, customizing user experiences with the Services, and for
+        analytics and fraud prevention. Cookies are small pieces of data &ndash;
+        usually text files &ndash; placed on your computer, tablet, phone, or
+        similar device when you use that device to visit our Services. We may
+        also supplement the information we collect from you with information
+        received from third parties, including third parties that have placed
+        their own Cookies on your device(s).
+    </p>
+    <p>We use these tools to collect the following type of information:</p>
+    <ul>
+        <li>
+            <span style="font-weight: 700">Device and Browser Information</span
+            >. This includes your device&rsquo;s IP address and/or other unique
+            identifiers, browser type, device type, internet service provider,
+            operating system, and when you access our Services from a mobile
+            device, your device&rsquo;s approximate location (derived from your
+            device&rsquo;s IP address or other signals).
+        </li>
+        <li>
+            <span style="font-weight: 700">Usage Information</span>. When you
+            interact with our Services, certain information may be collected by
+            us or our third party vendors, including the current date and time,
+            the pages you view immediately before and after you access our
+            Services, the areas or pages of our Services that you visit, the
+            amount of time you spend viewing or using our Website, whether you
+            complete a booking, keystrokes, mouse movements, form field entries,
+            recordings of chat sessions or your use of and inputs to other
+            AI-supported tools, and other use and overall engagement with our
+            Services. This may include &ldquo;session replay&rdquo; tools.
+        </li>
+    </ul>
+    <p>
+        We or external providers we engage may deploy the following types of
+        Cookies:
+    </p>
+    <ul>
+        <li>
+            <span style="font-weight: 700">Essential Cookies</span>. Essential
+            Cookies are required to provide you with features or services you
+            have requested. For example, certain Cookies enable you to log into
+            the secure areas of our Services. Disabling these Cookies may make
+            certain features and services unavailable.
+        </li>
+        <li>
+            <span style="font-weight: 700">Functional Cookies</span>. Functional
+            Cookies are used to record your choices and settings regarding our
+            Services, maintain your preferences over time and recognize you when
+            you return to our Services. These Cookies help us to personalize our
+            content for you, greet you by name, and remember your preferences
+            (for example, your choice of language or region).
+        </li>
+        <li>
+            <span style="font-weight: 700">Performance/Analytical Cookies</span
+            >. Performance/Analytical Cookies allow us to understand how
+            visitors use our Services such as by collecting information about
+            the number of visitors to the Services, what pages visitors view on
+            our Services, how long visitors are viewing pages on the Services,
+            mouse clicks, mouse movements, scrolling activity, and text typed
+            into the Services. Performance/Analytical Cookies also help us
+            measure the performance of our advertising campaigns to help us
+            improve our campaigns and the content for those who engage with our
+            advertising. For example, Google LLC (&ldquo;Google&rdquo;) uses
+            cookies in connection with its Google Analytics services.
+            Google&rsquo;s ability to use and share information collected by
+            Google Analytics about your visits to the Services is subject to the
+            Google Analytics Terms of Use and the Google Privacy Policy. You
+            have the option to opt-out of Google&rsquo;s use of cookies by
+            visiting the
+            <a href="http://www.google.com/privacy_ads.html"
+                >Google advertising opt-out page</a
+            >
+            or the
+            <a href="https://tools.google.com/dlpage/gaoptout/"
+                >Google Analytics Opt-out Browser Add-on page</a
+            >.
+        </li>
+        <li>
+            <span style="font-weight: 700">Retargeting/Advertising Cookies</span
+            >. Retargeting/Advertising Cookies collect data about your online
+            activity and identify your interests to provide advertising on and
+            off of our Service that we believe is relevant to you. For more
+            information about this, please see the section below titled
+            <a href="#info-interest-adv"
+                >&ldquo;Information about Interest-Based
+                Advertisements.&rdquo;</a
+            >
+        </li>
+        <li>
+            <span style="font-weight: 700">Web Beacons</span>. Web Beacons
+            (e.g., clear GIFs or pixel tags) are tiny graphic image files
+            embedded in a webpage or email that may be used to collect
+            information about the use of our Services, the web services of
+            selected advertisers, and the emails, special promotions, or
+            newsletters that we send. The information collected by Web Beacons
+            allows us to analyze how many people are using the Services, using
+            selected publishers&rsquo; web services or opening emails, and for
+            what purpose. Also, it allows us to enhance our interest-based
+            advertising (discussed further below).
+        </li>
+        <li>
+            <span style="font-weight: 700">Mobile Device Identifiers</span>.
+            Mobile device identifiers help NuviDoc learn more about our
+            Users&rsquo; demographics and internet behaviors. Mobile device
+            identifiers are data stored on mobile devices that may track mobile
+            devices and data, activities occurring on and through it, and the
+            applications installed on it. Mobile device identifiers enable the
+            collection of Personal Data, such as media access control, address,
+            location, and tracking data, including without limitation, IP
+            address, domain server, type of device(s) used to access the
+            Services, web browser(s) used to access the Services, referring
+            webpage or other source through which you accessed the Services,
+            other statistics, and information associated with the interaction
+            between your browser or device and the Services.
+        </li>
+        <li>
+            <span style="font-weight: 700">Cross Device Matching</span>. To
+            determine if users have interacted with content across multiple
+            devices and to match such devices, we may work with partners who
+            analyze device activity data and/or rely on your information
+            (including demographic, geographic, and interest-based data). We may
+            also provide de-identified data to these partners to supplement this
+            analysis. Based on this data, we may display targeted advertisements
+            across devices that we believe are associated or use this data to
+            further analyze usage of Services across devices.
+        </li>
+    </ul>
+    <br />
+    <p>
+        You can opt-out of all unessential Cookies at any time
+        <a href="#">here</a>. You can also
+        decide whether to accept Cookies through your internet browser&rsquo;s
+        settings. Most browsers have an option for turning off the Cookie
+        feature, which will prevent your browser from accepting new Cookies, as
+        well as (depending on your browser software) allowing you to decide on
+        acceptance of each new Cookie in a variety of ways. You may also be able
+        to reject mobile device identifiers by activating the appropriate
+        setting on your mobile device. You can also delete all Cookies that are
+        already on your device. Although you are not required to accept
+        NuviDoc&rsquo;s Cookies, if you block, reject, or delete them, you may
+        have to manually adjust some preferences every time you access the
+        Services, as some functionalities may not work.
+    </p>
+    <br />
+    <p>
+        To explore what Cookie settings are available to you via your browser,
+        look in the &ldquo;preferences&rdquo; or &ldquo;options&rdquo; section
+        of your browser&rsquo;s menu. To find more information about Cookies,
+        including how to manage and delete Cookies, please visit
+        <a href="http://www.allaboutcookies.org/">here</a>.
+    </p>
+    <br />
+    <div id="info-interest-adv">
+        <i style="font-style: italic"
+            ><a name="tracking-tools-internet"
+                >Information about Interest-Based Advertisements</a
+            ></i
+        >
+    </div>
+    <br />
+    <p>
+        We may serve advertisements and allow third-party ad networks, including
+        third-party ad servers, ad agencies, ad technology vendors, and research
+        firms, to collect data on the Services and serve advertisements on and
+        off of the Services. These advertisements may be targeted to users who
+        fit certain general profile categories or display certain preferences or
+        behaviors (&ldquo;Interest-Based Ads&rdquo;). Information for
+        Interest-Based Ads (including Personal Data) may be provided to us by
+        you or derived or inferred from the online activity or usage patterns of
+        particular users on the Services and/or services of third parties. Such
+        information may include IP address, mobile device ID, operating system,
+        browser, webpage interactions, geographic location, and demographic
+        information, such as gender and age range. Such information may be
+        gathered through tracking users&rsquo; activities across time and
+        unaffiliated properties, including when you leave the Services. This
+        information helps NuviDoc learn more about our Users&rsquo; demographics
+        and internet behaviors. Web Beacons also enable ad networks to serve
+        targeted advertisements to you when you visit other websites. Web
+        Beacons allow ad networks to view, edit or set their own Cookies on your
+        browser, just as if you had requested a webpage from their site.
+    </p>
+    <p>
+        Please note that even after opting out of Interest-Based Ads, you may
+        still see NuviDoc advertisements that are not interest-based (i.e., not
+        targeted toward you).
+    </p>
+    <br />
+    <h3>
+        <u><a style="color: black" name="data-security">Data Security</a></u>
+    </h3>
+    <p>
+        The security of your Personal Data is important to us. We seek to
+        protect your Personal Data from unauthorized access, use, and disclosure
+        using appropriate physical, technical, organizational, and
+        administrative security measures based on the type of Personal Data and
+        how we process that data. We endeavor to follow generally accepted
+        industry standards to protect the Personal Data submitted to us, both
+        during transmission and in storage, and have implemented physical,
+        administrative, and technical safeguards to maintain the security,
+        confidentiality, and integrity of your information in accordance with
+        applicable laws.
+    </p>
+    <p>
+        However, as no transmission of information over the internet is
+        absolutely secure, we cannot and do not guarantee the complete security
+        of any data you share with us, and except as expressly required by law,
+        we are not responsible for the theft, destruction, loss, or inadvertent
+        disclosure of your information or content.
+    </p>
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="childrens-privacy"
+                >Children&rsquo;s Privacy</a
+            ></u
+        >
+    </h3>
+    <p>
+        The Services are not directed to or intended for use by anyone under 18
+        years of age. If you are under the age of 18, please do not attempt to
+        register for or otherwise use the Services or send us any Personal Data.
+        By accessing, using, and/or submitting information to or through the
+        Services, you represent that you are at least the age of 18. We do not
+        knowingly collect or solicit Personal Data from children under the age
+        of 18. If we learn that we have received any Personal Data directly from
+        a child under age 18 without first receiving their parent&rsquo;s
+        verified consent, we will use that Personal Data only to respond
+        directly to that child (or their parent or legal guardian) to inform the
+        child that they cannot use the Services. We will then subsequently
+        delete that child&rsquo;s Personal Data. If you believe that a child
+        under 18 may have provided us with Personal Data, please contact us at
+        <a target="_blank" href="mailto:Privacy@@NuviDoc.com"
+            >Privacy@@NuviDoc.com</a
+        >.
+    </p>
+    <p>
+        If you are under the age of 18, you are not permitted to create a NuviDoc
+        account or use the NuviDoc Services. If you are a parent or legal
+        guardian of a minor child, you may, in compliance with the Agreement,
+        use the Services on behalf of such minor child. Any information that you
+        provide us while using the Services on behalf of your minor child will
+        be treated as Personal Data as otherwise provided herein.
+    </p>
+    <p style="text-decoration: underline; font-style: italic; font-weight: 700">
+        Other Users
+    </p>
+    <p>
+        If you use the Services on behalf of another person, regardless of age,
+        you agree that NuviDoc may contact you for any communication made in
+        connection with providing the Services or any legally required
+        communications. You further agree to forward or share any such
+        communication with any person for whom you are using the Services on
+        behalf.
+    </p>
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="controlling-personal-notifications"
+                >Controlling Your Personal Data and Notifications
+            </a></u
+        >
+    </h3>
+    <p>
+        If you are a registered User of the Services, you can modify certain
+        Personal Data or account information by logging in and accessing your
+        account. If you wish to close your account, please e-mail us at
+        <a target="_blank" href="mailto:Privacy@@NuviDoc.com"
+            >Privacy@@NuviDoc.com</a
+        >. NuviDoc will use reasonable efforts to delete your account as soon as
+        reasonably possible. Please note, however, that NuviDoc reserves the
+        right to retain information from closed accounts consistent with our
+        internal data retention policies and procedures.
+    </p>
+    <p>
+        You must promptly notify us if any of your account data is lost, stolen,
+        or used without permission.
+    </p>
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="us-state-rights"
+                >U.S. State Rights and Disclosures</a
+            ></u
+        >
+    </h3>
+    <p>
+        This section describes the rights available to you under certain state
+        privacy laws. NuviDoc provides these rights to all visitors and users,
+        regardless of their place of residence, unless stated otherwise in this
+        Privacy Policy. If you are a resident of Washington State, please also
+        see our policy with respect to consumer health information
+        <a href="/about/consumer-health-data-privacy-policy">here</a>.
+    </p>
+    <p>
+        Please see the
+        <a href="#exercising-rights">&ldquo;Exercising Your Rights&rdquo;</a>
+        section below for instructions on how to exercise the rights described
+        below. For more detailed instructions, you can refer to the &ldquo;Your
+        Privacy Choices&rdquo; page
+        <a href="#">here</a> or via the
+        &ldquo;Privacy&rdquo; tab in your account settings page.
+    </p>
+    <p>
+        Please note that in some cases, we may process Personal Data of our
+        customers&rsquo; end users or employees in connection with our provision
+        of certain services to our customers. If we are processing your Personal
+        Data as a &ldquo;processor&rdquo; (or similar term) under the applicable
+        privacy law, please contact the entity that collected your Personal Data
+        in the first instance to address your rights with respect to such data.
+        Additionally, these rights are subject to conditions and exceptions
+        under applicable law, which may permit or require us to deny your
+        request.
+    </p>
+    <p>
+        If you have any questions about this section please contact us at
+        <a target="_blank" href="mailto:Consumer-Privacy@@NuviDoc.com"
+            >Consumer-Privacy@@NuviDoc.com</a
+        >
+        and indicate &ldquo;State Rights&rdquo; in the subject line of your
+        communication.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Access / Portability
+    </p>
+    <p>
+        You have the right to request certain information about our collection
+        and use of your Personal Data, including the following:
+    </p>
+    <ul>
+        <li>
+            The categories of Personal Data that we have collected about you.
+        </li>
+        <li>
+            The categories of sources from which that Personal Data was
+            collected.
+        </li>
+        <li>
+            The business or commercial purpose for collecting or selling your
+            Personal Data.
+        </li>
+        <li>
+            The categories of third parties with whom we have shared your
+            Personal Data.
+        </li>
+        <li>
+            The specific pieces of Personal Data that we have collected about
+            you.
+        </li>
+    </ul>
+    <p>
+        If we have disclosed your Personal Data for a business purpose, we will
+        identify the categories of Personal Data shared with each third-party
+        recipient. If we have sold your Personal Data over the past 12 months,
+        we will identify the categories of Personal Data purchased by
+        third-party recipients.
+    </p>
+    <p>
+        In addition, you may have the right to request a copy of your Personal
+        Data in a machine-readable format to the extent technically feasible.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">Deletion</p>
+    <p>
+        You have the right to request that we delete the Personal Data that we
+        have collected from you. Note that we may need to retain your Personal
+        Data to provide you with the Services or complete a transaction or other
+        action you have requested. In addition, under applicable state privacy
+        laws, this right is subject to certain exceptions. If your deletion
+        request is subject to one of these exceptions, we may deny your deletion
+        request.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">Correction</p>
+    <p>
+        You may have the right to correct inaccuracies in your Personal Data, to
+        the extent such correction is appropriate in consideration of the nature
+        of such data and our purposes of processing your Personal Data.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Sensitive Personal Data
+    </p>
+    <p>
+        We may collect certain Personal Data that is deemed
+        &ldquo;sensitive&rdquo; (&ldquo;Sensitive Personal Data&rdquo;) with
+        your authorization.
+    </p>
+    <p>
+        Depending on your state of residence, you may have the right to consent
+        prior to our collection, processing, and/or disclosure of such Sensitive
+        Personal Data. The categories of Sensitive Personal Data we collect and
+        our purposes for collecting such Sensitive Personal Data is described in
+        the
+        <a href="#personal-data"
+            >&ldquo;Categories of Personal Data We Collect&rdquo;
+        </a>
+        section above. We will only process Sensitive Personal Data as
+        reasonably necessary to fulfill the purposes for which such Sensitive
+        Personal Data was collected. We do not sell or share Sensitive Personal
+        Data for monetary consideration.
+    </p>
+    <p>
+        To withdraw your consent for our collection and processing of Sensitive
+        Personal Data, please see the<a href="#exercising-rights"
+            >&ldquo;Exercising Your Rights&rdquo;</a
+        >
+        section below.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        <a
+            style="color: black; font-weight: normal; font-family: inherit"
+            name="personal-data-sharing"
+            >Right to Opt-Out</a
+        >
+    </p>
+    <p>
+        Under applicable state law, consumers have certain rights when a
+        business &ldquo;shares&rdquo; or &ldquo;sells&rdquo; Personal Data with
+        third parties for purposes of cross-contextual behavioral advertising.
+        While NuviDoc does not sell Users&rsquo; information to unaffiliated
+        parties for money, we do share Cookies and other web data to advertising
+        and marketing partners in a manner that might be considered
+        &ldquo;selling&rdquo; or &ldquo;sharing&rdquo; your Personal Data as
+        those terms are defined under certain state laws.
+    </p>
+    <p>
+        You may also have the right to opt-out from processing your Personal
+        Data for the purposes of profiling in furtherance of decisions that
+        produce legal or similarly significant effects to you. However, we do
+        not conduct such activities.
+    </p>
+    <p>
+        Once you have submitted an opt-out request, we will not ask you to
+        reauthorize the sharing of your Personal Data for at least 12 months. To
+        our knowledge, we do not share the Personal Data of minors under 18
+        years of age.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        We Will Not Discriminate Against You for Exercising Your Rights
+    </p>
+    <p>
+        We will not discriminate against you for exercising your rights under
+        applicable state law. We will not deny you our Services or provide you
+        with a lower quality of Services if you exercise your rights. However,
+        as explained above, if you delete your Personal Data or otherwise
+        restrict NuviDoc&rsquo;s use of Personal Data, we may not be able to
+        provide the same Services to you.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Financial Incentives
+    </p>
+    <p>
+        At NuviDoc, we value your data because it allows us to better understand
+        your goals and preferences and improve our products and services to
+        better serve you. From time to time, we may offer a financial incentive
+        for your participation in our user research. The financial incentive we
+        offer is based on our good faith determination of the estimated value of
+        your data. If you participate in the research, you may be asked to
+        submit Personal Data in surveys, forms, or through your account. The
+        Personal Data you submit in connection with this research will only be
+        used internally to improve our product; we will never share or sell this
+        data to third parties.
+    </p>
+    <p>
+        Through your participation in the research, we may collect the following
+        categories of Personal Data about you:
+    </p>
+    <ul>
+        <li>
+            Identifiers, such as your name, address, unique personal identifier,
+            online identifier, internet protocol address, email address, account
+            name, social security number, driver&rsquo;s license number,
+            passport number, or other similar identifiers.
+        </li>
+        <li>
+            Characteristics of protected classifications under state or federal
+            law.
+        </li>
+        <li>
+            Commercial information, such as products or services you&rsquo;ve
+            purchased, obtained, or considered, or other purchasing or consuming
+            histories or tendencies.
+        </li>
+        <li>
+            Internet or other electronic network activity information, such as
+            your browsing history, search history, and information regarding
+            your interaction with an internet website, application, or
+            advertisement.
+        </li>
+        <li>Location data.</li>
+        <li>
+            Audio, electronic, visual, thermal, olfactory, or similar
+            information. For example, we may collect your voice recordings.
+        </li>
+        <li>Professional or employment-related information.</li>
+        <li>
+            Education information, defined as information that is not publicly
+            available personally identifiable information as defined in the
+            Family Educational Rights and Privacy Act (20 U.S.C. Sec. 1232g; 34
+            C.F.R. Part 99).
+        </li>
+        <li>
+            Any other Personal Data you may enter into a free-form field of our
+            surveys or forms.
+        </li>
+        <li>
+            Inferences drawn from any of the foregoing categories of Personal
+            Data.
+        </li>
+    </ul>
+    <p>
+        Participation in the financial incentive is entirely optional. If you
+        participate in research and receive a financial incentive, you agree
+        that we are not required to comply with your right to know or delete
+        Personal Data collected in exchange for the financial incentive. If you
+        are a participant in a financial incentive we offer, you may withdraw
+        from the financial incentive at any time by emailing us at the email
+        address provided to you with your individual notice of the financial
+        incentive.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Additional California Resident Rights
+    </p>
+    <p>
+        Under California Civil Code Sections 1798.83-1798.84, California
+        residents have the right to contact us to prevent disclosure of Personal
+        Data to third parties for such third parties&rsquo; direct marketing
+        purposes, where applicable. You can opt-out of such data selling and/or
+        sharing by visiting our Privacy Choices Page
+        <a href="#">here</a> or by logging
+        into your NuviDoc account and choosing the &ldquo;Privacy&rdquo; tab. If
+        you are struggling to opt-out or if you have additional questions,
+        please contact us at
+        <a target="_blank" href="mailto:Consumer-Privacy@@NuviDoc.com"
+            >Consumer-Privacy@@NuviDoc.com</a
+        >.
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Additional Oregon and Minnesota Rights
+    </p>
+    <p>
+        If you are an Oregon or Minnesota resident, you may request access to
+        specific third parties to which we have disclosed the Personal Data
+        (subject to exceptions in accordance with applicable law.) To exercise
+        this right, please email
+        <a target="_blank" href="mailto:privacy@@NuviDoc.com"
+            >privacy@@NuviDoc.com</a
+        >
+        with the subject &ldquo;[Oregon/Minnesota] Access Request.&rdquo;
+    </p>
+    <p style="text-decoration: underline; font-style: italic">
+        Appealing a Denial
+    </p>
+    <p>
+        Depending on where you reside, if we refuse to take action on a request
+        within a reasonable period of time after receiving your request in
+        accordance with this section, you have the right to appeal the decision.
+        In such an appeal, you must (1) provide sufficient information to allow
+        us to verify that you are the person about whom the original request
+        pertains and to identify the original request, and (2) provide a
+        description of the basis of your appeal. Please note that your appeal
+        will be subject to your rights and obligations afforded to you under the
+        applicable state law that applies to you. We will respond to such
+        appeals within the time period required by applicable law. If we deny
+        your appeal, you may have the right to contact the applicable regulators
+        in your state.
+    </p>
+    <p>You may appeal a decision by us using the following methods:</p>
+    <ul>
+        <li>
+            Email us at:
+            <a target="_blank" href="mailto:Consumer-Privacy@@NuviDoc.com"
+                >Consumer-Privacy@@NuviDoc.com</a
+            >
+            (title must include &ldquo;Consumer Appeal&rdquo;)
+        </li>
+        <li>Call us at: (855) 962-3621</li>
+    </ul>
+
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="exercising-rights"
+                >Exercising Your Rights</a
+            ></u
+        >
+    </h3>
+    <p style="text-decoration: underline; font-style: italic">Opt-out</p>
+    <p>
+        You can opt-out of sales and sharing by visiting our Privacy Choices
+        Page
+        <a href="#">here</a> or by logging
+        into your NuviDoc account and choosing the &ldquo;Privacy Choices&rdquo;
+        tab.
+    </p>
+    <p>
+        In addition, you may choose to enable a tool that automatically
+        communicates your opt-out preferences to all businesses that you
+        interact with online. If you enable a browser-based opt-out preference
+        signal, such as the GPC, upon receipt or detection, we will treat the
+        signal as a valid request to opt-out of sale, sharing, or targeted
+        advertising linked to that browser and, where we can do so, consumer
+        profiles that we have associated with that browser. Please note that if
+        you use different browsers or browser profiles, you will have to enable
+        the signal on each one that you use. You may learn more about GPC by
+        clicking
+        <a href="https://globalprivacycontrol.org/">here</a>.
+    </p>
+    <p>
+        Please note that we will not ask you to verify your identity in
+        connection with your right to opt-out.
+    </p>
+    <p>
+        To exercise other rights as described above, you must submit a request
+        that (1) provides sufficient information to allow us to verify that you
+        are the person about whom we have collected Personal Data, and (2)
+        describes your request in sufficient detail to allow us to understand,
+        evaluate, and respond to it. Each request that meets both of these
+        criteria will be considered a &ldquo;Valid Request.&rdquo; We will only
+        use Personal Data provided in a Valid Request to verify you and complete
+        your request.
+    </p>
+    <p>
+        We will respond to your Valid Request within the applicable time period
+        required by law. We will not charge you a fee for making a Valid
+        Request.
+    </p>
+    <p>
+        <span style="font-weight: 700">Users</span>: If you have a NuviDoc
+        account, you can:
+    </p>
+    <ul>
+        <li>
+            Submit requests to access or delete your data through the
+            &ldquo;Privacy&rdquo; tab in your account settings. We do not retain
+            any identifiable information about Visitors to the website for more
+            than 30 days; a NuviDoc account is required to use the Services.
+        </li>
+        <li>
+            Correct or modify any Personal Data associated with your account by
+            updating your account settings.
+        </li>
+    </ul>
+    <br />
+    <p>
+        <span style="font-weight: 700">Visitors</span>: If you are a Visitor and
+        do not have an account with us, we may be unable to fulfill requests to
+        access, delete, or correct personal information associated with your
+        browsing activity. This is because (1) we cannot reasonably verify your
+        identity as required under applicable law, and (2) we do not maintain
+        persistent identifiers that allow us to associate your request with
+        specific browsing data collected through cookies or similar
+        technologies. You may, however, opt out of sales and sharing as
+        described above.
+    </p>
+    <br />
+    <p style="text-decoration: underline; font-style: italic">
+        Authorized Agents
+    </p>
+    <br />
+    <p>
+        In certain states, consumers may designate an authorized agent to
+        exercise their privacy rights. You may designate an authorized agent to
+        submit requests on your behalf using the methods described in this
+        section. However, we may require written proof of the agent&rsquo;s
+        permission to do so and verify your identity directly with you.
+    </p>
+    <br />
+    <p>
+        If you have questions or difficulty submitting a rights request, you can
+        call us at (855) 962-3621 or email us at
+        <a target="_blank" href="mailto:Consumer-Privacy@@NuviDoc.com"
+            >Consumer-Privacy@@NuviDoc.com</a
+        >.
+    </p>
+    <br />
+    <h3>
+        <u
+            ><a style="color: black" name="changes-to-policy"
+                >Changes to this Privacy Policy</a
+            ></u
+        >
+    </h3>
+    <p>
+        We reserve the right to update or modify this Privacy Policy at any time
+        without prior notice by posting a revised version of the policy on our
+        website homepage. If we make material changes to this Privacy Policy, we
+        will notify you by temporarily including a banner on the homepage of our
+        Website or by directly communicating with you via email or via your
+        account. Your use of the Services following revision to this Privacy
+        Policy constitutes your agreement that all information collected from or
+        about you after the revised policy is posted will be subject to the
+        terms and conditions of the revised policy. The date listed above
+        indicates the most recent change or update to this Privacy Policy.
+    </p>
+    <h3>
+        <u
+            ><a style="color: black" name="contact-information"
+                >Contact Information</a
+            ></u
+        >
+    </h3>
+    <p>
+        If you have any questions or comments about this Privacy Policy, the
+        ways in which we collect and use your Personal Data, your choices, and
+        rights regarding such use, please do not hesitate to contact us at:
+    </p>
+    <ul>
+        <li>
+            E-mail:
+            <a target="_blank" href="mailto:Privacy@@NuviDoc.com"
+                >Privacy@@NuviDoc.com</a
+            >
+        </li>
+        <li>Address: NuviDoc, Inc., 568 Broadway FL 9, New York, NY 10012</li>
+        <li>Phone: (855) 962-3621</li>
+        <li>Fax: (800) 701-9607</li>
+    </ul>
+    </main>
+
+    <footer class="pp-footer">
+        <a href="/Doctor/Settings/legal">← Back to Legal</a>
+        <span>© @DateTime.UtcNow.Year @site</span>
+    </footer>
+</body>
+</html>
