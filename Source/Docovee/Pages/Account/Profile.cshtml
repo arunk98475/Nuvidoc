@@ -222,7 +222,7 @@
                                     <a class="btn-secondary btn-sm" href="/doctors/@a.DoctorId">Profile</a>
                                 </div>
 
-                                @if (a.Status != AppointmentStatuses.Cancelled)
+                                @if (!Docovee.DS.Entities.AppointmentStatuses.IsCanceled(a.Status))
                                 {
                                     if (a.HasReview)
                                     {

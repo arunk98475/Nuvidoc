@@ -32,15 +32,15 @@ public class InboxModel : PageModel
         Search = q?.Trim();
 
         var all = await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken);
-        NewCount = all.Count(a => a.Status == AppointmentStatuses.New);
-        RescheduleCount = all.Count(a => a.Status == AppointmentStatuses.Reschedule);
-        CancelledCount = all.Count(a => a.Status == AppointmentStatuses.Cancelled);
+        NewCount = all.Count(a => AppointmentStatuses.IsUnconfirmed(a.Status));
+        RescheduleCount = all.Count(a => AppointmentStatuses.IsRescheduled(a.Status));
+        CancelledCount = all.Count(a => AppointmentStatuses.IsCanceled(a.Status));
 
         IEnumerable<DoctorAppointmentDto> filtered = Filter switch
         {
-            "new" => all.Where(a => a.Status == AppointmentStatuses.New),
-            "reschedule" => all.Where(a => a.Status == AppointmentStatuses.Reschedule),
-            "cancelled" => all.Where(a => a.Status == AppointmentStatuses.Cancelled),
+            "new" => all.Where(a => AppointmentStatuses.IsUnconfirmed(a.Status)),
+            "reschedule" => all.Where(a => AppointmentStatuses.IsRescheduled(a.Status)),
+            "cancelled" => all.Where(a => AppointmentStatuses.IsCanceled(a.Status)),
             _ => all
         };
 
@@ -68,22 +68,18 @@ public class InboxModel : PageModel
         return when.ToLocalTime().ToString("MMM d, yyyy");
     }
 
-    public static string StatusLabel(string status) => status switch
-    {
-        AppointmentStatuses.New => "New booking",
-        AppointmentStatuses.Reschedule => "Reschedule",
-        AppointmentStatuses.Cancelled => "Cancellation",
-        AppointmentStatuses.Confirmed => "Confirmed",
-        AppointmentStatuses.Completed => "Completed",
-        _ => status
-    };
+    public static string StatusLabel(string status) => AppointmentStatuses.DisplayLabel(status);
 
-    public static string StatusCss(string status) => status switch
+    public static string StatusCss(string status)
     {
-        AppointmentStatuses.New => "green",
-        AppointmentStatuses.Reschedule => "blue",
-        AppointmentStatuses.Cancelled => "yellow",
-        AppointmentStatuses.Confirmed => "green",
-        _ => "yellow"
-    };
+        var s = AppointmentStatuses.Normalize(status);
+        return s switch
+        {
+            AppointmentStatuses.Unconfirmed => "green",
+            AppointmentStatuses.Confirmed => "green",
+            AppointmentStatuses.PracticeRescheduled or AppointmentStatuses.PatientRescheduled => "blue",
+            AppointmentStatuses.PracticeCanceled or AppointmentStatuses.PatientCanceled or AppointmentStatuses.PatientNoShow => "yellow",
+            _ => "yellow"
+        };
+    }
 }

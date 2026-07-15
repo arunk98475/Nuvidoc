@@ -12,7 +12,7 @@ public class Appointment
     public string? PatientEmail { get; set; }
     public string VisitReason { get; set; } = string.Empty;
     public DateTime StartsAt { get; set; }
-    public string Status { get; set; } = AppointmentStatuses.New;
+    public string Status { get; set; } = AppointmentStatuses.Unconfirmed;
     public string Source { get; set; } = AppointmentSources.PublicProfile;
     public int? SearchSessionId { get; set; }
     public DateOnly? PatientDateOfBirth { get; set; }
@@ -22,11 +22,106 @@ public class Appointment
 
 public static class AppointmentStatuses
 {
-    public const string New = "New";
+    // Canonical statuses
     public const string Confirmed = "Confirmed";
+    public const string Unconfirmed = "Unconfirmed";
+    public const string PracticeRescheduled = "PracticeRescheduled";
+    public const string PatientRescheduled = "PatientRescheduled";
+    public const string PracticeCanceled = "PracticeCanceled";
+    public const string PatientCanceled = "PatientCanceled";
+    public const string PatientNoShow = "PatientNoShow";
+
+    // Legacy values still present in older rows
+    public const string New = "New";
     public const string Reschedule = "Reschedule";
     public const string Cancelled = "Cancelled";
     public const string Completed = "Completed";
+
+    private static readonly HashSet<string> Known = new(StringComparer.OrdinalIgnoreCase)
+    {
+        Confirmed,
+        Unconfirmed,
+        PracticeRescheduled,
+        PatientRescheduled,
+        PracticeCanceled,
+        PatientCanceled,
+        PatientNoShow,
+        New,
+        Reschedule,
+        Cancelled,
+        Completed
+    };
+
+    public static bool IsKnown(string? status) =>
+        !string.IsNullOrWhiteSpace(status) && Known.Contains(status);
+
+    public static string Normalize(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            return Unconfirmed;
+
+        return status switch
+        {
+            New => Unconfirmed,
+            Reschedule => PatientRescheduled,
+            Cancelled => PatientCanceled,
+            _ => status
+        };
+    }
+
+    public static string DisplayLabel(string? status) => Normalize(status) switch
+    {
+        Confirmed => "Confirmed",
+        Unconfirmed => "Unconfirmed",
+        PracticeRescheduled => "Practice rescheduled",
+        PatientRescheduled => "Patient rescheduled",
+        PracticeCanceled => "Practice canceled",
+        PatientCanceled => "Patient canceled",
+        PatientNoShow => "Patient no-show",
+        Completed => "Completed",
+        _ => status ?? "Unknown"
+    };
+
+    public static bool IsActive(string? status)
+    {
+        var s = Normalize(status);
+        return s is Unconfirmed or Confirmed or PracticeRescheduled or PatientRescheduled;
+    }
+
+    public static bool IsCanceled(string? status)
+    {
+        var s = Normalize(status);
+        return s is PracticeCanceled or PatientCanceled;
+    }
+
+    public static bool IsRescheduled(string? status)
+    {
+        var s = Normalize(status);
+        return s is PracticeRescheduled or PatientRescheduled;
+    }
+
+    public static bool IsUnconfirmed(string? status) =>
+        string.Equals(Normalize(status), Unconfirmed, StringComparison.OrdinalIgnoreCase);
+
+    public static bool NeedsDoctorAttention(string? status)
+    {
+        var s = Normalize(status);
+        return s is Unconfirmed or PracticeRescheduled or PatientRescheduled;
+    }
+
+    public static bool CanConfirm(string? status)
+    {
+        var s = Normalize(status);
+        return s is Unconfirmed or PracticeRescheduled or PatientRescheduled;
+    }
+
+    public static bool CanPracticeCancel(string? status) => IsActive(status);
+
+    public static bool CanMarkNoShow(string? status)
+    {
+        var s = Normalize(status);
+        return s is Confirmed or Unconfirmed or PracticeRescheduled or PatientRescheduled;
+    }
 }
 
 public static class AppointmentSources

@@ -70,8 +70,7 @@ public class IndexModel : PageModel
         var nextMonth = monthStart.AddMonths(1);
         var lastMonthStart = monthStart.AddMonths(-1);
 
-        bool NotCancelled(DoctorAppointmentDto a) =>
-            !string.Equals(a.Status, AppointmentStatuses.Cancelled, StringComparison.OrdinalIgnoreCase);
+        bool NotCancelled(DoctorAppointmentDto a) => !AppointmentStatuses.IsCanceled(a.Status);
 
         AppointmentsThisWeek = all.Count(a =>
             NotCancelled(a) && a.StartsAt >= weekStart && a.StartsAt < weekEnd);
@@ -80,11 +79,10 @@ public class IndexModel : PageModel
             NotCancelled(a)
             && string.Equals(a.Source, AppointmentSources.PublicProfile, StringComparison.OrdinalIgnoreCase));
 
-        PendingAppointments = all.Count(a =>
-            a.Status is AppointmentStatuses.New or AppointmentStatuses.Reschedule);
+        PendingAppointments = all.Count(a => AppointmentStatuses.NeedsDoctorAttention(a.Status));
 
         ConfirmedAppointments = all.Count(a =>
-            string.Equals(a.Status, AppointmentStatuses.Confirmed, StringComparison.OrdinalIgnoreCase)
+            string.Equals(AppointmentStatuses.Normalize(a.Status), AppointmentStatuses.Confirmed, StringComparison.OrdinalIgnoreCase)
             && a.StartsAt >= today);
 
         CompletedAppointments = all.Count(a =>
@@ -100,11 +98,10 @@ public class IndexModel : PageModel
             NotCancelled(a) && a.StartsAt >= lastMonthStart && a.StartsAt < monthStart);
 
         CancelledThisMonth = all.Count(a =>
-            string.Equals(a.Status, AppointmentStatuses.Cancelled, StringComparison.OrdinalIgnoreCase)
+            AppointmentStatuses.IsCanceled(a.Status)
             && a.UpdatedAt >= monthStart && a.UpdatedAt < nextMonth);
 
-        var decided = CompletedAppointments + all.Count(a =>
-            string.Equals(a.Status, AppointmentStatuses.Cancelled, StringComparison.OrdinalIgnoreCase));
+        var decided = CompletedAppointments + all.Count(a => AppointmentStatuses.IsCanceled(a.Status));
         CompletionRatePercent = decided > 0
             ? (int)Math.Round(100.0 * CompletedAppointments / decided)
             : 0;
@@ -157,24 +154,20 @@ public class IndexModel : PageModel
         return date.Date.AddDays(-diff);
     }
 
-    private static string StatusLabel(string status) => status switch
-    {
-        AppointmentStatuses.New => "Pending",
-        AppointmentStatuses.Reschedule => "Reschedule",
-        AppointmentStatuses.Confirmed => "Confirmed",
-        AppointmentStatuses.Completed => "Completed",
-        AppointmentStatuses.Cancelled => "Cancelled",
-        _ => status
-    };
+    private static string StatusLabel(string status) => AppointmentStatuses.DisplayLabel(status);
 
-    private static string StatusTone(string status) => status switch
+    private static string StatusTone(string status)
     {
-        AppointmentStatuses.New => "amber",
-        AppointmentStatuses.Reschedule => "blue",
-        AppointmentStatuses.Confirmed => "green",
-        AppointmentStatuses.Completed => "muted",
-        _ => "muted"
-    };
+        var s = AppointmentStatuses.Normalize(status);
+        return s switch
+        {
+            AppointmentStatuses.Unconfirmed => "amber",
+            AppointmentStatuses.PracticeRescheduled or AppointmentStatuses.PatientRescheduled => "blue",
+            AppointmentStatuses.Confirmed => "green",
+            AppointmentStatuses.Completed => "muted",
+            _ => "muted"
+        };
+    }
 
     public sealed class UpcomingAppointmentRow
     {

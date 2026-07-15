@@ -182,14 +182,16 @@ public class ProfileModel : PageModel
         var startOfToday = DateTime.Today;
         UpcomingAppointments = all
             .Where(a => a.StartsAt >= startOfToday
-                        && a.Status != AppointmentStatuses.Cancelled
-                        && a.Status != AppointmentStatuses.Completed)
+                        && !AppointmentStatuses.IsCanceled(a.Status)
+                        && a.Status != AppointmentStatuses.Completed
+                        && AppointmentStatuses.Normalize(a.Status) != AppointmentStatuses.PatientNoShow)
             .OrderBy(a => a.StartsAt)
             .ToList();
         PastAppointments = all
             .Where(a => a.StartsAt < startOfToday
                         || a.Status == AppointmentStatuses.Completed
-                        || a.Status == AppointmentStatuses.Cancelled)
+                        || AppointmentStatuses.IsCanceled(a.Status)
+                        || AppointmentStatuses.Normalize(a.Status) == AppointmentStatuses.PatientNoShow)
             .OrderByDescending(a => a.StartsAt)
             .ToList();
     }
@@ -203,13 +205,5 @@ public class ProfileModel : PageModel
             _ => "personal"
         };
 
-    public static string StatusLabel(string status) => status switch
-    {
-        AppointmentStatuses.New => "Pending confirmation",
-        AppointmentStatuses.Confirmed => "Confirmed",
-        AppointmentStatuses.Reschedule => "Reschedule requested",
-        AppointmentStatuses.Cancelled => "Cancelled",
-        AppointmentStatuses.Completed => "Completed",
-        _ => status
-    };
+    public static string StatusLabel(string status) => AppointmentStatuses.DisplayLabel(status);
 }

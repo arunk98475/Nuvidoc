@@ -1987,7 +1987,13 @@ body.dp-drawer-open {
   color: #0f7a45;
 }
 
-.dp-drawer-badge.status-cancelled {
+.dp-drawer-badge.status-unconfirmed {
+  background: #fff4d6;
+  color: #9a6b00;
+}
+
+.dp-drawer-badge.status-cancelled,
+.dp-drawer-badge.status-noshow {
   background: #f2f2f2;
   color: #6b6b6b;
 }

@@ -11,6 +11,7 @@
     var lead = (int)monthStart.DayOfWeek;
     var today = DateOnly.FromDateTime(DateTime.Today);
 }
+@Html.AntiForgeryToken()
 
 <div class="dp-cal-layout">
     <div class="dp-cal-main">
@@ -298,7 +299,7 @@
 
       const badge = document.getElementById("dp-drawer-badge");
       badge.textContent = data.statusLabel || data.status || "";
-      badge.className = "dp-drawer-badge status-" + String(data.status || "").toLowerCase();
+      badge.className = "dp-drawer-badge " + statusBadgeClass(data.status);
 
       setText("dp-drawer-name", data.patientName);
       const patientType = data.patientType || (data.hasAccount ? "Existing patient" : "New patient");
@@ -381,7 +382,7 @@
 
       const alreadyConfirmed = String(data.status || "").toLowerCase() === "confirmed";
       if (confirmBtn) {
-        confirmBtn.disabled = alreadyConfirmed;
+        confirmBtn.disabled = alreadyConfirmed || data.canConfirm === false;
         confirmBtn.textContent = alreadyConfirmed ? "Patient confirmed" : "Confirm patient can be seen";
       }
 
@@ -400,9 +401,8 @@
       if (footerUpcoming) footerUpcoming.hidden = isPast;
       if (noShowBtn) {
         noShowBtn.hidden = !isPast;
-        const alreadyNoShow = String(data.status || "").toLowerCase() === "noshow"
-          || String(data.statusLabel || "").toLowerCase().includes("no show");
-        noShowBtn.disabled = alreadyNoShow;
+        const alreadyNoShow = String(data.status || "").toLowerCase() === "patientnoshow";
+        noShowBtn.disabled = alreadyNoShow || data.canMarkNoShow === false;
         noShowBtn.textContent = alreadyNoShow ? "Marked as no show" : "Mark as no show";
       }
 
@@ -425,6 +425,66 @@
       .replace(/"/g, "&quot;");
   }
 
+  function statusBadgeClass(status) {
+    const s = String(status || "").toLowerCase();
+    if (s === "confirmed") return "status-confirmed";
+    if (s === "unconfirmed") return "status-unconfirmed";
+    if (s.includes("reschedule")) return "status-reschedule";
+    if (s === "patientnoshow") return "status-noshow";
+    if (s.includes("cancel")) return "status-cancelled";
+    return "status-unconfirmed";
+  }
+
+  function antiForgeryToken() {
+    return document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+  }
+
+  async function updateAppointmentStatus(status, busyEl) {
+    if (!currentAppointmentId) return null;
+    if (busyEl) busyEl.disabled = true;
+    try {
+      const form = new URLSearchParams();
+      form.set("appointmentId", String(currentAppointmentId));
+      form.set("status", status);
+      const token = antiForgeryToken();
+      if (token) form.set("__RequestVerificationToken", token);
+
+      const res = await fetch("/Doctor/Calendar?handler=UpdateStatus", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "RequestVerificationToken": token,
+          "Accept": "application/json"
+        },
+        body: form.toString()
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not update appointment.");
+      return data;
+    } finally {
+      // caller may re-enable or keep disabled based on new status
+    }
+  }
+
+  function applyStatusToDrawer(data) {
+    const badge = document.getElementById("dp-drawer-badge");
+    if (badge) {
+      badge.textContent = data.statusLabel || data.status || "";
+      badge.className = "dp-drawer-badge " + statusBadgeClass(data.status);
+    }
+    const status = String(data.status || "").toLowerCase();
+    if (confirmBtn) {
+      const confirmed = status === "confirmed";
+      confirmBtn.disabled = confirmed;
+      confirmBtn.textContent = confirmed ? "Patient confirmed" : "Confirm patient can be seen";
+    }
+    if (noShowBtn) {
+      const noshow = status === "patientnoshow";
+      noShowBtn.disabled = noshow;
+      noShowBtn.textContent = noshow ? "Marked as no show" : "Mark as no show";
+    }
+  }
+
   requestCallBtn?.addEventListener("click", () => {
     if (!currentPhoneDigits) {
       showToast("No phone number on file for this patient.");
@@ -441,36 +501,58 @@
   });
 
   editMenu?.querySelectorAll("[data-edit-action]").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", async () => {
       const action = btn.getAttribute("data-edit-action");
       closeEditMenu();
-      if (action === "modify") showToast("Modify appointment flow coming soon.");
-      else if (action === "cancel") showToast("Cancel appointment flow coming soon.");
+      if (action === "modify") {
+        showToast("Modify appointment flow coming soon.");
+        return;
+      }
+      if (action === "cancel") {
+        if (!currentAppointmentId) return;
+        if (!window.confirm("Cancel this appointment? The patient will see this as practice canceled.")) return;
+        try {
+          const data = await updateAppointmentStatus("PracticeCanceled", null);
+          if (!data) return;
+          applyStatusToDrawer(data);
+          showToast("Marked as practice canceled.");
+          if (data.remainsOnCalendar === false) {
+            setTimeout(() => window.location.reload(), 700);
+          }
+        } catch (err) {
+          showToast(err.message || "Could not cancel appointment.");
+        }
+      }
     });
   });
 
-  confirmBtn?.addEventListener("click", () => {
+  confirmBtn?.addEventListener("click", async () => {
     if (!currentAppointmentId || confirmBtn.disabled) return;
-    const badge = document.getElementById("dp-drawer-badge");
-    if (badge) {
-      badge.textContent = "Confirmed";
-      badge.className = "dp-drawer-badge status-confirmed";
+    try {
+      const data = await updateAppointmentStatus("Confirmed", confirmBtn);
+      if (!data) return;
+      applyStatusToDrawer(data);
+      showToast("Marked as confirmed.");
+    } catch (err) {
+      confirmBtn.disabled = false;
+      showToast(err.message || "Could not confirm appointment.");
     }
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = "Patient confirmed";
-    showToast("Marked as patient can be seen.");
   });
 
-  noShowBtn?.addEventListener("click", () => {
+  noShowBtn?.addEventListener("click", async () => {
     if (!currentAppointmentId || noShowBtn.disabled) return;
-    const badge = document.getElementById("dp-drawer-badge");
-    if (badge) {
-      badge.textContent = "No show";
-      badge.className = "dp-drawer-badge status-cancelled";
+    try {
+      const data = await updateAppointmentStatus("PatientNoShow", noShowBtn);
+      if (!data) return;
+      applyStatusToDrawer(data);
+      showToast("Marked as patient no-show.");
+      if (data.remainsOnCalendar === false) {
+        setTimeout(() => window.location.reload(), 700);
+      }
+    } catch (err) {
+      noShowBtn.disabled = false;
+      showToast(err.message || "Could not mark no-show.");
     }
-    noShowBtn.disabled = true;
-    noShowBtn.textContent = "Marked as no show";
-    showToast("Marked as no show.");
   });
 
   document.addEventListener("click", (e) => {

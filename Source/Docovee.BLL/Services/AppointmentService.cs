@@ -26,6 +26,18 @@ public interface IAppointmentService
         int appointmentId,
         CancellationToken cancellationToken = default);
 
+    Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsync(
+        int doctorId,
+        int appointmentId,
+        string status,
+        CancellationToken cancellationToken = default);
+
+    Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsPatientAsync(
+        int patientId,
+        int appointmentId,
+        string status,
+        CancellationToken cancellationToken = default);
+
     Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default);
 
     Task<HashSet<DateTime>> GetBookedStartsAsync(
@@ -43,9 +55,22 @@ public class AppointmentService : IAppointmentService
 {
     private static readonly HashSet<string> ActiveStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
-        AppointmentStatuses.New,
+        AppointmentStatuses.Unconfirmed,
         AppointmentStatuses.Confirmed,
+        AppointmentStatuses.PracticeRescheduled,
+        AppointmentStatuses.PatientRescheduled,
+        // Legacy rows
+        AppointmentStatuses.New,
         AppointmentStatuses.Reschedule
+    };
+
+    private static readonly HashSet<string> DoctorSettableStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        AppointmentStatuses.Confirmed,
+        AppointmentStatuses.Unconfirmed,
+        AppointmentStatuses.PracticeRescheduled,
+        AppointmentStatuses.PracticeCanceled,
+        AppointmentStatuses.PatientNoShow
     };
 
     private readonly DocoveeDbContext _db;
@@ -149,7 +174,7 @@ public class AppointmentService : IAppointmentService
             PatientDateOfBirth = patientDob,
             VisitReason = visitReason,
             StartsAt = startsAt,
-            Status = AppointmentStatuses.New,
+            Status = AppointmentStatuses.Unconfirmed,
             Source = string.IsNullOrWhiteSpace(request.Source)
                 ? AppointmentSources.PublicProfile
                 : request.Source.Trim(),
@@ -238,13 +263,96 @@ public class AppointmentService : IAppointmentService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsync(
+        int doctorId,
+        int appointmentId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = AppointmentStatuses.Normalize(status);
+        if (!DoctorSettableStatuses.Contains(normalized) && !DoctorSettableStatuses.Contains(status))
+            return (false, "Unsupported appointment status.", null, null);
+
+        var target = DoctorSettableStatuses.Contains(normalized) ? normalized : status;
+
+        var appointment = await _db.Appointments
+            .FirstOrDefaultAsync(a => a.DoctorId == doctorId && a.Id == appointmentId, cancellationToken);
+        if (appointment == null)
+            return (false, "Appointment not found.", null, null);
+
+        if (string.Equals(AppointmentStatuses.Normalize(appointment.Status), target, StringComparison.OrdinalIgnoreCase))
+        {
+            return (true, null, target, AppointmentStatuses.DisplayLabel(target));
+        }
+
+        if (target == AppointmentStatuses.Confirmed && !AppointmentStatuses.CanConfirm(appointment.Status))
+            return (false, "This appointment cannot be confirmed.", null, null);
+
+        if (target == AppointmentStatuses.PracticeCanceled && !AppointmentStatuses.CanPracticeCancel(appointment.Status))
+            return (false, "This appointment cannot be canceled.", null, null);
+
+        if (target == AppointmentStatuses.PatientNoShow && !AppointmentStatuses.CanMarkNoShow(appointment.Status))
+            return (false, "This appointment cannot be marked as a no-show.", null, null);
+
+        appointment.Status = target;
+        appointment.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Appointment {Id} status set to {Status} by doctor {DoctorId}",
+            appointment.Id, appointment.Status, doctorId);
+
+        return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status));
+    }
+
+    public async Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsPatientAsync(
+        int patientId,
+        int appointmentId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        var target = AppointmentStatuses.Normalize(status);
+        if (target is not (AppointmentStatuses.PatientCanceled or AppointmentStatuses.PatientRescheduled))
+            return (false, "Patients can only cancel or request a reschedule.", null, null);
+
+        var patient = await _db.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null)
+            return (false, "Patient not found.", null, null);
+
+        var appointment = await _db.Appointments
+            .FirstOrDefaultAsync(a =>
+                a.Id == appointmentId
+                && (a.PatientId == patientId
+                    || (a.PatientId == null && !string.IsNullOrWhiteSpace(patient.Username)
+                        && a.PatientEmail == patient.Username)),
+                cancellationToken);
+
+        if (appointment == null)
+            return (false, "Appointment not found.", null, null);
+
+        if (!AppointmentStatuses.IsActive(appointment.Status))
+            return (false, "This appointment can no longer be changed.", null, null);
+
+        appointment.Status = target;
+        appointment.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Appointment {Id} status set to {Status} by patient {PatientId}",
+            appointment.Id, appointment.Status, patientId);
+
+        return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status));
+    }
+
     public async Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default)
     {
-        return await _db.Appointments.AsNoTracking()
-            .CountAsync(a =>
-                a.DoctorId == doctorId
-                && (a.Status == AppointmentStatuses.New || a.Status == AppointmentStatuses.Reschedule),
-                cancellationToken);
+        var rows = await _db.Appointments.AsNoTracking()
+            .Where(a => a.DoctorId == doctorId)
+            .Select(a => a.Status)
+            .ToListAsync(cancellationToken);
+
+        return rows.Count(AppointmentStatuses.NeedsDoctorAttention);
     }
 
     public async Task<HashSet<DateTime>> GetBookedStartsAsync(

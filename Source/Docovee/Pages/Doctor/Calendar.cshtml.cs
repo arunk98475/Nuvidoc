@@ -65,11 +65,37 @@ public class CalendarModel : PageModel
         var to = WeekStart.AddDays(7).ToDateTime(TimeOnly.MinValue);
         var all = await _appointments.GetForDoctorAsync(doctorId, fromUtc: from, toUtc: to, cancellationToken: cancellationToken);
         Appointments = all
-            .Where(a => a.Status is AppointmentStatuses.New or AppointmentStatuses.Confirmed or AppointmentStatuses.Reschedule)
+            .Where(a => AppointmentStatuses.IsActive(a.Status))
             .OrderBy(a => a.StartsAt)
             .ToList();
 
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostUpdateStatusAsync(
+        int appointmentId,
+        string status,
+        CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return new JsonResult(new { message = "Not signed in." }) { StatusCode = StatusCodes.Status401Unauthorized };
+
+        var (success, error, newStatus, statusLabel) = await _appointments.UpdateStatusAsync(
+            doctorId,
+            appointmentId,
+            status,
+            cancellationToken);
+
+        if (!success)
+            return BadRequest(new { message = error ?? "Could not update status." });
+
+        return new JsonResult(new
+        {
+            success = true,
+            status = newStatus,
+            statusLabel,
+            remainsOnCalendar = AppointmentStatuses.IsActive(newStatus)
+        });
     }
 
     public async Task<IActionResult> OnGetPanelAsync(int appointmentId, CancellationToken cancellationToken = default)
@@ -149,8 +175,11 @@ public class CalendarModel : PageModel
         return new JsonResult(new
         {
             appointmentId = appointment.Id,
-            status = appointment.Status,
+            status = AppointmentStatuses.Normalize(appointment.Status),
             statusLabel = StatusLabel(appointment.Status),
+            canConfirm = AppointmentStatuses.CanConfirm(appointment.Status),
+            canCancel = AppointmentStatuses.CanPracticeCancel(appointment.Status),
+            canMarkNoShow = AppointmentStatuses.CanMarkNoShow(appointment.Status),
             patientName = fullName,
             patientType = history.Count > 1 ? "Existing patient" : "New patient",
             hasAccount,
@@ -172,7 +201,7 @@ public class CalendarModel : PageModel
                 id = h.Id,
                 startsAt = h.StartsAt.ToString("MMM d, yyyy · h:mm tt"),
                 visitReason = h.VisitReason,
-                status = h.Status,
+                status = AppointmentStatuses.Normalize(h.Status),
                 statusLabel = StatusLabel(h.Status)
             })
         });
@@ -304,15 +333,7 @@ public class CalendarModel : PageModel
         };
     }
 
-    private static string StatusLabel(string status) => status switch
-    {
-        AppointmentStatuses.New => "New booking",
-        AppointmentStatuses.Reschedule => "Reschedule",
-        AppointmentStatuses.Confirmed => "Confirmed",
-        AppointmentStatuses.Completed => "Completed",
-        AppointmentStatuses.Cancelled => "Cancelled",
-        _ => status
-    };
+    private static string StatusLabel(string status) => AppointmentStatuses.DisplayLabel(status);
 
     private static string? FormatLocation(DoctorProfileDto? profile)
     {
