@@ -185,18 +185,21 @@
         </div>
 
         <footer class="dp-drawer-footer" id="dp-drawer-footer" hidden>
-            <button type="button" class="dp-drawer-footer-link" id="dp-drawer-request-call">Request a call</button>
-            <div class="dp-drawer-edit">
-                <button type="button" class="dp-drawer-footer-edit" id="dp-drawer-edit-btn" aria-expanded="false" aria-haspopup="true" aria-controls="dp-drawer-edit-menu">
-                    Edit appointment
-                    <svg viewBox="0 0 12 8" width="10" height="7" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
-                </button>
-                <div class="dp-drawer-edit-menu" id="dp-drawer-edit-menu" hidden role="menu">
-                    <button type="button" role="menuitem" data-edit-action="modify">Modify appointment</button>
-                    <button type="button" role="menuitem" data-edit-action="cancel">Cancel appointment</button>
+            <div class="dp-drawer-footer-upcoming" id="dp-drawer-footer-upcoming">
+                <button type="button" class="dp-drawer-footer-link" id="dp-drawer-request-call">Request a call</button>
+                <div class="dp-drawer-edit">
+                    <button type="button" class="dp-drawer-footer-edit" id="dp-drawer-edit-btn" aria-expanded="false" aria-haspopup="true" aria-controls="dp-drawer-edit-menu">
+                        Edit appointment
+                        <svg viewBox="0 0 12 8" width="10" height="7" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+                    </button>
+                    <div class="dp-drawer-edit-menu" id="dp-drawer-edit-menu" hidden role="menu">
+                        <button type="button" role="menuitem" data-edit-action="modify">Modify appointment</button>
+                        <button type="button" role="menuitem" data-edit-action="cancel">Cancel appointment</button>
+                    </div>
                 </div>
+                <button type="button" class="dp-drawer-footer-confirm" id="dp-drawer-confirm">Confirm patient can be seen</button>
             </div>
-            <button type="button" class="dp-drawer-footer-confirm" id="dp-drawer-confirm">Confirm patient can be seen</button>
+            <button type="button" class="dp-drawer-footer-noshow" id="dp-drawer-noshow" hidden>Mark as no show</button>
         </footer>
     </div>
 </aside>
@@ -211,10 +214,12 @@
   const errorEl = document.getElementById("dp-drawer-error");
   const body = document.getElementById("dp-drawer-body");
   const footer = document.getElementById("dp-drawer-footer");
+  const footerUpcoming = document.getElementById("dp-drawer-footer-upcoming");
   const requestCallBtn = document.getElementById("dp-drawer-request-call");
   const editBtn = document.getElementById("dp-drawer-edit-btn");
   const editMenu = document.getElementById("dp-drawer-edit-menu");
   const confirmBtn = document.getElementById("dp-drawer-confirm");
+  const noShowBtn = document.getElementById("dp-drawer-noshow");
   let currentAppointmentId = null;
   let currentPhoneDigits = "";
   let toastTimer = null;
@@ -380,6 +385,27 @@
         confirmBtn.textContent = alreadyConfirmed ? "Patient confirmed" : "Confirm patient can be seen";
       }
 
+      let isPast = !!data.isPast;
+      if (!isPast && data.startsAtIso) {
+        const starts = new Date(data.startsAtIso);
+        if (!Number.isNaN(starts.getTime())) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const apptDay = new Date(starts);
+          apptDay.setHours(0, 0, 0, 0);
+          isPast = apptDay < today;
+        }
+      }
+      footer?.classList.toggle("is-past", isPast);
+      if (footerUpcoming) footerUpcoming.hidden = isPast;
+      if (noShowBtn) {
+        noShowBtn.hidden = !isPast;
+        const alreadyNoShow = String(data.status || "").toLowerCase() === "noshow"
+          || String(data.statusLabel || "").toLowerCase().includes("no show");
+        noShowBtn.disabled = alreadyNoShow;
+        noShowBtn.textContent = alreadyNoShow ? "Marked as no show" : "Mark as no show";
+      }
+
       loading.hidden = true;
       body.hidden = false;
       if (footer) footer.hidden = false;
@@ -433,6 +459,18 @@
     confirmBtn.disabled = true;
     confirmBtn.textContent = "Patient confirmed";
     showToast("Marked as patient can be seen.");
+  });
+
+  noShowBtn?.addEventListener("click", () => {
+    if (!currentAppointmentId || noShowBtn.disabled) return;
+    const badge = document.getElementById("dp-drawer-badge");
+    if (badge) {
+      badge.textContent = "No show";
+      badge.className = "dp-drawer-badge status-cancelled";
+    }
+    noShowBtn.disabled = true;
+    noShowBtn.textContent = "Marked as no show";
+    showToast("Marked as no show.");
   });
 
   document.addEventListener("click", (e) => {

@@ -161,6 +161,7 @@ public class CalendarModel : PageModel
             memberSince = memberSince?.ToString("MMM d, yyyy"),
             startsAt = appointment.StartsAt.ToString("dddd MMM d 'at' h:mm tt"),
             startsAtIso = appointment.StartsAt.ToString("o"),
+            isPast = DateOnly.FromDateTime(appointment.StartsAt) < DateOnly.FromDateTime(DateTime.Today),
             visitReason = appointment.VisitReason,
             providerName = profile?.Name ?? ProviderName,
             practiceName = profile?.PracticeName,
