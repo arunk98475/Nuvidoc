@@ -274,4 +274,192 @@ public static class DoctorProfileHelper
 
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
+
+    public static readonly string[] WorkingHourDays =
+    [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    ];
+
+    public static WorkingHoursInput DefaultWorkingHours()
+    {
+        return new WorkingHoursInput
+        {
+            Days = WorkingHourDays.Select(day =>
+            {
+                var weekday = day is not ("Saturday" or "Sunday");
+                return new WorkingHoursDayInput
+                {
+                    Day = day,
+                    Enabled = weekday,
+                    Blocks =
+                    [
+                        new WorkingHoursBlockInput
+                        {
+                            StartTime = "09:00",
+                            EndTime = "17:00",
+                            LocationIds = new List<int>()
+                        }
+                    ]
+                };
+            }).ToList()
+        };
+    }
+
+    public static WorkingHoursInput ExtractWorkingHours(string? onboardingProfileJson)
+    {
+        var defaults = DefaultWorkingHours();
+        if (string.IsNullOrWhiteSpace(onboardingProfileJson))
+            return defaults;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(onboardingProfileJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return defaults;
+
+            if (!doc.RootElement.TryGetProperty("workingHours", out var hours)
+                || hours.ValueKind != JsonValueKind.Object)
+                return defaults;
+
+            if (!hours.TryGetProperty("days", out var daysEl) || daysEl.ValueKind != JsonValueKind.Array)
+                return defaults;
+
+            var byDay = new Dictionary<string, WorkingHoursDayInput>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in daysEl.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                var day = item.TryGetProperty("day", out var d) ? d.GetString() ?? "" : "";
+                if (string.IsNullOrWhiteSpace(day))
+                    continue;
+
+                var enabled = item.TryGetProperty("enabled", out var en) && en.ValueKind == JsonValueKind.True;
+                var blocks = new List<WorkingHoursBlockInput>();
+                if (item.TryGetProperty("blocks", out var blocksEl) && blocksEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var b in blocksEl.EnumerateArray())
+                    {
+                        if (b.ValueKind != JsonValueKind.Object)
+                            continue;
+                        var start = b.TryGetProperty("startTime", out var s) ? s.GetString() ?? "09:00" : "09:00";
+                        var end = b.TryGetProperty("endTime", out var e) ? e.GetString() ?? "17:00" : "17:00";
+                        var locIds = new List<int>();
+                        if (b.TryGetProperty("locationIds", out var locs) && locs.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var loc in locs.EnumerateArray())
+                            {
+                                if (loc.TryGetInt32(out var id) && id > 0)
+                                    locIds.Add(id);
+                            }
+                        }
+
+                        blocks.Add(new WorkingHoursBlockInput
+                        {
+                            StartTime = start,
+                            EndTime = end,
+                            LocationIds = locIds
+                        });
+                    }
+                }
+
+                if (blocks.Count == 0)
+                {
+                    blocks.Add(new WorkingHoursBlockInput
+                    {
+                        StartTime = "09:00",
+                        EndTime = "17:00",
+                        LocationIds = new List<int>()
+                    });
+                }
+
+                byDay[day] = new WorkingHoursDayInput
+                {
+                    Day = day,
+                    Enabled = enabled,
+                    Blocks = blocks
+                };
+            }
+
+            return new WorkingHoursInput
+            {
+                Days = WorkingHourDays.Select(day =>
+                    byDay.TryGetValue(day, out var existing)
+                        ? existing
+                        : defaults.Days.First(d => d.Day == day)).ToList()
+            };
+        }
+        catch (JsonException)
+        {
+            return defaults;
+        }
+    }
+
+    public static string MergeWorkingHours(string? onboardingProfileJson, WorkingHoursInput hours)
+    {
+        var root = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(onboardingProfileJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(onboardingProfileJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        if (prop.NameEquals("workingHours"))
+                            continue;
+                        root[prop.Name] = prop.Value.Clone();
+                    }
+                }
+            }
+            catch (JsonException)
+            {
+                // start fresh
+            }
+        }
+
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var kvp in root)
+            {
+                writer.WritePropertyName(kvp.Key);
+                kvp.Value.WriteTo(writer);
+            }
+
+            writer.WritePropertyName("workingHours");
+            writer.WriteStartObject();
+            writer.WritePropertyName("days");
+            writer.WriteStartArray();
+            foreach (var day in hours.Days)
+            {
+                writer.WriteStartObject();
+                writer.WriteString("day", day.Day);
+                writer.WriteBoolean("enabled", day.Enabled);
+                writer.WritePropertyName("blocks");
+                writer.WriteStartArray();
+                foreach (var block in day.Blocks)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteString("startTime", block.StartTime);
+                    writer.WriteString("endTime", block.EndTime);
+                    writer.WritePropertyName("locationIds");
+                    writer.WriteStartArray();
+                    foreach (var id in block.LocationIds.Distinct())
+                        writer.WriteNumberValue(id);
+                    writer.WriteEndArray();
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+        }
+
+        return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
 }

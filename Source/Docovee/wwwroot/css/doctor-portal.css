@@ -3032,3 +3032,235 @@ body.dp-drawer-open {
   justify-content: center;
   gap: 12px;
 }
+
+/* Working hours */
+.dp-hours-inner {
+  max-width: 980px;
+  padding-left: 24px;
+}
+
+.dp-hours-hero {
+  margin-bottom: 28px;
+}
+
+.dp-hours-hero h1 {
+  margin: 0 0 10px;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.dp-hours-hero p {
+  margin: 0;
+  max-width: 720px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--dp-muted);
+}
+
+.dp-hours-table {
+  border-top: 1px solid #ebebeb;
+}
+
+.dp-hours-head {
+  display: grid;
+  grid-template-columns: 160px 140px 140px minmax(220px, 1fr) 44px;
+  gap: 12px;
+  padding: 14px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dp-muted);
+  border-bottom: 1px solid #ececec;
+}
+
+.dp-hours-day {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 8px 0;
+}
+
+.dp-hours-row {
+  display: grid;
+  grid-template-columns: 160px 140px 140px minmax(220px, 1fr) 44px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.dp-hours-day-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.dp-hours-day-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.dp-hours-check-box {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #222;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: #fff;
+}
+
+.dp-hours-day-check input:checked + .dp-hours-check-box {
+  background: #1a2330;
+  border-color: #1a2330;
+}
+
+.dp-hours-day-check input:checked + .dp-hours-check-box::after {
+  content: "";
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.dp-hours-select,
+.dp-hours-loc-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--dp-ink);
+  background: #fff;
+}
+
+.dp-hours-day:not(.is-enabled) .dp-hours-select,
+.dp-hours-day:not(.is-enabled) .dp-hours-location {
+  opacity: 0.45;
+}
+
+.dp-hours-location {
+  position: relative;
+  min-height: 42px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.dp-hours-location.has-value .dp-hours-loc-select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dp-hours-loc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  background: #e8f0fe;
+  color: #1a56db;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dp-hours-loc-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-hours-loc-clear {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.dp-hours-loc-select {
+  border: none;
+  padding: 6px 4px;
+  background: transparent;
+}
+
+.dp-hours-add-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.dp-hours-add-block,
+.dp-hours-remove-block {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.dp-hours-add-block:hover,
+.dp-hours-remove-block:hover {
+  background: #fff;
+}
+
+.dp-hours-add-block:disabled,
+.dp-hours-remove-block:disabled {
+  background: #fff;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dp-hours-note {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--dp-muted);
+}
+
+.dp-hours-note a {
+  color: var(--dp-ink);
+  text-decoration: underline;
+}
+
+@media (max-width: 900px) {
+  .dp-hours-head {
+    display: none;
+  }
+
+  .dp-hours-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .dp-hours-day-col,
+  .dp-hours-location-cell {
+    grid-column: 1 / -1;
+  }
+
+  .dp-hours-add-col {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}

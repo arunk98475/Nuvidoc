@@ -51,6 +51,9 @@ public class SettingsModel : PageModel
     [BindProperty]
     public AddDoctorInsurancesInput InsuranceForm { get; set; } = new();
 
+    [BindProperty]
+    public WorkingHoursInput WorkingHoursForm { get; set; } = new();
+
     public string Section { get; private set; } = "practice";
     public string SectionTitle { get; private set; } = "Practice profile";
     public DoctorProfileDto? Profile { get; private set; }
@@ -58,11 +61,32 @@ public class SettingsModel : PageModel
     public IReadOnlyList<VisitReasonCategoryViewModel> VisitReasonCategories { get; private set; } = Array.Empty<VisitReasonCategoryViewModel>();
     public IReadOnlyList<DoctorInsuranceRowDto> InsuranceRows { get; private set; } = Array.Empty<DoctorInsuranceRowDto>();
     public IReadOnlyList<InsuranceCarrierDto> AvailableCarriers { get; private set; } = Array.Empty<InsuranceCarrierDto>();
+    public WorkingHoursPageModel? WorkingHours { get; private set; }
+    public IReadOnlyList<string> TimeOptions { get; private set; } = BuildTimeOptions();
     public string LocationsJson { get; private set; } = "[]";
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
     public string BookingLink { get; private set; } = "";
     public bool Saved { get; private set; }
     public string? ErrorMessage { get; private set; }
+
+    private static IReadOnlyList<string> BuildTimeOptions()
+    {
+        var list = new List<string>();
+        for (var minutes = 0; minutes < 24 * 60; minutes += 30)
+        {
+            var ts = TimeSpan.FromMinutes(minutes);
+            list.Add(ts.ToString(@"hh\:mm"));
+        }
+        return list;
+    }
+
+    public static string FormatTimeLabel(string value)
+    {
+        if (!TimeSpan.TryParse(value, out var ts))
+            return value;
+        var dt = DateTime.Today.Add(ts);
+        return dt.ToString("h:mm tt");
+    }
 
     public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, CancellationToken cancellationToken = default)
     {
@@ -198,6 +222,21 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "insurance", saved = true });
     }
 
+    public async Task<IActionResult> OnPostWorkingHoursAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _profileService.UpdateWorkingHoursAsync(doctorId, WorkingHoursForm, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "working-hours", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "working-hours", saved = true });
+    }
+
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)
     {
         Section = string.IsNullOrWhiteSpace(section) || !AllowedSections.Contains(section.Trim())
@@ -247,6 +286,15 @@ public class SettingsModel : PageModel
         {
             InsuranceRows = await _insuranceService.GetDoctorInsurancesAsync(doctorId, cancellationToken);
             AvailableCarriers = await _insuranceService.GetAvailableCarriersAsync(doctorId, cancellationToken);
+        }
+
+        if (Section == "working-hours")
+        {
+            // Ensure migrated locations exist for the location picker.
+            _ = await _locationService.GetLocationsAsync(doctorId, cancellationToken);
+            WorkingHours = await _profileService.GetWorkingHoursAsync(doctorId, cancellationToken);
+            if (WorkingHours != null && WorkingHoursForm.Days.Count == 0)
+                WorkingHoursForm = WorkingHours.Hours;
         }
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";

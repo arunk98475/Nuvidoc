@@ -6,8 +6,8 @@
     var p = Model.Profile!;
 }
 
-<div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" ? " dp-content-practice" : "")">
-    @if (Model.Section != "practice" && Model.Section != "visit-reasons")
+<div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" || Model.Section == "working-hours" ? " dp-content-practice" : "")">
+    @if (Model.Section != "practice" && Model.Section != "visit-reasons" && Model.Section != "working-hours")
     {
         <div class="dp-page-head@(Model.Section == "locations" || Model.Section == "insurance" ? " dp-locations-head" : "")">
             <div>
@@ -651,14 +651,199 @@
     }
     else if (Model.Section == "working-hours")
     {
-        <div class="dp-card">
-            <p class="dp-page-sub" style="margin-top:0;">Default office hours used for availability. Custom schedules will come later.</p>
-            <dl class="dp-settings-dl">
-                <div><dt>Monday – Friday</dt><dd>9:00 AM – 5:00 PM</dd></div>
-                <div><dt>Saturday</dt><dd>Closed</dd></div>
-                <div><dt>Sunday</dt><dd>Closed</dd></div>
-            </dl>
-        </div>
+        var wh = Model.WorkingHours!;
+        var days = Model.WorkingHoursForm.Days.Count > 0 ? Model.WorkingHoursForm.Days : wh.Hours.Days;
+        <form method="post" asp-page-handler="WorkingHours" class="dp-practice-form dp-hours-form" id="dp-hours-form">
+            <div class="dp-practice-scroll">
+                <div class="dp-practice-inner dp-hours-inner">
+                    @if (Model.Saved)
+                    {
+                        <div class="dp-location-alert is-success">Working hours saved.</div>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                    {
+                        <div class="dp-location-alert is-error">@Model.ErrorMessage</div>
+                    }
+
+                    <header class="dp-hours-hero">
+                        <h1>Hours for @wh.DoctorDisplayName</h1>
+                        <p>Review or make adjustments to the periods of time when you see patients. @Branding.SiteName will only offer appointments for times you are available within these hours.</p>
+                    </header>
+
+                    <div class="dp-hours-table" id="dp-hours-table">
+                        <div class="dp-hours-head">
+                            <div>Day</div>
+                            <div>Start time</div>
+                            <div>End time</div>
+                            <div>Practice location</div>
+                            <div></div>
+                        </div>
+
+                        @for (var di = 0; di < days.Count; di++)
+                        {
+                            var day = days[di];
+                            <div class="dp-hours-day@(day.Enabled ? " is-enabled" : "")" data-day-index="@di">
+                                <input type="hidden" name="WorkingHoursForm.Days[@di].Day" value="@day.Day" />
+                                @for (var bi = 0; bi < day.Blocks.Count; bi++)
+                                {
+                                    var block = day.Blocks[bi];
+                                    var selectedLocId = block.LocationIds.FirstOrDefault();
+                                    var selectedLoc = wh.Locations.FirstOrDefault(l => l.Id == selectedLocId);
+                                    <div class="dp-hours-row" data-block-index="@bi">
+                                        <div class="dp-hours-day-col">
+                                            @if (bi == 0)
+                                            {
+                                                <label class="dp-hours-day-check">
+                                                    <input type="checkbox"
+                                                           name="WorkingHoursForm.Days[@di].Enabled"
+                                                           value="true"
+                                                           class="dp-hours-enabled"
+                                                           @(day.Enabled ? "checked" : null) />
+                                                    <span class="dp-hours-check-box" aria-hidden="true"></span>
+                                                    <span class="dp-hours-day-name">@day.Day</span>
+                                                </label>
+                                            }
+                                        </div>
+                                        <div>
+                                            <select name="WorkingHoursForm.Days[@di].Blocks[@bi].StartTime" class="dp-hours-select dp-hours-start" @(day.Enabled ? null : "disabled")>
+                                                @foreach (var t in Model.TimeOptions)
+                                                {
+                                                    if (t == block.StartTime)
+                                                    {
+                                                        <option value="@t" selected>@SettingsModel.FormatTimeLabel(t)</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@t">@SettingsModel.FormatTimeLabel(t)</option>
+                                                    }
+                                                }
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <select name="WorkingHoursForm.Days[@di].Blocks[@bi].EndTime" class="dp-hours-select dp-hours-end" @(day.Enabled ? null : "disabled")>
+                                                @foreach (var t in Model.TimeOptions)
+                                                {
+                                                    if (t == block.EndTime)
+                                                    {
+                                                        <option value="@t" selected>@SettingsModel.FormatTimeLabel(t)</option>
+                                                    }
+                                                    else
+                                                    {
+                                                        <option value="@t">@SettingsModel.FormatTimeLabel(t)</option>
+                                                    }
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="dp-hours-location-cell">
+                                            <div class="dp-hours-location@(selectedLoc != null ? " has-value" : "")">
+                                                @if (selectedLoc != null)
+                                                {
+                                                    <span class="dp-hours-loc-chip">
+                                                        <span class="dp-hours-loc-text">@selectedLoc.Label</span>
+                                                        <button type="button" class="dp-hours-loc-clear" aria-label="Clear location">&times;</button>
+                                                    </span>
+                                                }
+                                                <select name="WorkingHoursForm.Days[@di].Blocks[@bi].LocationIds"
+                                                        class="dp-hours-loc-select"
+                                                        @(day.Enabled ? null : "disabled")>
+                                                    <option value="">Select location</option>
+                                                    @foreach (var loc in wh.Locations)
+                                                    {
+                                                        if (loc.Id == selectedLocId)
+                                                        {
+                                                            <option value="@loc.Id" selected>@loc.Label</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@loc.Id">@loc.Label</option>
+                                                        }
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="dp-hours-add-col">
+                                            @if (bi == 0)
+                                            {
+                                                <button type="button" class="dp-hours-add-block" aria-label="Add hours" @(day.Enabled ? null : "disabled")>
+                                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button" class="dp-hours-remove-block" aria-label="Remove hours" @(day.Enabled ? null : "disabled")>
+                                                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (wh.Locations.Count == 0)
+                    {
+                        <p class="dp-hours-note">No practice locations yet. <a href="/Doctor/Settings/locations">Add a location</a> to assign hours to an office.</p>
+                    }
+                </div>
+            </div>
+
+            <footer class="dp-practice-footer">
+                <button type="submit" class="dp-btn dp-btn-primary">Save</button>
+            </footer>
+        </form>
+
+        <template id="dp-hours-block-template">
+            <div class="dp-hours-row" data-block-index="__BI__">
+                <div class="dp-hours-day-col"></div>
+                <div>
+                    <select name="WorkingHoursForm.Days[__DI__].Blocks[__BI__].StartTime" class="dp-hours-select dp-hours-start">
+                        @foreach (var t in Model.TimeOptions)
+                        {
+                            if (t == "09:00")
+                            {
+                                <option value="@t" selected>@SettingsModel.FormatTimeLabel(t)</option>
+                            }
+                            else
+                            {
+                                <option value="@t">@SettingsModel.FormatTimeLabel(t)</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div>
+                    <select name="WorkingHoursForm.Days[__DI__].Blocks[__BI__].EndTime" class="dp-hours-select dp-hours-end">
+                        @foreach (var t in Model.TimeOptions)
+                        {
+                            if (t == "17:00")
+                            {
+                                <option value="@t" selected>@SettingsModel.FormatTimeLabel(t)</option>
+                            }
+                            else
+                            {
+                                <option value="@t">@SettingsModel.FormatTimeLabel(t)</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="dp-hours-location-cell">
+                    <div class="dp-hours-location">
+                        <select name="WorkingHoursForm.Days[__DI__].Blocks[__BI__].LocationIds" class="dp-hours-loc-select">
+                            <option value="">Select location</option>
+                            @foreach (var loc in wh.Locations)
+                            {
+                                <option value="@loc.Id">@loc.Label</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <div class="dp-hours-add-col">
+                    <button type="button" class="dp-hours-remove-block" aria-label="Remove hours">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg>
+                    </button>
+                </div>
+            </div>
+        </template>
     }
     else if (Model.Section == "booking-link")
     {
@@ -1091,6 +1276,107 @@
   document.addEventListener("click", () => {
     document.querySelectorAll(".dp-insurance-filter-panel").forEach(p => { p.hidden = true; });
     document.querySelectorAll(".dp-insurance-pill").forEach(b => b.setAttribute("aria-expanded", "false"));
+  });
+
+  const hoursForm = document.getElementById("dp-hours-form");
+  const hoursTemplate = document.getElementById("dp-hours-block-template");
+
+  function syncHoursDay(day) {
+    const enabled = day.querySelector(".dp-hours-enabled")?.checked;
+    day.classList.toggle("is-enabled", !!enabled);
+    day.querySelectorAll("select, .dp-hours-add-block, .dp-hours-remove-block, .dp-hours-loc-clear").forEach(el => {
+      if (el.classList?.contains("dp-hours-enabled")) return;
+      el.disabled = !enabled;
+    });
+  }
+
+  function reindexHoursDay(day) {
+    const di = day.dataset.dayIndex;
+    day.querySelectorAll(".dp-hours-row").forEach((row, bi) => {
+      row.dataset.blockIndex = String(bi);
+      row.querySelectorAll("[name]").forEach(el => {
+        const name = el.getAttribute("name");
+        if (!name) return;
+        el.setAttribute("name", name
+          .replace(/Days\[\d+\]/, `Days[${di}]`)
+          .replace(/Blocks\[\d+\]/, `Blocks[${bi}]`));
+      });
+      const addCol = row.querySelector(".dp-hours-add-col");
+      if (!addCol) return;
+      if (bi === 0) {
+        addCol.innerHTML = `<button type="button" class="dp-hours-add-block" aria-label="Add hours"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>`;
+      } else {
+        addCol.innerHTML = `<button type="button" class="dp-hours-remove-block" aria-label="Remove hours"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/></svg></button>`;
+      }
+    });
+    syncHoursDay(day);
+  }
+
+  function refreshLocationChip(wrap) {
+    const select = wrap.querySelector(".dp-hours-loc-select");
+    if (!select) return;
+    const opt = select.options[select.selectedIndex];
+    const has = select.value && opt;
+    wrap.classList.toggle("has-value", !!has);
+    wrap.querySelector(".dp-hours-loc-chip")?.remove();
+    if (has) {
+      const chip = document.createElement("span");
+      chip.className = "dp-hours-loc-chip";
+      chip.innerHTML = `<span class="dp-hours-loc-text"></span><button type="button" class="dp-hours-loc-clear" aria-label="Clear location">&times;</button>`;
+      chip.querySelector(".dp-hours-loc-text").textContent = opt.textContent || "";
+      wrap.insertBefore(chip, select);
+    }
+  }
+
+  document.querySelectorAll(".dp-hours-day").forEach(day => {
+    syncHoursDay(day);
+    day.querySelector(".dp-hours-enabled")?.addEventListener("change", () => syncHoursDay(day));
+  });
+
+  document.getElementById("dp-hours-table")?.addEventListener("click", (e) => {
+    const addBtn = e.target.closest(".dp-hours-add-block");
+    const removeBtn = e.target.closest(".dp-hours-remove-block");
+    const clearBtn = e.target.closest(".dp-hours-loc-clear");
+    if (clearBtn) {
+      const wrap = clearBtn.closest(".dp-hours-location");
+      const select = wrap?.querySelector(".dp-hours-loc-select");
+      if (select) {
+        select.value = "";
+        refreshLocationChip(wrap);
+      }
+      return;
+    }
+    if (addBtn) {
+      const day = addBtn.closest(".dp-hours-day");
+      if (!day || !hoursTemplate) return;
+      const di = day.dataset.dayIndex || "0";
+      const bi = day.querySelectorAll(".dp-hours-row").length;
+      const html = hoursTemplate.innerHTML.replaceAll("__DI__", di).replaceAll("__BI__", String(bi));
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      const row = wrap.firstElementChild;
+      day.appendChild(row);
+      reindexHoursDay(day);
+      return;
+    }
+    if (removeBtn) {
+      const day = removeBtn.closest(".dp-hours-day");
+      const row = removeBtn.closest(".dp-hours-row");
+      if (!day || !row || day.querySelectorAll(".dp-hours-row").length <= 1) return;
+      row.remove();
+      reindexHoursDay(day);
+    }
+  });
+
+  document.getElementById("dp-hours-table")?.addEventListener("change", (e) => {
+    if (e.target.classList.contains("dp-hours-loc-select")) {
+      const wrap = e.target.closest(".dp-hours-location");
+      if (wrap) refreshLocationChip(wrap);
+    }
+  });
+
+  hoursForm?.addEventListener("submit", () => {
+    hoursForm.querySelectorAll("select[disabled]").forEach(el => { el.disabled = false; });
   });
 })();
 </script>

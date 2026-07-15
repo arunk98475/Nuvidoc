@@ -20,6 +20,8 @@ public interface IProfileService
     Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(int doctorId, PracticeProfileInput model, IFormFile? logo, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<VisitReasonCategoryViewModel>> GetVisitReasonPreferencesAsync(int doctorId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateVisitReasonPreferencesAsync(int doctorId, VisitReasonPreferencesInput model, CancellationToken cancellationToken = default);
+    Task<WorkingHoursPageModel?> GetWorkingHoursAsync(int doctorId, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdateWorkingHoursAsync(int doctorId, WorkingHoursInput model, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService
@@ -418,6 +420,129 @@ public class ProfileService : IProfileService
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated visit reason preferences {DoctorId}", doctorId);
         return (true, null);
+    }
+
+    public async Task<WorkingHoursPageModel?> GetWorkingHoursAsync(
+        int doctorId,
+        CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null)
+            return null;
+
+        var locations = await _db.DoctorLocations.AsNoTracking()
+            .Where(l => l.DoctorId == doctorId)
+            .OrderBy(l => l.SortOrder)
+            .ThenBy(l => l.Id)
+            .Select(l => new WorkingHoursLocationOption
+            {
+                Id = l.Id,
+                Label = string.IsNullOrWhiteSpace(l.Address1)
+                    ? (l.Name ?? "Location")
+                    : (string.IsNullOrWhiteSpace(l.Address2)
+                        ? $"{l.Address1}, {l.City}"
+                        : $"{l.Address1}, {l.Address2}")
+            })
+            .ToListAsync(cancellationToken);
+
+        var hours = DoctorProfileHelper.ExtractWorkingHours(doctor.OnboardingProfileJson);
+        var validLocationIds = locations.Select(l => l.Id).ToHashSet();
+        foreach (var day in hours.Days)
+        {
+            foreach (var block in day.Blocks)
+                block.LocationIds = block.LocationIds.Where(validLocationIds.Contains).ToList();
+        }
+
+        var displayName = doctor.Name.StartsWith("Dr", StringComparison.OrdinalIgnoreCase)
+            ? doctor.Name
+            : $"Dr. {doctor.Name}";
+
+        return new WorkingHoursPageModel
+        {
+            DoctorDisplayName = displayName,
+            Hours = hours,
+            Locations = locations
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> UpdateWorkingHoursAsync(
+        int doctorId,
+        WorkingHoursInput model,
+        CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null)
+            return (false, "Doctor not found.");
+
+        var validLocationIds = await _db.DoctorLocations.AsNoTracking()
+            .Where(l => l.DoctorId == doctorId)
+            .Select(l => l.Id)
+            .ToListAsync(cancellationToken);
+        var validSet = validLocationIds.ToHashSet();
+
+        var normalized = new WorkingHoursInput { Days = new List<WorkingHoursDayInput>() };
+        foreach (var dayName in DoctorProfileHelper.WorkingHourDays)
+        {
+            var posted = model.Days?.FirstOrDefault(d =>
+                string.Equals(d.Day, dayName, StringComparison.OrdinalIgnoreCase));
+            var enabled = posted?.Enabled == true;
+            var blocks = (posted?.Blocks ?? new List<WorkingHoursBlockInput>())
+                .Select(b => new WorkingHoursBlockInput
+                {
+                    StartTime = NormalizeTime(b.StartTime) ?? "09:00",
+                    EndTime = NormalizeTime(b.EndTime) ?? "17:00",
+                    LocationIds = (b.LocationIds ?? new List<int>()).Where(validSet.Contains).Distinct().ToList()
+                })
+                .Where(b => TimeSpan.TryParse(b.StartTime, out var s)
+                            && TimeSpan.TryParse(b.EndTime, out var e)
+                            && e > s)
+                .ToList();
+
+            if (blocks.Count == 0)
+            {
+                blocks.Add(new WorkingHoursBlockInput
+                {
+                    StartTime = "09:00",
+                    EndTime = "17:00",
+                    LocationIds = new List<int>()
+                });
+            }
+
+            if (enabled)
+            {
+                foreach (var block in blocks)
+                {
+                    if (!TimeSpan.TryParse(block.StartTime, out var start)
+                        || !TimeSpan.TryParse(block.EndTime, out var end)
+                        || end <= start)
+                        return (false, $"{dayName}: end time must be after start time.");
+                }
+            }
+
+            normalized.Days.Add(new WorkingHoursDayInput
+            {
+                Day = dayName,
+                Enabled = enabled,
+                Blocks = blocks
+            });
+        }
+
+        doctor.OnboardingProfileJson = DoctorProfileHelper.MergeWorkingHours(
+            doctor.OnboardingProfileJson,
+            normalized);
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Doctor updated working hours {DoctorId}", doctorId);
+        return (true, null);
+    }
+
+    private static string? NormalizeTime(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        if (TimeSpan.TryParse(value.Trim(), out var ts))
+            return ts.ToString(@"hh\:mm");
+        return null;
     }
 
     private static int ClampMinutes(int value, int fallback)
