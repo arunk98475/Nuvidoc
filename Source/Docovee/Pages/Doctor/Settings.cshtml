@@ -1,0 +1,650 @@
+@page "/Doctor/Settings/{section?}"
+@model Docovee.Pages.Doctor.SettingsModel
+@{
+    ViewData["Title"] = Model.SectionTitle;
+    ViewData["Nav"] = "settings-" + Model.Section;
+    var p = Model.Profile!;
+}
+
+<div class="dp-content@(Model.Section == "practice" ? " dp-content-practice" : "")">
+    @if (Model.Section != "practice")
+    {
+        <div class="dp-page-head@(Model.Section == "locations" ? " dp-locations-head" : "")">
+            <div>
+                <h1>@Model.SectionTitle</h1>
+                @if (Model.Section != "locations")
+                {
+                    <p class="dp-page-sub">Manage your practice settings on @Branding.SiteName.</p>
+                }
+            </div>
+            @if (Model.Section is "locations")
+            {
+                <div class="dp-page-actions">
+                    <button type="button" class="dp-btn" id="dp-add-location-btn">Add location</button>
+                </div>
+            }
+        </div>
+    }
+
+    @if (Model.Section == "practice")
+    {
+        var descLen = (Model.PracticeInput.PracticeDescription ?? "").Length;
+        <form method="post" asp-page-handler="Practice" enctype="multipart/form-data" class="dp-practice-form">
+            <div class="dp-practice-scroll">
+                <div class="dp-practice-inner">
+                @if (Model.Saved)
+                {
+                    <div class="dp-practice-alert is-success">Practice profile saved.</div>
+                }
+                @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                {
+                    <div class="dp-practice-alert is-error">@Model.ErrorMessage</div>
+                }
+
+                <header class="dp-practice-hero">
+                    <h1>Practice profile</h1>
+                    <p>Manage your patient facing profile for your practice</p>
+                </header>
+
+                <section class="dp-practice-block">
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_PracticeName">Practice name</label>
+                        <input asp-for="PracticeInput.PracticeName" class="dp-practice-input" id="PracticeInput_PracticeName" />
+                    </div>
+
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="dp-practice-logo">Practice logo <span class="dp-practice-optional">(optional)</span></label>
+                        <p class="dp-practice-hint">A good photo increases appointment bookings</p>
+                        <div class="dp-practice-logo-row">
+                            @if (!string.IsNullOrWhiteSpace(p.PhotoUrl))
+                            {
+                                <img src="@p.PhotoUrl" alt="" class="dp-practice-logo" id="dp-practice-logo-preview" />
+                            }
+                            else
+                            {
+                                <div class="dp-practice-logo is-fallback" id="dp-practice-logo-preview">@(p.Name.Length > 0 ? p.Name[0] : '?')</div>
+                            }
+                            <div>
+                                <input type="file" id="dp-practice-logo" name="PracticeLogo" accept="image/*" hidden />
+                                <button type="button" class="dp-practice-outline-btn" id="dp-practice-logo-btn">
+                                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+                                    Replace
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_PracticeDescription">Practice description <span class="dp-practice-optional">(optional)</span></label>
+                        <p class="dp-practice-hint">Methods and philosophies, or other points of distinction</p>
+                        <textarea asp-for="PracticeInput.PracticeDescription" class="dp-practice-textarea" id="PracticeInput_PracticeDescription" rows="8" maxlength="20000"></textarea>
+                        <div class="dp-practice-count"><span id="dp-practice-count">@descLen</span>/20000</div>
+                    </div>
+
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_YoutubeVideoUrl">YouTube video link <span class="dp-practice-optional">(optional)</span></label>
+                        <p class="dp-practice-hint">Add an introduction video that appears on your public profile</p>
+                        <input asp-for="PracticeInput.YoutubeVideoUrl" class="dp-practice-input" id="PracticeInput_YoutubeVideoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+                    </div>
+                </section>
+
+                <section class="dp-practice-block dp-practice-block-divider">
+                    <header class="dp-practice-section-head">
+                        <h2>Online Scheduling</h2>
+                        <p>Let patients book with you 24/7 from the top places they search for care</p>
+                    </header>
+
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_PracticeWebsite">Practice website <span class="dp-practice-optional">(optional)</span></label>
+                        <input asp-for="PracticeInput.PracticeWebsite" class="dp-practice-input" id="PracticeInput_PracticeWebsite" placeholder="yourpractice.com" />
+                    </div>
+
+                    <div class="dp-practice-field">
+                        <div class="dp-practice-label">Bookings from Google and others</div>
+                        <p class="dp-practice-hint">Allow patients to book with you directly from your Google Business Profile and other search engines. <a href="/Doctor/Features">Learn more</a></p>
+                        <div class="dp-practice-radios">
+                            <label class="dp-practice-radio">
+                                <input type="radio" asp-for="PracticeInput.AllowGoogleBookings" value="true" />
+                                <span>Yes</span>
+                            </label>
+                            <label class="dp-practice-radio">
+                                <input type="radio" asp-for="PracticeInput.AllowGoogleBookings" value="false" />
+                                <span>No</span>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+                </div>
+            </div>
+
+            <footer class="dp-practice-footer">
+                <button type="submit" class="dp-btn dp-btn-primary">Save changes</button>
+            </footer>
+        </form>
+    }
+    else if (Model.Section == "locations")
+    {
+        <div class="dp-locations">
+            @if (Model.Saved)
+            {
+                <div class="dp-location-alert is-success">Location saved.</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="dp-location-alert is-error">@Model.ErrorMessage</div>
+            }
+
+            <div class="dp-locations-table-wrap">
+                <table class="dp-locations-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Address</th>
+                            <th>Location type</th>
+                            <th>Phone number</th>
+                            <th>Email</th>
+                            <th class="dp-locations-actions-col"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Locations.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="7" class="dp-locations-empty">No locations yet. Click <strong>Add location</strong> to get started.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var loc in Model.Locations)
+                            {
+                                <tr data-location-id="@loc.Id">
+                                    <td class="dp-locations-name">@loc.DisplayName</td>
+                                    <td>
+                                        <span class="dp-locations-status @(loc.IsActive ? "is-active" : "is-inactive")" title="@(loc.IsActive ? "Active" : "Inactive")">
+                                            @if (loc.IsActive)
+                                            {
+                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                                            }
+                                            else
+                                            {
+                                                <span>—</span>
+                                            }
+                                        </span>
+                                    </td>
+                                    <td>@loc.FormattedAddress</td>
+                                    <td>@loc.LocationTypeLabel</td>
+                                    <td>@loc.PhoneDisplay</td>
+                                    <td>@loc.EmailDisplay</td>
+                                    <td class="dp-locations-actions-col">
+                                        <div class="dp-locations-menu">
+                                            <button type="button" class="dp-locations-menu-btn" aria-label="Location actions" aria-expanded="false" aria-haspopup="true">
+                                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+                                            </button>
+                                            <div class="dp-locations-menu-panel" hidden role="menu">
+                                                <button type="button" role="menuitem" class="dp-locations-edit-btn" data-location-id="@loc.Id">Edit location</button>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="dp-location-modal-backdrop" id="dp-location-modal" hidden aria-hidden="true" data-open-on-load="@(!string.IsNullOrEmpty(Model.ErrorMessage) ? "true" : "false")">
+            <div class="dp-location-modal" role="dialog" aria-modal="true" aria-labelledby="dp-location-modal-title">
+                <form method="post" asp-page-handler="Locations" id="dp-location-form">
+                    <header class="dp-location-modal-head">
+                        <h2 id="dp-location-modal-title">Add location</h2>
+                        <button type="button" class="dp-location-modal-close" id="dp-location-modal-close" aria-label="Close">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        </button>
+                    </header>
+
+                    <div class="dp-location-modal-body" id="dp-location-blocks">
+                        <div class="dp-location-block" data-index="0">
+                            <input type="hidden" name="LocationsForm.Locations[0].Id" class="dp-location-id" value="" />
+
+                            <div class="dp-location-field">
+                                <label class="dp-location-label">Name <span class="dp-location-optional">(optional)</span></label>
+                                <input type="text" name="LocationsForm.Locations[0].Name" class="dp-location-input dp-field-name" autocomplete="organization" />
+                            </div>
+
+                            <div class="dp-location-field">
+                                <div class="dp-location-label">Location type</div>
+                                <div class="dp-location-checks">
+                                    <label class="dp-location-check">
+                                        <input type="checkbox" name="LocationsForm.Locations[0].InPerson" value="true" class="dp-field-inperson" checked />
+                                        <span>In person</span>
+                                    </label>
+                                    <label class="dp-location-check">
+                                        <input type="checkbox" name="LocationsForm.Locations[0].VideoVisits" value="true" class="dp-field-video" />
+                                        <span>Video visits</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="dp-location-field">
+                                <div class="dp-location-label">Address</div>
+                                <input type="text" name="LocationsForm.Locations[0].Address1" class="dp-location-input" placeholder="Address 1" />
+                                <input type="text" name="LocationsForm.Locations[0].Address2" class="dp-location-input" placeholder="Address 2 (Office/Suite)" style="margin-top:10px;" />
+                                <input type="text" name="LocationsForm.Locations[0].City" class="dp-location-input" placeholder="City" style="margin-top:10px;" />
+                                <div class="dp-location-row-2" style="margin-top:10px;">
+                                    <select name="LocationsForm.Locations[0].State" class="dp-location-input dp-location-select">
+                                        <option value="">State</option>
+                                        @foreach (var state in Model.StateOptions)
+                                        {
+                                            <option value="@state.Code">@state.Name</option>
+                                        }
+                                    </select>
+                                    <input type="text" name="LocationsForm.Locations[0].ZipCode" class="dp-location-input" placeholder="Zip" inputmode="numeric" />
+                                </div>
+                            </div>
+
+                            <div class="dp-location-row-2 dp-location-row-phone">
+                                <div class="dp-location-field">
+                                    <label class="dp-location-label">Practice phone number</label>
+                                    <input type="tel" name="LocationsForm.Locations[0].PhoneNumber" class="dp-location-input dp-field-phone" />
+                                </div>
+                                <div class="dp-location-field dp-location-field-narrow">
+                                    <label class="dp-location-label">Ext <span class="dp-location-optional">(optional)</span></label>
+                                    <input type="text" name="LocationsForm.Locations[0].PhoneExt" class="dp-location-input" inputmode="numeric" />
+                                </div>
+                            </div>
+
+                            <div class="dp-location-field">
+                                <label class="dp-location-label">Fax <span class="dp-location-optional">(optional)</span></label>
+                                <input type="tel" name="LocationsForm.Locations[0].Fax" class="dp-location-input" />
+                            </div>
+
+                            <div class="dp-location-field">
+                                <label class="dp-location-label">Name of contact person <span class="dp-location-optional">(optional)</span></label>
+                                <p class="dp-location-hint">This will not be visible to the public</p>
+                                <input type="text" name="LocationsForm.Locations[0].ContactPersonName" class="dp-location-input" />
+                            </div>
+
+                            <div class="dp-location-field">
+                                <label class="dp-location-label">Email for appointment notifications</label>
+                                <p class="dp-location-hint">This will not be visible to the public</p>
+                                <input type="email" name="LocationsForm.Locations[0].AppointmentNotificationEmail" class="dp-location-input" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dp-location-add-another-wrap">
+                        <button type="button" class="dp-location-add-another" id="dp-location-add-another">Add another</button>
+                    </div>
+
+                    <footer class="dp-location-modal-foot">
+                        <button type="button" class="dp-btn" id="dp-location-cancel">Cancel</button>
+                        <button type="submit" class="dp-btn dp-btn-primary" id="dp-location-submit">Add location</button>
+                    </footer>
+                </form>
+            </div>
+        </div>
+
+        <template id="dp-location-block-template">
+            <div class="dp-location-block" data-index="__INDEX__">
+                <div class="dp-location-block-divider">
+                    <span>Location __NUMBER__</span>
+                    <button type="button" class="dp-location-remove" aria-label="Remove location">Remove</button>
+                </div>
+                <input type="hidden" name="LocationsForm.Locations[__INDEX__].Id" class="dp-location-id" value="" />
+
+                <div class="dp-location-field">
+                    <label class="dp-location-label">Name <span class="dp-location-optional">(optional)</span></label>
+                    <input type="text" name="LocationsForm.Locations[__INDEX__].Name" class="dp-location-input dp-field-name" autocomplete="organization" />
+                </div>
+
+                <div class="dp-location-field">
+                    <div class="dp-location-label">Location type</div>
+                    <div class="dp-location-checks">
+                        <label class="dp-location-check">
+                            <input type="checkbox" name="LocationsForm.Locations[__INDEX__].InPerson" value="true" class="dp-field-inperson" checked />
+                            <span>In person</span>
+                        </label>
+                        <label class="dp-location-check">
+                            <input type="checkbox" name="LocationsForm.Locations[__INDEX__].VideoVisits" value="true" class="dp-field-video" />
+                            <span>Video visits</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="dp-location-field">
+                    <div class="dp-location-label">Address</div>
+                    <input type="text" name="LocationsForm.Locations[__INDEX__].Address1" class="dp-location-input" placeholder="Address 1" />
+                    <input type="text" name="LocationsForm.Locations[__INDEX__].Address2" class="dp-location-input" placeholder="Address 2 (Office/Suite)" style="margin-top:10px;" />
+                    <input type="text" name="LocationsForm.Locations[__INDEX__].City" class="dp-location-input" placeholder="City" style="margin-top:10px;" />
+                    <div class="dp-location-row-2" style="margin-top:10px;">
+                        <select name="LocationsForm.Locations[__INDEX__].State" class="dp-location-input dp-location-select">
+                            <option value="">State</option>
+                            @foreach (var state in Model.StateOptions)
+                            {
+                                <option value="@state.Code">@state.Name</option>
+                            }
+                        </select>
+                        <input type="text" name="LocationsForm.Locations[__INDEX__].ZipCode" class="dp-location-input" placeholder="Zip" inputmode="numeric" />
+                    </div>
+                </div>
+
+                <div class="dp-location-row-2 dp-location-row-phone">
+                    <div class="dp-location-field">
+                        <label class="dp-location-label">Practice phone number</label>
+                        <input type="tel" name="LocationsForm.Locations[__INDEX__].PhoneNumber" class="dp-location-input dp-field-phone" />
+                    </div>
+                    <div class="dp-location-field dp-location-field-narrow">
+                        <label class="dp-location-label">Ext <span class="dp-location-optional">(optional)</span></label>
+                        <input type="text" name="LocationsForm.Locations[__INDEX__].PhoneExt" class="dp-location-input" inputmode="numeric" />
+                    </div>
+                </div>
+
+                <div class="dp-location-field">
+                    <label class="dp-location-label">Fax <span class="dp-location-optional">(optional)</span></label>
+                    <input type="tel" name="LocationsForm.Locations[__INDEX__].Fax" class="dp-location-input" />
+                </div>
+
+                <div class="dp-location-field">
+                    <label class="dp-location-label">Name of contact person <span class="dp-location-optional">(optional)</span></label>
+                    <p class="dp-location-hint">This will not be visible to the public</p>
+                    <input type="text" name="LocationsForm.Locations[__INDEX__].ContactPersonName" class="dp-location-input" />
+                </div>
+
+                <div class="dp-location-field">
+                    <label class="dp-location-label">Email for appointment notifications</label>
+                    <p class="dp-location-hint">This will not be visible to the public</p>
+                    <input type="email" name="LocationsForm.Locations[__INDEX__].AppointmentNotificationEmail" class="dp-location-input" />
+                </div>
+            </div>
+        </template>
+
+        <script type="application/json" id="dp-locations-json">@Html.Raw(Model.LocationsJson)</script>
+    }
+    else if (Model.Section == "visit-reasons")
+    {
+        <div class="dp-card">
+            <p class="dp-page-sub" style="margin-top:0;">Visit reasons patients can choose when booking. Editing will be available here later.</p>
+            <ul class="dp-settings-list">
+                <li>Dental Cleaning</li>
+                <li>Dental Consultation</li>
+                <li>Cavities</li>
+                <li>Crown</li>
+                <li>Filling</li>
+                <li>Root Canal</li>
+                <li>Teeth Whitening</li>
+                <li>Dental Implant(s)</li>
+                <li>Emergency</li>
+            </ul>
+        </div>
+    }
+    else if (Model.Section == "insurance")
+    {
+        <div class="dp-card">
+            <p class="dp-page-sub" style="margin-top:0;">Insurance carriers you accept. Edit from your profile for now.</p>
+            @if (p.InsuranceCarriers.Count == 0)
+            {
+                <p class="dp-muted-empty">No insurers listed yet.</p>
+            }
+            else
+            {
+                <ul class="dp-settings-list">
+                    @foreach (var carrier in p.InsuranceCarriers)
+                    {
+                        <li>@carrier</li>
+                    }
+                </ul>
+            }
+            <div class="dp-page-actions" style="margin-top:16px;">
+                <a class="dp-btn dp-btn-sm" href="/Account/DoctorProfile/Edit">Update insurance</a>
+            </div>
+        </div>
+    }
+    else if (Model.Section == "working-hours")
+    {
+        <div class="dp-card">
+            <p class="dp-page-sub" style="margin-top:0;">Default office hours used for availability. Custom schedules will come later.</p>
+            <dl class="dp-settings-dl">
+                <div><dt>Monday – Friday</dt><dd>9:00 AM – 5:00 PM</dd></div>
+                <div><dt>Saturday</dt><dd>Closed</dd></div>
+                <div><dt>Sunday</dt><dd>Closed</dd></div>
+            </dl>
+        </div>
+    }
+    else if (Model.Section == "booking-link")
+    {
+        <div class="dp-card">
+            <p class="dp-page-sub" style="margin-top:0;">Share this link on your website or Google Business Profile so patients can book with you.</p>
+            <div class="dp-settings-link-row">
+                <input class="dp-settings-link-input" id="dp-settings-booking-link" type="text" readonly value="@Model.BookingLink" />
+                <button type="button" class="dp-btn dp-btn-primary" id="dp-settings-copy-link">Copy link</button>
+            </div>
+            <p class="dp-muted" id="dp-settings-copy-note" hidden style="margin-top:10px;">Link copied.</p>
+        </div>
+    }
+    else if (Model.Section == "legal")
+    {
+        <div class="dp-card">
+            <p class="dp-page-sub" style="margin-top:0;">Agreements and legal documents for your practice listing.</p>
+            <ul class="dp-settings-list">
+                <li><a href="/Privacy">Privacy Policy</a></li>
+                <li>Terms of Service <span class="dp-muted">(coming soon)</span></li>
+            </ul>
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script>
+(function () {
+  const btn = document.getElementById("dp-settings-copy-link");
+  const input = document.getElementById("dp-settings-booking-link");
+  const note = document.getElementById("dp-settings-copy-note");
+  btn?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(input?.value || "");
+      if (note) note.hidden = false;
+    } catch {
+      input?.select();
+      document.execCommand("copy");
+      if (note) note.hidden = false;
+    }
+  });
+
+  const logoBtn = document.getElementById("dp-practice-logo-btn");
+  const logoInput = document.getElementById("dp-practice-logo");
+  const logoPreview = document.getElementById("dp-practice-logo-preview");
+  logoBtn?.addEventListener("click", () => logoInput?.click());
+  logoInput?.addEventListener("change", () => {
+    const file = logoInput.files?.[0];
+    if (!file || !logoPreview) return;
+    const url = URL.createObjectURL(file);
+    if (logoPreview.tagName === "IMG") {
+      logoPreview.src = url;
+    } else {
+      const img = document.createElement("img");
+      img.id = "dp-practice-logo-preview";
+      img.className = "dp-practice-logo";
+      img.alt = "";
+      img.src = url;
+      logoPreview.replaceWith(img);
+    }
+  });
+
+  const desc = document.getElementById("PracticeInput_PracticeDescription");
+  const count = document.getElementById("dp-practice-count");
+  function updateCount() {
+    if (count && desc) count.textContent = String(desc.value.length);
+  }
+  desc?.addEventListener("input", updateCount);
+  updateCount();
+
+  document.getElementById("dp-add-location-btn")?.addEventListener("click", () => {
+    openLocationModal("add");
+  });
+
+  const locationModal = document.getElementById("dp-location-modal");
+  const locationForm = document.getElementById("dp-location-form");
+  const locationBlocks = document.getElementById("dp-location-blocks");
+  const locationTemplate = document.getElementById("dp-location-block-template");
+  const locationTitle = document.getElementById("dp-location-modal-title");
+  const locationSubmit = document.getElementById("dp-location-submit");
+  const addAnotherBtn = document.getElementById("dp-location-add-another");
+  const addAnotherWrap = document.querySelector(".dp-location-add-another-wrap");
+  let locationData = [];
+
+  try {
+    locationData = JSON.parse(document.getElementById("dp-locations-json")?.textContent || "[]");
+  } catch {
+    locationData = [];
+  }
+
+  function setModalOpen(open) {
+    if (!locationModal) return;
+    locationModal.hidden = !open;
+    locationModal.setAttribute("aria-hidden", open ? "false" : "true");
+    document.body.classList.toggle("dp-location-modal-open", open);
+  }
+
+  function clearBlocks() {
+    if (!locationBlocks) return;
+    locationBlocks.innerHTML = "";
+  }
+
+  function buildBlock(index, data) {
+    if (index === 0 && locationBlocks?.querySelector(".dp-location-block")) {
+      const block = locationBlocks.querySelector(".dp-location-block");
+      block.dataset.index = "0";
+      fillBlock(block, data, 0);
+      return block;
+    }
+
+    if (index === 0) {
+      const html = locationTemplate?.innerHTML
+        .replaceAll("__INDEX__", "0")
+        .replaceAll("__NUMBER__", "1") || "";
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html.trim();
+      const block = wrap.firstElementChild;
+      const divider = block.querySelector(".dp-location-block-divider");
+      if (divider) divider.remove();
+      fillBlock(block, data, 0);
+      locationBlocks?.appendChild(block);
+      return block;
+    }
+
+    const html = locationTemplate?.innerHTML
+      .replaceAll("__INDEX__", String(index))
+      .replaceAll("__NUMBER__", String(index + 1)) || "";
+    const wrap = document.createElement("div");
+    wrap.innerHTML = html.trim();
+    const block = wrap.firstElementChild;
+    fillBlock(block, data, index);
+    block.querySelector(".dp-location-remove")?.addEventListener("click", () => {
+      block.remove();
+      reindexBlocks();
+    });
+    locationBlocks?.appendChild(block);
+    return block;
+  }
+
+  function fillBlock(block, data, index) {
+    if (!block) return;
+    const setVal = (selector, value) => {
+      const el = block.querySelector(selector);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = !!value;
+      else el.value = value ?? "";
+    };
+    setVal(".dp-location-id", data?.id ?? data?.Id ?? "");
+    setVal(".dp-field-name", data?.name ?? data?.Name ?? "");
+    setVal(".dp-field-inperson", data?.inPerson ?? data?.InPerson ?? true);
+    setVal(".dp-field-video", data?.videoVisits ?? data?.VideoVisits ?? false);
+    setVal("[name$='.Address1']", data?.address1 ?? data?.Address1 ?? "");
+    setVal("[name$='.Address2']", data?.address2 ?? data?.Address2 ?? "");
+    setVal("[name$='.City']", data?.city ?? data?.City ?? "");
+    setVal("[name$='.State']", data?.state ?? data?.State ?? "");
+    setVal("[name$='.ZipCode']", data?.zipCode ?? data?.ZipCode ?? "");
+    setVal(".dp-field-phone", data?.phoneNumber ?? data?.PhoneNumber ?? "");
+    setVal("[name$='.PhoneExt']", data?.phoneExt ?? data?.PhoneExt ?? "");
+    setVal("[name$='.Fax']", data?.fax ?? data?.Fax ?? "");
+    setVal("[name$='.ContactPersonName']", data?.contactPersonName ?? data?.ContactPersonName ?? "");
+    setVal("[name$='.AppointmentNotificationEmail']", data?.appointmentNotificationEmail ?? data?.AppointmentNotificationEmail ?? "");
+    block.dataset.index = String(index);
+  }
+
+  function reindexBlocks() {
+    locationBlocks?.querySelectorAll(".dp-location-block").forEach((block, i) => {
+      block.dataset.index = String(i);
+      block.querySelectorAll("[name]").forEach(el => {
+        const name = el.getAttribute("name");
+        if (!name) return;
+        el.setAttribute("name", name.replace(/Locations\[\d+\]/, `Locations[${i}]`));
+      });
+      const divider = block.querySelector(".dp-location-block-divider span");
+      if (divider) divider.textContent = `Location ${i + 1}`;
+    });
+  }
+
+  function openLocationModal(mode, locationId) {
+    clearBlocks();
+    if (mode === "edit" && locationId != null) {
+      const data = locationData.find(l => (l.id ?? l.Id) === locationId);
+      buildBlock(0, data || {});
+      if (locationTitle) locationTitle.textContent = "Edit location";
+      if (locationSubmit) locationSubmit.textContent = "Save changes";
+      if (addAnotherWrap) addAnotherWrap.hidden = true;
+    } else {
+      buildBlock(0, {});
+      if (locationTitle) locationTitle.textContent = "Add location";
+      if (locationSubmit) locationSubmit.textContent = "Add location";
+      if (addAnotherWrap) addAnotherWrap.hidden = false;
+    }
+    setModalOpen(true);
+  }
+
+  document.getElementById("dp-location-modal-close")?.addEventListener("click", () => setModalOpen(false));
+  document.getElementById("dp-location-cancel")?.addEventListener("click", () => setModalOpen(false));
+  locationModal?.addEventListener("click", (e) => {
+    if (e.target === locationModal) setModalOpen(false);
+  });
+
+  addAnotherBtn?.addEventListener("click", () => {
+    const count = locationBlocks?.querySelectorAll(".dp-location-block").length ?? 0;
+    buildBlock(count, {});
+  });
+
+  document.querySelectorAll(".dp-locations-edit-btn").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = parseInt(btn.getAttribute("data-location-id") || "", 10);
+      if (!Number.isNaN(id)) openLocationModal("edit", id);
+      document.querySelectorAll(".dp-locations-menu-panel").forEach(p => { p.hidden = true; });
+    });
+  });
+
+  if (locationModal?.dataset.openOnLoad === "true") {
+    openLocationModal("add");
+  }
+
+  document.querySelectorAll(".dp-locations-menu").forEach(menu => {
+    const btn = menu.querySelector(".dp-locations-menu-btn");
+    const panel = menu.querySelector(".dp-locations-menu-panel");
+    if (!btn || !panel) return;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = panel.hidden;
+      document.querySelectorAll(".dp-locations-menu-panel").forEach(p => { p.hidden = true; });
+      document.querySelectorAll(".dp-locations-menu-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".dp-locations-menu-panel").forEach(p => { p.hidden = true; });
+    document.querySelectorAll(".dp-locations-menu-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+  });
+})();
+</script>
+}

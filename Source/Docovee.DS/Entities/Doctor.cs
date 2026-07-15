@@ -47,4 +47,5 @@ public class Doctor
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();
     public ICollection<DoctorPatientReview> PatientReviews { get; set; } = new List<DoctorPatientReview>();
     public ICollection<DoctorDoctorLanguage> DoctorLanguages { get; set; } = new List<DoctorDoctorLanguage>();
+    public ICollection<DoctorLocation> Locations { get; set; } = new List<DoctorLocation>();
 }

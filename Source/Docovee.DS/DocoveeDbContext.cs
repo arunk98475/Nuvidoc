@@ -25,6 +25,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorDoctorLanguage> DoctorDoctorLanguages => Set<DoctorDoctorLanguage>();
     public DbSet<PatientDoctorContactView> PatientDoctorContactViews => Set<PatientDoctorContactView>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -194,6 +195,25 @@ public class DocoveeDbContext : DbContext
             entity.HasOne(e => e.Patient).WithMany(p => p.DoctorContactViews).HasForeignKey(e => e.PatientId);
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.SearchSession).WithMany().HasForeignKey(e => e.SearchSessionId);
+        });
+
+        modelBuilder.Entity<DoctorLocation>(entity =>
+        {
+            entity.ToTable("doctor_locations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.Address1).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.Address2).HasMaxLength(200);
+            entity.Property(e => e.City).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.State).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ZipCode).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.PhoneNumber).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.PhoneExt).HasMaxLength(10);
+            entity.Property(e => e.Fax).HasMaxLength(30);
+            entity.Property(e => e.ContactPersonName).HasMaxLength(200);
+            entity.Property(e => e.AppointmentNotificationEmail).HasMaxLength(200);
+            entity.HasIndex(e => new { e.DoctorId, e.SortOrder });
+            entity.HasOne(e => e.Doctor).WithMany(d => d.Locations).HasForeignKey(e => e.DoctorId);
         });
 
         modelBuilder.Entity<Appointment>(entity =>

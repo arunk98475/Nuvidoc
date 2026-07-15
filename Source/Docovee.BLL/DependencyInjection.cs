@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IDoctorReviewService, DoctorReviewService>();
         services.AddScoped<IPatientDoctorContactService, PatientDoctorContactService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
+        services.AddScoped<IDoctorLocationService, DoctorLocationService>();
         services.AddSingleton<IDoctorImportJobService, DoctorImportJobService>();
         services.AddScoped<IAppSettingsService, AppSettingsService>();
 

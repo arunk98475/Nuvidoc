@@ -187,6 +187,35 @@ public static class SchemaUpdater
 
         await db.Database.ExecuteSqlRawAsync(
             """
+            CREATE TABLE IF NOT EXISTS `doctor_locations` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `Name` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `InPerson` tinyint(1) NOT NULL DEFAULT 1,
+                `VideoVisits` tinyint(1) NOT NULL DEFAULT 0,
+                `Address1` varchar(300) CHARACTER SET utf8mb4 NOT NULL,
+                `Address2` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `City` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+                `State` varchar(50) CHARACTER SET utf8mb4 NOT NULL,
+                `ZipCode` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `PhoneNumber` varchar(30) CHARACTER SET utf8mb4 NOT NULL,
+                `PhoneExt` varchar(10) CHARACTER SET utf8mb4 NULL,
+                `Fax` varchar(30) CHARACTER SET utf8mb4 NULL,
+                `ContactPersonName` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `AppointmentNotificationEmail` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `IsActive` tinyint(1) NOT NULL DEFAULT 1,
+                `IsPrimary` tinyint(1) NOT NULL DEFAULT 0,
+                `SortOrder` int NOT NULL DEFAULT 0,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_doctor_locations_DoctorId_SortOrder` (`DoctorId`, `SortOrder`),
+                CONSTRAINT `FK_doctor_locations_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
             CREATE TABLE IF NOT EXISTS `insurance_plans` (
                 `Id` int NOT NULL AUTO_INCREMENT,
                 `InsuranceCarrierId` int NOT NULL,
