@@ -6,8 +6,8 @@
     var p = Model.Profile!;
 }
 
-<div class="dp-content@(Model.Section == "practice" ? " dp-content-practice" : "")">
-    @if (Model.Section != "practice")
+<div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" ? " dp-content-practice" : "")">
+    @if (Model.Section != "practice" && Model.Section != "visit-reasons")
     {
         <div class="dp-page-head@(Model.Section == "locations" ? " dp-locations-head" : "")">
             <div>
@@ -182,7 +182,11 @@
                                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
                                             </button>
                                             <div class="dp-locations-menu-panel" hidden role="menu">
-                                                <button type="button" role="menuitem" class="dp-locations-edit-btn" data-location-id="@loc.Id">Edit location</button>
+                                                <button type="button" role="menuitem" class="dp-locations-edit-btn" data-location-id="@loc.Id">View and edit details</button>
+                                                <form method="post" asp-page-handler="DeleteLocation" class="dp-locations-delete-form">
+                                                    <input type="hidden" name="locationId" value="@loc.Id" />
+                                                    <button type="submit" role="menuitem" class="dp-locations-delete-btn" onclick="return confirm('Delete this location?');">Delete location</button>
+                                                </form>
                                             </div>
                                         </div>
                                     </td>
@@ -364,19 +368,121 @@
     }
     else if (Model.Section == "visit-reasons")
     {
-        <div class="dp-card">
-            <p class="dp-page-sub" style="margin-top:0;">Visit reasons patients can choose when booking. Editing will be available here later.</p>
-            <ul class="dp-settings-list">
-                <li>Dental Cleaning</li>
-                <li>Dental Consultation</li>
-                <li>Cavities</li>
-                <li>Crown</li>
-                <li>Filling</li>
-                <li>Root Canal</li>
-                <li>Teeth Whitening</li>
-                <li>Dental Implant(s)</li>
-                <li>Emergency</li>
-            </ul>
+        var durationOptions = new[] { 15, 20, 30, 45, 60, 75, 90, 120 };
+        <form method="post" asp-page-handler="VisitReasons" class="dp-practice-form dp-visit-form" id="dp-visit-form">
+            <div class="dp-practice-scroll">
+                <div class="dp-practice-inner dp-visit-inner">
+                    @if (Model.Saved)
+                    {
+                        <div class="dp-location-alert is-success">Visit reason preferences saved.</div>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                    {
+                        <div class="dp-location-alert is-error">@Model.ErrorMessage</div>
+                    }
+
+                    <header class="dp-visit-hero">
+                        <h1>Visit reason preferences</h1>
+                        <p>These selections help patients find you for the right care. Enable the categories you offer and set visit lengths for new and existing patients.</p>
+                    </header>
+
+                    <div class="dp-visit-list" id="dp-visit-list">
+                        @for (var i = 0; i < Model.VisitReasonCategories.Count; i++)
+                        {
+                            var cat = Model.VisitReasonCategories[i];
+                            <div class="dp-visit-row@(cat.Enabled ? " is-enabled" : "")" data-category="@cat.Key">
+                                <input type="hidden" name="VisitReasonsForm.Categories[@i].Key" value="@cat.Key" />
+                                <div class="dp-visit-row-main">
+                                    <label class="dp-visit-check">
+                                        <input type="checkbox"
+                                               name="VisitReasonsForm.Categories[@i].Enabled"
+                                               value="true"
+                                               class="dp-visit-enabled"
+                                               @(cat.Enabled ? "checked" : null) />
+                                        <span class="dp-visit-check-box" aria-hidden="true"></span>
+                                    </label>
+                                    <div class="dp-visit-copy">
+                                        <div class="dp-visit-title">@cat.Title</div>
+                                        <div class="dp-visit-desc">@cat.Description</div>
+                                    </div>
+                                    <div class="dp-visit-meta">
+                                        <div class="dp-visit-durations">
+                                            <span>New <strong class="dp-visit-new-label">@cat.NewPatientMinutes min</strong></span>
+                                            <span class="dp-visit-dot">·</span>
+                                            <span>Existing <strong class="dp-visit-exist-label">@cat.ExistingPatientMinutes min</strong></span>
+                                        </div>
+                                        <button type="button" class="dp-visit-settings-btn" data-index="@i">Settings</button>
+                                        <input type="hidden" name="VisitReasonsForm.Categories[@i].NewPatientMinutes" class="dp-visit-new-input" value="@cat.NewPatientMinutes" />
+                                        <input type="hidden" name="VisitReasonsForm.Categories[@i].ExistingPatientMinutes" class="dp-visit-exist-input" value="@cat.ExistingPatientMinutes" />
+                                    </div>
+                                </div>
+
+                                @if (cat.PopularItems.Count > 0)
+                                {
+                                    <div class="dp-visit-popular" @(cat.Enabled ? null : "hidden")>
+                                        <p class="dp-visit-popular-prompt">Do providers at your practice see patients for these popular visit types?</p>
+                                        <div class="dp-visit-popular-list">
+                                            @for (var j = 0; j < cat.PopularItems.Count; j++)
+                                            {
+                                                var item = cat.PopularItems[j];
+                                                <label class="dp-visit-popular-item">
+                                                    <input type="checkbox"
+                                                           name="VisitReasonsForm.Categories[@i].PopularSelectedKeys"
+                                                           value="@item.Key"
+                                                           @(item.Selected ? "checked" : null) />
+                                                    <span>@item.Name</span>
+                                                </label>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <footer class="dp-practice-footer">
+                <button type="submit" class="dp-btn dp-btn-primary" id="dp-visit-save" disabled>Save updates</button>
+            </footer>
+        </form>
+
+        <div class="dp-visit-settings-backdrop" id="dp-visit-settings-modal" hidden>
+            <div class="dp-visit-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="dp-visit-settings-title">
+                <header class="dp-visit-settings-head">
+                    <h2 id="dp-visit-settings-title">Category settings</h2>
+                    <button type="button" class="dp-location-modal-close" id="dp-visit-settings-close" aria-label="Close">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </header>
+                <div class="dp-visit-settings-body">
+                    <p class="dp-visit-settings-cat" id="dp-visit-settings-cat"></p>
+                    <div class="dp-visit-settings-fields">
+                        <div class="dp-location-field">
+                            <label class="dp-location-label" for="dp-visit-settings-new">New patient visit length</label>
+                            <select id="dp-visit-settings-new" class="dp-location-input dp-location-select">
+                                @foreach (var m in durationOptions)
+                                {
+                                    <option value="@m">@m minutes</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="dp-location-field">
+                            <label class="dp-location-label" for="dp-visit-settings-exist">Existing patient visit length</label>
+                            <select id="dp-visit-settings-exist" class="dp-location-input dp-location-select">
+                                @foreach (var m in durationOptions)
+                                {
+                                    <option value="@m">@m minutes</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <footer class="dp-location-modal-foot">
+                    <button type="button" class="dp-btn" id="dp-visit-settings-cancel">Cancel</button>
+                    <button type="button" class="dp-btn dp-btn-primary" id="dp-visit-settings-apply">Apply</button>
+                </footer>
+            </div>
         </div>
     }
     else if (Model.Section == "insurance")
@@ -620,12 +726,36 @@
       e.stopPropagation();
       const id = parseInt(btn.getAttribute("data-location-id") || "", 10);
       if (!Number.isNaN(id)) openLocationModal("edit", id);
-      document.querySelectorAll(".dp-locations-menu-panel").forEach(p => { p.hidden = true; });
+      closeAllLocationMenus();
     });
   });
 
   if (locationModal?.dataset.openOnLoad === "true") {
     openLocationModal("add");
+  }
+
+  function closeAllLocationMenus() {
+    document.querySelectorAll(".dp-locations-menu-panel").forEach(p => {
+      p.hidden = true;
+      p.style.top = "";
+      p.style.left = "";
+    });
+    document.querySelectorAll(".dp-locations-menu-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+  }
+
+  function positionLocationMenu(btn, panel) {
+    const rect = btn.getBoundingClientRect();
+    panel.hidden = false;
+    const menuWidth = Math.max(panel.offsetWidth || 200, 200);
+    const menuHeight = panel.offsetHeight || 90;
+    let top = rect.bottom + 4;
+    let left = rect.right - menuWidth;
+    if (left < 8) left = 8;
+    if (top + menuHeight > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - menuHeight - 4);
+    }
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
   }
 
   document.querySelectorAll(".dp-locations-menu").forEach(menu => {
@@ -635,16 +765,97 @@
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const open = panel.hidden;
-      document.querySelectorAll(".dp-locations-menu-panel").forEach(p => { p.hidden = true; });
-      document.querySelectorAll(".dp-locations-menu-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
-      panel.hidden = !open;
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      closeAllLocationMenus();
+      if (open) {
+        positionLocationMenu(btn, panel);
+        btn.setAttribute("aria-expanded", "true");
+      }
+    });
+    panel.addEventListener("click", (e) => e.stopPropagation());
+  });
+  document.addEventListener("click", closeAllLocationMenus);
+  window.addEventListener("scroll", closeAllLocationMenus, true);
+  window.addEventListener("resize", closeAllLocationMenus);
+
+  const visitForm = document.getElementById("dp-visit-form");
+  const visitSave = document.getElementById("dp-visit-save");
+  const visitSettingsModal = document.getElementById("dp-visit-settings-modal");
+  let visitSettingsRow = null;
+  let visitDirty = false;
+
+  function markVisitDirty() {
+    visitDirty = true;
+    if (visitSave) visitSave.disabled = false;
+  }
+
+  function syncVisitRow(row) {
+    const enabled = row.querySelector(".dp-visit-enabled")?.checked;
+    row.classList.toggle("is-enabled", !!enabled);
+    const popular = row.querySelector(".dp-visit-popular");
+    if (popular) popular.hidden = !enabled;
+  }
+
+  document.querySelectorAll(".dp-visit-row").forEach(row => {
+    syncVisitRow(row);
+    row.querySelector(".dp-visit-enabled")?.addEventListener("change", () => {
+      syncVisitRow(row);
+      markVisitDirty();
+    });
+    row.querySelectorAll('input[type="checkbox"]').forEach(input => {
+      if (input.classList.contains("dp-visit-enabled")) return;
+      input.addEventListener("change", markVisitDirty);
     });
   });
-  document.addEventListener("click", () => {
-    document.querySelectorAll(".dp-locations-menu-panel").forEach(p => { p.hidden = true; });
-    document.querySelectorAll(".dp-locations-menu-btn").forEach(b => b.setAttribute("aria-expanded", "false"));
+
+  function openVisitSettings(row) {
+    visitSettingsRow = row;
+    const title = row.querySelector(".dp-visit-title")?.textContent || "Category";
+    const catEl = document.getElementById("dp-visit-settings-cat");
+    if (catEl) catEl.textContent = title;
+    const newVal = row.querySelector(".dp-visit-new-input")?.value || "45";
+    const existVal = row.querySelector(".dp-visit-exist-input")?.value || "45";
+    const newSelect = document.getElementById("dp-visit-settings-new");
+    const existSelect = document.getElementById("dp-visit-settings-exist");
+    if (newSelect) newSelect.value = newVal;
+    if (existSelect) existSelect.value = existVal;
+    if (visitSettingsModal) visitSettingsModal.hidden = false;
+  }
+
+  function closeVisitSettings() {
+    if (visitSettingsModal) visitSettingsModal.hidden = true;
+    visitSettingsRow = null;
+  }
+
+  document.querySelectorAll(".dp-visit-settings-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const row = btn.closest(".dp-visit-row");
+      if (row) openVisitSettings(row);
+    });
   });
+
+  document.getElementById("dp-visit-settings-close")?.addEventListener("click", closeVisitSettings);
+  document.getElementById("dp-visit-settings-cancel")?.addEventListener("click", closeVisitSettings);
+  visitSettingsModal?.addEventListener("click", (e) => {
+    if (e.target === visitSettingsModal) closeVisitSettings();
+  });
+
+  document.getElementById("dp-visit-settings-apply")?.addEventListener("click", () => {
+    if (!visitSettingsRow) return;
+    const newVal = document.getElementById("dp-visit-settings-new")?.value || "45";
+    const existVal = document.getElementById("dp-visit-settings-exist")?.value || "45";
+    const newInput = visitSettingsRow.querySelector(".dp-visit-new-input");
+    const existInput = visitSettingsRow.querySelector(".dp-visit-exist-input");
+    const newLabel = visitSettingsRow.querySelector(".dp-visit-new-label");
+    const existLabel = visitSettingsRow.querySelector(".dp-visit-exist-label");
+    if (newInput) newInput.value = newVal;
+    if (existInput) existInput.value = existVal;
+    if (newLabel) newLabel.textContent = `${newVal} min`;
+    if (existLabel) existLabel.textContent = `${existVal} min`;
+    markVisitDirty();
+    closeVisitSettings();
+  });
+
+  visitForm?.addEventListener("change", markVisitDirty);
 })();
 </script>
 }

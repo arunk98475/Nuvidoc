@@ -40,10 +40,14 @@ public class SettingsModel : PageModel
     [BindProperty]
     public SaveDoctorLocationsInput LocationsForm { get; set; } = new();
 
+    [BindProperty]
+    public VisitReasonPreferencesInput VisitReasonsForm { get; set; } = new();
+
     public string Section { get; private set; } = "practice";
     public string SectionTitle { get; private set; } = "Practice profile";
     public DoctorProfileDto? Profile { get; private set; }
     public IReadOnlyList<DoctorLocationDto> Locations { get; private set; } = Array.Empty<DoctorLocationDto>();
+    public IReadOnlyList<VisitReasonCategoryViewModel> VisitReasonCategories { get; private set; } = Array.Empty<VisitReasonCategoryViewModel>();
     public string LocationsJson { get; private set; } = "[]";
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
     public string BookingLink { get; private set; } = "";
@@ -124,6 +128,36 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "locations", saved = true });
     }
 
+    public async Task<IActionResult> OnPostDeleteLocationAsync(int locationId, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _locationService.DeleteLocationAsync(doctorId, locationId, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "locations", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "locations", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostVisitReasonsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _profileService.UpdateVisitReasonPreferencesAsync(doctorId, VisitReasonsForm, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "visit-reasons", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "visit-reasons", saved = true });
+    }
+
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)
     {
         Section = string.IsNullOrWhiteSpace(section) || !AllowedSections.Contains(section.Trim())
@@ -165,6 +199,9 @@ public class SettingsModel : PageModel
             var inputs = await _locationService.GetAllLocationInputsAsync(doctorId, cancellationToken);
             LocationsJson = JsonSerializer.Serialize(inputs);
         }
+
+        if (Section == "visit-reasons")
+            VisitReasonCategories = await _profileService.GetVisitReasonPreferencesAsync(doctorId, cancellationToken);
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";
         return Page();

@@ -18,6 +18,8 @@ public interface IProfileService
     Task<(bool Success, string? Error)> UpdatePatientProfileAsync(int patientId, PatientProfileEditModel model, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(int doctorId, DoctorProfileEditModel model, IFormFile? photo, IFormFile? video = null, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(int doctorId, PracticeProfileInput model, IFormFile? logo, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<VisitReasonCategoryViewModel>> GetVisitReasonPreferencesAsync(int doctorId, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdateVisitReasonPreferencesAsync(int doctorId, VisitReasonPreferencesInput model, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService
@@ -326,6 +328,103 @@ public class ProfileService : IProfileService
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated practice profile {DoctorId}", doctorId);
         return (true, null);
+    }
+
+    public async Task<IReadOnlyList<VisitReasonCategoryViewModel>> GetVisitReasonPreferencesAsync(
+        int doctorId,
+        CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null)
+            return Array.Empty<VisitReasonCategoryViewModel>();
+
+        var saved = DoctorProfileHelper.ExtractVisitReasonPreferences(doctor.OnboardingProfileJson)
+            .ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
+
+        return DentalVisitReasonCatalog.Categories.Select(def =>
+        {
+            saved.TryGetValue(def.Key, out var pref);
+            var enabled = pref?.Enabled ?? def.DefaultEnabled;
+            var popularSelected = pref?.PopularSelectedKeys;
+            if (popularSelected == null || popularSelected.Count == 0)
+            {
+                popularSelected = enabled
+                    ? def.PopularItems.Select(p => p.Key).ToList()
+                    : new List<string>();
+            }
+
+            var selectedSet = popularSelected.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return new VisitReasonCategoryViewModel
+            {
+                Key = def.Key,
+                Title = def.Title,
+                Description = def.Description,
+                Enabled = enabled,
+                NewPatientMinutes = pref?.NewPatientMinutes ?? def.DefaultNewMinutes,
+                ExistingPatientMinutes = pref?.ExistingPatientMinutes ?? def.DefaultExistingMinutes,
+                PopularItems = def.PopularItems.Select(p => new VisitReasonPopularViewModel
+                {
+                    Key = p.Key,
+                    Name = p.Name,
+                    Selected = selectedSet.Contains(p.Key)
+                }).ToList()
+            };
+        }).ToList();
+    }
+
+    public async Task<(bool Success, string? Error)> UpdateVisitReasonPreferencesAsync(
+        int doctorId,
+        VisitReasonPreferencesInput model,
+        CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null)
+            return (false, "Doctor not found.");
+
+        var byKey = (model.Categories ?? new())
+            .Where(c => !string.IsNullOrWhiteSpace(c.Key))
+            .ToDictionary(c => c.Key.Trim(), StringComparer.OrdinalIgnoreCase);
+
+        var normalized = new List<VisitReasonCategoryPreference>();
+        foreach (var def in DentalVisitReasonCatalog.Categories)
+        {
+            byKey.TryGetValue(def.Key, out var posted);
+            var enabled = posted?.Enabled == true;
+            var newMins = ClampMinutes(posted?.NewPatientMinutes ?? def.DefaultNewMinutes, def.DefaultNewMinutes);
+            var existMins = ClampMinutes(posted?.ExistingPatientMinutes ?? def.DefaultExistingMinutes, def.DefaultExistingMinutes);
+            var allowedPopular = def.PopularItems.Select(p => p.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var popular = (posted?.PopularSelectedKeys ?? new List<string>())
+                .Where(k => allowedPopular.Contains(k))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (enabled && popular.Count == 0)
+                popular = def.PopularItems.Select(p => p.Key).ToList();
+
+            normalized.Add(new VisitReasonCategoryPreference
+            {
+                Key = def.Key,
+                Enabled = enabled,
+                NewPatientMinutes = newMins,
+                ExistingPatientMinutes = existMins,
+                PopularSelectedKeys = enabled ? popular : new List<string>()
+            });
+        }
+
+        doctor.OnboardingProfileJson = DoctorProfileHelper.MergeVisitReasonPreferences(
+            doctor.OnboardingProfileJson,
+            normalized);
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Doctor updated visit reason preferences {DoctorId}", doctorId);
+        return (true, null);
+    }
+
+    private static int ClampMinutes(int value, int fallback)
+    {
+        if (value < 5 || value > 240)
+            return fallback;
+        return value;
     }
 
     private static bool IsYoutubeUrl(string url)

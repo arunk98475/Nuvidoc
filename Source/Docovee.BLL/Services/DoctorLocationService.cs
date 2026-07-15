@@ -13,6 +13,7 @@ public interface IDoctorLocationService
     Task<DoctorLocationInput?> GetLocationForEditAsync(int doctorId, int locationId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> AddLocationsAsync(int doctorId, IReadOnlyList<DoctorLocationInput> locations, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateLocationAsync(int doctorId, DoctorLocationInput input, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> DeleteLocationAsync(int doctorId, int locationId, CancellationToken cancellationToken = default);
 }
 
 public class DoctorLocationService : IDoctorLocationService
@@ -149,6 +150,40 @@ public class DoctorLocationService : IDoctorLocationService
 
         if (entity.IsPrimary)
             await SyncPrimaryToDoctorAsync(entity.Doctor, entity, cancellationToken);
+
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> DeleteLocationAsync(
+        int doctorId,
+        int locationId,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _db.DoctorLocations
+            .FirstOrDefaultAsync(l => l.DoctorId == doctorId && l.Id == locationId, cancellationToken);
+        if (entity == null)
+            return (false, "Location not found.");
+
+        var wasPrimary = entity.IsPrimary;
+        _db.DoctorLocations.Remove(entity);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (wasPrimary)
+        {
+            var next = await _db.DoctorLocations
+                .Include(l => l.Doctor)
+                .Where(l => l.DoctorId == doctorId)
+                .OrderBy(l => l.SortOrder)
+                .ThenBy(l => l.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (next != null)
+            {
+                next.IsPrimary = true;
+                next.UpdatedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                await SyncPrimaryToDoctorAsync(next.Doctor, next, cancellationToken);
+            }
+        }
 
         return (true, null);
     }
