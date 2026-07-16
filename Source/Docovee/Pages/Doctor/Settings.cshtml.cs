@@ -4,6 +4,7 @@ using Docovee.BLL.Auth;
 using Docovee.BLL.Data;
 using Docovee.BLL.Services;
 using Docovee.DS.Models;
+using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -22,21 +23,25 @@ public class SettingsModel : PageModel
         "insurance",
         "working-hours",
         "booking-link",
+        "integrations",
         "legal"
     };
 
     private readonly IProfileService _profileService;
     private readonly IDoctorLocationService _locationService;
     private readonly IDoctorInsuranceService _insuranceService;
+    private readonly IPmsCalendarService _pms;
 
     public SettingsModel(
         IProfileService profileService,
         IDoctorLocationService locationService,
-        IDoctorInsuranceService insuranceService)
+        IDoctorInsuranceService insuranceService,
+        IPmsCalendarService pms)
     {
         _profileService = profileService;
         _locationService = locationService;
         _insuranceService = insuranceService;
+        _pms = pms;
     }
 
     [BindProperty]
@@ -54,6 +59,9 @@ public class SettingsModel : PageModel
     [BindProperty]
     public WorkingHoursInput WorkingHoursForm { get; set; } = new();
 
+    [BindProperty]
+    public IntegrationsFormInput IntegrationsForm { get; set; } = new();
+
     public string Section { get; private set; } = "practice";
     public string SectionTitle { get; private set; } = "Practice profile";
     public DoctorProfileDto? Profile { get; private set; }
@@ -67,8 +75,24 @@ public class SettingsModel : PageModel
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
     public string BookingLink { get; private set; } = "";
     public bool BookingLinkCreateStep { get; private set; }
+    public PmsConnectionSettingsDto? OpenDentalConnection { get; private set; }
+    public PmsConnectionSettingsDto? NexHealthConnection { get; private set; }
+    public string? IntegrationsStatusMessage { get; private set; }
     public bool Saved { get; private set; }
     public string? ErrorMessage { get; private set; }
+
+    public class IntegrationsFormInput
+    {
+        public string Provider { get; set; } = PmsProviders.OpenDental;
+        public bool IsEnabled { get; set; }
+        public string? CustomerApiKey { get; set; }
+        public string? ApiKey { get; set; }
+        public string? InstitutionId { get; set; }
+        public string? LocationExternalId { get; set; }
+        public string? ProviderExternalId { get; set; }
+        public string? OperatoryId { get; set; }
+        public string? ClinicNum { get; set; }
+    }
 
     private static IReadOnlyList<string> BuildTimeOptions()
     {
@@ -89,13 +113,14 @@ public class SettingsModel : PageModel
         return dt.ToString("h:mm tt");
     }
 
-    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, string? status = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return RedirectToPage("/Account/Login");
 
         Saved = saved == true;
         BookingLinkCreateStep = string.Equals(step, "create", StringComparison.OrdinalIgnoreCase);
+        IntegrationsStatusMessage = status;
         return await LoadPageAsync(doctorId, section, cancellationToken);
     }
 
@@ -239,6 +264,78 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "working-hours", saved = true });
     }
 
+    public async Task<IActionResult> OnPostSaveIntegrationAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error, _) = await _pms.SaveConnectionAsync(doctorId, new PmsConnectionSaveRequest
+        {
+            Provider = IntegrationsForm.Provider,
+            IsEnabled = IntegrationsForm.IsEnabled,
+            CustomerApiKey = IntegrationsForm.CustomerApiKey,
+            ApiKey = IntegrationsForm.ApiKey,
+            InstitutionId = IntegrationsForm.InstitutionId,
+            LocationExternalId = IntegrationsForm.LocationExternalId,
+            ProviderExternalId = IntegrationsForm.ProviderExternalId,
+            OperatoryId = IntegrationsForm.OperatoryId,
+            ClinicNum = IntegrationsForm.ClinicNum
+        }, cancellationToken);
+
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "integrations", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "integrations", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostTestIntegrationAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var provider = string.IsNullOrWhiteSpace(IntegrationsForm.Provider)
+            ? PmsProviders.OpenDental
+            : IntegrationsForm.Provider;
+
+        await _pms.SaveConnectionAsync(doctorId, new PmsConnectionSaveRequest
+        {
+            Provider = provider,
+            IsEnabled = IntegrationsForm.IsEnabled,
+            CustomerApiKey = IntegrationsForm.CustomerApiKey,
+            ApiKey = IntegrationsForm.ApiKey,
+            InstitutionId = IntegrationsForm.InstitutionId,
+            LocationExternalId = IntegrationsForm.LocationExternalId,
+            ProviderExternalId = IntegrationsForm.ProviderExternalId,
+            OperatoryId = IntegrationsForm.OperatoryId,
+            ClinicNum = IntegrationsForm.ClinicNum
+        }, cancellationToken);
+
+        var (success, message) = await _pms.TestConnectionAsync(doctorId, provider, cancellationToken);
+        return RedirectToPage(new
+        {
+            section = "integrations",
+            saved = success,
+            status = message
+        });
+    }
+
+    public async Task<IActionResult> OnPostSyncIntegrationAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var changed = await _pms.SyncInboundForDoctorAsync(doctorId, cancellationToken);
+        return RedirectToPage(new
+        {
+            section = "integrations",
+            saved = true,
+            status = $"Synced {changed} appointment change(s) from PMS."
+        });
+    }
+
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)
     {
         Section = string.IsNullOrWhiteSpace(section) || !AllowedSections.Contains(section.Trim())
@@ -254,6 +351,7 @@ public class SettingsModel : PageModel
             "insurance" => "Insurance",
             "working-hours" => "Working hours",
             "booking-link" => BookingLinkCreateStep ? "Create a Booking Link" : "Booking Link",
+            "integrations" => "Integrations",
             "legal" => "Legal",
             _ => "Practice profile"
         };
@@ -292,11 +390,16 @@ public class SettingsModel : PageModel
 
         if (Section == "working-hours")
         {
-            // Ensure migrated locations exist for the location picker.
             _ = await _locationService.GetLocationsAsync(doctorId, cancellationToken);
             WorkingHours = await _profileService.GetWorkingHoursAsync(doctorId, cancellationToken);
             if (WorkingHours != null && WorkingHoursForm.Days.Count == 0)
                 WorkingHoursForm = WorkingHours.Hours;
+        }
+
+        if (Section == "integrations")
+        {
+            OpenDentalConnection = await _pms.GetConnectionAsync(doctorId, PmsProviders.OpenDental, cancellationToken);
+            NexHealthConnection = await _pms.GetConnectionAsync(doctorId, PmsProviders.NexHealth, cancellationToken);
         }
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";

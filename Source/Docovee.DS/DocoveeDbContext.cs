@@ -26,6 +26,8 @@ public class DocoveeDbContext : DbContext
     public DbSet<PatientDoctorContactView> PatientDoctorContactViews => Set<PatientDoctorContactView>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
+    public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
+    public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -230,6 +232,42 @@ public class DocoveeDbContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+        });
+
+        modelBuilder.Entity<PmsConnection>(entity =>
+        {
+            entity.ToTable("pms_connections");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Provider).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.DeveloperApiKey).HasMaxLength(500);
+            entity.Property(e => e.CustomerApiKey).HasMaxLength(500);
+            entity.Property(e => e.ApiKey).HasMaxLength(500);
+            entity.Property(e => e.InstitutionId).HasMaxLength(100);
+            entity.Property(e => e.LocationExternalId).HasMaxLength(100);
+            entity.Property(e => e.ProviderExternalId).HasMaxLength(100);
+            entity.Property(e => e.OperatoryId).HasMaxLength(100);
+            entity.Property(e => e.ClinicNum).HasMaxLength(50);
+            entity.Property(e => e.BaseUrl).HasMaxLength(300);
+            entity.Property(e => e.LastError).HasMaxLength(500);
+            entity.HasIndex(e => new { e.DoctorId, e.Provider }).IsUnique();
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
+        });
+
+        modelBuilder.Entity<PmsExternalRef>(entity =>
+        {
+            entity.ToTable("pms_external_refs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Provider).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.ExternalAppointmentId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ExternalPatientId).HasMaxLength(100);
+            entity.Property(e => e.ExternalLocationId).HasMaxLength(100);
+            entity.Property(e => e.SyncDirection).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(500);
+            entity.HasIndex(e => new { e.Provider, e.ExternalAppointmentId }).IsUnique();
+            entity.HasIndex(e => e.AppointmentId);
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

@@ -4,6 +4,7 @@ using Docovee.BLL.Services;
 using Docovee.DS.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 
 namespace Docovee.Pages.Doctors;
 
@@ -13,17 +14,23 @@ public class ProfileModel : PageModel
     private readonly IAppointmentService _appointments;
     private readonly IProfileService _profileService;
     private readonly IInsuranceService _insurance;
+    private readonly IPmsCalendarService _pms;
+    private readonly ILogger<ProfileModel> _logger;
 
     public ProfileModel(
         IPublicDoctorService publicDoctors,
         IAppointmentService appointments,
         IProfileService profileService,
-        IInsuranceService insurance)
+        IInsuranceService insurance,
+        IPmsCalendarService pms,
+        ILogger<ProfileModel> logger)
     {
         _publicDoctors = publicDoctors;
         _appointments = appointments;
         _profileService = profileService;
         _insurance = insurance;
+        _pms = pms;
+        _logger = logger;
     }
 
     public PublicDoctorProfileDto Doctor { get; private set; } = null!;
@@ -67,19 +74,85 @@ public class ProfileModel : PageModel
         int doctorId,
         CancellationToken cancellationToken)
     {
+        var rangeStart = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        var rangeEnd = rangeStart.AddDays(28);
+        var booked = await _appointments.GetBookedStartsAsync(doctorId, rangeStart, rangeEnd, cancellationToken);
+
+        try
+        {
+            if (await _pms.HasEnabledConnectionAsync(doctorId, cancellationToken))
+            {
+                var pmsSlots = await _pms.GetAvailabilityAsync(doctorId, rangeStart, rangeEnd, 40, cancellationToken);
+                if (pmsSlots.Count > 0)
+                    return BuildDaysFromPmsSlots(rangeStart, pmsSlots, booked);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS availability failed for doctor {DoctorId}; using local slots", doctorId);
+        }
+
+        return BuildLocalSyntheticDays(rangeStart, booked);
+    }
+
+    private static IReadOnlyList<BookingDayDto> BuildDaysFromPmsSlots(
+        DateOnly startDate,
+        IReadOnlyList<Docovee.Integrations.Contracts.PmsSlot> pmsSlots,
+        HashSet<DateTime> booked)
+    {
+        var byDate = pmsSlots
+            .GroupBy(s => DateOnly.FromDateTime(s.StartsAt))
+            .ToDictionary(g => g.Key, g => g.OrderBy(s => s.StartsAt).ToList());
+
         var days = new List<BookingDayDto>();
-        var date = DateOnly.FromDateTime(DateTime.Today.AddDays(1));
+        var date = startDate;
+        while (days.Count < 28)
+        {
+            IReadOnlyList<BookingSlotDto> slots;
+            if (byDate.TryGetValue(date, out var daySlots))
+            {
+                slots = daySlots.Select(s =>
+                {
+                    var label = string.IsNullOrWhiteSpace(s.TimeLabel)
+                        ? s.StartsAt.ToString("h:mm tt")
+                        : s.TimeLabel;
+                    return new BookingSlotDto
+                    {
+                        TimeLabel = label,
+                        Available = !booked.Contains(s.StartsAt)
+                    };
+                }).ToList();
+            }
+            else
+            {
+                slots = Array.Empty<BookingSlotDto>();
+            }
+
+            days.Add(new BookingDayDto
+            {
+                Date = date,
+                DateIso = date.ToString("yyyy-MM-dd"),
+                DayLabel = date.ToString("ddd"),
+                DateLabel = date.ToString("MMM d"),
+                AvailableCount = slots.Count(s => s.Available),
+                Slots = slots
+            });
+            date = date.AddDays(1);
+        }
+
+        return days;
+    }
+
+    private static IReadOnlyList<BookingDayDto> BuildLocalSyntheticDays(DateOnly startDate, HashSet<DateTime> booked)
+    {
+        var days = new List<BookingDayDto>();
+        var date = startDate;
         string[] slotTemplates =
         [
             "9:00 AM", "9:40 AM", "10:20 AM", "11:00 AM",
             "1:30 PM", "2:10 PM", "3:00 PM", "4:20 PM"
         ];
 
-        var rangeStart = date;
-        var rangeEnd = date.AddDays(28);
-        var booked = await _appointments.GetBookedStartsAsync(doctorId, rangeStart, rangeEnd, cancellationToken);
-
-        // Two weeks of consecutive calendar days (weekends shown as no appts), like Zocdoc.
         while (days.Count < 28)
         {
             IReadOnlyList<BookingSlotDto> slots;
@@ -108,7 +181,6 @@ public class ProfileModel : PageModel
                     built.Add(MakeSlot(date, "2:30 PM", booked));
                 }
 
-                // Mix of available / empty weekdays for visual realism
                 if (seed % 4 == 0)
                     built = built.Select(s => new BookingSlotDto { TimeLabel = s.TimeLabel, Available = false }).ToList();
 

@@ -229,6 +229,57 @@ public static class SchemaUpdater
                     FOREIGN KEY (`InsuranceCarrierId`) REFERENCES `insurance_carriers` (`Id`) ON DELETE CASCADE
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `pms_connections` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `Provider` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `IsEnabled` tinyint(1) NOT NULL DEFAULT 0,
+                `DeveloperApiKey` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `CustomerApiKey` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `ApiKey` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `InstitutionId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `LocationExternalId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `ProviderExternalId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `OperatoryId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `ClinicNum` varchar(50) CHARACTER SET utf8mb4 NULL,
+                `BaseUrl` varchar(300) CHARACTER SET utf8mb4 NULL,
+                `LastError` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `LastSyncAt` datetime(6) NULL,
+                `LastTestAt` datetime(6) NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_pms_connections_DoctorId_Provider` (`DoctorId`, `Provider`),
+                KEY `IX_pms_connections_DoctorId` (`DoctorId`),
+                CONSTRAINT `FK_pms_connections_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `pms_external_refs` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `AppointmentId` int NULL,
+                `Provider` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `ExternalAppointmentId` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+                `ExternalPatientId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `ExternalLocationId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `SyncDirection` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `LastError` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_pms_external_refs_Provider_ExternalAppointmentId` (`Provider`, `ExternalAppointmentId`),
+                KEY `IX_pms_external_refs_AppointmentId` (`AppointmentId`),
+                KEY `IX_pms_external_refs_DoctorId` (`DoctorId`),
+                CONSTRAINT `FK_pms_external_refs_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_pms_external_refs_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
     }
 
     private static async Task EnsureColumnAsync(

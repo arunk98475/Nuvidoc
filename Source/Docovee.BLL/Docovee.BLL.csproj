@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Docovee.DS\Docovee.DS.csproj" />
     <ProjectReference Include="..\Docovee.logging\Docovee.logging.csproj" />
+    <ProjectReference Include="..\Docovee.Integrations\Docovee.Integrations.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -48,6 +48,7 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddControllers();
 builder.Services.AddDocoveeBll(builder.Configuration);
+builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
 
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

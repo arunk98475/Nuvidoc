@@ -1,6 +1,7 @@
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Services;
 using Docovee.DS;
+using Docovee.Integrations;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -61,6 +62,8 @@ public static class DependencyInjection
         services.AddScoped<IDoctorLocationService, DoctorLocationService>();
         services.AddSingleton<IDoctorImportJobService, DoctorImportJobService>();
         services.AddScoped<IAppSettingsService, AppSettingsService>();
+        services.AddDocoveeIntegrations(configuration);
+        services.AddScoped<IPmsCalendarService, PmsCalendarService>();
 
         return services;
     }

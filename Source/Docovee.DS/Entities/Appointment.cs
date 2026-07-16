@@ -128,4 +128,5 @@ public static class AppointmentSources
 {
     public const string PublicProfile = "PublicProfile";
     public const string NuviChat = "NuviChat";
+    public const string PmsInbound = "PmsInbound";
 }

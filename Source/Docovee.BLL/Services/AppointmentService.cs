@@ -74,11 +74,16 @@ public class AppointmentService : IAppointmentService
     };
 
     private readonly DocoveeDbContext _db;
+    private readonly IPmsCalendarService _pms;
     private readonly ILogger<AppointmentService> _logger;
 
-    public AppointmentService(DocoveeDbContext db, ILogger<AppointmentService> logger)
+    public AppointmentService(
+        DocoveeDbContext db,
+        IPmsCalendarService pms,
+        ILogger<AppointmentService> logger)
     {
         _db = db;
+        _pms = pms;
         _logger = logger;
     }
 
@@ -188,6 +193,15 @@ public class AppointmentService : IAppointmentService
         _logger.LogInformation(
             "Appointment {Id} created for doctor {DoctorId} at {StartsAt} ({Patient})",
             appointment.Id, appointment.DoctorId, appointment.StartsAt, appointment.PatientName);
+
+        try
+        {
+            await _pms.PushAppointmentCreatedAsync(appointment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS outbound push failed after creating appointment {Id}", appointment.Id);
+        }
 
         return new CreateAppointmentResponse
         {
@@ -302,6 +316,15 @@ public class AppointmentService : IAppointmentService
             "Appointment {Id} status set to {Status} by doctor {DoctorId}",
             appointment.Id, appointment.Status, doctorId);
 
+        try
+        {
+            await _pms.PushAppointmentStatusAsync(appointment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS outbound status push failed for appointment {Id}", appointment.Id);
+        }
+
         return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status));
     }
 
@@ -341,6 +364,15 @@ public class AppointmentService : IAppointmentService
         _logger.LogInformation(
             "Appointment {Id} status set to {Status} by patient {PatientId}",
             appointment.Id, appointment.Status, patientId);
+
+        try
+        {
+            await _pms.PushAppointmentStatusAsync(appointment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS outbound status push failed for appointment {Id}", appointment.Id);
+        }
 
         return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status));
     }
