@@ -78,6 +78,17 @@ public class AdminDoctorService : IAdminDoctorService
             })
             .ToListAsync(cancellationToken);
 
+        var doctorIds = items.Select(d => d.Id).ToList();
+        var integratedIds = doctorIds.Count == 0
+            ? new HashSet<int>()
+            : (await _db.PmsConnections.AsNoTracking()
+                .Where(c => doctorIds.Contains(c.DoctorId)
+                    && c.Provider == Docovee.Integrations.Contracts.PmsProviders.NexHealth
+                    && c.IsEnabled)
+                .Select(c => c.DoctorId)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+
         return new PagedResult<DoctorAdminDto>
         {
             Items = items.Select(d => new DoctorAdminDto
@@ -93,7 +104,8 @@ public class AdminDoctorService : IAdminDoctorService
                 GoogleReviewCount = d.GoogleReviewCount,
                 PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(d.PhotoUrl, d.GmbPhotoLink),
                 IsActive = d.IsActive,
-                PatientReviewCount = d.PatientReviewCount
+                PatientReviewCount = d.PatientReviewCount,
+                IsNexHealthIntegrated = integratedIds.Contains(d.Id)
             }).ToList(),
             TotalCount = total,
             Page = page,

@@ -284,6 +284,17 @@ public sealed class OpenDentalProvider : IPmsProvider
             .ToList();
     }
 
+    public Task<PmsProviderEnsureResult> EnsureProviderAsync(
+        PmsEnsureProviderRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new PmsProviderEnsureResult
+        {
+            Success = false,
+            Error = "Creating providers via API is not supported for Open Dental in this integration."
+        });
+    }
+
     private async Task<PmsAppointmentResult> CreateOrFindPatientAsync(
         PmsConnectionCredentials credentials,
         PmsPatientInfo patient,

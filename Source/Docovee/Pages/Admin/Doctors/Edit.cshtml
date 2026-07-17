@@ -2,6 +2,8 @@
 @model Docovee.Pages.Admin.Doctors.EditModel
 @{
     ViewData["Title"] = "Edit Doctor";
+    var nh = Model.NexHealthConnection;
+    var isIntegrated = nh is { IsEnabled: true };
 }
 
 <div class="admin-card">
@@ -32,4 +34,101 @@
         <button type="submit" class="btn btn-primary">Save Changes</button>
         <a asp-page="Index" class="btn btn-secondary">Cancel</a>
     </form>
+    @{
+        // Reset so NexHealth fields bind as NexHealthForm.* (not Input.NexHealthForm.*).
+        ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = string.Empty;
+    }
 </div>
+
+<div class="admin-card" id="nexhealth">
+    <h1>NexHealth integration</h1>
+    <p>
+        Connect this provider (doctor) to a NexHealth location. The NuviDoc API key is shared for all doctors
+        (configured in <code>NexHealth:ApiKey</code>). Once enabled, public booking slots and appointments sync with NexHealth.
+    </p>
+
+    @if (Model.IntegrationSaved && !string.IsNullOrWhiteSpace(Model.IntegrationMessage))
+    {
+        <div class="alert-success">@Model.IntegrationMessage</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(Model.IntegrationMessage))
+    {
+        <div class="alert-error">@Model.IntegrationMessage</div>
+    }
+
+    <div class="form-group">
+        <label>API key</label>
+        @if (Model.HasGlobalNexHealthApiKey)
+        {
+            <p class="hint" style="margin:0;">Configured globally for NuviDoc — not entered per doctor.</p>
+        }
+        else
+        {
+            <p class="hint" style="margin:0;color:#b91c1c;">Missing. Set <code>NexHealth:ApiKey</code> in appsettings (shared for all doctors).</p>
+        }
+    </div>
+
+    @if (isIntegrated)
+    {
+        <div class="integration-status-row">
+            <span class="badge-integrated">INTEGRATED</span>
+            <span class="hint">
+                Last updated:
+                @{
+                    var updated = nh!.LastSyncAt ?? nh.LastTestAt;
+                }
+                @(updated.HasValue ? updated.Value.ToLocalTime().ToString("g") : "—")
+            </span>
+        </div>
+    }
+
+    <form method="post" asp-page-handler="SaveNexHealth" asp-fragment="nexhealth">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" asp-for="NexHealthForm.IsEnabled" name="NexHealthForm.IsEnabled" />
+                    Enable NexHealth sync for this doctor
+                </label>
+            </div>
+            <div class="form-group">
+                <label asp-for="NexHealthForm.Subdomain">Subdomain</label>
+                <input asp-for="NexHealthForm.Subdomain" name="NexHealthForm.Subdomain" class="form-control" placeholder="e.g. nuvidoc-demo-practice" />
+                <span class="hint">NexHealth practice subdomain (query param <code>subdomain</code>).</span>
+            </div>
+            <div class="form-group">
+                <label asp-for="NexHealthForm.LocationId">Location ID</label>
+                <input asp-for="NexHealthForm.LocationId" name="NexHealthForm.LocationId" class="form-control" placeholder="NexHealth location id" />
+            </div>
+            <div class="form-group">
+                <label asp-for="NexHealthForm.ProviderId">NexHealth Provider ID</label>
+                <input asp-for="NexHealthForm.ProviderId" name="NexHealthForm.ProviderId" class="form-control" placeholder="NexHealth provider id for this doctor" />
+                <span class="hint">From NexHealth <code>GET /providers?subdomain=…&amp;location_id=…</code> — use the provider <code>id</code>.</span>
+            </div>
+            <div class="form-group">
+                <label asp-for="NexHealthForm.OperatoryId">Operatory ID (optional)</label>
+                <input asp-for="NexHealthForm.OperatoryId" name="NexHealthForm.OperatoryId" class="form-control" placeholder="Chair / operatory id if required" />
+            </div>
+        </div>
+
+        <div class="actions" style="margin-top:12px;gap:8px;display:flex;flex-wrap:wrap;">
+            <button type="submit" class="btn btn-primary">Save integration</button>
+            <button type="submit" formaction="?handler=TestNexHealth#nexhealth" class="btn btn-secondary">Save &amp; test connection</button>
+            @if (nh != null)
+            {
+                <button type="submit" formaction="?handler=SyncNexHealth#nexhealth" class="btn btn-secondary">Sync appointments now</button>
+            }
+        </div>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(nh?.LastError))
+    {
+        <p class="hint" style="color:#b91c1c;margin-top:12px;">Last error: @nh.LastError</p>
+    }
+</div>
+
+@if (Model.ScrollToNexHealth)
+{
+    <script>
+        document.getElementById('nexhealth')?.scrollIntoView({ block: 'start' });
+    </script>
+}

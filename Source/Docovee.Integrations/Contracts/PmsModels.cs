@@ -99,3 +99,28 @@ public sealed class PmsPullChangesRequest
     public DateOnly? FromDate { get; set; }
     public DateOnly? ToDate { get; set; }
 }
+
+public sealed class PmsEnsureProviderRequest
+{
+    public PmsConnectionCredentials Credentials { get; set; } = new();
+    public string FullName { get; set; } = "";
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+}
+
+public sealed class PmsProviderOption
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? Email { get; set; }
+}
+
+public sealed class PmsProviderEnsureResult
+{
+    public bool Success { get; set; }
+    public string? ProviderExternalId { get; set; }
+    public string? Message { get; set; }
+    public string? Error { get; set; }
+    public bool Created { get; set; }
+    public IReadOnlyList<PmsProviderOption> Candidates { get; set; } = Array.Empty<PmsProviderOption>();
+}

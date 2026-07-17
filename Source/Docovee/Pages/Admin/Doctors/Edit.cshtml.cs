@@ -1,5 +1,6 @@
-using Docovee.DS.Models;
 using Docovee.BLL.Services;
+using Docovee.DS.Models;
+using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -8,19 +9,47 @@ namespace Docovee.Pages.Admin.Doctors;
 public class EditModel : PageModel
 {
     private readonly IAdminDoctorService _doctorService;
+    private readonly IPmsCalendarService _pms;
 
-    public EditModel(IAdminDoctorService doctorService) => _doctorService = doctorService;
+    public EditModel(IAdminDoctorService doctorService, IPmsCalendarService pms)
+    {
+        _doctorService = doctorService;
+        _pms = pms;
+    }
 
     [BindProperty]
     public DoctorAdminEditModel Input { get; set; } = new();
 
-    public string? ErrorMessage { get; set; }
+    [BindProperty]
+    public NexHealthIntegrationInput NexHealthForm { get; set; } = new();
 
-    public async Task<IActionResult> OnGetAsync(int id)
+    public PmsConnectionSettingsDto? NexHealthConnection { get; set; }
+    public bool HasGlobalNexHealthApiKey { get; private set; }
+    public string? ErrorMessage { get; set; }
+    public string? IntegrationMessage { get; set; }
+    public bool IntegrationSaved { get; set; }
+    public bool ScrollToNexHealth { get; private set; }
+
+    public class NexHealthIntegrationInput
+    {
+        public bool IsEnabled { get; set; }
+        /// <summary>NexHealth practice subdomain (stored as InstitutionId).</summary>
+        public string? Subdomain { get; set; }
+        public string? LocationId { get; set; }
+        public string? ProviderId { get; set; }
+        public string? OperatoryId { get; set; }
+    }
+
+    public async Task<IActionResult> OnGetAsync(int id, bool? saved = null, string? status = null, CancellationToken cancellationToken = default)
     {
         var doctor = await _doctorService.GetForEditAsync(id);
         if (doctor == null) return NotFound();
         Input = doctor;
+        IntegrationSaved = saved == true;
+        IntegrationMessage = status;
+        // After save/test/sync redirects land with a status — keep the panel in view.
+        ScrollToNexHealth = saved.HasValue || !string.IsNullOrWhiteSpace(status);
+        await LoadNexHealthAsync(id, cancellationToken);
         return Page();
     }
 
@@ -33,8 +62,90 @@ public class EditModel : PageModel
         if (!success)
         {
             ErrorMessage = error;
+            await LoadNexHealthAsync(id);
             return Page();
         }
         return RedirectToPage("Index");
+    }
+
+    public async Task<IActionResult> OnPostSaveNexHealthAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id);
+        if (doctor == null) return NotFound();
+        Input = doctor;
+
+        var (success, error, _) = await SaveNexHealthFormAsync(id, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            ScrollToNexHealth = true;
+            await LoadNexHealthAsync(id, cancellationToken);
+            return Page();
+        }
+
+        return RedirectToNexHealth(id, saved: true, status: "NexHealth settings saved.");
+    }
+
+    public async Task<IActionResult> OnPostTestNexHealthAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id);
+        if (doctor == null) return NotFound();
+        Input = doctor;
+
+        var (saveOk, saveError, _) = await SaveNexHealthFormAsync(id, cancellationToken);
+        if (!saveOk)
+        {
+            ErrorMessage = saveError;
+            ScrollToNexHealth = true;
+            await LoadNexHealthAsync(id, cancellationToken);
+            return Page();
+        }
+
+        var (success, message) = await _pms.TestConnectionAsync(id, PmsProviders.NexHealth, cancellationToken);
+        return RedirectToNexHealth(id, saved: success, status: message);
+    }
+
+    public async Task<IActionResult> OnPostSyncNexHealthAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id);
+        if (doctor == null) return NotFound();
+
+        var changed = await _pms.SyncInboundForDoctorAsync(id, cancellationToken);
+        return RedirectToNexHealth(id, saved: true, status: $"Synced {changed} appointment change(s) from NexHealth.");
+    }
+
+    private IActionResult RedirectToNexHealth(int id, bool saved, string status)
+    {
+        var url = Url.Page("./Edit", new { id, saved, status });
+        return Redirect($"{url}#nexhealth");
+    }
+
+    private async Task<(bool Success, string? Error, PmsConnectionSettingsDto? Connection)> SaveNexHealthFormAsync(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return await _pms.SaveConnectionAsync(id, new PmsConnectionSaveRequest
+        {
+            Provider = PmsProviders.NexHealth,
+            IsEnabled = NexHealthForm.IsEnabled,
+            InstitutionId = NexHealthForm.Subdomain,
+            LocationExternalId = NexHealthForm.LocationId,
+            ProviderExternalId = NexHealthForm.ProviderId,
+            OperatoryId = NexHealthForm.OperatoryId
+        }, cancellationToken);
+    }
+
+    private async Task LoadNexHealthAsync(int doctorId, CancellationToken cancellationToken = default)
+    {
+        HasGlobalNexHealthApiKey = _pms.HasGlobalNexHealthApiKey;
+        NexHealthConnection = await _pms.GetConnectionAsync(doctorId, PmsProviders.NexHealth, cancellationToken);
+        if (NexHealthConnection != null)
+        {
+            NexHealthForm.IsEnabled = NexHealthConnection.IsEnabled;
+            NexHealthForm.Subdomain = NexHealthConnection.InstitutionId;
+            NexHealthForm.LocationId = NexHealthConnection.LocationExternalId;
+            NexHealthForm.ProviderId = NexHealthConnection.ProviderExternalId;
+            NexHealthForm.OperatoryId = NexHealthConnection.OperatoryId;
+        }
     }
 }

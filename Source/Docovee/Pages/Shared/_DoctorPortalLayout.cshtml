@@ -1,15 +1,20 @@
 @using System.Security.Claims
 @using Docovee.BLL.Services
+@using Docovee.Integrations.Contracts
 @inject IAppointmentService AppointmentService
+@inject IPmsCalendarService PmsCalendarService
 @{
     var nav = (ViewData["Nav"] as string ?? "").ToLowerInvariant();
     var title = ViewData["Title"] as string ?? "Doctor portal";
     var brandInitial = Branding.SiteName.Length > 0 ? Branding.SiteName[0].ToString().ToUpperInvariant() : "N";
     var inboxBadge = 0;
+    var showIntegrationsNav = false;
     if (User.Identity?.IsAuthenticated == true
         && int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
     {
         inboxBadge = await AppointmentService.CountActionRequiredAsync(doctorId);
+        var nexHealth = await PmsCalendarService.GetConnectionAsync(doctorId, PmsProviders.NexHealth);
+        showIntegrationsNav = nexHealth is { IsEnabled: true };
     }
 }
 <!DOCTYPE html>
@@ -75,7 +80,10 @@
                     <a class="@(settingsSection == "insurance" ? "active" : "")" href="/Doctor/Settings/insurance">Insurance</a>
                     <a class="@(settingsSection == "working-hours" ? "active" : "")" href="/Doctor/Settings/working-hours">Working hours</a>
                     <a class="@(settingsSection == "booking-link" ? "active" : "")" href="/Doctor/Settings/booking-link">Booking Link</a>
-                    <a class="@(settingsSection == "integrations" ? "active" : "")" href="/Doctor/Settings/integrations">Integrations</a>
+                    @if (showIntegrationsNav)
+                    {
+                        <a class="@(settingsSection == "integrations" ? "active" : "")" href="/Doctor/Settings/integrations">Integrations</a>
+                    }
                     <a class="@(settingsSection == "legal" ? "active" : "")" href="/Doctor/Settings/legal">Legal</a>
                 </div>
             </div>

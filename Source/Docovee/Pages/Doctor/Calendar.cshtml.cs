@@ -36,9 +36,9 @@ public class CalendarModel : PageModel
     public DateOnly MonthFocus { get; private set; }
     public IReadOnlyList<DoctorAppointmentDto> Appointments { get; private set; } = Array.Empty<DoctorAppointmentDto>();
     public IReadOnlyList<DateOnly> WeekDays { get; private set; } = Array.Empty<DateOnly>();
-    public IReadOnlyList<int> HourStarts { get; } = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+    public IReadOnlyList<int> HourStarts { get; private set; } = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
-    public async Task<IActionResult> OnGetAsync(string? week = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(string? week = null, int? appointmentId = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return RedirectToPage("/Account/Login");
@@ -52,14 +52,25 @@ public class CalendarModel : PageModel
         }
 
         var today = DateOnly.FromDateTime(DateTime.Today);
-        if (!DateOnly.TryParse(week, out var anchor))
-            anchor = today;
+        DateOnly anchor;
 
-        // Week starts Sunday (matches existing 6-day Sun–Fri grid; include Sat in list but UI uses 6 cols)
+        if (appointmentId is > 0 && string.IsNullOrWhiteSpace(week))
+        {
+            var target = await _appointments.GetForDoctorByIdAsync(doctorId, appointmentId.Value, cancellationToken);
+            anchor = target != null
+                ? DateOnly.FromDateTime(target.StartsAt)
+                : today;
+        }
+        else if (!DateOnly.TryParse(week, out anchor))
+        {
+            anchor = today;
+        }
+
+        // Week starts Sunday; show Sun–Sat on the grid.
         var daysFromSunday = (int)anchor.DayOfWeek;
         WeekStart = anchor.AddDays(-daysFromSunday);
         MonthFocus = anchor;
-        WeekDays = Enumerable.Range(0, 6).Select(i => WeekStart.AddDays(i)).ToList();
+        WeekDays = Enumerable.Range(0, 7).Select(i => WeekStart.AddDays(i)).ToList();
 
         var from = WeekStart.ToDateTime(TimeOnly.MinValue);
         var to = WeekStart.AddDays(7).ToDateTime(TimeOnly.MinValue);
@@ -68,6 +79,8 @@ public class CalendarModel : PageModel
             .Where(a => AppointmentStatuses.IsActive(a.Status))
             .OrderBy(a => a.StartsAt)
             .ToList();
+
+        HourStarts = BuildHourStarts(Appointments);
 
         return Page();
     }
@@ -209,11 +222,23 @@ public class CalendarModel : PageModel
 
     public DoctorAppointmentDto? FindAppointment(DateOnly day, int hour)
     {
-        return Appointments.FirstOrDefault(a =>
-        {
-            var local = a.StartsAt;
-            return DateOnly.FromDateTime(local) == day && local.Hour == hour;
-        });
+        var slotStart = day.ToDateTime(new TimeOnly(hour, 0));
+        var slotEnd = slotStart.AddHours(1);
+        return Appointments.FirstOrDefault(a => a.StartsAt >= slotStart && a.StartsAt < slotEnd);
+    }
+
+    private static IReadOnlyList<int> BuildHourStarts(IReadOnlyList<DoctorAppointmentDto> appointments)
+    {
+        const int defaultStart = 8;
+        const int defaultEnd = 18;
+        if (appointments.Count == 0)
+            return Enumerable.Range(defaultStart, defaultEnd - defaultStart + 1).ToList();
+
+        var minHour = appointments.Min(a => a.StartsAt.Hour);
+        var maxHour = appointments.Max(a => a.StartsAt.Hour);
+        minHour = Math.Max(6, Math.Min(minHour, defaultStart));
+        maxHour = Math.Min(21, Math.Max(maxHour, defaultEnd));
+        return Enumerable.Range(minHour, maxHour - minHour + 1).ToList();
     }
 
     public static string ShortName(string name)

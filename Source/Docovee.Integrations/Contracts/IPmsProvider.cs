@@ -23,4 +23,11 @@ public interface IPmsProvider
     Task<IReadOnlyList<PmsExternalAppointment>> PullRecentAppointmentsAsync(
         PmsPullChangesRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Create or resolve a PMS provider record for a NuviDoc doctor and return its external id.
+    /// </summary>
+    Task<PmsProviderEnsureResult> EnsureProviderAsync(
+        PmsEnsureProviderRequest request,
+        CancellationToken cancellationToken = default);
 }

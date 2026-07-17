@@ -1,8 +1,10 @@
 using Docovee.DS;
 using Docovee.DS.Entities;
+using Docovee.Integrations.Configuration;
 using Docovee.Integrations.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Docovee.BLL.Services;
 
@@ -28,6 +30,16 @@ public interface IPmsCalendarService
         CancellationToken cancellationToken = default);
 
     Task<bool> HasEnabledConnectionAsync(int doctorId, CancellationToken cancellationToken = default);
+
+    bool HasGlobalNexHealthApiKey { get; }
+
+    Task<(bool Success, string Message, string? ProviderExternalId, IReadOnlyList<PmsProviderOption> Candidates)>
+        EnsureNexHealthProviderAsync(
+            int doctorId,
+            string doctorName,
+            string? email = null,
+            string? phone = null,
+            CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<PmsSlot>> GetAvailabilityAsync(
         int doctorId,
@@ -80,17 +92,22 @@ public sealed class PmsCalendarService : IPmsCalendarService
 {
     private readonly DocoveeDbContext _db;
     private readonly IEnumerable<IPmsProvider> _providers;
+    private readonly NexHealthOptions _nexHealthOptions;
     private readonly ILogger<PmsCalendarService> _logger;
 
     public PmsCalendarService(
         DocoveeDbContext db,
         IEnumerable<IPmsProvider> providers,
+        IOptions<NexHealthOptions> nexHealthOptions,
         ILogger<PmsCalendarService> logger)
     {
         _db = db;
         _providers = providers;
+        _nexHealthOptions = nexHealthOptions.Value;
         _logger = logger;
     }
+
+    public bool HasGlobalNexHealthApiKey => !string.IsNullOrWhiteSpace(_nexHealthOptions.ApiKey);
 
     public async Task<PmsConnectionSettingsDto?> GetConnectionAsync(
         int doctorId,
@@ -161,11 +178,60 @@ public sealed class PmsCalendarService : IPmsCalendarService
 
         if (providerId == PmsProviders.OpenDental && string.IsNullOrWhiteSpace(row.CustomerApiKey))
             return (false, "Open Dental customer key is required.", null);
-        if (providerId == PmsProviders.NexHealth && string.IsNullOrWhiteSpace(row.ApiKey))
-            return (false, "NexHealth API key is required.", null);
+        if (providerId == PmsProviders.NexHealth
+            && string.IsNullOrWhiteSpace(row.ApiKey)
+            && string.IsNullOrWhiteSpace(_nexHealthOptions.ApiKey))
+            return (false, "NexHealth API key is required in appsettings (NexHealth:ApiKey).", null);
 
         await _db.SaveChangesAsync(cancellationToken);
         return (true, null, ToDto(row));
+    }
+
+    public async Task<(bool Success, string Message, string? ProviderExternalId, IReadOnlyList<PmsProviderOption> Candidates)>
+        EnsureNexHealthProviderAsync(
+            int doctorId,
+            string doctorName,
+            string? email = null,
+            string? phone = null,
+            CancellationToken cancellationToken = default)
+    {
+        var row = await _db.PmsConnections
+            .FirstOrDefaultAsync(c => c.DoctorId == doctorId && c.Provider == PmsProviders.NexHealth, cancellationToken);
+        if (row == null)
+            return (false, "Save subdomain and location first, then click Add Provider.", null, Array.Empty<PmsProviderOption>());
+
+        if (string.IsNullOrWhiteSpace(row.InstitutionId))
+            return (false, "Subdomain is required before adding a provider.", null, Array.Empty<PmsProviderOption>());
+
+        var provider = ResolveProvider(PmsProviders.NexHealth);
+        if (provider == null)
+            return (false, "NexHealth provider is not registered.", null, Array.Empty<PmsProviderOption>());
+
+        var result = await provider.EnsureProviderAsync(new PmsEnsureProviderRequest
+        {
+            Credentials = ToCredentials(row),
+            FullName = doctorName,
+            Email = email,
+            Phone = phone
+        }, cancellationToken);
+
+        if (result.Success && !string.IsNullOrWhiteSpace(result.ProviderExternalId))
+        {
+            row.ProviderExternalId = result.ProviderExternalId;
+            row.UpdatedAt = DateTime.UtcNow;
+            row.LastError = null;
+            await _db.SaveChangesAsync(cancellationToken);
+            return (true, result.Message ?? "Provider linked.", result.ProviderExternalId, result.Candidates);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Error))
+        {
+            row.LastError = Truncate(result.Error, 500);
+            row.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return (false, result.Error ?? "Could not resolve NexHealth provider.", null, result.Candidates);
     }
 
     public async Task<(bool Success, string Message)> TestConnectionAsync(
@@ -388,8 +454,8 @@ public sealed class PmsCalendarService : IPmsCalendarService
             {
                 Credentials = ToCredentials(connection),
                 SinceUtc = connection.LastSyncAt ?? DateTime.UtcNow.AddDays(-7),
-                FromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-14)),
-                ToDate = DateOnly.FromDateTime(DateTime.Today.AddDays(60))
+                FromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-30)),
+                ToDate = DateOnly.FromDateTime(DateTime.Today.AddDays(90))
             }, cancellationToken);
         }
         catch (Exception ex)
@@ -419,7 +485,7 @@ public sealed class PmsCalendarService : IPmsCalendarService
                 var updated = false;
                 if (appt.StartsAt != item.StartsAt)
                 {
-                    appt.StartsAt = item.StartsAt;
+                    appt.StartsAt = ToWallClock(item.StartsAt);
                     updated = true;
                 }
 
@@ -450,7 +516,7 @@ public sealed class PmsCalendarService : IPmsCalendarService
                     PatientPhone = item.PatientPhone,
                     PatientEmail = item.PatientEmail,
                     VisitReason = string.IsNullOrWhiteSpace(item.VisitReason) ? "PMS appointment" : item.VisitReason.Trim(),
-                    StartsAt = item.StartsAt,
+                    StartsAt = ToWallClock(item.StartsAt),
                     Status = string.IsNullOrWhiteSpace(item.MappedStatus)
                         ? AppointmentStatuses.Unconfirmed
                         : AppointmentStatuses.Normalize(item.MappedStatus),
@@ -519,13 +585,14 @@ public sealed class PmsCalendarService : IPmsCalendarService
         BaseUrl = row.BaseUrl
     };
 
-    private static PmsConnectionSettingsDto ToDto(PmsConnection row) => new()
+    private PmsConnectionSettingsDto ToDto(PmsConnection row) => new()
     {
         Id = row.Id,
         Provider = row.Provider,
         IsEnabled = row.IsEnabled,
         HasCustomerKey = !string.IsNullOrWhiteSpace(row.CustomerApiKey),
-        HasApiKey = !string.IsNullOrWhiteSpace(row.ApiKey),
+        HasApiKey = !string.IsNullOrWhiteSpace(row.ApiKey)
+            || (row.Provider == PmsProviders.NexHealth && HasGlobalNexHealthApiKey),
         InstitutionId = row.InstitutionId,
         LocationExternalId = row.LocationExternalId,
         ProviderExternalId = row.ProviderExternalId,
@@ -549,4 +616,15 @@ public sealed class PmsCalendarService : IPmsCalendarService
 
     private static string Truncate(string value, int max) =>
         value.Length <= max ? value : value[..max];
+
+    private static DateTime ToWallClock(DateTime value)
+    {
+        var local = value.Kind switch
+        {
+            DateTimeKind.Utc => value.ToLocalTime(),
+            DateTimeKind.Local => value,
+            _ => value
+        };
+        return DateTime.SpecifyKind(local, DateTimeKind.Unspecified);
+    }
 }

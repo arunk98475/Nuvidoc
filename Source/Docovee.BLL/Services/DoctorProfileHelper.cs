@@ -16,6 +16,13 @@ public static class DoctorProfileHelper
         ".mp4", ".webm", ".ogg", "loom.com"
     ];
 
+    private static readonly HashSet<string> StructuredProfileKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "workingHours",
+        "practiceSettings",
+        "visitReasonPreferences"
+    };
+
     public static string? ExtractVideoUrl(string? onboardingProfileJson)
     {
         if (string.IsNullOrWhiteSpace(onboardingProfileJson))
@@ -28,7 +35,7 @@ public static class DoctorProfileHelper
                 return null;
 
             // Question 52: educational content (videos, blog, podcast)
-            if (doc.RootElement.TryGetProperty("52", out var q52))
+            if (doc.RootElement.TryGetProperty("52", out var q52) && q52.ValueKind == JsonValueKind.String)
             {
                 var fromQ52 = FindFirstVideoUrl(q52.GetString());
                 if (!string.IsNullOrWhiteSpace(fromQ52))
@@ -37,6 +44,11 @@ public static class DoctorProfileHelper
 
             foreach (var prop in doc.RootElement.EnumerateObject())
             {
+                if (StructuredProfileKeys.Contains(prop.Name))
+                    continue;
+                if (prop.Value.ValueKind != JsonValueKind.String)
+                    continue;
+
                 var url = FindFirstVideoUrl(prop.Value.GetString());
                 if (!string.IsNullOrWhiteSpace(url))
                     return url;

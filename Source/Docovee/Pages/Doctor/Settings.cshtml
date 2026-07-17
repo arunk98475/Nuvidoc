@@ -963,112 +963,52 @@
     }
     else if (Model.Section == "integrations")
     {
-        var od = Model.OpenDentalConnection;
         var nh = Model.NexHealthConnection;
-        <div class="dp-practice-form" style="max-width:720px;">
-            @if (Model.Saved)
-            {
-                <div class="dp-location-alert is-success">@(string.IsNullOrWhiteSpace(Model.IntegrationsStatusMessage) ? "Integration settings saved." : Model.IntegrationsStatusMessage)</div>
-            }
-            else if (!string.IsNullOrWhiteSpace(Model.IntegrationsStatusMessage))
-            {
-                <div class="dp-location-alert is-error">@Model.IntegrationsStatusMessage</div>
-            }
-            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
-            {
-                <div class="dp-location-alert is-error">@Model.ErrorMessage</div>
-            }
+        var isIntegrated = nh is { IsEnabled: true };
+        var locationName = !string.IsNullOrWhiteSpace(Model.Profile?.PracticeName)
+            ? Model.Profile!.PracticeName
+            : (!string.IsNullOrWhiteSpace(nh?.InstitutionId) ? nh!.InstitutionId : "Practice location");
+        if (!string.IsNullOrWhiteSpace(nh?.LocationExternalId))
+            locationName = $"{locationName} (#{nh.LocationExternalId})";
 
+        <div class="dp-practice-form" style="max-width:820px;">
             <header class="dp-hours-hero" style="margin-bottom:1.5rem;">
-                <h1>Practice management integrations</h1>
-                <p>Connect Open Dental or NexHealth so NuviDoc bookings write into your PMS calendar and PMS changes sync back to your NuviDoc calendar.</p>
+                <h1>Integrations</h1>
+                <p>PMS calendar connection for your practice. Setup is managed by @Branding.SiteName admin.</p>
             </header>
 
-            <section style="margin-bottom:2.5rem;padding-bottom:2rem;border-bottom:1px solid #e5e7eb;">
-                <h2 style="font-size:1.15rem;margin:0 0 .35rem;">Open Dental</h2>
-                <p class="dp-page-sub" style="margin:0 0 1rem;">Uses your Open Dental customer key (developer key is configured on the server).</p>
-                <form method="post" asp-page-handler="SaveIntegration" class="dp-practice-form">
-                    <input type="hidden" name="IntegrationsForm.Provider" value="opendental" />
-                    <label class="dp-field">
-                        <span>Customer key</span>
-                        <input type="password" name="IntegrationsForm.CustomerApiKey" autocomplete="off" placeholder="@(od?.HasCustomerKey == true ? "•••••••• (saved — leave blank to keep)" : "Paste customer key")" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Clinic number (optional)</span>
-                        <input type="text" name="IntegrationsForm.ClinicNum" value="@od?.ClinicNum" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Provider number (optional)</span>
-                        <input type="text" name="IntegrationsForm.ProviderExternalId" value="@od?.ProviderExternalId" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Operatory (optional)</span>
-                        <input type="text" name="IntegrationsForm.OperatoryId" value="@od?.OperatoryId" />
-                    </label>
-                    <label class="dp-field" style="display:flex;align-items:center;gap:.5rem;">
-                        <input type="checkbox" name="IntegrationsForm.IsEnabled" value="true" @(od?.IsEnabled == true ? "checked" : null) />
-                        <span>Enable Open Dental sync</span>
-                    </label>
-                    @if (!string.IsNullOrWhiteSpace(od?.LastError))
-                    {
-                        <p class="dp-page-sub" style="color:#b91c1c;">Last sync error: @od!.LastError</p>
-                    }
-                    @if (od?.LastSyncAt != null)
-                    {
-                        <p class="dp-page-sub">Last sync: @od.LastSyncAt.Value.ToLocalTime().ToString("g")</p>
-                    }
-                    <div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem;">
-                        <button type="submit" class="dp-btn dp-btn-primary">Save Open Dental</button>
-                        <button type="submit" formaction="?handler=TestIntegration" class="dp-btn">Test connection</button>
-                        <button type="submit" formaction="?handler=SyncIntegration" class="dp-btn">Sync now</button>
-                    </div>
-                </form>
-            </section>
-
-            <section>
-                <h2 style="font-size:1.15rem;margin:0 0 .35rem;">NexHealth</h2>
-                <p class="dp-page-sub" style="margin:0 0 1rem;">From the NexHealth Developer Portal (Test mode): use <strong>API Key</strong> (left nav), subdomain, and location_id. Do not use the Dentrix product key.</p>
-                <form method="post" asp-page-handler="SaveIntegration" class="dp-practice-form">
-                    <input type="hidden" name="IntegrationsForm.Provider" value="nexhealth" />
-                    <label class="dp-field">
-                        <span>API key</span>
-                        <input type="password" name="IntegrationsForm.ApiKey" autocomplete="off" placeholder="@(nh?.HasApiKey == true ? "•••••••• (saved — leave blank to keep)" : "Paste API key")" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Institution subdomain</span>
-                        <input type="text" name="IntegrationsForm.InstitutionId" value="@nh?.InstitutionId" placeholder="from NexHealth portal (e.g. demo-practice)" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Location id</span>
-                        <input type="text" name="IntegrationsForm.LocationExternalId" value="@nh?.LocationExternalId" placeholder="numeric location id" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Provider id (optional)</span>
-                        <input type="text" name="IntegrationsForm.ProviderExternalId" value="@nh?.ProviderExternalId" />
-                    </label>
-                    <label class="dp-field">
-                        <span>Operatory id (optional)</span>
-                        <input type="text" name="IntegrationsForm.OperatoryId" value="@nh?.OperatoryId" />
-                    </label>
-                    <label class="dp-field" style="display:flex;align-items:center;gap:.5rem;">
-                        <input type="checkbox" name="IntegrationsForm.IsEnabled" value="true" @(nh?.IsEnabled == true ? "checked" : null) />
-                        <span>Enable NexHealth sync</span>
-                    </label>
-                    @if (!string.IsNullOrWhiteSpace(nh?.LastError))
-                    {
-                        <p class="dp-page-sub" style="color:#b91c1c;">Last sync error: @nh!.LastError</p>
-                    }
-                    @if (nh?.LastSyncAt != null)
-                    {
-                        <p class="dp-page-sub">Last sync: @nh.LastSyncAt.Value.ToLocalTime().ToString("g")</p>
-                    }
-                    <div style="display:flex;flex-wrap:wrap;gap:.75rem;margin-top:1rem;">
-                        <button type="submit" class="dp-btn dp-btn-primary">Save NexHealth</button>
-                        <button type="submit" formaction="?handler=TestIntegration" class="dp-btn">Test connection</button>
-                        <button type="submit" formaction="?handler=SyncIntegration" class="dp-btn">Sync now</button>
-                    </div>
-                </form>
-            </section>
+            @if (!isIntegrated)
+            {
+                <p class="dp-page-sub">Your practice is not integrated with NexHealth yet. Public booking uses the @Branding.SiteName calendar until admin connects NexHealth.</p>
+            }
+            else
+            {
+                <table class="dp-integrations-table">
+                    <thead>
+                        <tr>
+                            <th>Location Name</th>
+                            <th>Integration Status</th>
+                            <th>Last updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>@locationName</td>
+                            <td><span class="dp-badge-integrated">INTEGRATED</span></td>
+                            <td>
+                                @{
+                                    var updated = nh!.LastSyncAt ?? nh.LastTestAt;
+                                }
+                                @(updated.HasValue ? updated.Value.ToLocalTime().ToString("g") : "—")
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                @if (!string.IsNullOrWhiteSpace(nh.LastError))
+                {
+                    <p class="dp-page-sub" style="color:#b91c1c;margin-top:1rem;">Last sync note: @nh.LastError</p>
+                }
+            }
         </div>
     }
     else if (Model.Section == "legal")

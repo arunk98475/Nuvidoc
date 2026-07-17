@@ -1597,7 +1597,7 @@ a.dp-stat-card:hover {
 
 .dp-week {
   display: grid;
-  grid-template-columns: 64px repeat(6, 1fr);
+  grid-template-columns: 64px repeat(7, 1fr);
   overflow: auto;
   flex: 1;
   background: var(--dp-white);
@@ -3645,4 +3645,37 @@ body.dp-drawer-open {
     gap: 12px;
     padding: 14px;
   }
+}
+
+.dp-integrations-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.dp-integrations-table th,
+.dp-integrations-table td {
+  text-align: left;
+  padding: 14px 12px;
+  border-bottom: 1px solid #e5ebe8;
+}
+
+.dp-integrations-table th {
+  color: #6b8078;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dp-badge-integrated {
+  display: inline-block;
+  background: #059669;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
 }

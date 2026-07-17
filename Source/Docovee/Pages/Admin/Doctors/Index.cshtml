@@ -38,6 +38,7 @@
                     <th>Rating</th>
                     <th>Patient Reviews</th>
                     <th>Status</th>
+                    <th>NexHealth</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -71,8 +72,18 @@
                         <td>@d.PatientReviewCount</td>
                         <td>@(d.IsActive ? "Active" : "Inactive")</td>
                         <td>
+                            @if (d.IsNexHealthIntegrated)
+                            {
+                                <span class="badge-integrated">INTEGRATED</span>
+                            }
+                            else
+                            {
+                                <span class="hint">Not connected</span>
+                            }
+                        </td>
+                        <td>
                             <div class="actions">
-                                <a asp-page="Edit" asp-route-id="@d.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <a asp-page="Edit" asp-route-id="@d.Id" asp-fragment="nexhealth" class="btn btn-secondary btn-sm">Edit</a>
                                 <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this doctor?');">
                                     <input type="hidden" name="id" value="@d.Id" />
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>

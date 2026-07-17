@@ -65,7 +65,8 @@
                 {
                     foreach (var a in Model.Appointments)
                     {
-                        <tr>
+                        var apptWeek = a.StartsAt.Date.AddDays(-(int)a.StartsAt.DayOfWeek).ToString("yyyy-MM-dd");
+                        <tr class="dp-inbox-row" onclick="window.location='/Doctor/Calendar?week=@apptWeek&amp;appointmentId=@a.Id'" style="cursor:pointer;">
                             <td>@InboxModel.RelativeTime(a.UpdatedAt)</td>
                             <td>
                                 <div>@a.PatientName</div>

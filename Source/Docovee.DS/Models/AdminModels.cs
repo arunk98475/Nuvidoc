@@ -68,6 +68,7 @@ public class DoctorAdminDto
     public string? PhotoUrl { get; set; }
     public bool IsActive { get; set; }
     public int PatientReviewCount { get; set; }
+    public bool IsNexHealthIntegrated { get; set; }
 }
 
 public class DoctorAdminEditModel

@@ -59,9 +59,6 @@ public class SettingsModel : PageModel
     [BindProperty]
     public WorkingHoursInput WorkingHoursForm { get; set; } = new();
 
-    [BindProperty]
-    public IntegrationsFormInput IntegrationsForm { get; set; } = new();
-
     public string Section { get; private set; } = "practice";
     public string SectionTitle { get; private set; } = "Practice profile";
     public DoctorProfileDto? Profile { get; private set; }
@@ -75,24 +72,9 @@ public class SettingsModel : PageModel
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
     public string BookingLink { get; private set; } = "";
     public bool BookingLinkCreateStep { get; private set; }
-    public PmsConnectionSettingsDto? OpenDentalConnection { get; private set; }
     public PmsConnectionSettingsDto? NexHealthConnection { get; private set; }
-    public string? IntegrationsStatusMessage { get; private set; }
     public bool Saved { get; private set; }
     public string? ErrorMessage { get; private set; }
-
-    public class IntegrationsFormInput
-    {
-        public string Provider { get; set; } = PmsProviders.OpenDental;
-        public bool IsEnabled { get; set; }
-        public string? CustomerApiKey { get; set; }
-        public string? ApiKey { get; set; }
-        public string? InstitutionId { get; set; }
-        public string? LocationExternalId { get; set; }
-        public string? ProviderExternalId { get; set; }
-        public string? OperatoryId { get; set; }
-        public string? ClinicNum { get; set; }
-    }
 
     private static IReadOnlyList<string> BuildTimeOptions()
     {
@@ -113,14 +95,13 @@ public class SettingsModel : PageModel
         return dt.ToString("h:mm tt");
     }
 
-    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, string? status = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return RedirectToPage("/Account/Login");
 
         Saved = saved == true;
         BookingLinkCreateStep = string.Equals(step, "create", StringComparison.OrdinalIgnoreCase);
-        IntegrationsStatusMessage = status;
         return await LoadPageAsync(doctorId, section, cancellationToken);
     }
 
@@ -264,78 +245,6 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "working-hours", saved = true });
     }
 
-    public async Task<IActionResult> OnPostSaveIntegrationAsync(CancellationToken cancellationToken = default)
-    {
-        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
-            return RedirectToPage("/Account/Login");
-
-        var (success, error, _) = await _pms.SaveConnectionAsync(doctorId, new PmsConnectionSaveRequest
-        {
-            Provider = IntegrationsForm.Provider,
-            IsEnabled = IntegrationsForm.IsEnabled,
-            CustomerApiKey = IntegrationsForm.CustomerApiKey,
-            ApiKey = IntegrationsForm.ApiKey,
-            InstitutionId = IntegrationsForm.InstitutionId,
-            LocationExternalId = IntegrationsForm.LocationExternalId,
-            ProviderExternalId = IntegrationsForm.ProviderExternalId,
-            OperatoryId = IntegrationsForm.OperatoryId,
-            ClinicNum = IntegrationsForm.ClinicNum
-        }, cancellationToken);
-
-        if (!success)
-        {
-            ErrorMessage = error;
-            return await LoadPageAsync(doctorId, "integrations", cancellationToken);
-        }
-
-        return RedirectToPage(new { section = "integrations", saved = true });
-    }
-
-    public async Task<IActionResult> OnPostTestIntegrationAsync(CancellationToken cancellationToken = default)
-    {
-        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
-            return RedirectToPage("/Account/Login");
-
-        var provider = string.IsNullOrWhiteSpace(IntegrationsForm.Provider)
-            ? PmsProviders.OpenDental
-            : IntegrationsForm.Provider;
-
-        await _pms.SaveConnectionAsync(doctorId, new PmsConnectionSaveRequest
-        {
-            Provider = provider,
-            IsEnabled = IntegrationsForm.IsEnabled,
-            CustomerApiKey = IntegrationsForm.CustomerApiKey,
-            ApiKey = IntegrationsForm.ApiKey,
-            InstitutionId = IntegrationsForm.InstitutionId,
-            LocationExternalId = IntegrationsForm.LocationExternalId,
-            ProviderExternalId = IntegrationsForm.ProviderExternalId,
-            OperatoryId = IntegrationsForm.OperatoryId,
-            ClinicNum = IntegrationsForm.ClinicNum
-        }, cancellationToken);
-
-        var (success, message) = await _pms.TestConnectionAsync(doctorId, provider, cancellationToken);
-        return RedirectToPage(new
-        {
-            section = "integrations",
-            saved = success,
-            status = message
-        });
-    }
-
-    public async Task<IActionResult> OnPostSyncIntegrationAsync(CancellationToken cancellationToken = default)
-    {
-        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
-            return RedirectToPage("/Account/Login");
-
-        var changed = await _pms.SyncInboundForDoctorAsync(doctorId, cancellationToken);
-        return RedirectToPage(new
-        {
-            section = "integrations",
-            saved = true,
-            status = $"Synced {changed} appointment change(s) from PMS."
-        });
-    }
-
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)
     {
         Section = string.IsNullOrWhiteSpace(section) || !AllowedSections.Contains(section.Trim())
@@ -343,6 +252,14 @@ public class SettingsModel : PageModel
             : section.Trim().ToLowerInvariant();
         if (Section == "location")
             Section = "locations";
+
+        // Integrations is read-only for doctors; only visible after admin enables NexHealth.
+        if (Section == "integrations")
+        {
+            var nhCheck = await _pms.GetConnectionAsync(doctorId, PmsProviders.NexHealth, cancellationToken);
+            if (nhCheck is not { IsEnabled: true })
+                return RedirectToPage(new { section = "practice" });
+        }
 
         SectionTitle = Section switch
         {
@@ -398,7 +315,6 @@ public class SettingsModel : PageModel
 
         if (Section == "integrations")
         {
-            OpenDentalConnection = await _pms.GetConnectionAsync(doctorId, PmsProviders.OpenDental, cancellationToken);
             NexHealthConnection = await _pms.GetConnectionAsync(doctorId, PmsProviders.NexHealth, cancellationToken);
         }
 
