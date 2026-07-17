@@ -52,6 +52,8 @@ public class PatientAppointmentDto
     public DateTime StartsAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool HasReview { get; set; }
+    public bool CanLeaveReview { get; set; }
+    public DateOnly? ReviewAvailableOn { get; set; }
     public int? ReviewRating { get; set; }
     public string? ReviewText { get; set; }
     public string? ReviewWaitingTime { get; set; }

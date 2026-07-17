@@ -41,6 +41,12 @@ public interface IPmsCalendarService
             string? phone = null,
             CancellationToken cancellationToken = default);
 
+    Task<(bool Success, string Message, string? ProviderExternalId, IReadOnlyList<PmsProviderOption> Candidates)>
+        FindNexHealthProviderByNpiAsync(
+            int doctorId,
+            string npi,
+            CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<PmsSlot>> GetAvailabilityAsync(
         int doctorId,
         DateOnly from,
@@ -234,6 +240,49 @@ public sealed class PmsCalendarService : IPmsCalendarService
         return (false, result.Error ?? "Could not resolve NexHealth provider.", null, result.Candidates);
     }
 
+    public async Task<(bool Success, string Message, string? ProviderExternalId, IReadOnlyList<PmsProviderOption> Candidates)>
+        FindNexHealthProviderByNpiAsync(
+            int doctorId,
+            string npi,
+            CancellationToken cancellationToken = default)
+    {
+        var row = await _db.PmsConnections
+            .FirstOrDefaultAsync(c => c.DoctorId == doctorId && c.Provider == PmsProviders.NexHealth, cancellationToken);
+        if (row == null)
+            return (false, "Save subdomain and location first, then look up the provider.", null, Array.Empty<PmsProviderOption>());
+
+        if (string.IsNullOrWhiteSpace(row.InstitutionId))
+            return (false, "Subdomain is required before looking up a provider by NPI.", null, Array.Empty<PmsProviderOption>());
+
+        var provider = ResolveProvider(PmsProviders.NexHealth);
+        if (provider == null)
+            return (false, "NexHealth provider is not registered.", null, Array.Empty<PmsProviderOption>());
+
+        var result = await provider.FindProviderByNpiAsync(new PmsFindProviderByNpiRequest
+        {
+            Credentials = ToCredentials(row),
+            Npi = npi
+        }, cancellationToken);
+
+        if (result.Success && !string.IsNullOrWhiteSpace(result.ProviderExternalId))
+        {
+            row.ProviderExternalId = result.ProviderExternalId;
+            row.UpdatedAt = DateTime.UtcNow;
+            row.LastError = null;
+            await _db.SaveChangesAsync(cancellationToken);
+            return (true, result.Message ?? "Provider found.", result.ProviderExternalId, result.Candidates);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Error))
+        {
+            row.LastError = Truncate(result.Error, 500);
+            row.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return (false, result.Error ?? "Could not find NexHealth provider for that NPI.", null, result.Candidates);
+    }
+
     public async Task<(bool Success, string Message)> TestConnectionAsync(
         int doctorId,
         string providerId,
@@ -337,6 +386,18 @@ public sealed class PmsCalendarService : IPmsCalendarService
                 _logger.LogWarning(
                     "PMS outbound create failed for appointment {Id}: {Error}",
                     appointment.Id, result.Error);
+                return;
+            }
+
+            var alreadyLinked = await _db.PmsExternalRefs.AsNoTracking()
+                .AnyAsync(r =>
+                    r.Provider == connection.Provider
+                    && r.ExternalAppointmentId == result.ExternalAppointmentId, cancellationToken);
+            if (alreadyLinked)
+            {
+                _logger.LogInformation(
+                    "PMS outbound create skipped duplicate external ref {Provider}/{ExternalId} for appointment {Id}",
+                    connection.Provider, result.ExternalAppointmentId, appointment.Id);
                 return;
             }
 
@@ -475,72 +536,28 @@ public sealed class PmsCalendarService : IPmsCalendarService
             var externalRef = await _db.PmsExternalRefs
                 .Include(r => r.Appointment)
                 .FirstOrDefaultAsync(r =>
-                    r.DoctorId == connection.DoctorId
-                    && r.Provider == connection.Provider
+                    r.Provider == connection.Provider
                     && r.ExternalAppointmentId == item.ExternalAppointmentId, cancellationToken);
+
+            if (externalRef != null && externalRef.DoctorId != connection.DoctorId)
+                continue;
 
             if (externalRef?.Appointment != null)
             {
-                var appt = externalRef.Appointment;
-                var updated = false;
-                if (appt.StartsAt != item.StartsAt)
-                {
-                    appt.StartsAt = ToWallClock(item.StartsAt);
-                    updated = true;
-                }
-
-                var mapped = string.IsNullOrWhiteSpace(item.MappedStatus)
-                    ? appt.Status
-                    : AppointmentStatuses.Normalize(item.MappedStatus);
-                if (!string.Equals(AppointmentStatuses.Normalize(appt.Status), mapped, StringComparison.OrdinalIgnoreCase))
-                {
-                    appt.Status = mapped;
-                    updated = true;
-                }
-
-                if (updated)
-                {
-                    appt.UpdatedAt = DateTime.UtcNow;
-                    externalRef.UpdatedAt = DateTime.UtcNow;
-                    externalRef.SyncDirection = "Inbound";
+                if (ApplyInboundAppointmentChanges(externalRef.Appointment, externalRef, item))
                     changed++;
-                }
+                continue;
             }
-            else if (externalRef == null)
-            {
-                var now = DateTime.UtcNow;
-                var appointment = new Appointment
-                {
-                    DoctorId = connection.DoctorId,
-                    PatientName = string.IsNullOrWhiteSpace(item.PatientName) ? "Patient" : item.PatientName.Trim(),
-                    PatientPhone = item.PatientPhone,
-                    PatientEmail = item.PatientEmail,
-                    VisitReason = string.IsNullOrWhiteSpace(item.VisitReason) ? "PMS appointment" : item.VisitReason.Trim(),
-                    StartsAt = ToWallClock(item.StartsAt),
-                    Status = string.IsNullOrWhiteSpace(item.MappedStatus)
-                        ? AppointmentStatuses.Unconfirmed
-                        : AppointmentStatuses.Normalize(item.MappedStatus),
-                    Source = AppointmentSources.PmsInbound,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                };
-                _db.Appointments.Add(appointment);
-                await _db.SaveChangesAsync(cancellationToken);
 
-                _db.PmsExternalRefs.Add(new PmsExternalRef
-                {
-                    DoctorId = connection.DoctorId,
-                    AppointmentId = appointment.Id,
-                    Provider = connection.Provider,
-                    ExternalAppointmentId = item.ExternalAppointmentId,
-                    ExternalPatientId = item.ExternalPatientId,
-                    ExternalLocationId = connection.LocationExternalId,
-                    SyncDirection = "Inbound",
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
-                changed++;
+            if (externalRef != null)
+            {
+                if (await LinkInboundAppointmentToExternalRefAsync(connection, externalRef, item, cancellationToken))
+                    changed++;
+                continue;
             }
+
+            if (await CreateInboundAppointmentWithExternalRefAsync(connection, item, cancellationToken))
+                changed++;
         }
 
         connection.LastSyncAt = DateTime.UtcNow;
@@ -548,6 +565,166 @@ public sealed class PmsCalendarService : IPmsCalendarService
         connection.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
         return changed;
+    }
+
+    private static bool ApplyInboundAppointmentChanges(
+        Appointment appt,
+        PmsExternalRef externalRef,
+        PmsExternalAppointment item)
+    {
+        var updated = false;
+        if (appt.StartsAt != item.StartsAt)
+        {
+            appt.StartsAt = ToWallClock(item.StartsAt);
+            updated = true;
+        }
+
+        var mapped = string.IsNullOrWhiteSpace(item.MappedStatus)
+            ? appt.Status
+            : AppointmentStatuses.Normalize(item.MappedStatus);
+        if (!string.Equals(AppointmentStatuses.Normalize(appt.Status), mapped, StringComparison.OrdinalIgnoreCase))
+        {
+            appt.Status = mapped;
+            updated = true;
+        }
+
+        if (!updated)
+            return false;
+
+        var now = DateTime.UtcNow;
+        appt.UpdatedAt = now;
+        externalRef.UpdatedAt = now;
+        externalRef.SyncDirection = "Inbound";
+        externalRef.ExternalPatientId = item.ExternalPatientId ?? externalRef.ExternalPatientId;
+        externalRef.LastError = null;
+        return true;
+    }
+
+    private async Task<bool> LinkInboundAppointmentToExternalRefAsync(
+        PmsConnection connection,
+        PmsExternalRef externalRef,
+        PmsExternalAppointment item,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var appointment = CreateInboundAppointment(connection, item, now);
+        _db.Appointments.Add(appointment);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to create inbound appointment for existing PMS ref {Provider}/{ExternalId}",
+                connection.Provider, item.ExternalAppointmentId);
+            return false;
+        }
+
+        externalRef.DoctorId = connection.DoctorId;
+        externalRef.AppointmentId = appointment.Id;
+        externalRef.ExternalPatientId = item.ExternalPatientId;
+        externalRef.ExternalLocationId = connection.LocationExternalId;
+        externalRef.SyncDirection = "Inbound";
+        externalRef.LastError = null;
+        externalRef.UpdatedAt = now;
+        return true;
+    }
+
+    private async Task<bool> CreateInboundAppointmentWithExternalRefAsync(
+        PmsConnection connection,
+        PmsExternalAppointment item,
+        CancellationToken cancellationToken)
+    {
+        var existingRef = await _db.PmsExternalRefs.AsNoTracking()
+            .AnyAsync(r =>
+                r.Provider == connection.Provider
+                && r.ExternalAppointmentId == item.ExternalAppointmentId, cancellationToken);
+        if (existingRef)
+            return false;
+
+        var now = DateTime.UtcNow;
+        var appointment = CreateInboundAppointment(connection, item, now);
+        _db.Appointments.Add(appointment);
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+
+            _db.PmsExternalRefs.Add(new PmsExternalRef
+            {
+                DoctorId = connection.DoctorId,
+                AppointmentId = appointment.Id,
+                Provider = connection.Provider,
+                ExternalAppointmentId = item.ExternalAppointmentId,
+                ExternalPatientId = item.ExternalPatientId,
+                ExternalLocationId = connection.LocationExternalId,
+                SyncDirection = "Inbound",
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (IsDuplicatePmsExternalRef(ex))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            DetachInboundCreateAttempt(appointment);
+            _logger.LogInformation(
+                "Inbound sync skipped duplicate PMS ref {Provider}/{ExternalId} for doctor {DoctorId}",
+                connection.Provider, item.ExternalAppointmentId, connection.DoctorId);
+            return false;
+        }
+        catch (DbUpdateException ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            DetachInboundCreateAttempt(appointment);
+            _logger.LogWarning(ex,
+                "Failed to create inbound appointment for PMS ref {Provider}/{ExternalId}",
+                connection.Provider, item.ExternalAppointmentId);
+            return false;
+        }
+    }
+
+    private void DetachInboundCreateAttempt(Appointment appointment)
+    {
+        _db.Entry(appointment).State = EntityState.Detached;
+        foreach (var entry in _db.ChangeTracker.Entries<PmsExternalRef>()
+                     .Where(e => e.State == EntityState.Added)
+                     .ToList())
+        {
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private static Appointment CreateInboundAppointment(
+        PmsConnection connection,
+        PmsExternalAppointment item,
+        DateTime now) =>
+        new()
+        {
+            DoctorId = connection.DoctorId,
+            PatientName = string.IsNullOrWhiteSpace(item.PatientName) ? "Patient" : item.PatientName.Trim(),
+            PatientPhone = item.PatientPhone,
+            PatientEmail = item.PatientEmail,
+            VisitReason = string.IsNullOrWhiteSpace(item.VisitReason) ? "PMS appointment" : item.VisitReason.Trim(),
+            StartsAt = ToWallClock(item.StartsAt),
+            Status = string.IsNullOrWhiteSpace(item.MappedStatus)
+                ? AppointmentStatuses.Unconfirmed
+                : AppointmentStatuses.Normalize(item.MappedStatus),
+            Source = AppointmentSources.PmsInbound,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+    private static bool IsDuplicatePmsExternalRef(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("IX_pms_external_refs_Provider_ExternalAppointmentId", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<PmsConnection?> GetEnabledConnectionEntityAsync(int doctorId, CancellationToken cancellationToken)

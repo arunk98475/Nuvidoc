@@ -46,11 +46,16 @@ public class DoctorReviewService : IDoctorReviewService
 {
     private readonly DocoveeDbContext _db;
     private readonly IDocoveeLogger _logger;
+    private readonly IAppSettingsService _appSettings;
 
-    public DoctorReviewService(DocoveeDbContext db, IDocoveeLogger logger)
+    public DoctorReviewService(
+        DocoveeDbContext db,
+        IDocoveeLogger logger,
+        IAppSettingsService appSettings)
     {
         _db = db;
         _logger = logger;
+        _appSettings = appSettings;
     }
 
     public async Task<IReadOnlyList<DoctorReviewDto>> GetByDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
@@ -124,19 +129,35 @@ public class DoctorReviewService : IDoctorReviewService
         if (patient == null)
             return (false, "Patient not found.");
 
-        var hasViewed = await _db.PatientDoctorContactViews
-            .AnyAsync(v => v.PatientId == patientId && v.DoctorId == doctorId, cancellationToken);
-        var hasAppointment = await _db.Appointments
-            .AnyAsync(a => a.DoctorId == doctorId
-                && (a.PatientId == patientId
-                    || (a.PatientId == null && a.PatientEmail == patient.Username)),
-                cancellationToken);
-        if (!hasViewed && !hasAppointment)
-            return (false, "You can only review doctors you've contacted or booked with.");
-
         if (await _db.DoctorPatientReviews.AnyAsync(
                 r => r.PatientId == patientId && r.DoctorId == doctorId, cancellationToken))
             return (false, "You have already reviewed this doctor.");
+
+        var reviewEligibleDays = await _appSettings.GetReviewEligibleDaysAfterConfirmedAsync(cancellationToken);
+        var appointments = await _db.Appointments.AsNoTracking()
+            .Where(a => a.DoctorId == doctorId
+                && (a.PatientId == patientId
+                    || (a.PatientId == null && a.PatientEmail == patient.Username)))
+            .ToListAsync(cancellationToken);
+
+        var hasEligibleAppointment = appointments.Any(a =>
+            AppointmentStatuses.CanPatientLeaveReview(
+                a.Status,
+                a.StartsAt,
+                reviewEligibleDays,
+                hasExistingReview: false));
+
+        if (!hasEligibleAppointment)
+        {
+            var hasConfirmed = appointments.Any(a => AppointmentStatuses.IsConfirmedWithDoctor(a.Status));
+            if (!hasConfirmed)
+            {
+                return (false, "You can leave a review after your doctor confirms an appointment.");
+            }
+
+            return (false,
+                $"You can leave a review {reviewEligibleDays} day{(reviewEligibleDays == 1 ? "" : "s")} after a confirmed appointment with this doctor.");
+        }
 
         return await AddReviewAsync(new DoctorReviewRequest
         {

@@ -52,6 +52,7 @@ public class SiteSettingsModel
     public int DoctorSearchResultCount { get; set; } = 10;
     public string PromotedDoctorIds { get; set; } = string.Empty;
     public int MaxAiQuestions { get; set; } = 3;
+    public int ReviewEligibleDaysAfterConfirmed { get; set; } = 1;
 }
 
 public class DoctorAdminDto

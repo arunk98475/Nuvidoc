@@ -100,10 +100,32 @@
                 <input asp-for="NexHealthForm.LocationId" name="NexHealthForm.LocationId" class="form-control" placeholder="NexHealth location id" />
             </div>
             <div class="form-group">
+                <label asp-for="NexHealthForm.Npi">NPI number</label>
+                <div class="provider-id-row">
+                    <input asp-for="NexHealthForm.Npi" name="NexHealthForm.Npi" class="form-control" placeholder="10-digit NPI" maxlength="10" inputmode="numeric" />
+                    <button type="submit" formaction="?handler=FindProviderByNpi#nexhealth" class="btn btn-secondary">Find Provider ID</button>
+                </div>
+                <span class="hint">Enter the provider NPI and click Find Provider ID to look up the NexHealth provider <code>id</code> for this practice.</span>
+            </div>
+            <div class="form-group">
                 <label asp-for="NexHealthForm.ProviderId">NexHealth Provider ID</label>
                 <input asp-for="NexHealthForm.ProviderId" name="NexHealthForm.ProviderId" class="form-control" placeholder="NexHealth provider id for this doctor" />
-                <span class="hint">From NexHealth <code>GET /providers?subdomain=…&amp;location_id=…</code> — use the provider <code>id</code>.</span>
+                <span class="hint">From NexHealth <code>GET /providers?subdomain=…&amp;location_id=…</code> — use the provider <code>id</code>, or find it with NPI above.</span>
             </div>
+            @if (Model.ProviderCandidates.Count > 0)
+            {
+                <div class="form-group">
+                    <label>Matching providers</label>
+                    <select class="form-control" onchange="if(this.value){document.querySelector('[name=\'NexHealthForm.ProviderId\']').value=this.value;}">
+                        <option value="">Select a provider…</option>
+                        @foreach (var candidate in Model.ProviderCandidates)
+                        {
+                            <option value="@candidate.Id">@candidate.Name (@candidate.Id)@(string.IsNullOrWhiteSpace(candidate.Npi) ? "" : $" — NPI {candidate.Npi}")</option>
+                        }
+                    </select>
+                    <span class="hint">Choose a provider to fill the Provider ID field, then click Save integration.</span>
+                </div>
+            }
             <div class="form-group">
                 <label asp-for="NexHealthForm.OperatoryId">Operatory ID (optional)</label>
                 <input asp-for="NexHealthForm.OperatoryId" name="NexHealthForm.OperatoryId" class="form-control" placeholder="Chair / operatory id if required" />

@@ -113,6 +113,13 @@ public sealed class PmsProviderOption
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string? Email { get; set; }
+    public string? Npi { get; set; }
+}
+
+public sealed class PmsFindProviderByNpiRequest
+{
+    public PmsConnectionCredentials Credentials { get; set; } = new();
+    public string Npi { get; set; } = "";
 }
 
 public sealed class PmsProviderEnsureResult
