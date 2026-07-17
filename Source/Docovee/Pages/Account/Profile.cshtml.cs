@@ -15,15 +15,18 @@ public class ProfileModel : PageModel
     private readonly IProfileService _profileService;
     private readonly IDoctorReviewService _reviewService;
     private readonly IAppointmentService _appointments;
+    private readonly IAppSettingsService _appSettings;
 
     public ProfileModel(
         IProfileService profileService,
         IDoctorReviewService reviewService,
-        IAppointmentService appointments)
+        IAppointmentService appointments,
+        IAppSettingsService appSettings)
     {
         _profileService = profileService;
         _reviewService = reviewService;
         _appointments = appointments;
+        _appSettings = appSettings;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -37,6 +40,7 @@ public class ProfileModel : PageModel
 
     public IReadOnlyList<PatientAppointmentDto> UpcomingAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
     public IReadOnlyList<PatientAppointmentDto> PastAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
+    public int ReviewEligibleDaysAfterConfirmed { get; private set; } = 1;
 
     [BindProperty]
     public PatientProfileEditModel PersonalInput { get; set; } = new();
@@ -179,6 +183,7 @@ public class ProfileModel : PageModel
         };
 
         var all = await _appointments.GetForPatientAsync(patientId);
+        ReviewEligibleDaysAfterConfirmed = await _appSettings.GetReviewEligibleDaysAfterConfirmedAsync();
         var startOfToday = DateTime.Today;
         UpcomingAppointments = all
             .Where(a => a.StartsAt >= startOfToday
@@ -192,8 +197,25 @@ public class ProfileModel : PageModel
                         || a.Status == AppointmentStatuses.Completed
                         || AppointmentStatuses.IsCanceled(a.Status)
                         || AppointmentStatuses.Normalize(a.Status) == AppointmentStatuses.PatientNoShow)
+            .Select(a => ApplyReviewEligibility(a, ReviewEligibleDaysAfterConfirmed))
             .OrderByDescending(a => a.StartsAt)
             .ToList();
+    }
+
+    private static PatientAppointmentDto ApplyReviewEligibility(
+        PatientAppointmentDto appointment,
+        int reviewEligibleDaysAfterConfirmed)
+    {
+        appointment.CanLeaveReview = AppointmentStatuses.CanPatientLeaveReview(
+            appointment.Status,
+            appointment.StartsAt,
+            reviewEligibleDaysAfterConfirmed,
+            appointment.HasReview);
+        appointment.ReviewAvailableOn = appointment.HasReview
+            || !AppointmentStatuses.IsConfirmedWithDoctor(appointment.Status)
+            ? null
+            : AppointmentStatuses.GetReviewAvailableOn(appointment.StartsAt, reviewEligibleDaysAfterConfirmed);
+        return appointment;
     }
 
     private static string NormalizeSection(string? section) =>

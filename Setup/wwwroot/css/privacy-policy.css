@@ -1,0 +1,191 @@
+/* Privacy policy legal page */
+.pp-page {
+  margin: 0;
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #fff;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.55;
+}
+
+.pp-topbar {
+  background: #f5f0e2;
+  border-bottom: 1px solid #e8e2d4;
+}
+
+.pp-topbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pp-brand {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1a1a1a;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.pp-topbar a.pp-back {
+  font-size: 14px;
+  color: #5a5a5a;
+  text-decoration: none;
+}
+
+.pp-topbar a.pp-back:hover {
+  color: #111;
+  text-decoration: underline;
+}
+
+.pp-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px 72px;
+}
+
+.pp-main h1 {
+  margin: 0 0 8px;
+  font-size: clamp(32px, 5vw, 44px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.pp-main h2 {
+  margin: 40px 0 16px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pp-main h3 {
+  margin: 24px 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.pp-main h3 u a,
+.pp-main h3 a {
+  color: #1a1a1a !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pp-main p {
+  margin: 0 0 14px;
+  font-size: 16px;
+  color: #222;
+}
+
+.pp-main ul {
+  margin: 0 0 16px;
+  padding-left: 22px;
+}
+
+.pp-main li {
+  margin-bottom: 8px;
+  font-size: 16px;
+}
+
+.pp-main a {
+  color: #1557d6;
+}
+
+.pp-main table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 28px;
+  font-size: 14px;
+}
+
+.pp-main th,
+.pp-main td {
+  border: 1px solid #222;
+  padding: 10px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.pp-main thead th {
+  background: #bfbfbf;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.pp-main thead th p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pp-main td p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pp-main td ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.pp-main td li {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.pp-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 8px;
+}
+
+.pp-footer {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid #ececec;
+  font-size: 14px;
+  color: #777;
+}
+
+.pp-footer a {
+  color: #1557d6;
+  text-decoration: none;
+}
+
+.pp-footer a:hover {
+  text-decoration: underline;
+}
+
+@media print {
+  .pp-topbar,
+  .pp-footer {
+    display: none;
+  }
+
+  .pp-main {
+    max-width: none;
+    padding: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .pp-main {
+    padding: 28px 16px 48px;
+  }
+
+  .pp-main h1 {
+    font-size: 28px;
+  }
+
+  .pp-main h2 {
+    font-size: 22px;
+  }
+}

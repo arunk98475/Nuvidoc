@@ -53,6 +53,8 @@ public interface IAppointmentService
 
 public class AppointmentService : IAppointmentService
 {
+    public const int DefaultSlotDurationMinutes = 40;
+
     private static readonly HashSet<string> ActiveStatuses = new(StringComparer.OrdinalIgnoreCase)
     {
         AppointmentStatuses.Unconfirmed,
@@ -116,10 +118,7 @@ public class AppointmentService : IAppointmentService
         if (!doctorExists)
             return Fail("Doctor not found.");
 
-        var slotTaken = await _db.Appointments.AsNoTracking().AnyAsync(a =>
-            a.DoctorId == request.DoctorId
-            && a.StartsAt == startsAt
-            && ActiveStatuses.Contains(a.Status), cancellationToken);
+        var slotTaken = await IsSlotOccupiedAsync(request.DoctorId, startsAt, cancellationToken);
         if (slotTaken)
             return Fail("That time slot was just booked. Please choose another time.");
 
@@ -294,6 +293,9 @@ public class AppointmentService : IAppointmentService
         if (appointment == null)
             return (false, "Appointment not found.", null, null);
 
+        if (AppointmentSources.IsPmsInbound(appointment.Source))
+            return (false, "PMS appointments are managed in your practice software.", null, null);
+
         if (string.Equals(AppointmentStatuses.Normalize(appointment.Status), target, StringComparison.OrdinalIgnoreCase))
         {
             return (true, null, target, AppointmentStatuses.DisplayLabel(target));
@@ -380,7 +382,7 @@ public class AppointmentService : IAppointmentService
     public async Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default)
     {
         var rows = await _db.Appointments.AsNoTracking()
-            .Where(a => a.DoctorId == doctorId)
+            .Where(a => a.DoctorId == doctorId && a.Source != AppointmentSources.PmsInbound)
             .Select(a => a.Status)
             .ToListAsync(cancellationToken);
 
@@ -408,6 +410,49 @@ public class AppointmentService : IAppointmentService
         return starts.ToHashSet();
     }
 
+    public static bool SlotsOverlap(
+        DateTime candidateStart,
+        DateTime occupiedStart,
+        int slotMinutes = DefaultSlotDurationMinutes)
+    {
+        var candidateEnd = candidateStart.AddMinutes(slotMinutes);
+        var occupiedEnd = occupiedStart.AddMinutes(slotMinutes);
+        return candidateStart < occupiedEnd && occupiedStart < candidateEnd;
+    }
+
+    public static bool IsSlotBlocked(
+        DateTime candidateStart,
+        IEnumerable<DateTime> occupiedStarts,
+        int slotMinutes = DefaultSlotDurationMinutes)
+    {
+        foreach (var occupied in occupiedStarts)
+        {
+            if (SlotsOverlap(candidateStart, occupied, slotMinutes))
+                return true;
+        }
+
+        return false;
+    }
+
+    private async Task<bool> IsSlotOccupiedAsync(
+        int doctorId,
+        DateTime startsAt,
+        CancellationToken cancellationToken)
+    {
+        var dayStart = startsAt.Date;
+        var dayEnd = dayStart.AddDays(1);
+        var occupied = await _db.Appointments.AsNoTracking()
+            .Where(a =>
+                a.DoctorId == doctorId
+                && a.StartsAt >= dayStart.AddDays(-1)
+                && a.StartsAt < dayEnd.AddDays(1)
+                && ActiveStatuses.Contains(a.Status))
+            .Select(a => a.StartsAt)
+            .ToListAsync(cancellationToken);
+
+        return IsSlotBlocked(startsAt, occupied);
+    }
+
     public async Task<IReadOnlyList<PatientAppointmentDto>> GetForPatientAsync(
         int patientId,
         CancellationToken cancellationToken = default)
@@ -422,8 +467,9 @@ public class AppointmentService : IAppointmentService
         var rows = await (
             from a in _db.Appointments.AsNoTracking()
             join d in _db.Doctors.AsNoTracking() on a.DoctorId equals d.Id
-            where a.PatientId == patientId
-                  || (a.PatientId == null && email != "" && a.PatientEmail == email)
+            where (a.PatientId == patientId
+                  || (a.PatientId == null && email != "" && a.PatientEmail == email))
+                  && a.Source != AppointmentSources.PmsInbound
             orderby a.StartsAt descending
             select new
             {

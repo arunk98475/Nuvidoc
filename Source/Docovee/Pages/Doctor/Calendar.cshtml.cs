@@ -120,6 +120,24 @@ public class CalendarModel : PageModel
         if (appointment == null)
             return NotFound(new { message = "Appointment not found." });
 
+        if (AppointmentSources.IsPmsInbound(appointment.Source))
+        {
+            return new JsonResult(new
+            {
+                appointmentId = appointment.Id,
+                isPmsBooked = true,
+                status = AppointmentStatuses.Normalize(appointment.Status),
+                statusLabel = AppointmentSources.PmsBookedDisplayLabel,
+                patientName = AppointmentSources.PmsBookedDisplayLabel,
+                startsAt = appointment.StartsAt.ToString("dddd MMM d 'at' h:mm tt"),
+                startsAtIso = appointment.StartsAt.ToString("o"),
+                visitReason = AppointmentSources.PmsBookedDisplayLabel,
+                canConfirm = false,
+                canCancel = false,
+                canMarkNoShow = false
+            });
+        }
+
         var profile = await _profileService.GetDoctorProfileAsync(doctorId, cancellationToken);
 
         string fullName = appointment.PatientName;
@@ -151,6 +169,7 @@ public class CalendarModel : PageModel
             }
 
             history = (await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken))
+                .Where(a => AppointmentSources.IsNuvidocBooking(a.Source))
                 .Where(a => a.PatientId == patientId)
                 .OrderByDescending(a => a.StartsAt)
                 .Take(20)
@@ -159,6 +178,7 @@ public class CalendarModel : PageModel
         else
         {
             history = (await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken))
+                .Where(a => AppointmentSources.IsNuvidocBooking(a.Source))
                 .Where(a =>
                     a.Id == appointment.Id
                     || (!string.IsNullOrWhiteSpace(appointment.PatientEmail)
@@ -219,6 +239,12 @@ public class CalendarModel : PageModel
             })
         });
     }
+
+    public static bool IsPmsBooked(DoctorAppointmentDto appt) =>
+        AppointmentSources.IsPmsInbound(appt.Source);
+
+    public static string DisplayAppointmentLabel(DoctorAppointmentDto appt) =>
+        IsPmsBooked(appt) ? AppointmentSources.PmsBookedDisplayLabel : ShortName(appt.PatientName);
 
     public DoctorAppointmentDto? FindAppointment(DateOnly day, int hour)
     {

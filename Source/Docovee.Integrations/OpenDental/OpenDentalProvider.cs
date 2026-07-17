@@ -295,6 +295,17 @@ public sealed class OpenDentalProvider : IPmsProvider
         });
     }
 
+    public Task<PmsProviderEnsureResult> FindProviderByNpiAsync(
+        PmsFindProviderByNpiRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new PmsProviderEnsureResult
+        {
+            Success = false,
+            Error = "NPI provider lookup is not supported for Open Dental in this integration."
+        });
+    }
+
     private async Task<PmsAppointmentResult> CreateOrFindPatientAsync(
         PmsConnectionCredentials credentials,
         PmsPatientInfo patient,

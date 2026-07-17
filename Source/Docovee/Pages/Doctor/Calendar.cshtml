@@ -1,4 +1,5 @@
 @page
+@using Docovee.DS.Entities
 @model Docovee.Pages.Doctor.CalendarModel
 @{
     ViewData["Title"] = "Calendar";
@@ -59,13 +60,18 @@
                     <div class="dp-slot">
                         @if (appt != null)
                         {
+                            var isPms = CalendarModel.IsPmsBooked(appt);
                             <button type="button"
-                                    class="dp-appt"
+                                    class="dp-appt@(isPms ? " dp-appt-pms" : "")"
                                     data-appointment-id="@appt.Id"
-                                    title="View patient — @appt.PatientName"
+                                    data-pms-booked="@(isPms ? "true" : "false")"
+                                    title="@(isPms ? AppointmentSources.PmsBookedDisplayLabel : $"View patient — {appt.PatientName}")"
                                     onclick="dpOpenPatientPanel(@appt.Id)">
-                                @CalendarModel.ShortName(appt.PatientName)
-                                <small>@appt.VisitReason</small>
+                                @CalendarModel.DisplayAppointmentLabel(appt)
+                                @if (!isPms)
+                                {
+                                    <small>@appt.VisitReason</small>
+                                }
                             </button>
                         }
                     </div>
@@ -296,6 +302,38 @@
       });
       if (!res.ok) throw new Error("Could not load patient details.");
       const data = await res.json();
+
+      if (data.isPmsBooked) {
+        const badge = document.getElementById("dp-drawer-badge");
+        badge.textContent = data.statusLabel || "PMS Booked";
+        badge.className = "dp-drawer-badge status-confirmed";
+        setText("dp-drawer-name", data.patientName || "PMS Booked");
+        setText("dp-drawer-sub", "Booked in your practice management system", "");
+        setText("dp-drawer-time", data.startsAt);
+        setText("dp-drawer-reason", "PMS Booked");
+        setText("dp-drawer-provider", null);
+        setText("dp-drawer-location", null);
+        document.querySelectorAll("[data-drawer-section]").forEach(function (section) {
+          const label = section.querySelector(".dp-drawer-section-toggle span")?.textContent || "";
+          if (label !== "Appointment details") {
+            section.hidden = true;
+          } else {
+            section.hidden = false;
+            section.classList.add("is-open");
+          }
+        });
+        document.getElementById("dp-drawer-ins-empty").hidden = false;
+        document.getElementById("dp-drawer-ins-head").hidden = true;
+        document.getElementById("dp-drawer-history").replaceChildren();
+        loading.hidden = true;
+        body.hidden = false;
+        if (footer) footer.hidden = true;
+        return;
+      }
+
+      document.querySelectorAll("[data-drawer-section]").forEach(function (section) {
+        section.hidden = false;
+      });
 
       const badge = document.getElementById("dp-drawer-badge");
       badge.textContent = data.statusLabel || data.status || "";

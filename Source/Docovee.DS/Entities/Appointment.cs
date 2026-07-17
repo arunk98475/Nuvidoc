@@ -122,6 +122,27 @@ public static class AppointmentStatuses
         var s = Normalize(status);
         return s is Confirmed or Unconfirmed or PracticeRescheduled or PatientRescheduled;
     }
+
+    public static bool IsConfirmedWithDoctor(string? status) =>
+        string.Equals(Normalize(status), Confirmed, StringComparison.OrdinalIgnoreCase);
+
+    public static bool CanPatientLeaveReview(
+        string? status,
+        DateTime startsAt,
+        int daysAfterConfirmed,
+        bool hasExistingReview)
+    {
+        if (hasExistingReview)
+            return false;
+        if (!IsConfirmedWithDoctor(status))
+            return false;
+
+        var eligibleFrom = startsAt.Date.AddDays(Math.Max(0, daysAfterConfirmed));
+        return DateTime.Today >= eligibleFrom;
+    }
+
+    public static DateOnly GetReviewAvailableOn(DateTime startsAt, int daysAfterConfirmed) =>
+        DateOnly.FromDateTime(startsAt.Date.AddDays(Math.Max(0, daysAfterConfirmed)));
 }
 
 public static class AppointmentSources
@@ -129,4 +150,10 @@ public static class AppointmentSources
     public const string PublicProfile = "PublicProfile";
     public const string NuviChat = "NuviChat";
     public const string PmsInbound = "PmsInbound";
+    public const string PmsBookedDisplayLabel = "PMS Booked";
+
+    public static bool IsPmsInbound(string? source) =>
+        string.Equals(source, PmsInbound, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsNuvidocBooking(string? source) => !IsPmsInbound(source);
 }

@@ -119,7 +119,7 @@ public class ProfileModel : PageModel
                     return new BookingSlotDto
                     {
                         TimeLabel = label,
-                        Available = !booked.Contains(s.StartsAt)
+                        Available = !AppointmentService.IsSlotBlocked(s.StartsAt, booked)
                     };
                 }).ToList();
             }
@@ -170,7 +170,7 @@ public class ProfileModel : PageModel
                     {
                         AppointmentService.TryParseTimeLabel(t, out var time);
                         var startsAt = date.ToDateTime(time);
-                        var available = !booked.Contains(startsAt);
+                        var available = !AppointmentService.IsSlotBlocked(startsAt, booked);
                         return new BookingSlotDto { TimeLabel = t, Available = available };
                     })
                     .ToList();
@@ -210,7 +210,7 @@ public class ProfileModel : PageModel
         return new BookingSlotDto
         {
             TimeLabel = timeLabel,
-            Available = !booked.Contains(startsAt)
+            Available = !AppointmentService.IsSlotBlocked(startsAt, booked)
         };
     }
 }

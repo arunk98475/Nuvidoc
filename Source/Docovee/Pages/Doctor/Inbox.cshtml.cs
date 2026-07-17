@@ -32,6 +32,7 @@ public class InboxModel : PageModel
         Search = q?.Trim();
 
         var all = await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken);
+        all = all.Where(a => AppointmentSources.IsNuvidocBooking(a.Source)).ToList();
         NewCount = all.Count(a => AppointmentStatuses.IsUnconfirmed(a.Status));
         RescheduleCount = all.Count(a => AppointmentStatuses.IsRescheduled(a.Status));
         CancelledCount = all.Count(a => AppointmentStatuses.IsCanceled(a.Status));

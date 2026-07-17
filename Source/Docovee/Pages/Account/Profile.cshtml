@@ -194,7 +194,7 @@
         {
             <div class="pat-panel-head">
                 <h1>Appointment History</h1>
-                <p>Past visits — leave a review if you haven’t already.</p>
+                <p>Past visits — leave a review after your doctor confirms the appointment and @Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") have passed.</p>
             </div>
 
             <div class="card">
@@ -242,7 +242,7 @@
                                             <div class="profile-list-meta">Submitted @a.ReviewedAt?.ToString("MMM d, yyyy")</div>
                                         </div>
                                     }
-                                    else
+                                    else if (a.CanLeaveReview)
                                     {
                                         <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
                                             <input type="hidden" name="doctorId" value="@a.DoctorId" />
@@ -284,6 +284,14 @@
                                             <button type="submit" class="btn-primary btn-sm">Submit review</button>
                                         </form>
                                     }
+                                    else if (Docovee.DS.Entities.AppointmentStatuses.IsConfirmedWithDoctor(a.Status)
+                                             && a.ReviewAvailableOn is DateOnly availableOn
+                                             && availableOn > DateOnly.FromDateTime(DateTime.Today))
+                                    {
+                                        <p class="profile-section-hint" style="margin:0;">
+                                            Review available on @availableOn.ToString("MMM d, yyyy") (@Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") after your confirmed visit).
+                                        </p>
+                                    }
                                 }
                             </div>
                         }
@@ -313,45 +321,6 @@
                                         <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
                                         <p>@doctor.ReviewText</p>
                                     </div>
-                                }
-                                else
-                                {
-                                    <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
-                                        <input type="hidden" name="doctorId" value="@doctor.DoctorId" />
-                                        <label class="review-label">Your rating</label>
-                                        <div class="review-rating-row">
-                                            @for (var star = 1; star <= 5; star++)
-                                            {
-                                                <label class="review-star-label">
-                                                    <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
-                                                    <span>@star</span>
-                                                </label>
-                                            }
-                                        </div>
-                                        <label class="review-label">Waiting time</label>
-                                        <div class="review-choice-row">
-                                            @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
-                                            {
-                                                <label class="review-choice-label">
-                                                    <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
-                                                    <span>@option</span>
-                                                </label>
-                                            }
-                                        </div>
-                                        <label class="review-label">Recommendation</label>
-                                        <div class="review-choice-row">
-                                            @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
-                                            {
-                                                <label class="review-choice-label">
-                                                    <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
-                                                    <span>@option</span>
-                                                </label>
-                                            }
-                                        </div>
-                                        <label class="review-label" for="creview-@doctor.DoctorId">Your review</label>
-                                        <textarea id="creview-@doctor.DoctorId" name="reviewText" class="review-textarea" rows="3" required></textarea>
-                                        <button type="submit" class="btn-primary btn-sm">Submit review</button>
-                                    </form>
                                 }
                             </div>
                         }

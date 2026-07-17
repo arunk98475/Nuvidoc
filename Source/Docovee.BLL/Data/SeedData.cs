@@ -185,6 +185,15 @@ public static class SeedData
             });
         }
 
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.ReviewEligibleDaysAfterConfirmed))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.ReviewEligibleDaysAfterConfirmed,
+                Value = "1"
+            });
+        }
+
         await PollingQuestionSync.SyncFromSpecAsync(context);
 
         if (!await context.DoctorLanguages.AnyAsync())

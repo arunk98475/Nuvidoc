@@ -22,7 +22,47 @@ document.addEventListener("DOMContentLoaded", () => {
   requestLocation();
   const chatInput = document.getElementById("chat-input");
   if (chatInput?.tagName === "TEXTAREA") autoResize(chatInput);
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("signup") === "patient" || params.get("signup") === "1") {
+    startPatientSignupViaChat();
+    const url = new URL(window.location.href);
+    url.searchParams.delete("signup");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  }
 });
+
+function startPatientSignupViaChat() {
+  scrollToChat();
+  if (!document.getElementById("chat-input")) return;
+
+  const input = document.getElementById("chat-input");
+  if (input) input.value = "";
+  document.getElementById("send-btn").disabled = true;
+  showTyping();
+
+  fetchChatMessage({
+    sessionKey,
+    message: "",
+    action: "signup"
+  }).then(({ ok, status, data }) => {
+    removeTyping();
+    document.getElementById("send-btn").disabled = false;
+    if (!ok) {
+      const errText = data.title || data.detail || data.message || data.error || `Server error (${status})`;
+      addMessage(errText, "ai");
+      return;
+    }
+    if (data.text) addMessage(data.text, "ai");
+    applyChatResponseState(data);
+  }).catch(() => {
+    removeTyping();
+    document.getElementById("send-btn").disabled = false;
+    addMessage("Something went wrong starting sign up. Please try again.", "ai");
+  });
+}
+
+window.startPatientSignupViaChat = startPatientSignupViaChat;
 
 function clearRecommendedDoctors() {
   recommendedDoctorIds.clear();
@@ -97,6 +137,7 @@ function updateNavForSignedInPatient() {
   const navRight = document.getElementById("nav-right");
   if (!navRight || navRight.dataset.authenticated === "true") return;
 
+  navRight.querySelector("#nav-auth")?.remove();
   navRight.querySelector(".nav-for-doctors")?.remove();
   navRight.querySelector('a[href="/Account/Login"]')?.remove();
 
@@ -112,8 +153,13 @@ function updateNavForSignedInPatient() {
   logout.className = "nav-link";
   logout.textContent = "Logout";
 
-  navRight.insertBefore(profile, cta);
-  navRight.insertBefore(logout, cta);
+  if (cta) {
+    navRight.insertBefore(profile, cta);
+    navRight.insertBefore(logout, cta);
+  } else {
+    navRight.appendChild(profile);
+    navRight.appendChild(logout);
+  }
   navRight.dataset.authenticated = "true";
 }
 

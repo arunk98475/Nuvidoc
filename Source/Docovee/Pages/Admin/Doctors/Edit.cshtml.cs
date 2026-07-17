@@ -29,6 +29,7 @@ public class EditModel : PageModel
     public string? IntegrationMessage { get; set; }
     public bool IntegrationSaved { get; set; }
     public bool ScrollToNexHealth { get; private set; }
+    public IReadOnlyList<PmsProviderOption> ProviderCandidates { get; set; } = Array.Empty<PmsProviderOption>();
 
     public class NexHealthIntegrationInput
     {
@@ -36,6 +37,7 @@ public class EditModel : PageModel
         /// <summary>NexHealth practice subdomain (stored as InstitutionId).</summary>
         public string? Subdomain { get; set; }
         public string? LocationId { get; set; }
+        public string? Npi { get; set; }
         public string? ProviderId { get; set; }
         public string? OperatoryId { get; set; }
     }
@@ -112,6 +114,44 @@ public class EditModel : PageModel
 
         var changed = await _pms.SyncInboundForDoctorAsync(id, cancellationToken);
         return RedirectToNexHealth(id, saved: true, status: $"Synced {changed} appointment change(s) from NexHealth.");
+    }
+
+    public async Task<IActionResult> OnPostFindProviderByNpiAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id);
+        if (doctor == null) return NotFound();
+        Input = doctor;
+
+        var (saveOk, saveError, _) = await SaveNexHealthFormAsync(id, cancellationToken);
+        if (!saveOk)
+        {
+            ErrorMessage = saveError;
+            ScrollToNexHealth = true;
+            await LoadNexHealthAsync(id, cancellationToken);
+            return Page();
+        }
+
+        if (string.IsNullOrWhiteSpace(NexHealthForm.Npi))
+        {
+            IntegrationMessage = "Enter an NPI number to look up the NexHealth provider ID.";
+            ScrollToNexHealth = true;
+            await LoadNexHealthAsync(id, cancellationToken);
+            NexHealthForm.Npi = null;
+            return Page();
+        }
+
+        var (success, message, providerId, candidates) = await _pms.FindNexHealthProviderByNpiAsync(
+            id, NexHealthForm.Npi, cancellationToken);
+
+        if (success && !string.IsNullOrWhiteSpace(providerId))
+            return RedirectToNexHealth(id, saved: true, status: message);
+
+        IntegrationMessage = message;
+        ProviderCandidates = candidates;
+        ScrollToNexHealth = true;
+        await LoadNexHealthAsync(id, cancellationToken);
+        NexHealthForm.Npi = NexHealthForm.Npi?.Trim();
+        return Page();
     }
 
     private IActionResult RedirectToNexHealth(int id, bool saved, string status)

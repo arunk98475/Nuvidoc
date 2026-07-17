@@ -318,6 +318,9 @@ public sealed class NexHealthProvider : IPmsProvider
         {
             foreach (var item in root.EnumerateArray())
             {
+                if (!MatchesConfiguredProvider(item, request.Credentials.ProviderExternalId))
+                    continue;
+
                 var startText = GetString(item, "start_time") ?? GetString(item, "start");
                 if (!DateTime.TryParse(startText, out var startsAt))
                     continue;
@@ -392,6 +395,80 @@ public sealed class NexHealthProvider : IPmsProvider
         }
     }
 
+    public async Task<PmsProviderEnsureResult> FindProviderByNpiAsync(
+        PmsFindProviderByNpiRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Credentials.InstitutionId))
+            {
+                return new PmsProviderEnsureResult
+                {
+                    Success = false,
+                    Error = "Subdomain is required before looking up a provider by NPI."
+                };
+            }
+
+            var normalizedNpi = NormalizeNpi(request.Npi);
+            if (string.IsNullOrWhiteSpace(normalizedNpi) || normalizedNpi.Length != 10)
+            {
+                return new PmsProviderEnsureResult
+                {
+                    Success = false,
+                    Error = "Enter a valid 10-digit NPI number."
+                };
+            }
+
+            var candidates = await ListProvidersAsync(request.Credentials, cancellationToken);
+            if (candidates.Count == 0)
+            {
+                return new PmsProviderEnsureResult
+                {
+                    Success = false,
+                    Error = "No providers returned from NexHealth. Check subdomain and location ID."
+                };
+            }
+
+            var matches = candidates
+                .Where(c => NormalizeNpi(c.Npi) == normalizedNpi)
+                .ToList();
+
+            if (matches.Count == 1)
+            {
+                var match = matches[0];
+                return new PmsProviderEnsureResult
+                {
+                    Success = true,
+                    ProviderExternalId = match.Id,
+                    Message = $"Found NexHealth provider “{match.Name}” (id {match.Id}).",
+                    Candidates = matches
+                };
+            }
+
+            if (matches.Count > 1)
+            {
+                return new PmsProviderEnsureResult
+                {
+                    Success = false,
+                    Error = "Multiple NexHealth providers share this NPI. Select one below.",
+                    Candidates = matches
+                };
+            }
+
+            return new PmsProviderEnsureResult
+            {
+                Success = false,
+                Error = $"No NexHealth provider found with NPI {normalizedNpi}."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "NexHealth FindProviderByNpi failed");
+            return new PmsProviderEnsureResult { Success = false, Error = ex.Message };
+        }
+    }
+
     private async Task<IReadOnlyList<PmsProviderOption>> ListProvidersAsync(
         PmsConnectionCredentials credentials,
         CancellationToken cancellationToken)
@@ -430,7 +507,8 @@ public sealed class NexHealthProvider : IPmsProvider
             {
                 Id = id,
                 Name = string.IsNullOrWhiteSpace(name) ? $"Provider {id}" : name,
-                Email = GetString(item, "email")
+                Email = GetString(item, "email"),
+                Npi = GetString(item, "npi")
             });
         }
 
@@ -564,6 +642,13 @@ public sealed class NexHealthProvider : IPmsProvider
             .Trim();
         return string.Join(' ', cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .ToLowerInvariant();
+    }
+
+    private static string NormalizeNpi(string? npi)
+    {
+        if (string.IsNullOrWhiteSpace(npi))
+            return "";
+        return new string(npi.Where(char.IsDigit).ToArray());
     }
 
     private async Task<PmsAppointmentResult> CreatePatientAsync(
@@ -858,6 +943,19 @@ public sealed class NexHealthProvider : IPmsProvider
         "completed" => "Completed",
         _ => "Unconfirmed"
     };
+
+    private static bool MatchesConfiguredProvider(JsonElement item, string? providerExternalId)
+    {
+        if (string.IsNullOrWhiteSpace(providerExternalId))
+            return true;
+
+        var apptProviderId = GetString(item, "provider_id");
+        return !string.IsNullOrWhiteSpace(apptProviderId)
+            && string.Equals(
+                apptProviderId.Trim(),
+                providerExternalId.Trim(),
+                StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string? TryGetId(JsonElement element)
     {

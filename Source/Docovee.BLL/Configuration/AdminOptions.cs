@@ -12,4 +12,5 @@ public static class AppSettingKeys
     public const string DoctorSearchResultCount = "DoctorSearchResultCount";
     public const string PromotedDoctorIds = "PromotedDoctorIds";
     public const string MaxAiQuestions = "MaxAiQuestions";
+    public const string ReviewEligibleDaysAfterConfirmed = "ReviewEligibleDaysAfterConfirmed";
 }

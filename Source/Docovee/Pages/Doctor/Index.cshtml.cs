@@ -62,6 +62,7 @@ public class IndexModel : PageModel
         }
 
         var all = await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken);
+        var nuvidoc = all.Where(a => AppointmentSources.IsNuvidocBooking(a.Source)).ToList();
 
         var today = DateTime.Today;
         var weekStart = StartOfWeek(today);
@@ -72,32 +73,32 @@ public class IndexModel : PageModel
 
         bool NotCancelled(DoctorAppointmentDto a) => !AppointmentStatuses.IsCanceled(a.Status);
 
-        AppointmentsThisWeek = all.Count(a =>
+        AppointmentsThisWeek = nuvidoc.Count(a =>
             NotCancelled(a) && a.StartsAt >= weekStart && a.StartsAt < weekEnd);
 
-        TotalBookings = all.Count(a =>
+        TotalBookings = nuvidoc.Count(a =>
             NotCancelled(a)
             && string.Equals(a.Source, AppointmentSources.PublicProfile, StringComparison.OrdinalIgnoreCase));
 
-        PendingAppointments = all.Count(a => AppointmentStatuses.NeedsDoctorAttention(a.Status));
+        PendingAppointments = nuvidoc.Count(a => AppointmentStatuses.NeedsDoctorAttention(a.Status));
 
-        ConfirmedAppointments = all.Count(a =>
+        ConfirmedAppointments = nuvidoc.Count(a =>
             string.Equals(AppointmentStatuses.Normalize(a.Status), AppointmentStatuses.Confirmed, StringComparison.OrdinalIgnoreCase)
             && a.StartsAt >= today);
 
-        CompletedAppointments = all.Count(a =>
+        CompletedAppointments = nuvidoc.Count(a =>
             string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase));
 
-        AppointmentsToday = all.Count(a =>
+        AppointmentsToday = nuvidoc.Count(a =>
             NotCancelled(a) && a.StartsAt.Date == today);
 
-        BookingsThisMonth = all.Count(a =>
+        BookingsThisMonth = nuvidoc.Count(a =>
             NotCancelled(a) && a.StartsAt >= monthStart && a.StartsAt < nextMonth);
 
-        BookingsLastMonth = all.Count(a =>
+        BookingsLastMonth = nuvidoc.Count(a =>
             NotCancelled(a) && a.StartsAt >= lastMonthStart && a.StartsAt < monthStart);
 
-        CancelledThisMonth = all.Count(a =>
+        CancelledThisMonth = nuvidoc.Count(a =>
             AppointmentStatuses.IsCanceled(a.Status)
             && a.UpdatedAt >= monthStart && a.UpdatedAt < nextMonth);
 
@@ -111,7 +112,7 @@ public class IndexModel : PageModel
         else if (BookingsThisMonth > 0)
             BookingsMonthChangePercent = 100;
 
-        UpcomingThisWeek = all
+        UpcomingThisWeek = nuvidoc
             .Where(a =>
                 NotCancelled(a)
                 && a.StartsAt >= today
@@ -129,7 +130,7 @@ public class IndexModel : PageModel
             })
             .ToList();
 
-        RecentNotifications = all
+        RecentNotifications = nuvidoc
             .Where(a => a.Status is AppointmentStatuses.New or AppointmentStatuses.Reschedule or AppointmentStatuses.Cancelled)
             .OrderByDescending(a => a.UpdatedAt)
             .Take(5)

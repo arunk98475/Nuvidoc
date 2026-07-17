@@ -30,4 +30,8 @@ public interface IPmsProvider
     Task<PmsProviderEnsureResult> EnsureProviderAsync(
         PmsEnsureProviderRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<PmsProviderEnsureResult> FindProviderByNpiAsync(
+        PmsFindProviderByNpiRequest request,
+        CancellationToken cancellationToken = default);
 }

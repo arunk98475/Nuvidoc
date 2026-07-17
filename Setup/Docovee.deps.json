@@ -10,7 +10,8 @@
         "dependencies": {
           "Docovee.BLL": "1.0.0",
           "Docovee.DS": "1.0.0",
-          "Docovee.logging": "1.0.0"
+          "Docovee.logging": "1.0.0",
+          "Microsoft.AspNetCore.Authentication.Google": "8.0.17"
         },
         "runtime": {
           "Docovee.dll": {}
@@ -105,6 +106,14 @@
           "Microsoft.AspNetCore.Authentication.Abstractions": "2.3.0",
           "Microsoft.AspNetCore.Http": "2.3.0",
           "Microsoft.AspNetCore.Http.Extensions": "2.3.0"
+        }
+      },
+      "Microsoft.AspNetCore.Authentication.Google/8.0.17": {
+        "runtime": {
+          "lib/net8.0/Microsoft.AspNetCore.Authentication.Google.dll": {
+            "assemblyVersion": "8.0.17.0",
+            "fileVersion": "8.0.1725.26609"
+          }
         }
       },
       "Microsoft.AspNetCore.Cryptography.Internal/2.3.0": {},
@@ -509,6 +518,7 @@
           "ClosedXML": "0.104.2",
           "CsvHelper": "33.0.1",
           "Docovee.DS": "1.0.0",
+          "Docovee.Integrations": "1.0.0",
           "Docovee.logging": "1.0.0",
           "Microsoft.AspNetCore.Authentication.Cookies": "2.3.0",
           "Microsoft.AspNetCore.Http.Abstractions": "2.3.0",
@@ -531,6 +541,20 @@
         },
         "runtime": {
           "Docovee.DS.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "Docovee.Integrations/1.0.0": {
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.2",
+          "Microsoft.Extensions.Http": "8.0.1",
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.2",
+          "Microsoft.Extensions.Options.ConfigurationExtensions": "8.0.0"
+        },
+        "runtime": {
+          "Docovee.Integrations.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -624,6 +648,13 @@
       "sha512": "sha512-gnLnKGawBjqBnU9fEuel3VcYAARkjyONAliaGDfMc8o8HBtfh+HrOPEoR8Xx4b2RnMb7uxdBDOvEAC7sul79ig==",
       "path": "microsoft.aspnetcore.authentication.core/2.3.0",
       "hashPath": "microsoft.aspnetcore.authentication.core.2.3.0.nupkg.sha512"
+    },
+    "Microsoft.AspNetCore.Authentication.Google/8.0.17": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-wNF9d1s//OzqDmERyxLFnlos6mDIGVNqS1Iaxhxh9/XHKPUBmraGCVhJIn+v2qGdd5pi98XgtFCXszvBeLMZWQ==",
+      "path": "microsoft.aspnetcore.authentication.google/8.0.17",
+      "hashPath": "microsoft.aspnetcore.authentication.google.8.0.17.nupkg.sha512"
     },
     "Microsoft.AspNetCore.Cryptography.Internal/2.3.0": {
       "type": "package",
@@ -988,6 +1019,11 @@
       "sha512": ""
     },
     "Docovee.DS/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Docovee.Integrations/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
