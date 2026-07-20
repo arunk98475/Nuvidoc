@@ -2530,12 +2530,13 @@ footer.site-footer {
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 8px;
-  padding: 10px 12px !important;
-  border-radius: 8px;
+  padding: 12px 14px 12px 16px !important;
+  border-radius: 0;
+  border-left: 3px solid transparent;
   font-size: 15px !important;
   font-weight: 500;
   line-height: 1.35;
-  color: var(--ink) !important;
+  color: #222 !important;
   text-decoration: none !important;
   text-align: left !important;
   width: 100% !important;
@@ -2545,14 +2546,15 @@ footer.site-footer {
 
 .pat-sidebar .pat-nav-item:hover,
 .pat-nav-item:hover {
-  background: #efefef;
+  background: #f0f0f0;
 }
 
 .pat-sidebar .pat-nav-item.active,
 .pat-nav-item.active {
-  background: #ececec;
-  color: var(--ink) !important;
-  font-weight: 600;
+  background: transparent;
+  border-left-color: #222;
+  color: #111 !important;
+  font-weight: 700;
 }
 
 .pat-nav-badge {
@@ -2598,20 +2600,194 @@ footer.site-footer {
 }
 
 .pat-panel-head {
-  margin-bottom: 18px;
+  margin-bottom: 8px;
 }
 
 .pat-panel-head h1 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0 0 6px;
+  color: #111;
 }
 
 .pat-panel-head p {
-  margin: 0;
-  color: var(--muted);
+  margin: 0 0 8px;
+  color: #666;
   font-size: 14px;
+}
+
+/* Zocdoc-style personal info list (no cards) */
+.pi-list {
+  border-top: 1px solid #e5e5e5;
+  background: transparent;
+}
+
+.pi-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.pi-row-stack {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pi-row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+}
+
+.pi-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pi-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 6px;
+}
+
+.pi-value {
+  font-size: 15px;
+  font-weight: 400;
+  color: #222;
+  line-height: 1.4;
+}
+
+.pi-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b6b6b;
+}
+
+.pi-link {
+  color: #1a73e8;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.pi-link:hover {
+  text-decoration: underline;
+}
+
+.pi-action {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a73e8;
+  text-decoration: none;
+  padding-top: 2px;
+}
+
+.pi-action:hover {
+  text-decoration: underline;
+  color: #1557b0;
+}
+
+.pi-action-muted {
+  color: #aaa;
+  cursor: default;
+  pointer-events: none;
+}
+
+.pi-edit-form {
+  margin-top: 4px;
+  max-width: 420px;
+}
+
+.pi-sublabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  margin: 10px 0 6px;
+}
+
+.pi-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfcf;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: #111;
+  background: #fff;
+}
+
+.pi-input:focus {
+  outline: 2px solid #f5c518;
+  border-color: #f5c518;
+}
+
+.pi-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.pi-save {
+  border: none;
+  border-radius: 6px;
+  background: #f5c518;
+  color: #111;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pi-save:hover {
+  background: #e6b800;
+}
+
+.pi-cancel {
+  font-size: 14px;
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.pi-cancel:hover {
+  text-decoration: underline;
+}
+
+.pi-inline-form {
+  margin-top: 10px;
+}
+
+.pi-link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a73e8;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.pi-link-btn:hover {
+  text-decoration: underline;
+}
+
+.pi-link-btn:disabled {
+  color: #aaa;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .pat-card-title {

@@ -4,6 +4,7 @@
     Layout = null;
     ViewData["Title"] = $"My Profile — {Branding.SiteName}";
     var section = Model.Section;
+    var edit = Model.EditField;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -21,8 +22,8 @@
             <span>@Branding.SiteName</span>
         </a>
         <div class="pat-nav" role="navigation" aria-label="Profile sections">
-            <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal Information</a>
-            <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and Security</a>
+            <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal information</a>
+            <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
             <a class="pat-nav-item @(section == "notifications" ? "active" : "")" href="/Account/Profile?section=notifications">
                 <span>Notifications</span>
                 @if (Model.UpcomingAppointments.Count > 0)
@@ -30,7 +31,7 @@
                     <span class="pat-nav-badge">@Model.UpcomingAppointments.Count</span>
                 }
             </a>
-            <a class="pat-nav-item @(section == "history" ? "active" : "")" href="/Account/Profile?section=history">Appointment History</a>
+            <a class="pat-nav-item @(section == "history" ? "active" : "")" href="/Account/Profile?section=history">Appointment history</a>
         </div>
 
         <div class="pat-sidebar-foot">
@@ -68,89 +69,167 @@
         @if (section == "personal")
         {
             <div class="pat-panel-head">
-                <h1>Personal Information</h1>
-                <p>Your current account details used across @Branding.SiteName.</p>
+                <h1>Personal information</h1>
             </div>
 
-            <div class="card">
-                <h2 class="pat-card-title">Current information</h2>
-                <dl class="profile-dl">
-                    <dt>Email / username</dt><dd>@Model.Profile.Username</dd>
-                    <dt>Full name</dt><dd>@Model.Profile.FullName</dd>
-                    <dt>Date of birth</dt><dd>@Model.Profile.DateOfBirth.ToString("MMMM d, yyyy")</dd>
-                    <dt>Phone</dt><dd>@Model.Profile.Phone</dd>
-                    <dt>Member since</dt><dd>@Model.Profile.MemberSince.ToString("MMMM d, yyyy")</dd>
-                </dl>
-            </div>
+            <div class="pi-list">
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Name</div>
+                        @if (edit == "name")
+                        {
+                            <form method="post" asp-page-handler="UpdatePersonal" class="pi-edit-form">
+                                <input type="hidden" asp-for="PersonalInput.Username" />
+                                <input type="hidden" asp-for="PersonalInput.DateOfBirth" />
+                                <input type="hidden" asp-for="PersonalInput.Phone" />
+                                <input asp-for="PersonalInput.FullName" class="pi-input" autocomplete="name" />
+                                <div class="pi-edit-actions">
+                                    <button type="submit" class="pi-save">Save</button>
+                                    <a class="pi-cancel" href="/Account/Profile?section=personal">Cancel</a>
+                                </div>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="pi-value">@Model.Profile!.FullName</div>
+                        }
+                    </div>
+                    @if (edit != "name")
+                    {
+                        <a class="pi-action" href="/Account/Profile?section=personal&edit=name">Edit</a>
+                    }
+                </div>
 
-            <div class="card">
-                <h2 class="pat-card-title">Update details</h2>
-                <form method="post" asp-page-handler="UpdatePersonal" class="pat-form">
-                    <input type="hidden" asp-for="PersonalInput.Username" />
-                    <div class="form-group">
-                        <label asp-for="PersonalInput.FullName">Full name</label>
-                        <input asp-for="PersonalInput.FullName" class="field-input" />
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Date of birth</div>
+                        @if (edit == "dob")
+                        {
+                            <form method="post" asp-page-handler="UpdatePersonal" class="pi-edit-form">
+                                <input type="hidden" asp-for="PersonalInput.Username" />
+                                <input type="hidden" asp-for="PersonalInput.FullName" />
+                                <input type="hidden" asp-for="PersonalInput.Phone" />
+                                <input asp-for="PersonalInput.DateOfBirth" type="date" class="pi-input" />
+                                <div class="pi-edit-actions">
+                                    <button type="submit" class="pi-save">Save</button>
+                                    <a class="pi-cancel" href="/Account/Profile?section=personal">Cancel</a>
+                                </div>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="pi-value">@Model.Profile!.DateOfBirth.ToString("MMMM d, yyyy")</div>
+                        }
                     </div>
-                    <div class="form-group">
-                        <label asp-for="PersonalInput.DateOfBirth">Date of birth</label>
-                        <input asp-for="PersonalInput.DateOfBirth" type="date" class="field-input" />
+                    @if (edit != "dob")
+                    {
+                        <a class="pi-action" href="/Account/Profile?section=personal&edit=dob">Edit</a>
+                    }
+                </div>
+
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Phone Number</div>
+                        @if (edit == "phone")
+                        {
+                            <form method="post" asp-page-handler="UpdatePersonal" class="pi-edit-form">
+                                <input type="hidden" asp-for="PersonalInput.Username" />
+                                <input type="hidden" asp-for="PersonalInput.FullName" />
+                                <input type="hidden" asp-for="PersonalInput.DateOfBirth" />
+                                <input asp-for="PersonalInput.Phone" type="tel" class="pi-input" autocomplete="tel" />
+                                <div class="pi-edit-actions">
+                                    <button type="submit" class="pi-save">Save</button>
+                                    <a class="pi-cancel" href="/Account/Profile?section=personal">Cancel</a>
+                                </div>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="pi-value">@(string.IsNullOrWhiteSpace(Model.Profile!.Phone) ? "—" : Model.Profile.Phone)</div>
+                            <p class="pi-hint">Having a verified phone number helps us send appointment reminders and important updates.</p>
+                        }
                     </div>
-                    <div class="form-group">
-                        <label asp-for="PersonalInput.Phone">Phone number</label>
-                        <input asp-for="PersonalInput.Phone" type="tel" class="field-input" />
+                    @if (edit != "phone")
+                    {
+                        <a class="pi-action" href="/Account/Profile?section=personal&edit=phone">@(string.IsNullOrWhiteSpace(Model.Profile!.Phone) ? "Add" : "Edit")</a>
+                    }
+                </div>
+
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Email Address</div>
+                        <div class="pi-value">@Model.Profile!.Username</div>
+                        <p class="pi-hint">
+                            <a class="pi-link" href="/Account/Profile?section=security">Verify your email address</a>
+                            to keep your account secure and receive booking confirmations.
+                        </p>
                     </div>
-                    <button type="submit" class="btn-primary">Save changes</button>
-                </form>
+                    <span class="pi-action pi-action-muted">Edit</span>
+                </div>
+
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Member since</div>
+                        <div class="pi-value">@Model.Profile!.MemberSince.ToString("MMMM d, yyyy")</div>
+                    </div>
+                </div>
             </div>
         }
         else if (section == "security")
         {
             <div class="pat-panel-head">
-                <h1>Login and Security</h1>
-                <p>Manage your password and verification options.</p>
+                <h1>Login and security</h1>
             </div>
 
-            <div class="card">
-                <h2 class="pat-card-title">Change password</h2>
-                <form method="post" asp-page-handler="ChangePassword" class="pat-form">
-                    <div class="form-group">
-                        <label for="NewPassword">New password</label>
-                        <input id="NewPassword" name="NewPassword" type="password" class="field-input" autocomplete="new-password" />
-                        <p class="hint">At least 6 characters.</p>
+            <div class="pi-list">
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Password</div>
+                        @if (edit == "password")
+                        {
+                            <form method="post" asp-page-handler="ChangePassword" class="pi-edit-form">
+                                <label class="pi-sublabel" for="NewPassword">New password</label>
+                                <input id="NewPassword" name="NewPassword" type="password" class="pi-input" autocomplete="new-password" />
+                                <label class="pi-sublabel" for="ConfirmPassword">Confirm new password</label>
+                                <input id="ConfirmPassword" name="ConfirmPassword" type="password" class="pi-input" autocomplete="new-password" />
+                                <p class="pi-hint">At least 6 characters.</p>
+                                <div class="pi-edit-actions">
+                                    <button type="submit" class="pi-save">Update password</button>
+                                    <a class="pi-cancel" href="/Account/Profile?section=security">Cancel</a>
+                                </div>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="pi-value">••••••••</div>
+                        }
                     </div>
-                    <div class="form-group">
-                        <label for="ConfirmPassword">Confirm new password</label>
-                        <input id="ConfirmPassword" name="ConfirmPassword" type="password" class="field-input" autocomplete="new-password" />
-                    </div>
-                    <button type="submit" class="btn-primary">Update password</button>
-                </form>
-            </div>
-
-            <div class="card">
-                <h2 class="pat-card-title">Email verification</h2>
-                <div class="pat-verify-row">
-                    <div>
-                        <div class="pat-verify-label">@Model.Profile.Username</div>
-                        <span class="pat-pill pat-pill-warn">Not verified</span>
-                        <p class="hint" style="margin-top:8px;">Verification emails will send once the site email service is set up.</p>
-                    </div>
-                    <form method="post" asp-page-handler="RequestEmailVerification">
-                        <button type="submit" class="btn-secondary btn-sm">Send verification email</button>
-                    </form>
+                    @if (edit != "password")
+                    {
+                        <a class="pi-action" href="/Account/Profile?section=security&edit=password">Edit</a>
+                    }
                 </div>
-            </div>
 
-            <div class="card">
-                <h2 class="pat-card-title">Phone number verification</h2>
-                <div class="pat-verify-row">
-                    <div>
-                        <div class="pat-verify-label">@(string.IsNullOrWhiteSpace(Model.Profile.Phone) ? "No phone on file" : Model.Profile.Phone)</div>
-                        <span class="pat-pill pat-pill-warn">Not verified</span>
-                        <p class="hint" style="margin-top:8px;">SMS verification will be available in a future update.</p>
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Email verification</div>
+                        <div class="pi-value">@Model.Profile!.Username</div>
+                        <p class="pi-hint">Verification emails will send once the site email service is set up.</p>
+                        <form method="post" asp-page-handler="RequestEmailVerification" class="pi-inline-form">
+                            <button type="submit" class="pi-link-btn">Send verification email</button>
+                        </form>
                     </div>
-                    <form method="post" asp-page-handler="RequestPhoneVerification">
-                        <button type="submit" class="btn-secondary btn-sm" @(string.IsNullOrWhiteSpace(Model.Profile.Phone) ? "disabled" : null)>Send verification code</button>
-                    </form>
+                </div>
+
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-label">Phone number verification</div>
+                        <div class="pi-value">@(string.IsNullOrWhiteSpace(Model.Profile!.Phone) ? "No phone on file" : Model.Profile.Phone)</div>
+                        <p class="pi-hint">SMS verification will be available in a future update.</p>
+                        <form method="post" asp-page-handler="RequestPhoneVerification" class="pi-inline-form">
+                            <button type="submit" class="pi-link-btn" @(string.IsNullOrWhiteSpace(Model.Profile.Phone) ? "disabled" : null)>Send verification code</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         }
@@ -161,170 +240,168 @@
                 <p>Upcoming appointments and booking updates.</p>
             </div>
 
-            <div class="card">
-                <h2 class="pat-card-title">Upcoming appointments</h2>
-                @if (Model.UpcomingAppointments.Count == 0)
-                {
-                    <p class="profile-empty">No upcoming appointments. <a href="/">Find a doctor</a> to book a visit.</p>
-                }
-                else
-                {
-                    <div class="pat-appt-list">
-                        @foreach (var a in Model.UpcomingAppointments)
-                        {
-                            <div class="pat-appt-card">
-                                <div class="pat-appt-when">
-                                    <strong>@a.StartsAt.ToString("ddd, MMM d")</strong>
-                                    <span>@a.StartsAt.ToString("h:mm tt")</span>
-                                </div>
-                                <div class="pat-appt-body">
-                                    <div class="pat-appt-doctor">@a.DoctorName</div>
-                                    <div class="pat-appt-meta">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</div>
-                                    <div class="pat-appt-meta">@a.VisitReason</div>
-                                    <span class="pat-pill">@ProfileModel.StatusLabel(a.Status)</span>
-                                </div>
-                                <a class="btn-secondary btn-sm" href="/doctors/@a.DoctorId">View doctor</a>
-                            </div>
-                        }
+            @if (Model.UpcomingAppointments.Count == 0)
+            {
+                <div class="pi-list">
+                    <div class="pi-row">
+                        <div class="pi-row-body">
+                            <div class="pi-value">No upcoming appointments.</div>
+                            <p class="pi-hint"><a class="pi-link" href="/">Find a doctor</a> to book a visit.</p>
+                        </div>
                     </div>
-                }
-            </div>
+                </div>
+            }
+            else
+            {
+                <div class="pi-list">
+                    @foreach (var a in Model.UpcomingAppointments)
+                    {
+                        <div class="pi-row">
+                            <div class="pi-row-body">
+                                <div class="pi-label">@a.StartsAt.ToString("ddd, MMM d") · @a.StartsAt.ToString("h:mm tt")</div>
+                                <div class="pi-value">@a.DoctorName</div>
+                                <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
+                                <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
+                            </div>
+                            <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
+                        </div>
+                    }
+                </div>
+            }
         }
         else if (section == "history")
         {
             <div class="pat-panel-head">
-                <h1>Appointment History</h1>
+                <h1>Appointment history</h1>
                 <p>Past visits — leave a review after your doctor confirms the appointment and @Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") have passed.</p>
             </div>
 
-            <div class="card">
-                @if (Model.PastAppointments.Count == 0)
-                {
-                    <p class="profile-empty">No past appointments yet.</p>
-                }
-                else
-                {
-                    <div class="pat-appt-list">
-                        @foreach (var a in Model.PastAppointments)
-                        {
-                            <div class="pat-appt-card pat-appt-card-stack">
-                                <div class="pat-appt-top">
-                                    <div class="pat-appt-when">
-                                        <strong>@a.StartsAt.ToString("MMM d, yyyy")</strong>
-                                        <span>@a.StartsAt.ToString("h:mm tt")</span>
-                                    </div>
-                                    <div class="pat-appt-body">
-                                        <div class="pat-appt-doctor">@a.DoctorName</div>
-                                        <div class="pat-appt-meta">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</div>
-                                        <div class="pat-appt-meta">@a.VisitReason</div>
-                                        <span class="pat-pill">@ProfileModel.StatusLabel(a.Status)</span>
-                                    </div>
-                                    <a class="btn-secondary btn-sm" href="/doctors/@a.DoctorId">Profile</a>
-                                </div>
-
-                                @if (!Docovee.DS.Entities.AppointmentStatuses.IsCanceled(a.Status))
-                                {
-                                    if (a.HasReview)
-                                    {
-                                        <div class="patient-review-submitted">
-                                            <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", a.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (a.ReviewRating ?? 0)))</div>
-                                            <p>@a.ReviewText</p>
-                                            <div class="patient-review-meta-row">
-                                                @if (!string.IsNullOrWhiteSpace(a.ReviewWaitingTime))
-                                                {
-                                                    <span><strong>Waiting time:</strong> @a.ReviewWaitingTime</span>
-                                                }
-                                                @if (!string.IsNullOrWhiteSpace(a.ReviewRecommendation))
-                                                {
-                                                    <span><strong>Recommendation:</strong> @a.ReviewRecommendation</span>
-                                                }
-                                            </div>
-                                            <div class="profile-list-meta">Submitted @a.ReviewedAt?.ToString("MMM d, yyyy")</div>
-                                        </div>
-                                    }
-                                    else if (a.CanLeaveReview)
-                                    {
-                                        <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
-                                            <input type="hidden" name="doctorId" value="@a.DoctorId" />
-                                            <label class="review-label">Review @a.DoctorName</label>
-                                            <div class="review-rating-row">
-                                                @for (var star = 1; star <= 5; star++)
-                                                {
-                                                    <label class="review-star-label">
-                                                        <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
-                                                        <span>@star</span>
-                                                    </label>
-                                                }
-                                            </div>
-
-                                            <label class="review-label">Waiting time</label>
-                                            <div class="review-choice-row">
-                                                @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
-                                                {
-                                                    <label class="review-choice-label">
-                                                        <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
-                                                        <span>@option</span>
-                                                    </label>
-                                                }
-                                            </div>
-
-                                            <label class="review-label">How would you recommend this doctor?</label>
-                                            <div class="review-choice-row">
-                                                @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
-                                                {
-                                                    <label class="review-choice-label">
-                                                        <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
-                                                        <span>@option</span>
-                                                    </label>
-                                                }
-                                            </div>
-
-                                            <label class="review-label" for="review-@a.Id">Your review</label>
-                                            <textarea id="review-@a.Id" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
-                                            <button type="submit" class="btn-primary btn-sm">Submit review</button>
-                                        </form>
-                                    }
-                                    else if (Docovee.DS.Entities.AppointmentStatuses.IsConfirmedWithDoctor(a.Status)
-                                             && a.ReviewAvailableOn is DateOnly availableOn
-                                             && availableOn > DateOnly.FromDateTime(DateTime.Today))
-                                    {
-                                        <p class="profile-section-hint" style="margin:0;">
-                                            Review available on @availableOn.ToString("MMM d, yyyy") (@Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") after your confirmed visit).
-                                        </p>
-                                    }
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
-
-            @if (Model.Profile.ViewedDoctors.Any(d => !d.HasReview && Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
+            @if (Model.PastAppointments.Count == 0)
             {
-                <div class="card">
-                    <h2 class="pat-card-title">Doctors you’ve contacted</h2>
-                    <p class="profile-section-hint">Doctors from Nuvi chat that aren’t in your appointment history yet.</p>
-                    <div class="viewed-doctors-list">
-                        @foreach (var doctor in Model.Profile.ViewedDoctors.Where(d => Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
-                        {
-                            <div class="viewed-doctor-card">
-                                <div class="viewed-doctor-header">
-                                    <div class="viewed-doctor-avatar">@doctor.AvatarInitials</div>
-                                    <div>
-                                        <div class="viewed-doctor-name">@doctor.Name</div>
-                                        <div class="viewed-doctor-meta">@doctor.Specialty · @doctor.Location</div>
-                                    </div>
+                <div class="pi-list">
+                    <div class="pi-row">
+                        <div class="pi-row-body">
+                            <div class="pi-value">No past appointments yet.</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="pi-list">
+                    @foreach (var a in Model.PastAppointments)
+                    {
+                        <div class="pi-row pi-row-stack">
+                            <div class="pi-row-top">
+                                <div class="pi-row-body">
+                                    <div class="pi-label">@a.StartsAt.ToString("MMM d, yyyy") · @a.StartsAt.ToString("h:mm tt")</div>
+                                    <div class="pi-value">@a.DoctorName</div>
+                                    <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
+                                    <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
                                 </div>
-                                @if (doctor.HasReview)
+                                <a class="pi-action" href="/doctors/@a.DoctorId">Profile</a>
+                            </div>
+
+                            @if (!Docovee.DS.Entities.AppointmentStatuses.IsCanceled(a.Status))
+                            {
+                                if (a.HasReview)
                                 {
                                     <div class="patient-review-submitted">
+                                        <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", a.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (a.ReviewRating ?? 0)))</div>
+                                        <p>@a.ReviewText</p>
+                                        <div class="patient-review-meta-row">
+                                            @if (!string.IsNullOrWhiteSpace(a.ReviewWaitingTime))
+                                            {
+                                                <span><strong>Waiting time:</strong> @a.ReviewWaitingTime</span>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(a.ReviewRecommendation))
+                                            {
+                                                <span><strong>Recommendation:</strong> @a.ReviewRecommendation</span>
+                                            }
+                                        </div>
+                                        <div class="profile-list-meta">Submitted @a.ReviewedAt?.ToString("MMM d, yyyy")</div>
+                                    </div>
+                                }
+                                else if (a.CanLeaveReview)
+                                {
+                                    <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
+                                        <input type="hidden" name="doctorId" value="@a.DoctorId" />
+                                        <label class="review-label">Review @a.DoctorName</label>
+                                        <div class="review-rating-row">
+                                            @for (var star = 1; star <= 5; star++)
+                                            {
+                                                <label class="review-star-label">
+                                                    <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
+                                                    <span>@star</span>
+                                                </label>
+                                            }
+                                        </div>
+
+                                        <label class="review-label">Waiting time</label>
+                                        <div class="review-choice-row">
+                                            @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
+                                            {
+                                                <label class="review-choice-label">
+                                                    <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
+                                                    <span>@option</span>
+                                                </label>
+                                            }
+                                        </div>
+
+                                        <label class="review-label">How would you recommend this doctor?</label>
+                                        <div class="review-choice-row">
+                                            @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
+                                            {
+                                                <label class="review-choice-label">
+                                                    <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
+                                                    <span>@option</span>
+                                                </label>
+                                            }
+                                        </div>
+
+                                        <label class="review-label" for="review-@a.Id">Your review</label>
+                                        <textarea id="review-@a.Id" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
+                                        <button type="submit" class="btn-primary btn-sm">Submit review</button>
+                                    </form>
+                                }
+                                else if (Docovee.DS.Entities.AppointmentStatuses.IsConfirmedWithDoctor(a.Status)
+                                         && a.ReviewAvailableOn is DateOnly availableOn
+                                         && availableOn > DateOnly.FromDateTime(DateTime.Today))
+                                {
+                                    <p class="pi-hint" style="margin:0;">
+                                        Review available on @availableOn.ToString("MMM d, yyyy") (@Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") after your confirmed visit).
+                                    </p>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (Model.Profile!.ViewedDoctors.Any(d => !d.HasReview && Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
+            {
+                <div class="pat-panel-head" style="margin-top:32px;">
+                    <h1 style="font-size:22px;">Doctors you’ve contacted</h1>
+                    <p>Doctors from Nuvi chat that aren’t in your appointment history yet.</p>
+                </div>
+                <div class="pi-list">
+                    @foreach (var doctor in Model.Profile.ViewedDoctors.Where(d => Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
+                    {
+                        <div class="pi-row">
+                            <div class="pi-row-body">
+                                <div class="pi-value">@doctor.Name</div>
+                                <p class="pi-hint">@doctor.Specialty · @doctor.Location</p>
+                                @if (doctor.HasReview)
+                                {
+                                    <div class="patient-review-submitted" style="margin-top:10px;">
                                         <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
                                         <p>@doctor.ReviewText</p>
                                     </div>
                                 }
                             </div>
-                        }
-                    </div>
+                            <a class="pi-action" href="/doctors/@doctor.DoctorId">View</a>
+                        </div>
+                    }
                 </div>
             }
         }

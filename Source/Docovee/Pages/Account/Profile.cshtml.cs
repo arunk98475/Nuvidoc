@@ -31,6 +31,7 @@ public class ProfileModel : PageModel
 
     public PatientProfileDto? Profile { get; set; }
     public string Section { get; set; } = "personal";
+    public string? EditField { get; set; }
     public bool Saved { get; set; }
     public bool PasswordChanged { get; set; }
     public bool ReviewSubmitted { get; set; }
@@ -53,11 +54,13 @@ public class ProfileModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(
         string? section = null,
+        string? edit = null,
         bool saved = false,
         bool passwordChanged = false,
         bool reviewSubmitted = false)
     {
         Section = NormalizeSection(section);
+        EditField = NormalizeEditField(edit);
         Saved = saved;
         PasswordChanged = passwordChanged;
         ReviewSubmitted = reviewSubmitted;
@@ -81,6 +84,7 @@ public class ProfileModel : PageModel
         if (!success)
         {
             FormError = error;
+            EditField ??= "name";
             await LoadAsync(patientId);
             return Page();
         }
@@ -91,6 +95,7 @@ public class ProfileModel : PageModel
     public async Task<IActionResult> OnPostChangePasswordAsync()
     {
         Section = "security";
+        EditField = "password";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
@@ -225,6 +230,17 @@ public class ProfileModel : PageModel
             "notifications" or "notification" => "notifications",
             "history" or "appointments" => "history",
             _ => "personal"
+        };
+
+    private static string? NormalizeEditField(string? edit) =>
+        (edit ?? "").Trim().ToLowerInvariant() switch
+        {
+            "name" => "name",
+            "dob" or "dateofbirth" or "birth" => "dob",
+            "phone" => "phone",
+            "email" => "email",
+            "password" => "password",
+            _ => null
         };
 
     public static string StatusLabel(string status) => AppointmentStatuses.DisplayLabel(status);
