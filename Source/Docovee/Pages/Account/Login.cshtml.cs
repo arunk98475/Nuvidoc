@@ -98,7 +98,7 @@ public class LoginModel : PageModel
             return "/Doctor";
         }
 
-        return "/Account/Profile";
+        return "/";
     }
 
     private async Task<string> GetRedirectUrlAsync()
@@ -106,7 +106,7 @@ public class LoginModel : PageModel
         if (User.IsInRole(AuthRoles.Admin)) return "/Admin/Patients";
         if (User.IsInRole(AuthRoles.Doctor))
             return await GetRedirectForAccountTypeAsync(AccountType.Doctor);
-        if (User.IsInRole(AuthRoles.Patient)) return "/Account/Profile";
+        if (User.IsInRole(AuthRoles.Patient)) return "/";
         return "/";
     }
 }

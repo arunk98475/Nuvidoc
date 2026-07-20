@@ -29,6 +29,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const url = new URL(window.location.href);
     url.searchParams.delete("signup");
     window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+  } else if (params.get("chat") === "1" || params.get("chat") === "true") {
+    scrollToChat();
+    const url = new URL(window.location.href);
+    url.searchParams.delete("chat");
+    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    setTimeout(function () {
+      document.getElementById("chat-input")?.focus();
+    }, 80);
   }
 });
 

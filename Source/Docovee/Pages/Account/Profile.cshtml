@@ -2,7 +2,9 @@
 @model Docovee.Pages.Account.ProfileModel
 @{
     Layout = null;
-    ViewData["Title"] = $"My Profile — {Branding.SiteName}";
+    ViewData["Title"] = $"Settings — {Branding.SiteName}";
+    ViewData["PatientDisplayName"] = Model.Profile?.FullName;
+    ViewData["PatientNotifyCount"] = Model.UpcomingAppointments.Count;
     var section = Model.Section;
     var edit = Model.EditField;
 }
@@ -15,13 +17,18 @@
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body class="pat-body">
+<nav class="pac-topbar">
+    <div class="nav-left">
+        <partial name="Shared/_SiteLogo" />
+    </div>
+    <div class="nav-right">
+        <partial name="Shared/_PatientAccountMenu" />
+    </div>
+</nav>
+
 <div class="pat-shell">
-    <aside class="pat-sidebar" aria-label="Account menu">
-        <a class="pat-logo" href="/">
-            <span class="pat-logo-mark">@(Branding.SiteName.Length > 0 ? Branding.SiteName[0].ToString().ToUpperInvariant() : "N")</span>
-            <span>@Branding.SiteName</span>
-        </a>
-        <div class="pat-nav" role="navigation" aria-label="Profile sections">
+    <aside class="pat-sidebar" aria-label="Settings menu">
+        <div class="pat-nav" role="navigation" aria-label="Settings sections">
             <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal information</a>
             <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
             <a class="pat-nav-item @(section == "notifications" ? "active" : "")" href="/Account/Profile?section=notifications">
@@ -31,12 +38,6 @@
                     <span class="pat-nav-badge">@Model.UpcomingAppointments.Count</span>
                 }
             </a>
-            <a class="pat-nav-item @(section == "history" ? "active" : "")" href="/Account/Profile?section=history">Appointment history</a>
-        </div>
-
-        <div class="pat-sidebar-foot">
-            <a href="/">Find a doctor</a>
-            <a href="/Account/Logout">Sign out</a>
         </div>
     </aside>
 
@@ -48,14 +49,6 @@
         @if (Model.PasswordChanged)
         {
             <div class="alert-success">Your password has been changed.</div>
-        }
-        @if (Model.ReviewSubmitted)
-        {
-            <div class="alert-success">Thank you — your review has been submitted.</div>
-        }
-        @if (!string.IsNullOrEmpty(Model.ReviewError))
-        {
-            <div class="alert-error">@Model.ReviewError</div>
         }
         @if (!string.IsNullOrEmpty(Model.FormError))
         {
@@ -246,7 +239,7 @@
                     <div class="pi-row">
                         <div class="pi-row-body">
                             <div class="pi-value">No upcoming appointments.</div>
-                            <p class="pi-hint"><a class="pi-link" href="/">Find a doctor</a> to book a visit.</p>
+                            <p class="pi-hint"><a class="pi-link" href="/?chat=1">Find a doctor</a> to book a visit.</p>
                         </div>
                     </div>
                 </div>
@@ -264,142 +257,6 @@
                                 <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
                             </div>
                             <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
-                        </div>
-                    }
-                </div>
-            }
-        }
-        else if (section == "history")
-        {
-            <div class="pat-panel-head">
-                <h1>Appointment history</h1>
-                <p>Past visits — leave a review after your doctor confirms the appointment and @Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") have passed.</p>
-            </div>
-
-            @if (Model.PastAppointments.Count == 0)
-            {
-                <div class="pi-list">
-                    <div class="pi-row">
-                        <div class="pi-row-body">
-                            <div class="pi-value">No past appointments yet.</div>
-                        </div>
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="pi-list">
-                    @foreach (var a in Model.PastAppointments)
-                    {
-                        <div class="pi-row pi-row-stack">
-                            <div class="pi-row-top">
-                                <div class="pi-row-body">
-                                    <div class="pi-label">@a.StartsAt.ToString("MMM d, yyyy") · @a.StartsAt.ToString("h:mm tt")</div>
-                                    <div class="pi-value">@a.DoctorName</div>
-                                    <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
-                                    <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
-                                </div>
-                                <a class="pi-action" href="/doctors/@a.DoctorId">Profile</a>
-                            </div>
-
-                            @if (!Docovee.DS.Entities.AppointmentStatuses.IsCanceled(a.Status))
-                            {
-                                if (a.HasReview)
-                                {
-                                    <div class="patient-review-submitted">
-                                        <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", a.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (a.ReviewRating ?? 0)))</div>
-                                        <p>@a.ReviewText</p>
-                                        <div class="patient-review-meta-row">
-                                            @if (!string.IsNullOrWhiteSpace(a.ReviewWaitingTime))
-                                            {
-                                                <span><strong>Waiting time:</strong> @a.ReviewWaitingTime</span>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(a.ReviewRecommendation))
-                                            {
-                                                <span><strong>Recommendation:</strong> @a.ReviewRecommendation</span>
-                                            }
-                                        </div>
-                                        <div class="profile-list-meta">Submitted @a.ReviewedAt?.ToString("MMM d, yyyy")</div>
-                                    </div>
-                                }
-                                else if (a.CanLeaveReview)
-                                {
-                                    <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
-                                        <input type="hidden" name="doctorId" value="@a.DoctorId" />
-                                        <label class="review-label">Review @a.DoctorName</label>
-                                        <div class="review-rating-row">
-                                            @for (var star = 1; star <= 5; star++)
-                                            {
-                                                <label class="review-star-label">
-                                                    <input type="radio" name="rating" value="@star" required @(star == 5 ? "checked" : null) />
-                                                    <span>@star</span>
-                                                </label>
-                                            }
-                                        </div>
-
-                                        <label class="review-label">Waiting time</label>
-                                        <div class="review-choice-row">
-                                            @foreach (var option in new[] { "Excellent", "Good", "Average", "Bad" })
-                                            {
-                                                <label class="review-choice-label">
-                                                    <input type="radio" name="waitingTime" value="@option" required @(option == "Good" ? "checked" : null) />
-                                                    <span>@option</span>
-                                                </label>
-                                            }
-                                        </div>
-
-                                        <label class="review-label">How would you recommend this doctor?</label>
-                                        <div class="review-choice-row">
-                                            @foreach (var option in new[] { "Highly Recommended", "Neutral", "Not Recommended" })
-                                            {
-                                                <label class="review-choice-label">
-                                                    <input type="radio" name="recommendation" value="@option" required @(option == "Highly Recommended" ? "checked" : null) />
-                                                    <span>@option</span>
-                                                </label>
-                                            }
-                                        </div>
-
-                                        <label class="review-label" for="review-@a.Id">Your review</label>
-                                        <textarea id="review-@a.Id" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
-                                        <button type="submit" class="btn-primary btn-sm">Submit review</button>
-                                    </form>
-                                }
-                                else if (Docovee.DS.Entities.AppointmentStatuses.IsConfirmedWithDoctor(a.Status)
-                                         && a.ReviewAvailableOn is DateOnly availableOn
-                                         && availableOn > DateOnly.FromDateTime(DateTime.Today))
-                                {
-                                    <p class="pi-hint" style="margin:0;">
-                                        Review available on @availableOn.ToString("MMM d, yyyy") (@Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") after your confirmed visit).
-                                    </p>
-                                }
-                            }
-                        </div>
-                    }
-                </div>
-            }
-
-            @if (Model.Profile!.ViewedDoctors.Any(d => !d.HasReview && Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
-            {
-                <div class="pat-panel-head" style="margin-top:32px;">
-                    <h1 style="font-size:22px;">Doctors you’ve contacted</h1>
-                    <p>Doctors from Nuvi chat that aren’t in your appointment history yet.</p>
-                </div>
-                <div class="pi-list">
-                    @foreach (var doctor in Model.Profile.ViewedDoctors.Where(d => Model.PastAppointments.All(a => a.DoctorId != d.DoctorId)))
-                    {
-                        <div class="pi-row">
-                            <div class="pi-row-body">
-                                <div class="pi-value">@doctor.Name</div>
-                                <p class="pi-hint">@doctor.Specialty · @doctor.Location</p>
-                                @if (doctor.HasReview)
-                                {
-                                    <div class="patient-review-submitted" style="margin-top:10px;">
-                                        <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", doctor.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (doctor.ReviewRating ?? 0)))</div>
-                                        <p>@doctor.ReviewText</p>
-                                    </div>
-                                }
-                            </div>
-                            <a class="pi-action" href="/doctors/@doctor.DoctorId">View</a>
                         </div>
                     }
                 </div>

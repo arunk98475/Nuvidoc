@@ -1,0 +1,84 @@
+@*
+  Zocdoc-style patient account controls: notifications + name dropdown.
+  Expects ViewData:
+    PatientDisplayName (string) — full name
+    PatientNotifyCount (int, optional) — upcoming appointment count
+*@
+@{
+    var fullName = (ViewData["PatientDisplayName"] as string)?.Trim();
+    if (string.IsNullOrWhiteSpace(fullName))
+        fullName = User.Identity?.Name ?? "Account";
+    var firstName = fullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? fullName;
+    var notifyCount = ViewData["PatientNotifyCount"] as int? ?? 0;
+    var siteName = Branding.SiteName;
+}
+<div class="pac-nav" id="patient-account-nav">
+    <a class="pac-notify" href="/Account/Profile?section=notifications" aria-label="Notifications">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="pac-notify-count">@notifyCount</span>
+    </a>
+
+    <div class="pac-dropdown" id="pac-dropdown">
+        <button type="button" class="pac-user-btn" id="pac-user-btn" aria-expanded="false" aria-haspopup="true">
+            <span>@firstName</span>
+            <svg class="pac-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="pac-menu" id="pac-menu" role="menu" hidden>
+            <a class="pac-menu-item" role="menuitem" href="/?chat=1">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>My @siteName</span>
+            </a>
+            <a class="pac-menu-item" role="menuitem" href="/?chat=1">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+                <span>Well Guide</span>
+            </a>
+            <a class="pac-menu-item" role="menuitem" href="/Account/Appointments">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <span>Appointment history</span>
+            </a>
+            <div class="pac-menu-divider"></div>
+            <a class="pac-menu-item" role="menuitem" href="/Account/Profile">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <span>Settings</span>
+            </a>
+            <a class="pac-menu-item" role="menuitem" href="/Account/Logout">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                <span>Sign out</span>
+            </a>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("pac-dropdown");
+  var btn = document.getElementById("pac-user-btn");
+  var menu = document.getElementById("pac-menu");
+  if (!root || !btn || !menu) return;
+
+  function closeMenu() {
+    menu.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    root.classList.remove("is-open");
+  }
+  function openMenu() {
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    root.classList.add("is-open");
+  }
+
+  btn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (menu.hidden) openMenu();
+    else closeMenu();
+  });
+  document.addEventListener("click", function (e) {
+    if (!root.contains(e.target)) closeMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeMenu();
+  });
+})();
+</script>

@@ -98,6 +98,6 @@ public class ExternalLoginModel : PageModel
     {
         if (!string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl))
             return returnUrl;
-        return "/Account/Profile";
+        return "/";
     }
 }

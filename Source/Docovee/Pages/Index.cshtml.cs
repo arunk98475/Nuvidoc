@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Services;
+using Docovee.DS.Entities;
 using Docovee.DS.Models;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace Docovee.Pages
@@ -11,14 +11,20 @@ namespace Docovee.Pages
     {
         private readonly IProfileService _profileService;
         private readonly IPublicDoctorService _publicDoctorService;
+        private readonly IAppointmentService _appointments;
 
-        public IndexModel(IProfileService profileService, IPublicDoctorService publicDoctorService)
+        public IndexModel(
+            IProfileService profileService,
+            IPublicDoctorService publicDoctorService,
+            IAppointmentService appointments)
         {
             _profileService = profileService;
             _publicDoctorService = publicDoctorService;
+            _appointments = appointments;
         }
 
         public string? PatientFullName { get; private set; }
+        public int PatientNotifyCount { get; private set; }
         public IReadOnlyList<FeaturedDoctorCardDto> FeaturedDoctors { get; private set; } = Array.Empty<FeaturedDoctorCardDto>();
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -34,6 +40,14 @@ namespace Docovee.Pages
 
             var profile = await _profileService.GetPatientProfileAsync(patientId, cancellationToken);
             PatientFullName = profile?.FullName;
+
+            var all = await _appointments.GetForPatientAsync(patientId, cancellationToken);
+            var startOfToday = DateTime.Today;
+            PatientNotifyCount = all.Count(a =>
+                a.StartsAt >= startOfToday
+                && !AppointmentStatuses.IsCanceled(a.Status)
+                && a.Status != AppointmentStatuses.Completed
+                && AppointmentStatuses.Normalize(a.Status) != AppointmentStatuses.PatientNoShow);
         }
     }
 }
