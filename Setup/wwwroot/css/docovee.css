@@ -2530,12 +2530,13 @@ footer.site-footer {
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 8px;
-  padding: 10px 12px !important;
-  border-radius: 8px;
+  padding: 12px 14px 12px 16px !important;
+  border-radius: 0;
+  border-left: 3px solid transparent;
   font-size: 15px !important;
   font-weight: 500;
   line-height: 1.35;
-  color: var(--ink) !important;
+  color: #222 !important;
   text-decoration: none !important;
   text-align: left !important;
   width: 100% !important;
@@ -2545,14 +2546,15 @@ footer.site-footer {
 
 .pat-sidebar .pat-nav-item:hover,
 .pat-nav-item:hover {
-  background: #efefef;
+  background: #f0f0f0;
 }
 
 .pat-sidebar .pat-nav-item.active,
 .pat-nav-item.active {
-  background: #ececec;
-  color: var(--ink) !important;
-  font-weight: 600;
+  background: transparent;
+  border-left-color: #222;
+  color: #111 !important;
+  font-weight: 700;
 }
 
 .pat-nav-badge {
@@ -2598,20 +2600,194 @@ footer.site-footer {
 }
 
 .pat-panel-head {
-  margin-bottom: 18px;
+  margin-bottom: 8px;
 }
 
 .pat-panel-head h1 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0 0 6px;
+  color: #111;
 }
 
 .pat-panel-head p {
-  margin: 0;
-  color: var(--muted);
+  margin: 0 0 8px;
+  color: #666;
   font-size: 14px;
+}
+
+/* Zocdoc-style personal info list (no cards) */
+.pi-list {
+  border-top: 1px solid #e5e5e5;
+  background: transparent;
+}
+
+.pi-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.pi-row-stack {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pi-row-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+}
+
+.pi-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pi-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 6px;
+}
+
+.pi-value {
+  font-size: 15px;
+  font-weight: 400;
+  color: #222;
+  line-height: 1.4;
+}
+
+.pi-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #6b6b6b;
+}
+
+.pi-link {
+  color: #1a73e8;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.pi-link:hover {
+  text-decoration: underline;
+}
+
+.pi-action {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a73e8;
+  text-decoration: none;
+  padding-top: 2px;
+}
+
+.pi-action:hover {
+  text-decoration: underline;
+  color: #1557b0;
+}
+
+.pi-action-muted {
+  color: #aaa;
+  cursor: default;
+  pointer-events: none;
+}
+
+.pi-edit-form {
+  margin-top: 4px;
+  max-width: 420px;
+}
+
+.pi-sublabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  margin: 10px 0 6px;
+}
+
+.pi-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cfcfcf;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: #111;
+  background: #fff;
+}
+
+.pi-input:focus {
+  outline: 2px solid #f5c518;
+  border-color: #f5c518;
+}
+
+.pi-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.pi-save {
+  border: none;
+  border-radius: 6px;
+  background: #f5c518;
+  color: #111;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.pi-save:hover {
+  background: #e6b800;
+}
+
+.pi-cancel {
+  font-size: 14px;
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.pi-cancel:hover {
+  text-decoration: underline;
+}
+
+.pi-inline-form {
+  margin-top: 10px;
+}
+
+.pi-link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a73e8;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.pi-link-btn:hover {
+  text-decoration: underline;
+}
+
+.pi-link-btn:disabled {
+  color: #aaa;
+  cursor: not-allowed;
+  text-decoration: none;
 }
 
 .pat-card-title {
@@ -4050,4 +4226,817 @@ footer.site-footer {
   .pp-tabs {
     overflow-x: auto;
   }
+}
+
+/* —— Doctor login (Zocdoc-style two-step) —— */
+.dl-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f3f3;
+  font-family: Inter, system-ui, sans-serif;
+  margin: 0;
+}
+
+.dl-page {
+  width: 100%;
+  padding: 24px 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.dl-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  padding: 36px 36px 40px;
+}
+
+.dl-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.dl-mark {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.dl-brand-name {
+  font-size: 26px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.02em;
+}
+
+.dl-title {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #222;
+}
+
+.dl-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdeceb;
+  color: #9b1c1c;
+  font-size: 13px;
+}
+
+.dl-step[hidden] {
+  display: none !important;
+}
+
+.dl-field {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.dl-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #222;
+  border-radius: 6px;
+  padding: 16px 14px 10px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #111;
+  background: #fff;
+  outline: none;
+}
+
+.dl-input:focus {
+  border-color: #111;
+  box-shadow: 0 0 0 1px #111;
+}
+
+.dl-float-label {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  transform: translateY(-50%);
+  padding: 0 4px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #444;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.dl-field-password .dl-input {
+  padding-right: 44px;
+}
+
+/* Hide browser built-in password reveal (Edge/IE) so only our icon shows */
+.dl-field-password .dl-input::-ms-reveal,
+.dl-field-password .dl-input::-ms-clear {
+  display: none;
+}
+
+.dl-eye {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dl-eye:hover {
+  color: #111;
+}
+
+.dl-eye svg[hidden] {
+  display: none !important;
+}
+
+.dl-btn {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #111;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.dl-btn:hover {
+  background: #e6b800;
+}
+
+.dl-email-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 14px 14px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: #222;
+  word-break: break-all;
+}
+
+.dl-edit {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 15px;
+  color: #111;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dl-edit:hover {
+  color: #444;
+}
+
+.dl-forgot {
+  display: block;
+  margin-top: 18px;
+  text-align: center;
+  font-size: 15px;
+  color: #111;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dl-forgot:hover {
+  color: #444;
+}
+
+.dl-forgot-note {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+}
+
+@media (max-width: 480px) {
+  .dl-card {
+    padding: 28px 20px 32px;
+  }
+
+  .dl-title {
+    font-size: 22px;
+  }
+
+  .dl-brand-name {
+    font-size: 22px;
+  }
+}
+
+/* —— Patient account top bar (Zocdoc-style) —— */
+.pac-topbar {
+  background: #fff;
+  border-bottom: 1px solid #e5e5e5;
+  padding: 0 28px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  gap: 16px;
+}
+
+.pac-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pac-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  text-decoration: none;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.pac-notify:hover {
+  background: #f7f7f7;
+  color: #111;
+  text-decoration: none;
+}
+
+.pac-notify-count {
+  min-width: 1ch;
+}
+
+.pac-dropdown {
+  position: relative;
+}
+
+.pac-user-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.pac-user-btn:hover,
+.pac-dropdown.is-open .pac-user-btn {
+  background: #f7f7f7;
+}
+
+.pac-chevron {
+  opacity: 0.7;
+}
+
+.pac-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  padding: 8px;
+  z-index: 200;
+}
+
+.pac-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 8px;
+  color: #222;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pac-menu-item:hover {
+  background: #f3f3f3;
+  color: #111;
+  text-decoration: none;
+}
+
+.pac-menu-item svg {
+  flex-shrink: 0;
+  color: #444;
+}
+
+.pac-menu-divider {
+  height: 1px;
+  background: #ececec;
+  margin: 6px 4px;
+}
+
+.pat-main-solo {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 28px 24px 48px;
+}
+
+.pat-body .pat-shell {
+  min-height: calc(100vh - 64px);
+}
+
+@media (max-width: 720px) {
+  .pac-topbar {
+    padding: 0 16px;
+  }
+
+  .pat-body .pat-shell {
+    flex-direction: column;
+  }
+
+  .pat-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e5e5e5;
+  }
+}
+
+/* Patient profile — Insurance & ID Cards (Zocdoc-style) */
+.ins-form {
+  max-width: 920px;
+}
+
+.ins-section {
+  margin-bottom: 40px;
+}
+
+.ins-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 16px;
+}
+
+.ins-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ins-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.ins-table th,
+.ins-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid #eee;
+}
+
+.ins-table th {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #666;
+  background: #fafafa;
+}
+
+.ins-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ins-type {
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  width: 100px;
+}
+
+.ins-carrier-plan,
+.ins-secondary-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ins-select,
+.ins-input {
+  width: 100%;
+  min-width: 140px;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.ins-select:focus,
+.ins-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.ins-photo-cell {
+  white-space: nowrap;
+}
+
+.ins-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  color: #555;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.ins-photo-btn:hover {
+  border-color: #999;
+  color: #1a1a1a;
+}
+
+.ins-photo-input {
+  display: none;
+}
+
+.ins-photo-link {
+  margin-left: 8px;
+  font-size: 0.875rem;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.ins-photo-link:hover {
+  text-decoration: underline;
+}
+
+.ins-photo-na {
+  color: #999;
+  font-size: 0.875rem;
+}
+
+.ins-save {
+  margin-top: 20px;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #1a1a1a;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ins-save:hover {
+  background: #e6b800;
+}
+
+.ins-id-section {
+  padding-top: 8px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.ins-id-copy {
+  margin: 0 0 16px;
+  max-width: 640px;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #555;
+}
+
+.ins-id-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ins-id-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #2563eb;
+  cursor: pointer;
+  background: #fff;
+}
+
+.ins-id-upload-btn:hover {
+  border-color: #2563eb;
+  background: #f8fbff;
+}
+
+@media (max-width: 768px) {
+  .ins-table {
+    min-width: 560px;
+  }
+}
+
+/* Patient profile — Privacy choices */
+.prv-content {
+  max-width: 720px;
+  color: #333;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.prv-content > p {
+  margin: 0 0 16px;
+}
+
+.prv-link {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.prv-link:hover {
+  text-decoration: underline;
+}
+
+.prv-accordion-list {
+  margin-top: 28px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.prv-accordion {
+  border-top: 1px solid #e5e5e5;
+}
+
+.prv-accordion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 4px 18px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.prv-accordion-head::-webkit-details-marker {
+  display: none;
+}
+
+.prv-accordion-head::after {
+  content: "+";
+  flex-shrink: 0;
+  font-size: 1.375rem;
+  font-weight: 400;
+  line-height: 1;
+  color: #1a1a1a;
+}
+
+.prv-accordion[open] > .prv-accordion-head::after {
+  content: "−";
+}
+
+.prv-accordion-body {
+  padding: 0 0 22px;
+  color: #333;
+}
+
+.prv-accordion-body-muted {
+  color: #555;
+}
+
+.prv-accordion-body p {
+  margin: 0 0 14px;
+}
+
+.prv-block {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.prv-block-muted {
+  color: #555;
+}
+
+.prv-block-title {
+  margin: 0 0 14px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.prv-block p {
+  margin: 0 0 14px;
+}
+
+.prv-form {
+  margin-top: 18px;
+}
+
+.prv-fieldset {
+  border: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.prv-question {
+  display: block;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.prv-radio,
+.prv-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+
+.prv-radio input,
+.prv-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+}
+
+.prv-save {
+  display: inline-block;
+  padding: 11px 24px;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.prv-save:hover {
+  background: #e6b800;
+}
+
+.prv-fine-print {
+  margin: 12px 0 0;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.prv-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.prv-cancel {
+  font-size: 0.9375rem;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.prv-cancel:hover {
+  text-decoration: underline;
+}
+
+.prv-inline-form {
+  margin-top: 8px;
+}
+
+.prv-outline-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.prv-outline-btn:hover {
+  border-color: #999;
+  background: #fafafa;
+}
+
+.prv-outline-danger {
+  color: #b42318;
+  border-color: #f5c2c0;
+}
+
+.prv-outline-danger:hover {
+  background: #fff5f5;
+  border-color: #b42318;
+}
+
+/* Patient profile — Permissions */
+.perm-form {
+  max-width: 560px;
+}
+
+.perm-block {
+  margin-bottom: 24px;
+}
+
+.perm-block-title {
+  margin: 0 0 14px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.perm-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #333;
+}
+
+.perm-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  accent-color: #2563eb;
+  flex-shrink: 0;
+}
+
+.perm-download {
+  margin: 0 0 24px;
+}
+
+.perm-download-link {
+  font-size: 0.9375rem;
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.perm-download-link:hover {
+  color: #1d4ed8;
+}
+
+.perm-save {
+  display: inline-block;
+  padding: 11px 28px;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.perm-save:hover {
+  background: #e6b800;
 }
