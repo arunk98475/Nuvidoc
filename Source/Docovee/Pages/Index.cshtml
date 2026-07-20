@@ -20,24 +20,27 @@
 <nav>
     <div class="nav-left">
         <partial name="Shared/_SiteLogo" />
-        <div class="nav-links">
-            <a class="nav-link" href="#" onclick="scrollToChat(); return false;">Find a Dentist</a>
-            <div class="nav-dropdown">
-                <a class="nav-link" href="#">Dental care</a>
-                <div class="nav-dropdown-menu">
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); return false;">🦷 General Dentist</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an orthodontist'); return false;">😁 Orthodontist</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an oral surgeon'); return false;">🦴 Oral Surgeon</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a periodontist'); return false;">🦷 Periodontist</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want dental implants'); return false;">✨ Dental Implants</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want teeth whitening'); return false;">💎 Whitening</a>
-                    <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I am interested in Invisalign'); return false;">🦷 Invisalign</a>
-                    <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); return false;">🌿 Tell Nuvi what you need →</a>
+        @if (!(User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)))
+        {
+            <div class="nav-links">
+                <a class="nav-link" href="#" onclick="scrollToChat(); return false;">Find a Dentist</a>
+                <div class="nav-dropdown">
+                    <a class="nav-link" href="#">Dental care</a>
+                    <div class="nav-dropdown-menu">
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); return false;">🦷 General Dentist</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an orthodontist'); return false;">😁 Orthodontist</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an oral surgeon'); return false;">🦴 Oral Surgeon</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a periodontist'); return false;">🦷 Periodontist</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want dental implants'); return false;">✨ Dental Implants</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want teeth whitening'); return false;">💎 Whitening</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I am interested in Invisalign'); return false;">🦷 Invisalign</a>
+                        <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); return false;">🌿 Tell Nuvi what you need →</a>
+                    </div>
                 </div>
+                <a class="nav-link" href="#how-it-works">How It Works</a>
+                <a class="nav-link" href="#testimonials">Reviews</a>
             </div>
-            <a class="nav-link" href="#how-it-works">How It Works</a>
-            <a class="nav-link" href="#testimonials">Reviews</a>
-        </div>
+        }
     </div>
     <div class="nav-right" id="nav-right" @(User.Identity?.IsAuthenticated == true ? "data-authenticated=\"true\"" : "")>
         @if (User.Identity?.IsAuthenticated == true)
@@ -149,7 +152,23 @@
     </div>
 </div>
 
-<partial name="Shared/_HomeMarketing" model="Model.FeaturedDoctors" />
+@if (!(User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)))
+{
+    <partial name="Shared/_HomeMarketing" model="Model.FeaturedDoctors" />
+
+    <footer class="site-footer site-footer-rich">
+        <div class="site-footer-inner">
+            <div class="site-footer-brand">@Branding.SiteName.ToLowerInvariant().</div>
+            <div class="site-footer-links">
+                <a href="#">Terms of Use</a>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Community Standards</a>
+                <a href="#">Accessibility</a>
+            </div>
+            <div class="site-footer-copy">© @DateTime.UtcNow.Year @Branding.SiteName · Not medical advice · For emergencies call 911</div>
+        </div>
+    </footer>
+}
 
 <div id="doctor-profile-modal" class="hp-doctor-modal" hidden aria-hidden="true">
     <div class="hp-doctor-modal-backdrop" onclick="closeDoctorProfileModal()"></div>
@@ -158,19 +177,6 @@
         <div id="doctor-profile-modal-body" class="hp-doctor-modal-body"></div>
     </div>
 </div>
-
-<footer class="site-footer site-footer-rich">
-    <div class="site-footer-inner">
-        <div class="site-footer-brand">@Branding.SiteName.ToLowerInvariant().</div>
-        <div class="site-footer-links">
-            <a href="#">Terms of Use</a>
-            <a href="#">Privacy Policy</a>
-            <a href="#">Community Standards</a>
-            <a href="#">Accessibility</a>
-        </div>
-        <div class="site-footer-copy">© @DateTime.UtcNow.Year @Branding.SiteName · Not medical advice · For emergencies call 911</div>
-    </div>
-</footer>
 
 <script>
   window.nuvidocBranding = {
