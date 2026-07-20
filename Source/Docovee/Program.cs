@@ -7,10 +7,19 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Http;
 
-var builder = WebApplication.CreateBuilder(args);
+var contentRoot = Directory.GetCurrentDirectory();
+var webRoot = Path.Combine(contentRoot, "wwwroot");
+Directory.CreateDirectory(webRoot);
 
-var uploadsPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "doctors");
-var patientUploadsPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "patients");
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = contentRoot,
+    WebRootPath = webRoot
+});
+
+var uploadsPath = Path.Combine(webRoot, "uploads", "doctors");
+var patientUploadsPath = Path.Combine(webRoot, "uploads", "patients");
 Directory.CreateDirectory(uploadsPath);
 Directory.CreateDirectory(patientUploadsPath);
 builder.Services.Configure<UploadOptions>(options =>

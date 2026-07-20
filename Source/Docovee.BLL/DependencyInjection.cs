@@ -19,7 +19,7 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException(
                 "Connection string 'DefaultConnection' is missing or empty. " +
-                "Set it in appsettings.json or appsettings.Development.json on the server before starting the app.");
+                "Set it in appsettings.Production.json on the server before starting the app.");
 
         if (!connectionString.Contains("Connect Timeout", StringComparison.OrdinalIgnoreCase)
             && !connectionString.Contains("Connection Timeout", StringComparison.OrdinalIgnoreCase))
