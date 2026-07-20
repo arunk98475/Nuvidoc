@@ -322,6 +322,37 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `patient_insurance_coverages` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `InsuranceType` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `InsuranceCarrierId` int NULL,
+                `InsurancePlanId` int NULL,
+                `CustomCarrierName` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `CustomPlanName` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `MemberId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `CardPhotoUrl` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_patient_insurance_coverages_Patient_Type` (`PatientId`, `InsuranceType`),
+                KEY `IX_patient_insurance_coverages_InsuranceCarrierId` (`InsuranceCarrierId`),
+                KEY `IX_patient_insurance_coverages_InsurancePlanId` (`InsurancePlanId`),
+                CONSTRAINT `FK_patient_insurance_coverages_patients_PatientId`
+                    FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_patient_insurance_coverages_carriers_InsuranceCarrierId`
+                    FOREIGN KEY (`InsuranceCarrierId`) REFERENCES `insurance_carriers` (`Id`) ON DELETE SET NULL,
+                CONSTRAINT `FK_patient_insurance_coverages_plans_InsurancePlanId`
+                    FOREIGN KEY (`InsurancePlanId`) REFERENCES `insurance_plans` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
+        await EnsureColumnAsync(db, "patients", "IdCardPhotoUrl", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "HipaaDataSharingOptIn", "tinyint(1) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "CookieTrackingOptOut", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "AutofillEnabled", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+
         Log("Schema updates complete.");
     }
 

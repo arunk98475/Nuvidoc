@@ -28,6 +28,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
+    public DbSet<PatientInsuranceCoverage> PatientInsuranceCoverages => Set<PatientInsuranceCoverage>();
     public DbSet<AuditTrail> AuditTrails => Set<AuditTrail>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -127,7 +128,28 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.PasswordHash).HasMaxLength(500).IsRequired();
             entity.Property(e => e.FullName).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Phone).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.IdCardPhotoUrl).HasMaxLength(500);
+            entity.Property(e => e.HipaaDataSharingOptIn);
+            entity.Property(e => e.CookieTrackingOptOut).HasDefaultValue(false);
+            entity.Property(e => e.AutofillEnabled).HasDefaultValue(false);
             entity.HasIndex(e => e.Username).IsUnique();
+        });
+
+        modelBuilder.Entity<PatientInsuranceCoverage>(entity =>
+        {
+            entity.ToTable("patient_insurance_coverages");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.InsuranceType).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CustomCarrierName).HasMaxLength(200);
+            entity.Property(e => e.CustomPlanName).HasMaxLength(200);
+            entity.Property(e => e.MemberId).HasMaxLength(100);
+            entity.Property(e => e.CardPhotoUrl).HasMaxLength(500);
+            entity.HasIndex(e => new { e.PatientId, e.InsuranceType }).IsUnique();
+            entity.HasOne(e => e.Patient).WithMany(p => p.InsuranceCoverages).HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.InsuranceCarrier).WithMany().HasForeignKey(e => e.InsuranceCarrierId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.InsurancePlan).WithMany().HasForeignKey(e => e.InsurancePlanId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<SearchSession>(entity =>

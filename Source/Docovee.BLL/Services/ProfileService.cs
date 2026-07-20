@@ -6,6 +6,7 @@ using Docovee.logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Docovee.BLL.Services;
 
@@ -16,6 +17,12 @@ public interface IProfileService
     Task<PatientProfileEditModel?> GetPatientForEditAsync(int patientId, CancellationToken cancellationToken = default);
     Task<DoctorProfileEditModel?> GetDoctorForEditAsync(int doctorId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdatePatientProfileAsync(int patientId, PatientProfileEditModel model, CancellationToken cancellationToken = default);
+    Task<PatientPrivacySettingsDto?> GetPatientPrivacySettingsAsync(int patientId, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdatePatientHipaaOptInAsync(int patientId, bool optIn, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdatePatientCookieOptOutAsync(int patientId, bool optOut, CancellationToken cancellationToken = default);
+    Task<PatientPermissionsSettingsDto?> GetPatientPermissionsSettingsAsync(int patientId, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdatePatientAutofillAsync(int patientId, bool enabled, CancellationToken cancellationToken = default);
+    Task<string?> GetPatientSavedInformationJsonAsync(int patientId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(int doctorId, DoctorProfileEditModel model, IFormFile? photo, IFormFile? video = null, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(int doctorId, PracticeProfileInput model, IFormFile? logo, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<VisitReasonCategoryViewModel>> GetVisitReasonPreferencesAsync(int doctorId, CancellationToken cancellationToken = default);
@@ -196,6 +203,123 @@ public class ProfileService : IProfileService
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Patient updated profile {PatientId}", patientId);
         return (true, null);
+    }
+
+    public async Task<PatientPrivacySettingsDto?> GetPatientPrivacySettingsAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null) return null;
+
+        return new PatientPrivacySettingsDto
+        {
+            HipaaDataSharingOptIn = patient.HipaaDataSharingOptIn,
+            CookieTrackingOptOut = patient.CookieTrackingOptOut
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> UpdatePatientHipaaOptInAsync(
+        int patientId,
+        bool optIn,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null) return (false, "Patient not found.");
+
+        patient.HipaaDataSharingOptIn = optIn;
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Patient {PatientId} HIPAA data sharing opt-in: {OptIn}", patientId, optIn);
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> UpdatePatientCookieOptOutAsync(
+        int patientId,
+        bool optOut,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null) return (false, "Patient not found.");
+
+        patient.CookieTrackingOptOut = optOut;
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Patient {PatientId} cookie tracking opt-out: {OptOut}", patientId, optOut);
+        return (true, null);
+    }
+
+    public async Task<PatientPermissionsSettingsDto?> GetPatientPermissionsSettingsAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null) return null;
+
+        return new PatientPermissionsSettingsDto
+        {
+            AutofillEnabled = patient.AutofillEnabled
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> UpdatePatientAutofillAsync(
+        int patientId,
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null) return (false, "Patient not found.");
+
+        patient.AutofillEnabled = enabled;
+        await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Patient {PatientId} autofill enabled: {Enabled}", patientId, enabled);
+        return (true, null);
+    }
+
+    public async Task<string?> GetPatientSavedInformationJsonAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .Include(p => p.InsuranceCoverages)
+            .ThenInclude(c => c.InsuranceCarrier)
+            .Include(p => p.InsuranceCoverages)
+            .ThenInclude(c => c.InsurancePlan)
+            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+
+        if (patient == null) return null;
+
+        var payload = new
+        {
+            exportedAtUtc = DateTime.UtcNow,
+            profile = new
+            {
+                patient.FullName,
+                patient.Username,
+                dateOfBirth = patient.DateOfBirth.ToString("yyyy-MM-dd"),
+                patient.Phone,
+                memberSince = patient.CreatedAt
+            },
+            insurance = patient.InsuranceCoverages
+                .OrderBy(c => c.InsuranceType)
+                .Select(c => new
+                {
+                    c.InsuranceType,
+                    carrier = c.InsuranceCarrier?.Name ?? c.CustomCarrierName,
+                    plan = c.InsurancePlan?.Name ?? c.CustomPlanName,
+                    c.MemberId,
+                    hasCardPhoto = !string.IsNullOrEmpty(c.CardPhotoUrl)
+                }),
+            preferences = new
+            {
+                patient.AutofillEnabled,
+                patient.HipaaDataSharingOptIn,
+                patient.CookieTrackingOptOut,
+                hasIdCardPhoto = !string.IsNullOrEmpty(patient.IdCardPhotoUrl)
+            }
+        };
+
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true });
     }
 
     public async Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(

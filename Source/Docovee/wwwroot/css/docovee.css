@@ -4591,3 +4591,452 @@ footer.site-footer {
     border-bottom: 1px solid #e5e5e5;
   }
 }
+
+/* Patient profile — Insurance & ID Cards (Zocdoc-style) */
+.ins-form {
+  max-width: 920px;
+}
+
+.ins-section {
+  margin-bottom: 40px;
+}
+
+.ins-section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 16px;
+}
+
+.ins-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ins-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.ins-table th,
+.ins-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid #eee;
+}
+
+.ins-table th {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #666;
+  background: #fafafa;
+}
+
+.ins-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.ins-type {
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  width: 100px;
+}
+
+.ins-carrier-plan,
+.ins-secondary-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ins-select,
+.ins-input {
+  width: 100%;
+  min-width: 140px;
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.ins-select:focus,
+.ins-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.ins-photo-cell {
+  white-space: nowrap;
+}
+
+.ins-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  color: #555;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.ins-photo-btn:hover {
+  border-color: #999;
+  color: #1a1a1a;
+}
+
+.ins-photo-input {
+  display: none;
+}
+
+.ins-photo-link {
+  margin-left: 8px;
+  font-size: 0.875rem;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.ins-photo-link:hover {
+  text-decoration: underline;
+}
+
+.ins-photo-na {
+  color: #999;
+  font-size: 0.875rem;
+}
+
+.ins-save {
+  margin-top: 20px;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #1a1a1a;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ins-save:hover {
+  background: #e6b800;
+}
+
+.ins-id-section {
+  padding-top: 8px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.ins-id-copy {
+  margin: 0 0 16px;
+  max-width: 640px;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #555;
+}
+
+.ins-id-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ins-id-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #2563eb;
+  cursor: pointer;
+  background: #fff;
+}
+
+.ins-id-upload-btn:hover {
+  border-color: #2563eb;
+  background: #f8fbff;
+}
+
+@media (max-width: 768px) {
+  .ins-table {
+    min-width: 560px;
+  }
+}
+
+/* Patient profile — Privacy choices */
+.prv-content {
+  max-width: 720px;
+  color: #333;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.prv-content > p {
+  margin: 0 0 16px;
+}
+
+.prv-link {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.prv-link:hover {
+  text-decoration: underline;
+}
+
+.prv-accordion-list {
+  margin-top: 28px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.prv-accordion {
+  border-top: 1px solid #e5e5e5;
+}
+
+.prv-accordion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 4px 18px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.prv-accordion-head::-webkit-details-marker {
+  display: none;
+}
+
+.prv-accordion-head::after {
+  content: "+";
+  flex-shrink: 0;
+  font-size: 1.375rem;
+  font-weight: 400;
+  line-height: 1;
+  color: #1a1a1a;
+}
+
+.prv-accordion[open] > .prv-accordion-head::after {
+  content: "−";
+}
+
+.prv-accordion-body {
+  padding: 0 0 22px;
+  color: #333;
+}
+
+.prv-accordion-body-muted {
+  color: #555;
+}
+
+.prv-accordion-body p {
+  margin: 0 0 14px;
+}
+
+.prv-block {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid #e5e5e5;
+}
+
+.prv-block-muted {
+  color: #555;
+}
+
+.prv-block-title {
+  margin: 0 0 14px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.prv-block p {
+  margin: 0 0 14px;
+}
+
+.prv-form {
+  margin-top: 18px;
+}
+
+.prv-fieldset {
+  border: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.prv-question {
+  display: block;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.prv-radio,
+.prv-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+
+.prv-radio input,
+.prv-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+}
+
+.prv-save {
+  display: inline-block;
+  padding: 11px 24px;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.prv-save:hover {
+  background: #e6b800;
+}
+
+.prv-fine-print {
+  margin: 12px 0 0;
+  font-size: 0.8125rem;
+  color: #666;
+}
+
+.prv-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.prv-cancel {
+  font-size: 0.9375rem;
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.prv-cancel:hover {
+  text-decoration: underline;
+}
+
+.prv-inline-form {
+  margin-top: 8px;
+}
+
+.prv-outline-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.prv-outline-btn:hover {
+  border-color: #999;
+  background: #fafafa;
+}
+
+.prv-outline-danger {
+  color: #b42318;
+  border-color: #f5c2c0;
+}
+
+.prv-outline-danger:hover {
+  background: #fff5f5;
+  border-color: #b42318;
+}
+
+/* Patient profile — Permissions */
+.perm-form {
+  max-width: 560px;
+}
+
+.perm-block {
+  margin-bottom: 24px;
+}
+
+.perm-block-title {
+  margin: 0 0 14px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.perm-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #333;
+}
+
+.perm-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  accent-color: #2563eb;
+  flex-shrink: 0;
+}
+
+.perm-download {
+  margin: 0 0 24px;
+}
+
+.perm-download-link {
+  font-size: 0.9375rem;
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.perm-download-link:hover {
+  color: #1d4ed8;
+}
+
+.perm-save {
+  display: inline-block;
+  padding: 11px 28px;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #1a1a1a;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.perm-save:hover {
+  background: #e6b800;
+}

@@ -10,11 +10,15 @@ using Microsoft.AspNetCore.Http;
 var builder = WebApplication.CreateBuilder(args);
 
 var uploadsPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "doctors");
+var patientUploadsPath = Path.Combine(builder.Environment.WebRootPath, "uploads", "patients");
 Directory.CreateDirectory(uploadsPath);
+Directory.CreateDirectory(patientUploadsPath);
 builder.Services.Configure<UploadOptions>(options =>
 {
     options.DoctorsPhysicalPath = uploadsPath;
     options.DoctorsPublicPath = "/uploads/doctors";
+    options.PatientsPhysicalPath = patientUploadsPath;
+    options.PatientsPublicPath = "/uploads/patients";
 });
 
 builder.Services.AddAuthorization(options =>

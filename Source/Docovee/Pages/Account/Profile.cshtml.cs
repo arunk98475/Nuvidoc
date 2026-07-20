@@ -14,20 +14,32 @@ public class ProfileModel : PageModel
 {
     private readonly IProfileService _profileService;
     private readonly IAppointmentService _appointments;
+    private readonly IInsuranceService _insuranceService;
+    private readonly IPatientInsuranceProfileService _insuranceProfile;
 
     public ProfileModel(
         IProfileService profileService,
-        IAppointmentService appointments)
+        IAppointmentService appointments,
+        IInsuranceService insuranceService,
+        IPatientInsuranceProfileService insuranceProfile)
     {
         _profileService = profileService;
         _appointments = appointments;
+        _insuranceService = insuranceService;
+        _insuranceProfile = insuranceProfile;
     }
 
     public PatientProfileDto? Profile { get; set; }
+    public PatientInsuranceProfileDto InsuranceProfile { get; set; } = new();
+    public IReadOnlyList<InsuranceCarrierDto> InsuranceCatalog { get; set; } = Array.Empty<InsuranceCarrierDto>();
     public string Section { get; set; } = "personal";
     public string? EditField { get; set; }
     public bool Saved { get; set; }
     public bool PasswordChanged { get; set; }
+    public bool InsuranceSaved { get; set; }
+    public bool PrivacySaved { get; set; }
+    public bool PermissionsSaved { get; set; }
+    public PatientPrivacySettingsDto PrivacySettings { get; set; } = new();
     public string? FormError { get; set; }
     public string? FormSuccess { get; set; }
 
@@ -37,16 +49,31 @@ public class ProfileModel : PageModel
     public PatientProfileEditModel PersonalInput { get; set; } = new();
 
     [BindProperty]
+    public PatientInsuranceSaveModel InsuranceInput { get; set; } = new();
+
+    [BindProperty]
     public string? NewPassword { get; set; }
 
     [BindProperty]
     public string? ConfirmPassword { get; set; }
 
+    [BindProperty]
+    public bool? HipaaOptIn { get; set; }
+
+    [BindProperty]
+    public bool CookieTrackingOptOut { get; set; }
+
+    [BindProperty]
+    public bool AutofillEnabled { get; set; }
+
     public async Task<IActionResult> OnGetAsync(
         string? section = null,
         string? edit = null,
         bool saved = false,
-        bool passwordChanged = false)
+        bool passwordChanged = false,
+        bool insuranceSaved = false,
+        bool privacySaved = false,
+        bool permissionsSaved = false)
     {
         var normalized = NormalizeSection(section);
         if (normalized == "history")
@@ -56,6 +83,9 @@ public class ProfileModel : PageModel
         EditField = NormalizeEditField(edit);
         Saved = saved;
         PasswordChanged = passwordChanged;
+        InsuranceSaved = insuranceSaved;
+        PrivacySaved = privacySaved;
+        PermissionsSaved = permissionsSaved;
 
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
@@ -142,6 +172,133 @@ public class ProfileModel : PageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnPostSaveInsuranceAsync(
+        IFormFile? MedicalCardPhoto,
+        IFormFile? IdCardPhoto)
+    {
+        Section = "insurance";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var (success, error) = await _insuranceProfile.SaveAsync(
+            patientId,
+            InsuranceInput,
+            MedicalCardPhoto,
+            IdCardPhoto);
+
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "insurance", insuranceSaved = true });
+    }
+
+    public async Task<IActionResult> OnPostSaveHipaaAsync()
+    {
+        Section = "privacy";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        if (!HipaaOptIn.HasValue)
+        {
+            FormError = "Please select Yes or No.";
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        var (success, error) = await _profileService.UpdatePatientHipaaOptInAsync(patientId, HipaaOptIn.Value);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "privacy", privacySaved = true });
+    }
+
+    public async Task<IActionResult> OnPostSaveCookiesAsync()
+    {
+        Section = "privacy";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var (success, error) = await _profileService.UpdatePatientCookieOptOutAsync(patientId, CookieTrackingOptOut);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "privacy", privacySaved = true });
+    }
+
+    public async Task<IActionResult> OnPostSavePermissionsAsync()
+    {
+        Section = "permissions";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var (success, error) = await _profileService.UpdatePatientAutofillAsync(patientId, AutofillEnabled);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "permissions", permissionsSaved = true });
+    }
+
+    public async Task<IActionResult> OnGetDownloadSavedInformationAsync()
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var json = await _profileService.GetPatientSavedInformationJsonAsync(patientId);
+        if (json == null) return NotFound();
+
+        var fileName = $"nuvidoc-saved-information-{DateTime.UtcNow:yyyyMMdd}.json";
+        return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", fileName);
+    }
+
+    public async Task<IActionResult> OnPostRequestDataAccessAsync()
+    {
+        Section = "privacy";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        await LoadAsync(patientId);
+        FormSuccess = "Data access requests will be available once identity verification (SMS PIN) is connected. You can already view most of your information under Personal information, Insurance & ID Cards, and Appointment history.";
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostContactServiceAsync()
+    {
+        Section = "privacy";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        await LoadAsync(patientId);
+        FormSuccess = "Please contact support@nuvidoc.com for help updating your account information. Identity verification will be required before changes are made.";
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostDeleteAccountAsync()
+    {
+        Section = "privacy";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        await LoadAsync(patientId);
+        FormSuccess = "Account deletion requests will be available once identity verification (SMS PIN) is connected. Deletion is permanent and cannot be reversed.";
+        return Page();
+    }
+
     private async Task LoadAsync(int patientId)
     {
         Profile = await _profileService.GetPatientProfileAsync(patientId);
@@ -164,13 +321,58 @@ public class ProfileModel : PageModel
                         && AppointmentStatuses.Normalize(a.Status) != AppointmentStatuses.PatientNoShow)
             .OrderBy(a => a.StartsAt)
             .ToList();
+
+        InsuranceCatalog = await _insuranceService.GetCarriersWithPlansAsync();
+        InsuranceProfile = await _insuranceProfile.GetAsync(patientId);
+        InsuranceInput = MapInsuranceInput(InsuranceProfile);
+
+        var privacy = await _profileService.GetPatientPrivacySettingsAsync(patientId);
+        PrivacySettings = privacy ?? new PatientPrivacySettingsDto();
+        HipaaOptIn = PrivacySettings.HipaaDataSharingOptIn;
+        CookieTrackingOptOut = PrivacySettings.CookieTrackingOptOut;
+
+        var permissions = await _profileService.GetPatientPermissionsSettingsAsync(patientId);
+        AutofillEnabled = permissions?.AutofillEnabled ?? false;
     }
+
+    private static PatientInsuranceSaveModel MapInsuranceInput(PatientInsuranceProfileDto profile)
+    {
+        var byType = profile.Coverages.ToDictionary(c => c.Type, StringComparer.OrdinalIgnoreCase);
+        byType.TryGetValue(PatientInsuranceTypes.Medical, out var medical);
+        byType.TryGetValue(PatientInsuranceTypes.Dental, out var dental);
+        byType.TryGetValue(PatientInsuranceTypes.Vision, out var vision);
+        byType.TryGetValue(PatientInsuranceTypes.Secondary, out var secondary);
+
+        return new PatientInsuranceSaveModel
+        {
+            MedicalCarrierId = medical?.InsuranceCarrierId,
+            MedicalPlanId = medical?.InsurancePlanId,
+            MedicalMemberId = medical?.MemberId,
+            DentalCarrierId = dental?.InsuranceCarrierId,
+            DentalPlanId = dental?.InsurancePlanId,
+            DentalMemberId = dental?.MemberId,
+            VisionCarrierId = vision?.InsuranceCarrierId,
+            VisionPlanId = vision?.InsurancePlanId,
+            VisionMemberId = vision?.MemberId,
+            SecondaryCarrierName = secondary?.CustomCarrierName,
+            SecondaryPlanName = secondary?.CustomPlanName,
+            SecondaryMemberId = secondary?.MemberId
+        };
+    }
+
+    public PatientInsuranceRowDto? Coverage(string type) =>
+        InsuranceProfile.Coverages.FirstOrDefault(c =>
+            string.Equals(c.Type, type, StringComparison.OrdinalIgnoreCase));
 
     private static string NormalizeSection(string? section) =>
         (section ?? "personal").Trim().ToLowerInvariant() switch
         {
+            "family" or "family-members" => "family",
             "security" => "security",
             "notifications" or "notification" => "notifications",
+            "permissions" or "permission" => "permissions",
+            "insurance" or "insurance-id" or "insurance-id-cards" => "insurance",
+            "privacy" => "privacy",
             "history" or "appointments" => "history",
             _ => "personal"
         };

@@ -1,4 +1,6 @@
 @page
+@using System.Text.Json
+@using System.Text.Json.Serialization
 @model Docovee.Pages.Account.ProfileModel
 @{
     Layout = null;
@@ -7,6 +9,11 @@
     ViewData["PatientNotifyCount"] = Model.UpcomingAppointments.Count;
     var section = Model.Section;
     var edit = Model.EditField;
+    var medical = Model.Coverage(PatientInsuranceTypes.Medical);
+    var dental = Model.Coverage(PatientInsuranceTypes.Dental);
+    var vision = Model.Coverage(PatientInsuranceTypes.Vision);
+    var secondary = Model.Coverage(PatientInsuranceTypes.Secondary);
+    var site = Branding.SiteName;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -30,6 +37,7 @@
     <aside class="pat-sidebar" aria-label="Settings menu">
         <div class="pat-nav" role="navigation" aria-label="Settings sections">
             <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal information</a>
+            <a class="pat-nav-item @(section == "family" ? "active" : "")" href="/Account/Profile?section=family">Family members</a>
             <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
             <a class="pat-nav-item @(section == "notifications" ? "active" : "")" href="/Account/Profile?section=notifications">
                 <span>Notifications</span>
@@ -38,6 +46,9 @@
                     <span class="pat-nav-badge">@Model.UpcomingAppointments.Count</span>
                 }
             </a>
+            <a class="pat-nav-item @(section == "permissions" ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
+            <a class="pat-nav-item @(section == "insurance" ? "active" : "")" href="/Account/Profile?section=insurance">Insurance &amp; ID Cards</a>
+            <a class="pat-nav-item @(section == "privacy" ? "active" : "")" href="/Account/Profile?section=privacy">Privacy</a>
         </div>
     </aside>
 
@@ -49,6 +60,18 @@
         @if (Model.PasswordChanged)
         {
             <div class="alert-success">Your password has been changed.</div>
+        }
+        @if (Model.InsuranceSaved)
+        {
+            <div class="alert-success">Your insurance and ID information has been saved.</div>
+        }
+        @if (Model.PrivacySaved)
+        {
+            <div class="alert-success">Your privacy preferences have been saved.</div>
+        }
+        @if (Model.PermissionsSaved)
+        {
+            <div class="alert-success">Your permissions have been saved.</div>
         }
         @if (!string.IsNullOrEmpty(Model.FormError))
         {
@@ -165,6 +188,297 @@
                         <div class="pi-label">Member since</div>
                         <div class="pi-value">@Model.Profile!.MemberSince.ToString("MMMM d, yyyy")</div>
                     </div>
+                </div>
+            </div>
+        }
+        else if (section == "family")
+        {
+            <div class="pat-panel-head">
+                <h1>Family members</h1>
+                <p>Manage profiles for family members you book appointments for.</p>
+            </div>
+
+            <div class="pi-list">
+                <div class="pi-row">
+                    <div class="pi-row-body">
+                        <div class="pi-value">No family members on file.</div>
+                        <p class="pi-hint">Family member profiles will be available in a future update so you can book visits for dependents from one account.</p>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (section == "permissions")
+        {
+            <div class="pat-panel-head">
+                <h1>Permissions</h1>
+            </div>
+
+            <form method="post" asp-page-handler="SavePermissions" class="perm-form">
+                <section class="perm-block" aria-labelledby="perm-autofill-heading">
+                    <h2 id="perm-autofill-heading" class="perm-block-title">Autofill</h2>
+                    <label class="perm-checkbox">
+                        <input type="checkbox" asp-for="AutofillEnabled" />
+                        <span>Let @site use my saved information to autofill next time.</span>
+                    </label>
+                </section>
+
+                <p class="perm-download">
+                    <a class="perm-download-link" asp-page="/Account/Profile" asp-page-handler="DownloadSavedInformation">Download my saved information</a>
+                </p>
+
+                <button type="submit" class="perm-save">Save</button>
+            </form>
+        }
+        else if (section == "insurance")
+        {
+            <div class="pat-panel-head">
+                <h1>Insurance &amp; ID Cards</h1>
+            </div>
+
+            <form method="post" asp-page-handler="SaveInsurance" enctype="multipart/form-data" class="ins-form" id="ins-form">
+                <section class="ins-section" aria-labelledby="ins-table-heading">
+                    <h2 id="ins-table-heading" class="ins-section-title">Insurance</h2>
+
+                    <div class="ins-table-wrap">
+                        <table class="ins-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Carrier and Plan</th>
+                                    <th>Member ID</th>
+                                    <th>Photo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="ins-type">Medical</td>
+                                    <td>
+                                        <div class="ins-carrier-plan">
+                                            <select asp-for="InsuranceInput.MedicalCarrierId" class="ins-select ins-carrier-select" data-plan-target="MedicalPlanId">
+                                                <option value="">None selected</option>
+                                                @foreach (var carrier in Model.InsuranceCatalog)
+                                                {
+                                                    <option value="@carrier.Id">@carrier.Name</option>
+                                                }
+                                            </select>
+                                            <select asp-for="InsuranceInput.MedicalPlanId" id="MedicalPlanId" class="ins-select ins-plan-select" data-carrier-for="InsuranceInput_MedicalCarrierId">
+                                                <option value="">Plan (optional)</option>
+                                            </select>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input asp-for="InsuranceInput.MedicalMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
+                                    </td>
+                                    <td class="ins-photo-cell">
+                                        <label class="ins-photo-btn" title="Upload insurance card photo">
+                                            <input type="file" name="MedicalCardPhoto" accept="image/*" class="ins-photo-input" />
+                                            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.382l-.724-1.447A1 1 0 0 0 15 2H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10z"/></svg>
+                                        </label>
+                                        @if (!string.IsNullOrEmpty(medical?.CardPhotoUrl))
+                                        {
+                                            <a class="ins-photo-link" href="@medical.CardPhotoUrl" target="_blank" rel="noopener">View</a>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="ins-type">Dental</td>
+                                    <td>
+                                        <div class="ins-carrier-plan">
+                                            <select asp-for="InsuranceInput.DentalCarrierId" class="ins-select ins-carrier-select" data-plan-target="DentalPlanId">
+                                                <option value="">None selected</option>
+                                                @foreach (var carrier in Model.InsuranceCatalog)
+                                                {
+                                                    <option value="@carrier.Id">@carrier.Name</option>
+                                                }
+                                            </select>
+                                            <select asp-for="InsuranceInput.DentalPlanId" id="DentalPlanId" class="ins-select ins-plan-select" data-carrier-for="InsuranceInput_DentalCarrierId">
+                                                <option value="">Plan (optional)</option>
+                                            </select>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input asp-for="InsuranceInput.DentalMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
+                                    </td>
+                                    <td class="ins-photo-na">N/A</td>
+                                </tr>
+                                <tr>
+                                    <td class="ins-type">Vision</td>
+                                    <td>
+                                        <div class="ins-carrier-plan">
+                                            <select asp-for="InsuranceInput.VisionCarrierId" class="ins-select ins-carrier-select" data-plan-target="VisionPlanId">
+                                                <option value="">None selected</option>
+                                                @foreach (var carrier in Model.InsuranceCatalog)
+                                                {
+                                                    <option value="@carrier.Id">@carrier.Name</option>
+                                                }
+                                            </select>
+                                            <select asp-for="InsuranceInput.VisionPlanId" id="VisionPlanId" class="ins-select ins-plan-select" data-carrier-for="InsuranceInput_VisionCarrierId">
+                                                <option value="">Plan (optional)</option>
+                                            </select>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input asp-for="InsuranceInput.VisionMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
+                                    </td>
+                                    <td class="ins-photo-na">N/A</td>
+                                </tr>
+                                <tr>
+                                    <td class="ins-type">Secondary</td>
+                                    <td>
+                                        <div class="ins-secondary-fields">
+                                            <input asp-for="InsuranceInput.SecondaryCarrierName" class="ins-input" placeholder="Carrier" autocomplete="organization" />
+                                            <input asp-for="InsuranceInput.SecondaryPlanName" class="ins-input" placeholder="Plan (optional)" autocomplete="off" />
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <input asp-for="InsuranceInput.SecondaryMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
+                                    </td>
+                                    <td class="ins-photo-na">N/A</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <button type="submit" class="ins-save">Save</button>
+                </section>
+
+                <section class="ins-section ins-id-section" aria-labelledby="ins-id-heading">
+                    <h2 id="ins-id-heading" class="ins-section-title">
+                        @(string.IsNullOrEmpty(Model.InsuranceProfile.IdCardPhotoUrl) ? "No ID card on file" : "ID card on file")
+                    </h2>
+                    <p class="ins-id-copy">
+                        Sharing your ID with your provider on @Branding.SiteName saves you time when you arrive at the office.
+                        Practices often require ID cards to verify coverage. @Branding.SiteName never shares your ID without your permission.
+                    </p>
+                    <div class="ins-id-upload">
+                        <label class="ins-id-upload-btn">
+                            <input type="file" name="IdCardPhoto" accept="image/*" class="ins-photo-input" />
+                            @(string.IsNullOrEmpty(Model.InsuranceProfile.IdCardPhotoUrl) ? "Upload ID card" : "Replace ID card")
+                        </label>
+                        @if (!string.IsNullOrEmpty(Model.InsuranceProfile.IdCardPhotoUrl))
+                        {
+                            <a class="ins-photo-link" href="@Model.InsuranceProfile.IdCardPhotoUrl" target="_blank" rel="noopener">View current ID</a>
+                        }
+                    </div>
+                </section>
+            </form>
+
+            <script>
+                window.nuvidocInsuranceCatalog = @Html.Raw(JsonSerializer.Serialize(Model.InsuranceCatalog, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+                window.nuvidocInsuranceSelections = {
+                    MedicalPlanId: @(Model.InsuranceInput.MedicalPlanId?.ToString() ?? "null"),
+                    DentalPlanId: @(Model.InsuranceInput.DentalPlanId?.ToString() ?? "null"),
+                    VisionPlanId: @(Model.InsuranceInput.VisionPlanId?.ToString() ?? "null")
+                };
+            </script>
+            <script src="~/js/patient-insurance.js" asp-append-version="true"></script>
+        }
+        else if (section == "privacy")
+        {
+            <div class="pat-panel-head">
+                <h1>Your privacy choices</h1>
+            </div>
+
+            <div class="prv-content">
+                <p>@site does not sell your personal information. We are committed to respecting the privacy rights of all our users and work hard to protect the personal information and data entrusted to us.</p>
+                <p>@site is working to build the healthcare experience patients expect and deserve. To do this, we may collect certain personal information and other data to help improve and customize your experience using our website and apps. For example, we may collect your IP address to show you more relevant search results based on your location. Please note that because we only collect minimal information about users who visit @site but do not create an account, some of the rights below are expressly limited to @site account holders.</p>
+                <p>To learn more about how we approach privacy at @site, including the types of data we collect, see our <a class="prv-link" href="/Privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+
+                <div class="prv-accordion-list">
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Access to your healthcare data</summary>
+                        <div class="prv-accordion-body">
+                            <p>@site is about giving power to the patient — and we’re here to help you do just that. You can choose to give @site permission to get certain health records from affiliated healthcare providers by agreeing to @site’s <a class="prv-link" href="/Privacy#hipaa-and-phi" target="_blank" rel="noopener">HIPAA Authorization</a>.</p>
+                            <p>If you opt in, @site can collect, store, utilize, and display certain health information from your providers in your @site account. This can include information about past and upcoming appointments—even ones booked outside @site, health history information that you submit in connection with specific appointments, and in the future, much more.</p>
+                            <p>You can stop sharing at any time by returning to this page or navigating to Account &gt; Settings &gt; Privacy &gt; Access to your healthcare data. We’ll store and protect your information as described in our <a class="prv-link" href="/Privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+                            <form method="post" asp-page-handler="SaveHipaa" class="prv-form">
+                                <fieldset class="prv-fieldset">
+                                    <legend class="prv-question">Would you like @site to retrieve and display your healthcare data from connected healthcare providers in your @site account?</legend>
+                                    <label class="prv-radio">
+                                        <input type="radio" asp-for="HipaaOptIn" value="true" />
+                                        <span>Yes</span>
+                                    </label>
+                                    <label class="prv-radio">
+                                        <input type="radio" asp-for="HipaaOptIn" value="false" />
+                                        <span>No</span>
+                                    </label>
+                                </fieldset>
+                                <button type="submit" class="prv-save">Save</button>
+                                <p class="prv-fine-print">By opting in you agree to @site’s <a class="prv-link" href="/Privacy#hipaa-and-phi" target="_blank" rel="noopener">HIPAA Authorization</a>.</p>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Manage personal information sharing</summary>
+                        <div class="prv-accordion-body">
+                            <p>@site uses cookies and other tracking technologies to deliver, improve and market our services to users. See our <a class="prv-link" href="/Privacy" target="_blank" rel="noopener">privacy policy</a> to learn more about the information we collect and how we use it. If you choose to opt-out, @site will disable all unessential tracking technologies.</p>
+                            <form method="post" asp-page-handler="SaveCookies" class="prv-form">
+                                <label class="prv-checkbox">
+                                    <input type="checkbox" asp-for="CookieTrackingOptOut" />
+                                    <span>Opt out of non-essential cookies and tracking</span>
+                                </label>
+                                <div class="prv-form-actions">
+                                    <button type="submit" class="prv-save">Save</button>
+                                    <a class="prv-cancel" href="/Account/Profile?section=privacy">Cancel</a>
+                                </div>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Access your information</summary>
+                        <div class="prv-accordion-body">
+                            <p>If you have a @site account, you can access most of your personal information on @site while logged in to your account by viewing your profile, settings or appointment history.</p>
+                            <p>You can also submit a request to download a copy of your personal information stored on @site.</p>
+                            <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account. Once @site is able to verify your identity, you will be sent a link to download your data in a readable format via a secure transfer. This may take up to 45 days. We'll email you when your data is ready to be downloaded.</p>
+                            <form method="post" asp-page-handler="RequestDataAccess" class="prv-inline-form">
+                                <button type="submit" class="prv-outline-btn">Request access</button>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Make corrections to your information</summary>
+                        <div class="prv-accordion-body">
+                            <p>If you have a @site account, you may correct most of your personal information while logged in to your account by accessing the profile section on the settings page. If you need to change the name associated with your account or for help making any other changes, please contact our Service team.</p>
+                            <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account.</p>
+                            <form method="post" asp-page-handler="ContactService" class="prv-inline-form">
+                                <button type="submit" class="prv-outline-btn">Contact our service team</button>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Delete your information and account</summary>
+                        <div class="prv-accordion-body">
+                            <p>If you would like to remove all of your personal information from @site, you must submit a request for your account to be permanently deleted. Please note that deletion cannot be reversed. If you decide to create a new account with @site, your historical data, including appointment history, will not be available in the new account.</p>
+                            <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account.</p>
+                            <form method="post" asp-page-handler="DeleteAccount" class="prv-inline-form" onsubmit="return confirm('Are you sure you want to request permanent account deletion? This cannot be undone.');">
+                                <button type="submit" class="prv-outline-btn prv-outline-danger">Delete your account</button>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Withdraw consent to collection of your consumer health data</summary>
+                        <div class="prv-accordion-body">
+                            <p>Applicable state health data privacy laws permit residents of certain states to withdraw consent from future collection of their consumer health data. If you have a @site account and would like to withdraw your consent for @site to collect your consumer health data, you must submit a request for your @site account to be permanently deleted. Please note that this cannot be undone. If you decide to create a new account with @site, your historical data, including your appointment history, will not be available in the new account.</p>
+                            <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account.</p>
+                            <form method="post" asp-page-handler="DeleteAccount" class="prv-inline-form" onsubmit="return confirm('Are you sure you want to request permanent account deletion? This cannot be undone.');">
+                                <button type="submit" class="prv-outline-btn prv-outline-danger">Delete your account</button>
+                            </form>
+                        </div>
+                    </details>
+
+                    <details class="prv-accordion">
+                        <summary class="prv-accordion-head">Disclosures</summary>
+                        <div class="prv-accordion-body prv-accordion-body-muted">
+                            <p>Please note that any of your privacy choices described on this page and in our privacy policy may be subject to conditions, limitations, or exceptions as provided by applicable law. If we are not able to comply with a part or all of your deletion or correction request, we will do our best to provide an explanation to you.</p>
+                            <p>Additionally, @site may be unable to fulfill your request if we cannot verify your identity to the standard the law and applicable regulations require. If you have not created an account, @site does not retain any identifiable data about you and will not be able to verify your identity.</p>
+                            <p>Please ensure that your desktop, mobile device, and browser are updated to the most recent operating system or release. If your device is out of date, some functionality may not be available.</p>
+                        </div>
+                    </details>
                 </div>
             </div>
         }

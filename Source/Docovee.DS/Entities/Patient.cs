@@ -9,8 +9,13 @@ public class Patient
     public DateOnly DateOfBirth { get; set; }
     public string Phone { get; set; } = string.Empty;
     public string? PreferenceProfileJson { get; set; }
+    public string? IdCardPhotoUrl { get; set; }
+    public bool? HipaaDataSharingOptIn { get; set; }
+    public bool CookieTrackingOptOut { get; set; }
+    public bool AutofillEnabled { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<SearchSession> SearchSessions { get; set; } = new List<SearchSession>();
     public ICollection<PatientDoctorContactView> DoctorContactViews { get; set; } = new List<PatientDoctorContactView>();
+    public ICollection<PatientInsuranceCoverage> InsuranceCoverages { get; set; } = new List<PatientInsuranceCoverage>();
 }
