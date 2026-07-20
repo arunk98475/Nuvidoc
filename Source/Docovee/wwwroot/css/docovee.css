@@ -4051,3 +4051,225 @@ footer.site-footer {
     overflow-x: auto;
   }
 }
+
+/* —— Doctor login (Zocdoc-style two-step) —— */
+.dl-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f3f3;
+  font-family: Inter, system-ui, sans-serif;
+  margin: 0;
+}
+
+.dl-page {
+  width: 100%;
+  padding: 24px 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.dl-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  padding: 36px 36px 40px;
+}
+
+.dl-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.dl-mark {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.dl-brand-name {
+  font-size: 26px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.02em;
+}
+
+.dl-title {
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #222;
+}
+
+.dl-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdeceb;
+  color: #9b1c1c;
+  font-size: 13px;
+}
+
+.dl-step[hidden] {
+  display: none !important;
+}
+
+.dl-field {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.dl-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid #222;
+  border-radius: 6px;
+  padding: 16px 14px 10px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #111;
+  background: #fff;
+  outline: none;
+}
+
+.dl-input:focus {
+  border-color: #111;
+  box-shadow: 0 0 0 1px #111;
+}
+
+.dl-float-label {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  transform: translateY(-50%);
+  padding: 0 4px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  color: #444;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.dl-field-password .dl-input {
+  padding-right: 44px;
+}
+
+/* Hide browser built-in password reveal (Edge/IE) so only our icon shows */
+.dl-field-password .dl-input::-ms-reveal,
+.dl-field-password .dl-input::-ms-clear {
+  display: none;
+}
+
+.dl-eye {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dl-eye:hover {
+  color: #111;
+}
+
+.dl-eye svg[hidden] {
+  display: none !important;
+}
+
+.dl-btn {
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #f5c518;
+  color: #111;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.dl-btn:hover {
+  background: #e6b800;
+}
+
+.dl-email-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 14px 14px;
+  margin-bottom: 16px;
+  font-size: 15px;
+  color: #222;
+  word-break: break-all;
+}
+
+.dl-edit {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 15px;
+  color: #111;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dl-edit:hover {
+  color: #444;
+}
+
+.dl-forgot {
+  display: block;
+  margin-top: 18px;
+  text-align: center;
+  font-size: 15px;
+  color: #111;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dl-forgot:hover {
+  color: #444;
+}
+
+.dl-forgot-note {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+}
+
+@media (max-width: 480px) {
+  .dl-card {
+    padding: 28px 20px 32px;
+  }
+
+  .dl-title {
+    font-size: 22px;
+  }
+
+  .dl-brand-name {
+    font-size: 22px;
+  }
+}

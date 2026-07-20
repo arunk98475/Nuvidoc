@@ -2,7 +2,9 @@
 @model Docovee.Pages.Account.LoginModel
 @{
     Layout = null;
-    ViewData["Title"] = $"Doctor sign in — {Branding.SiteName}";
+    ViewData["Title"] = $"Log in — {Branding.SiteName}";
+    var startOnPassword = Model.ShowPasswordStep;
+    var emailValue = Model.Input.Username ?? "";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -12,39 +14,198 @@
     <title>@ViewData["Title"]</title>
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
-<body>
-<nav>
-    <partial name="Shared/_SiteLogo" />
-    <div class="nav-right">
-        <a href="/" class="nav-link">Home</a>
-        <a href="/?login=patient" class="nav-link">Patient log in</a>
-    </div>
-</nav>
+<body class="dl-body">
+<div class="dl-page">
+    <div class="dl-card">
+        <div class="dl-brand">
+            <span class="dl-mark" aria-hidden="true">
+                <svg viewBox="0 0 32 32" width="28" height="28">
+                    <circle cx="16" cy="16" r="16" fill="#F5C518"/>
+                    <text x="16" y="21" text-anchor="middle" font-size="15" font-weight="700" font-family="Inter, Arial, sans-serif" fill="#111">N</text>
+                </svg>
+            </span>
+            <span class="dl-brand-name">@Branding.SiteName</span>
+        </div>
 
-<div class="auth-page">
-    <div class="auth-card">
-        <h1>Doctor log in</h1>
-        <p class="auth-subtitle">Access your doctor portal.</p>
+        <h1 class="dl-title" id="dl-title">@(startOnPassword ? "Enter your password" : $"Log in to your {Branding.SiteName} account")</h1>
 
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))
         {
-            <div class="alert-error">@Model.ErrorMessage</div>
+            <div class="dl-error" id="dl-error">@Model.ErrorMessage</div>
+        }
+        else
+        {
+            <div class="dl-error" id="dl-error" hidden></div>
         }
 
-        <form method="post">
+        <form method="post" id="dl-form" novalidate>
             <input type="hidden" asp-for="Input.AccountType" />
-            <div class="form-group">
-                <label asp-for="Input.Username">Email / username</label>
-                <input asp-for="Input.Username" class="field-input" autocomplete="username" />
+
+            <div class="dl-step @(startOnPassword ? "" : "is-active")" data-dl-step="email" @(startOnPassword ? "hidden" : null)>
+                <div class="dl-field">
+                    <input asp-for="Input.Username"
+                           id="dl-email"
+                           class="dl-input"
+                           type="email"
+                           autocomplete="username"
+                           placeholder=" " />
+                    <label class="dl-float-label" for="dl-email">Email address</label>
+                </div>
+                <button type="button" class="dl-btn" id="dl-continue-email">Continue</button>
             </div>
-            <div class="form-group">
-                <label asp-for="Input.Password">Password</label>
-                <input asp-for="Input.Password" type="password" class="field-input" autocomplete="current-password" />
+
+            <div class="dl-step @(startOnPassword ? "is-active" : "")" data-dl-step="password" @(!startOnPassword ? "hidden" : null)>
+                <div class="dl-email-chip">
+                    <span id="dl-email-echo">@emailValue</span>
+                    <button type="button" class="dl-edit" id="dl-edit-email">Edit</button>
+                </div>
+
+                <div class="dl-field dl-field-password">
+                    <input asp-for="Input.Password"
+                           id="dl-password"
+                           class="dl-input"
+                           type="password"
+                           autocomplete="current-password"
+                           placeholder=" " />
+                    <label class="dl-float-label" for="dl-password">Password</label>
+                    <button type="button" class="dl-eye" id="dl-toggle-password" aria-label="Show password" title="Show password">
+                        @* Crossed eye while password is hidden; open eye while visible *@
+                        <svg class="dl-eye-icon dl-eye-off" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                            <line x1="1" y1="1" x2="23" y2="23"/>
+                        </svg>
+                        <svg class="dl-eye-icon dl-eye-on" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <button type="submit" class="dl-btn" id="dl-continue-password">Continue</button>
+                <a class="dl-forgot" href="#" id="dl-forgot">Forgot password?</a>
+                <p class="dl-forgot-note" id="dl-forgot-note" hidden>Please contact support to reset your password.</p>
             </div>
-            <button type="submit" class="btn-primary" style="width:100%;">Log in</button>
-            <p class="auth-footer-link">New here? <a href="/Account/Register/Doctor">Sign up as a doctor</a></p>
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+  var siteName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Branding.SiteName));
+  var titleEl = document.getElementById("dl-title");
+  var emailStep = document.querySelector('[data-dl-step="email"]');
+  var passwordStep = document.querySelector('[data-dl-step="password"]');
+  var emailInput = document.getElementById("dl-email");
+  var passwordInput = document.getElementById("dl-password");
+  var emailEcho = document.getElementById("dl-email-echo");
+  var errorEl = document.getElementById("dl-error");
+  var continueEmail = document.getElementById("dl-continue-email");
+  var editEmail = document.getElementById("dl-edit-email");
+  var togglePassword = document.getElementById("dl-toggle-password");
+  var forgot = document.getElementById("dl-forgot");
+  var forgotNote = document.getElementById("dl-forgot-note");
+  var form = document.getElementById("dl-form");
+
+  function isValidEmail(value) {
+    return /^[^\s@@]+@@[^\s@@]+\.[^\s@@]+$/.test((value || "").trim());
+  }
+
+  function showError(message) {
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.hidden = !message;
+  }
+
+  function showEmailStep() {
+    emailStep.hidden = false;
+    emailStep.classList.add("is-active");
+    passwordStep.hidden = true;
+    passwordStep.classList.remove("is-active");
+    titleEl.textContent = "Log in to your " + siteName + " account";
+    if (forgotNote) forgotNote.hidden = true;
+    setTimeout(function () { emailInput.focus(); }, 30);
+  }
+
+  function showPasswordStep() {
+    var email = (emailInput.value || "").trim();
+    if (!isValidEmail(email)) {
+      showError("Please enter a valid email address.");
+      emailInput.focus();
+      return;
+    }
+    showError("");
+    emailEcho.textContent = email;
+    emailStep.hidden = true;
+    emailStep.classList.remove("is-active");
+    passwordStep.hidden = false;
+    passwordStep.classList.add("is-active");
+    titleEl.textContent = "Enter your password";
+    setTimeout(function () { passwordInput.focus(); }, 30);
+  }
+
+  continueEmail.addEventListener("click", showPasswordStep);
+  editEmail.addEventListener("click", showEmailStep);
+
+  emailInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      showPasswordStep();
+    }
+  });
+
+  togglePassword.addEventListener("click", function () {
+    var isHidden = passwordInput.type === "password";
+    var eyeOff = togglePassword.querySelector(".dl-eye-off");
+    var eyeOn = togglePassword.querySelector(".dl-eye-on");
+
+    if (isHidden) {
+      // Reveal password → show open eye
+      passwordInput.type = "text";
+      togglePassword.setAttribute("aria-label", "Hide password");
+      togglePassword.setAttribute("title", "Hide password");
+      eyeOff.setAttribute("hidden", "");
+      eyeOn.removeAttribute("hidden");
+    } else {
+      // Mask password → show crossed eye
+      passwordInput.type = "password";
+      togglePassword.setAttribute("aria-label", "Show password");
+      togglePassword.setAttribute("title", "Show password");
+      eyeOn.setAttribute("hidden", "");
+      eyeOff.removeAttribute("hidden");
+    }
+  });
+
+  forgot.addEventListener("click", function (e) {
+    e.preventDefault();
+    if (forgotNote) forgotNote.hidden = false;
+  });
+
+  form.addEventListener("submit", function (e) {
+    if (passwordStep.hidden) {
+      e.preventDefault();
+      showPasswordStep();
+      return;
+    }
+    if (!(passwordInput.value || "").trim()) {
+      e.preventDefault();
+      showError("Please enter your password.");
+      passwordInput.focus();
+    }
+  });
+
+  if (@(startOnPassword ? "true" : "false")) {
+    var email = (emailInput.value || "").trim();
+    if (emailEcho) emailEcho.textContent = email;
+    emailStep.hidden = true;
+    emailStep.classList.remove("is-active");
+    passwordStep.hidden = false;
+    passwordStep.classList.add("is-active");
+    titleEl.textContent = "Enter your password";
+    setTimeout(function () { passwordInput.focus(); }, 30);
+  }
+})();
+</script>
 </body>
 </html>

@@ -24,6 +24,9 @@ public class LoginModel : PageModel
 
     public string? ErrorMessage { get; set; }
 
+    /// <summary>When true, render the password step (e.g. after a failed login).</summary>
+    public bool ShowPasswordStep { get; set; }
+
     public async Task<IActionResult> OnGetAsync(string? type = null)
     {
         if (User.Identity?.IsAuthenticated == true)
@@ -35,6 +38,8 @@ public class LoginModel : PageModel
         if (Input.AccountType == AccountType.Patient)
             return Redirect("/?login=patient");
 
+        // This page is the doctor login flow.
+        Input.AccountType = AccountType.Doctor;
         return Page();
     }
 
@@ -45,6 +50,10 @@ public class LoginModel : PageModel
             ErrorMessage = "Please use the correct sign-in page for your account type.";
             return Redirect("/Account/Login?type=Doctor");
         }
+
+        // Doctor login page always authenticates as Doctor.
+        if (Input.AccountType != AccountType.Patient)
+            Input.AccountType = AccountType.Doctor;
 
         var (success, error) = await _auth.LoginAsync(Input, HttpContext);
         if (!success)
@@ -57,6 +66,8 @@ public class LoginModel : PageModel
             }
 
             ErrorMessage = error;
+            ShowPasswordStep = true;
+            Input.Password = string.Empty;
             return Page();
         }
 
