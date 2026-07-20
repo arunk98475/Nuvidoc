@@ -33,7 +33,7 @@ public sealed class AuditLogRequest
 public interface IAuditTrailService
 {
     AuditRequestContext GetCurrentContext();
-    Task LogAsync(AuditLogRequest request, CancellationToken cancellationToken = default);
+    Task LogAsync(DocoveeDbContext db, AuditLogRequest request, CancellationToken cancellationToken = default);
     void AppendEntityChanges(DbContext db, IList<AuditTrail> buffer);
 }
 
@@ -41,12 +41,10 @@ public sealed class AuditTrailService : IAuditTrailService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
-    private readonly DocoveeDbContext _db;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
-    public AuditTrailService(DocoveeDbContext db, IHttpContextAccessor httpContextAccessor)
+    public AuditTrailService(IHttpContextAccessor httpContextAccessor)
     {
-        _db = db;
         _httpContextAccessor = httpContextAccessor;
     }
 
@@ -74,10 +72,10 @@ public sealed class AuditTrailService : IAuditTrailService
         };
     }
 
-    public async Task LogAsync(AuditLogRequest request, CancellationToken cancellationToken = default)
+    public async Task LogAsync(DocoveeDbContext db, AuditLogRequest request, CancellationToken cancellationToken = default)
     {
         var ctx = request.Context ?? GetCurrentContext();
-        _db.AuditTrails.Add(new AuditTrail
+        db.AuditTrails.Add(new AuditTrail
         {
             OccurredAtUtc = DateTime.UtcNow,
             Action = request.Action,
@@ -95,7 +93,7 @@ public sealed class AuditTrailService : IAuditTrailService
             NewValuesJson = request.NewValuesJson
         });
 
-        await _db.SaveChangesAsync(cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     public void AppendEntityChanges(DbContext db, IList<AuditTrail> buffer)

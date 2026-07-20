@@ -63,7 +63,7 @@ public class AccountAuthService : IAccountAuthService
         var ctx = _audit.GetCurrentContext();
         if (httpContext.User?.Identity?.IsAuthenticated == true)
         {
-            await _audit.LogAsync(new AuditLogRequest
+            await _audit.LogAsync(_db, new AuditLogRequest
             {
                 Action = AuditActions.Logout,
                 EntityType = AuditEntityTypes.Authentication,
@@ -203,7 +203,7 @@ public class AccountAuthService : IAccountAuthService
         string username,
         CancellationToken cancellationToken)
     {
-        await _audit.LogAsync(new AuditLogRequest
+        await _audit.LogAsync(_db, new AuditLogRequest
         {
             Action = AuditActions.Login,
             EntityType = AuditEntityTypes.Authentication,
@@ -221,7 +221,7 @@ public class AccountAuthService : IAccountAuthService
         string reason,
         CancellationToken cancellationToken)
     {
-        await _audit.LogAsync(new AuditLogRequest
+        await _audit.LogAsync(_db, new AuditLogRequest
         {
             Action = AuditActions.LoginFailed,
             EntityType = AuditEntityTypes.Authentication,

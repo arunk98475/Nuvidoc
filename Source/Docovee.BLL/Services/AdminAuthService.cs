@@ -44,7 +44,7 @@ public class AdminAuthService : IAdminAuthService
 
         if (admin == null)
         {
-            await _audit.LogAsync(new AuditLogRequest
+            await _audit.LogAsync(_db, new AuditLogRequest
             {
                 Action = AuditActions.LoginFailed,
                 EntityType = AuditEntityTypes.Authentication,
@@ -59,7 +59,7 @@ public class AdminAuthService : IAdminAuthService
         var result = _passwordHasher.VerifyHashedPassword(admin, admin.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed)
         {
-            await _audit.LogAsync(new AuditLogRequest
+            await _audit.LogAsync(_db, new AuditLogRequest
             {
                 Action = AuditActions.LoginFailed,
                 EntityType = AuditEntityTypes.Authentication,
@@ -92,7 +92,7 @@ public class AdminAuthService : IAdminAuthService
 
         _logger.LogInformation("Admin logged in: {Username}", admin.Username);
 
-        await _audit.LogAsync(new AuditLogRequest
+        await _audit.LogAsync(_db, new AuditLogRequest
         {
             Action = AuditActions.Login,
             EntityType = AuditEntityTypes.Authentication,
@@ -110,7 +110,7 @@ public class AdminAuthService : IAdminAuthService
         var ctx = _audit.GetCurrentContext();
         if (httpContext.User?.Identity?.IsAuthenticated == true)
         {
-            await _audit.LogAsync(new AuditLogRequest
+            await _audit.LogAsync(_db, new AuditLogRequest
             {
                 Action = AuditActions.Logout,
                 EntityType = AuditEntityTypes.Authentication,
