@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Docovee.BLL.Audit;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.DS.Models;
@@ -26,12 +27,14 @@ public class AdminAuthService : IAdminAuthService
 
     private readonly DocoveeDbContext _db;
     private readonly IDocoveeLogger _logger;
+    private readonly IAuditTrailService _audit;
     private readonly PasswordHasher<Admin> _passwordHasher = new();
 
-    public AdminAuthService(DocoveeDbContext db, IDocoveeLogger logger)
+    public AdminAuthService(DocoveeDbContext db, IDocoveeLogger logger, IAuditTrailService audit)
     {
         _db = db;
         _logger = logger;
+        _audit = audit;
     }
 
     public async Task<bool> LoginAsync(AdminLoginRequest request, HttpContext httpContext, CancellationToken cancellationToken = default)
@@ -40,11 +43,33 @@ public class AdminAuthService : IAdminAuthService
             .FirstOrDefaultAsync(a => a.Username == request.Username, cancellationToken);
 
         if (admin == null)
+        {
+            await _audit.LogAsync(new AuditLogRequest
+            {
+                Action = AuditActions.LoginFailed,
+                EntityType = AuditEntityTypes.Authentication,
+                Success = false,
+                ErrorMessage = "Invalid username or password.",
+                Summary = $"{AdminRole} login failed: {request.Username}",
+                NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"username\":\"{request.Username}\"}}"
+            }, cancellationToken);
             return false;
+        }
 
         var result = _passwordHasher.VerifyHashedPassword(admin, admin.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed)
+        {
+            await _audit.LogAsync(new AuditLogRequest
+            {
+                Action = AuditActions.LoginFailed,
+                EntityType = AuditEntityTypes.Authentication,
+                Success = false,
+                ErrorMessage = "Invalid username or password.",
+                Summary = $"{AdminRole} login failed: {request.Username}",
+                NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"username\":\"{request.Username}\"}}"
+            }, cancellationToken);
             return false;
+        }
 
         var claims = new List<Claim>
         {
@@ -66,11 +91,35 @@ public class AdminAuthService : IAdminAuthService
             });
 
         _logger.LogInformation("Admin logged in: {Username}", admin.Username);
+
+        await _audit.LogAsync(new AuditLogRequest
+        {
+            Action = AuditActions.Login,
+            EntityType = AuditEntityTypes.Authentication,
+            EntityId = admin.Id.ToString(),
+            Success = true,
+            Summary = $"{AdminRole} login: {admin.Username}",
+            NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"username\":\"{admin.Username}\"}}"
+        }, cancellationToken);
+
         return true;
     }
 
     public async Task LogoutAsync(HttpContext httpContext)
     {
+        var ctx = _audit.GetCurrentContext();
+        if (httpContext.User?.Identity?.IsAuthenticated == true)
+        {
+            await _audit.LogAsync(new AuditLogRequest
+            {
+                Action = AuditActions.Logout,
+                EntityType = AuditEntityTypes.Authentication,
+                EntityId = ctx.ActorUserId,
+                Summary = $"{AdminRole} logout: {ctx.ActorUsername}",
+                Context = ctx
+            });
+        }
+
         await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
 }

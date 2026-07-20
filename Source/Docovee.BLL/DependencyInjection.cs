@@ -1,3 +1,4 @@
+using Docovee.BLL.Audit;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Services;
 using Docovee.DS;
@@ -18,10 +19,27 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new InvalidOperationException(
                 "Connection string 'DefaultConnection' is missing or empty. " +
-                "Set it in appsettings.json or appsettings.Production.json on the server before starting the app.");
+                "Set it in appsettings.json or appsettings.Development.json on the server before starting the app.");
 
-        services.AddDbContext<DocoveeDbContext>(options =>
-            options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36))));
+        if (!connectionString.Contains("Connect Timeout", StringComparison.OrdinalIgnoreCase)
+            && !connectionString.Contains("Connection Timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            connectionString += ";Connect Timeout=15";
+        }
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAuditTrailService, AuditTrailService>();
+        services.AddScoped<AuditSaveChangesInterceptor>();
+
+        services.AddDbContext<DocoveeDbContext>((sp, options) =>
+        {
+            options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 36)), mySqlOptions =>
+            {
+                mySqlOptions.CommandTimeout(60);
+                mySqlOptions.EnableRetryOnFailure(2, TimeSpan.FromSeconds(2), null);
+            });
+            options.AddInterceptors(sp.GetRequiredService<AuditSaveChangesInterceptor>());
+        });
 
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SectionName));
         services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));

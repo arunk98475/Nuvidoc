@@ -28,6 +28,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
+    public DbSet<AuditTrail> AuditTrails => Set<AuditTrail>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -268,6 +269,28 @@ public class DocoveeDbContext : DbContext
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AuditTrail>(entity =>
+        {
+            entity.ToTable("audit_trail");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Action).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.EntityType).HasMaxLength(80).IsRequired();
+            entity.Property(e => e.EntityId).HasMaxLength(100);
+            entity.Property(e => e.ActorUserId).HasMaxLength(50);
+            entity.Property(e => e.ActorUsername).HasMaxLength(200);
+            entity.Property(e => e.ActorRole).HasMaxLength(40);
+            entity.Property(e => e.IpAddress).HasMaxLength(64);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.ErrorMessage).HasMaxLength(1000);
+            entity.Property(e => e.Summary).HasMaxLength(500);
+            entity.Property(e => e.OldValuesJson).HasColumnType("text");
+            entity.Property(e => e.NewValuesJson).HasColumnType("text");
+            entity.HasIndex(e => e.OccurredAtUtc);
+            entity.HasIndex(e => new { e.EntityType, e.EntityId });
+            entity.HasIndex(e => e.ActorUserId);
+            entity.HasIndex(e => e.Action);
         });
     }
 }

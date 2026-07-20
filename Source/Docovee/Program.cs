@@ -1,9 +1,7 @@
 using Docovee.BLL;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
-using Docovee.BLL.Data;
 using Docovee.BLL.Services;
-using Docovee.DS;
 using Docovee.Pages.Account;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -48,6 +46,7 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddControllers();
 builder.Services.AddDocoveeBll(builder.Configuration);
+builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>();
 builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
 
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -85,23 +84,7 @@ builder.Services.AddHttpsRedirection(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    try
-    {
-        var db = scope.ServiceProvider.GetRequiredService<DocoveeDbContext>();
-        var adminOptions = scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AdminOptions>>().Value;
-        await SchemaUpdater.EnsureLatestSchemaAsync(db);
-        await SeedData.InitializeAsync(db);
-        await PollingQuestionSync.SyncFromSpecAsync(db);
-        await SeedData.InitializeAdminAndSettingsAsync(db, adminOptions);
-    }
-    catch (Exception ex)
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-        logger.LogWarning(ex, "Database initialization failed. Ensure MySQL is running and the connection string is correct.");
-    }
-}
+Console.WriteLine("[NuviDoc] Web server starting — open https://localhost:7212 or http://localhost:5274");
 
 if (!app.Environment.IsDevelopment())
 {
@@ -117,5 +100,10 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapRazorPages();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    Console.WriteLine("[NuviDoc] ✓ Server is listening — browse to https://localhost:7212 or http://localhost:5274");
+});
 
 app.Run();

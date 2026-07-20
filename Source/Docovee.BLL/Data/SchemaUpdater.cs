@@ -11,8 +11,23 @@ public static class SchemaUpdater
 {
     public static async Task EnsureLatestSchemaAsync(DocoveeDbContext db, CancellationToken cancellationToken = default)
     {
-        await db.Database.EnsureCreatedAsync(cancellationToken);
+        Log("Checking MySQL connection…");
+        if (!await db.Database.CanConnectAsync(cancellationToken))
+            throw new InvalidOperationException("Cannot connect to MySQL. Start MySQL and verify ConnectionStrings:DefaultConnection.");
+        Log("MySQL connected.");
 
+        if (!await HasCoreTablesAsync(db, cancellationToken))
+        {
+            Log("Empty database — creating initial schema (one-time)…");
+            await db.Database.EnsureCreatedAsync(cancellationToken);
+            Log("Initial schema created.");
+        }
+        else
+        {
+            Log("Existing database — applying incremental schema updates…");
+        }
+
+        Log("Ensuring admin tables…");
         await db.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS `admins` (
@@ -280,6 +295,51 @@ public static class SchemaUpdater
                 CONSTRAINT `FK_pms_external_refs_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE SET NULL
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `audit_trail` (
+                `Id` bigint NOT NULL AUTO_INCREMENT,
+                `OccurredAtUtc` datetime(6) NOT NULL,
+                `Action` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `EntityType` varchar(80) CHARACTER SET utf8mb4 NOT NULL,
+                `EntityId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `ActorUserId` varchar(50) CHARACTER SET utf8mb4 NULL,
+                `ActorUsername` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `ActorRole` varchar(40) CHARACTER SET utf8mb4 NULL,
+                `IpAddress` varchar(64) CHARACTER SET utf8mb4 NULL,
+                `UserAgent` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `Success` tinyint(1) NOT NULL DEFAULT 1,
+                `ErrorMessage` varchar(1000) CHARACTER SET utf8mb4 NULL,
+                `Summary` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `OldValuesJson` text CHARACTER SET utf8mb4 NULL,
+                `NewValuesJson` text CHARACTER SET utf8mb4 NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_audit_trail_OccurredAtUtc` (`OccurredAtUtc`),
+                KEY `IX_audit_trail_EntityType_EntityId` (`EntityType`, `EntityId`),
+                KEY `IX_audit_trail_ActorUserId` (`ActorUserId`),
+                KEY `IX_audit_trail_Action` (`Action`)
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
+        Log("Schema updates complete.");
+    }
+
+    private static void Log(string message) =>
+        Console.WriteLine($"[NuviDoc DB] {message}");
+
+    private static async Task<bool> HasCoreTablesAsync(DocoveeDbContext db, CancellationToken cancellationToken)
+    {
+        var count = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                SELECT COUNT(*) AS Value
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'doctors'
+                """)
+            .FirstOrDefaultAsync(cancellationToken);
+        return count > 0;
     }
 
     private static async Task EnsureColumnAsync(
