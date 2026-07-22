@@ -12,18 +12,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body class="dl-body">
 <div class="dl-page">
     <div class="dl-card">
         <div class="dl-brand">
-            <span class="dl-mark" aria-hidden="true">
-                <svg viewBox="0 0 32 32" width="28" height="28">
-                    <circle cx="16" cy="16" r="16" fill="#F5C518"/>
-                    <text x="16" y="21" text-anchor="middle" font-size="15" font-weight="700" font-family="Inter, Arial, sans-serif" fill="#111">N</text>
-                </svg>
-            </span>
+            <img class="dl-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="28" height="28" />
             <span class="dl-brand-name">@Branding.SiteName</span>
         </div>
 

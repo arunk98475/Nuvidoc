@@ -24,9 +24,6 @@ public sealed class PatientFileService : IPatientFileService
     public PatientFileService(IOptions<UploadOptions> options)
     {
         _options = options.Value;
-        Directory.CreateDirectory(_options.PatientsPhysicalPath);
-        Directory.CreateDirectory(InsuranceCardsPath);
-        Directory.CreateDirectory(IdCardsPath);
     }
 
     private string InsuranceCardsPath => Path.Combine(_options.PatientsPhysicalPath, "insurance-cards");

@@ -24,11 +24,22 @@
 }
 
 .pp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 20px;
   font-weight: 700;
   color: #1a1a1a;
   text-decoration: none;
   letter-spacing: -0.02em;
+}
+
+.pp-brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .pp-topbar a.pp-back {

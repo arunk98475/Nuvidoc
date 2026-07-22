@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Http;
 
 var contentRoot = Directory.GetCurrentDirectory();
 var webRoot = Path.Combine(contentRoot, "wwwroot");
-Directory.CreateDirectory(webRoot);
+TryCreateDirectory(webRoot);
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -20,8 +20,10 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 
 var uploadsPath = Path.Combine(webRoot, "uploads", "doctors");
 var patientUploadsPath = Path.Combine(webRoot, "uploads", "patients");
-Directory.CreateDirectory(uploadsPath);
-Directory.CreateDirectory(patientUploadsPath);
+// Do not fail startup if IIS app-pool identity cannot create folders —
+// grant Modify on wwwroot\uploads (see deploy notes) and folders are created on first upload.
+TryCreateDirectory(uploadsPath);
+TryCreateDirectory(patientUploadsPath);
 builder.Services.Configure<UploadOptions>(options =>
 {
     options.DoctorsPhysicalPath = uploadsPath;
@@ -29,6 +31,22 @@ builder.Services.Configure<UploadOptions>(options =>
     options.PatientsPhysicalPath = patientUploadsPath;
     options.PatientsPublicPath = "/uploads/patients";
 });
+
+static void TryCreateDirectory(string path)
+{
+    try
+    {
+        Directory.CreateDirectory(path);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        Console.WriteLine($"[NuviDoc] WARNING: cannot create '{path}' — {ex.Message}. Grant Modify to the IIS App Pool identity on wwwroot\\uploads.");
+    }
+    catch (IOException ex)
+    {
+        Console.WriteLine($"[NuviDoc] WARNING: cannot create '{path}' — {ex.Message}");
+    }
+}
 
 builder.Services.AddAuthorization(options =>
 {

@@ -10,11 +10,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
 </head>
 <body class="login-page">
     <div class="login-card">
-        <h1>@Branding.SiteName Admin</h1>
+        <h1 class="admin-login-brand">
+            <img class="admin-logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="28" height="28" />
+            @Branding.SiteName Admin
+        </h1>
         <p>Sign in to manage patients and settings.</p>
 
         @if (!string.IsNullOrEmpty(Model.ErrorMessage))

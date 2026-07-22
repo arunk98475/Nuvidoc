@@ -10,6 +10,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] — @site</title>
+    <partial name="Shared/_Favicon" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
@@ -18,7 +19,10 @@
 <body class="pp-page">
     <header class="pp-topbar">
         <div class="pp-topbar-inner">
-            <a class="pp-brand" href="/">@site</a>
+            <a class="pp-brand" href="/">
+                <img class="pp-brand-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="24" height="24" />
+                @site
+            </a>
             <a class="pp-back" href="/Doctor/Settings/legal">← Legal</a>
         </div>
     </header>

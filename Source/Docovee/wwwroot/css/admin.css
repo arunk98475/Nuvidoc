@@ -17,12 +17,24 @@ body {
 }
 
 .admin-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   color: #3d6b5a;
   text-decoration: none;
   font-weight: 600;
 }
 
+.admin-logo-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.admin-logo-text span,
 .admin-logo span { color: #6b8078; font-weight: 400; font-size: 13px; }
 
 .admin-header nav { display: flex; gap: 16px; }
@@ -170,6 +182,17 @@ body {
   font-size: 26px;
   margin-bottom: 6px;
   color: #3d6b5a;
+}
+
+.admin-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-login-brand .admin-logo-mark {
+  width: 28px;
+  height: 28px;
 }
 
 .login-card p { margin-bottom: 20px; color: #6b8078; }

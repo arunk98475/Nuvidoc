@@ -6,7 +6,6 @@
 @{
     var nav = (ViewData["Nav"] as string ?? "").ToLowerInvariant();
     var title = ViewData["Title"] as string ?? "Doctor portal";
-    var brandInitial = Branding.SiteName.Length > 0 ? Branding.SiteName[0].ToString().ToUpperInvariant() : "N";
     var inboxBadge = 0;
     var showIntegrationsNav = false;
     if (User.Identity?.IsAuthenticated == true
@@ -23,6 +22,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@title — @Branding.SiteName</title>
+    <partial name="Shared/_Favicon" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
@@ -34,7 +34,7 @@
 <div class="dp-shell">
     <aside class="dp-sidebar" aria-label="Doctor portal navigation">
         <a class="dp-logo" href="/Doctor">
-            <span class="dp-logo-mark">@brandInitial</span>
+            <img class="dp-logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="32" height="32" />
             <span>@Branding.SiteName</span>
         </a>
 

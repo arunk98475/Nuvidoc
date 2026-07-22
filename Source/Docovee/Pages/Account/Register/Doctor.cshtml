@@ -10,6 +10,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body class="onboarding-body">
@@ -53,7 +54,9 @@
     <div class="onboarding-chat">
         <div class="chat-window">
             <div class="chat-header">
-                <div class="ai-avatar">@Branding.ChatBotInitial</div>
+                <div class="ai-avatar" aria-hidden="true">
+                    <img src="~/images/favicon.png" asp-append-version="true" alt="" width="32" height="32" />
+                </div>
                 <div>
                     <div class="ai-name">@Branding.ChatBotName</div>
                     <div class="ai-status"><span class="ai-dot"></span>Doctor profile setup</div>

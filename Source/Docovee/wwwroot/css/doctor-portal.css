@@ -76,6 +76,13 @@ button { font-family: inherit; cursor: pointer; }
   place-items: center;
   font-size: 14px;
   font-weight: 700;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+img.dp-logo-mark {
+  background: transparent;
+  padding: 0;
 }
 
 .dp-nav {

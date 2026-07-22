@@ -1,14 +1,17 @@
 <a asp-page="/Index" class="logo">
+    <img class="logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="128" height="128" />
     @{
         var name = Branding.SiteName;
         var suffixLength = name.Length > 3 ? 3 : 0;
     }
-    @if (suffixLength > 0)
-    {
-        @name[..^suffixLength]<span>@name[^suffixLength..]</span>
-    }
-    else
-    {
-        @name
-    }
+    <span class="logo-text">
+        @if (suffixLength > 0)
+        {
+            @name[..^suffixLength]<span>@name[^suffixLength..]</span>
+        }
+        else
+        {
+            @name
+        }
+    </span>
 </a>

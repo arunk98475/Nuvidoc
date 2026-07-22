@@ -32,7 +32,6 @@ public class DoctorFileService : IDoctorFileService
     {
         _httpClientFactory = httpClientFactory;
         _options = options.Value;
-        Directory.CreateDirectory(_options.DoctorsPhysicalPath);
     }
 
     private string VideoPhysicalPath => Path.Combine(_options.DoctorsPhysicalPath, "videos");
