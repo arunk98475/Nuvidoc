@@ -4282,21 +4282,21 @@ footer.site-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 28px;
 }
 
 .dl-mark {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   object-fit: cover;
   line-height: 0;
 }
 
 .dl-brand-name {
-  font-size: 26px;
+  font-size: 34px;
   font-weight: 700;
   color: #111;
   letter-spacing: -0.02em;
@@ -4472,8 +4472,13 @@ footer.site-footer {
     font-size: 22px;
   }
 
+  .dl-mark {
+    width: 36px;
+    height: 36px;
+  }
+
   .dl-brand-name {
-    font-size: 22px;
+    font-size: 28px;
   }
 }
 
