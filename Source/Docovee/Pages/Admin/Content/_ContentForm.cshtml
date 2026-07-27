@@ -1,0 +1,135 @@
+@* Shared form partial used by both Create and Edit *@
+@model Docovee.Pages.Admin.Content.ContentFormModel
+
+<div class="admin-card">
+    <h1>@Model.PageHeading</h1>
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    @Html.AntiForgeryToken()
+
+    <div class="admin-card">
+        <h2 class="cms-section-title">Page info</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.PageType">Page type</label>
+                <select asp-for="Input.PageType" class="form-control">
+                    <option value="blog">Blog post</option>
+                    <option value="service">Service / SEO page</option>
+                </select>
+                <p class="hint">Blog posts appear at /blog/{slug}. Service pages appear at /services/{slug}.</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.IsPublished">Status</label>
+                <select asp-for="Input.IsPublished" class="form-control">
+                    <option value="false">Draft (not visible to public)</option>
+                    <option value="true">Published (live on website)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="Input.Title">Title <span class="cms-required">*</span></label>
+            <input asp-for="Input.Title" class="form-control" placeholder="e.g. Emergency Dentist in Houston" />
+        </div>
+
+        <div class="form-group">
+            <label asp-for="Input.Slug">
+                URL slug <span class="cms-required">*</span>
+                <span class="cms-hint-inline">(letters, numbers, hyphens only)</span>
+            </label>
+            <div class="cms-slug-preview-row">
+                <span class="cms-slug-base" id="slug-base-label">/blog/</span>
+                <input asp-for="Input.Slug" class="form-control" id="slug-input" placeholder="emergency-dentist-houston" />
+            </div>
+            <p class="hint">Used in the URL. Once published and indexed by Google, avoid changing this.</p>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="Input.MetaDescription">Meta description (SEO)</label>
+            <input asp-for="Input.MetaDescription" class="form-control" placeholder="Short description shown in Google search results (155 chars max)" maxlength="500" />
+            <p class="hint">Appears in Google search snippet. Keep under 155 characters for best results.</p>
+        </div>
+
+        <div class="form-group">
+            <label asp-for="Input.Excerpt">Excerpt</label>
+            <textarea asp-for="Input.Excerpt" class="form-control" rows="3" placeholder="Short summary shown on listing pages"></textarea>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <h2 class="cms-section-title">Featured image</h2>
+        @if (!string.IsNullOrWhiteSpace(Model.Input.ImageUrl))
+        {
+            <div class="cms-current-image">
+                <img src="@Model.Input.ImageUrl" alt="Current image" class="cms-img-preview" />
+                <label class="cms-check-label">
+                    <input type="checkbox" name="RemoveImage" value="true" />
+                    Remove current image
+                </label>
+            </div>
+        }
+        <div class="form-group">
+            <label for="ImageFile">Upload image</label>
+            <input type="file" name="ImageFile" id="ImageFile" class="form-control" accept="image/*" />
+            <p class="hint">JPEG or PNG. Recommended width ≥ 1200 px. Max 5 MB.</p>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <h2 class="cms-section-title">Video embed (optional)</h2>
+        <div class="form-group">
+            <label asp-for="Input.VideoEmbedUrl">YouTube / Vimeo URL</label>
+            <input asp-for="Input.VideoEmbedUrl" class="form-control" placeholder="https://www.youtube.com/embed/..." />
+            <p class="hint">Paste the embed URL (not the share URL). It will appear above the body content.</p>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <h2 class="cms-section-title">Body content</h2>
+        <p class="hint" style="margin-bottom:8px;">Write in HTML. Use &lt;h2&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;strong&gt;, etc. A visual editor will be added soon.</p>
+        <textarea asp-for="Input.BodyHtml" class="form-control cms-body-editor" rows="20" placeholder="&lt;h2&gt;Why choose us?&lt;/h2&gt;&#10;&lt;p&gt;We match you with the best dentist in Houston...&lt;/p&gt;"></textarea>
+    </div>
+
+    <div class="admin-card cms-form-footer">
+        <button type="submit" class="btn btn-primary">@Model.SubmitLabel</button>
+        <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+
+@section Scripts {
+<script>
+(function () {
+    const typeSelect = document.querySelector('[name="Input.PageType"]');
+    const slugInput = document.getElementById('slug-input');
+    const baseLabel = document.getElementById('slug-base-label');
+    const titleInput = document.querySelector('[name="Input.Title"]');
+
+    function updateBase() {
+        if (typeSelect && baseLabel) {
+            baseLabel.textContent = '/' + (typeSelect.value === 'service' ? 'services' : 'blog') + '/';
+        }
+    }
+    if (typeSelect) typeSelect.addEventListener('change', updateBase);
+    updateBase();
+
+    function slugify(text) {
+        return text.toLowerCase().trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/[\s]+/g, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '');
+    }
+
+    if (titleInput && slugInput && !slugInput.value) {
+        titleInput.addEventListener('input', function () {
+            slugInput.value = slugify(this.value);
+        });
+    }
+})();
+</script>
+}

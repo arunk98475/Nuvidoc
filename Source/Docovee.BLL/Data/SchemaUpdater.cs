@@ -353,6 +353,28 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "CookieTrackingOptOut", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "AutofillEnabled", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
 
+        // CMS — editable marketing/SEO pages
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `content_pages` (
+                `Id`              INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                `PageType`        VARCHAR(20) NOT NULL DEFAULT 'blog',
+                `Slug`            VARCHAR(200) NOT NULL,
+                `Title`           VARCHAR(300) NOT NULL,
+                `MetaDescription` VARCHAR(500) NULL,
+                `BodyHtml`        LONGTEXT NULL,
+                `ImageUrl`        TEXT NULL,
+                `Excerpt`         VARCHAR(500) NULL,
+                `VideoEmbedUrl`   TEXT NULL,
+                `IsPublished`     TINYINT(1) NOT NULL DEFAULT 0,
+                `CreatedAtUtc`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                `UpdatedAtUtc`    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY `uq_content_pages_slug` (`Slug`),
+                KEY `idx_content_pages_type_pub` (`PageType`, `IsPublished`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            cancellationToken);
+
         Log("Schema updates complete.");
     }
 

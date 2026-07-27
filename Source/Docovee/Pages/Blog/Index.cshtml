@@ -1,0 +1,71 @@
+@page
+@model Docovee.Pages.Blog.IndexModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"Blog — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
+    <meta name="description" content="Tips, guides, and dental health articles from @Branding.SiteName." />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/cms-public.css" asp-append-version="true" />
+</head>
+<body>
+<nav>
+    <div class="nav-left"><partial name="Shared/_SiteLogo" /></div>
+    <div class="nav-right">
+        <a href="/" class="nav-link">Find a Dentist</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <a href="/Account/Logout" class="nav-link">Logout</a>
+        }
+        else
+        {
+            <partial name="Shared/_AuthNav" />
+        }
+    </div>
+</nav>
+
+<div class="cms-shell">
+    <header class="cms-list-header">
+        <h1>Dental Health Blog</h1>
+        <p>Tips, guides, and insights from the @Branding.SiteName team.</p>
+    </header>
+
+    @if (Model.Posts.Count == 0)
+    {
+        <p class="cms-empty">No blog posts yet — check back soon.</p>
+    }
+    else
+    {
+        <div class="cms-grid">
+            @foreach (var post in Model.Posts)
+            {
+                <article class="cms-card">
+                    @if (!string.IsNullOrWhiteSpace(post.ImageUrl))
+                    {
+                        <a href="/blog/@post.Slug" class="cms-card-img-wrap">
+                            <img src="@post.ImageUrl" alt="@post.Title" class="cms-card-img" loading="lazy" />
+                        </a>
+                    }
+                    <div class="cms-card-body">
+                        <div class="cms-card-meta">@post.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</div>
+                        <h2 class="cms-card-title"><a href="/blog/@post.Slug">@post.Title</a></h2>
+                        @if (!string.IsNullOrWhiteSpace(post.Excerpt))
+                        {
+                            <p class="cms-card-excerpt">@post.Excerpt</p>
+                        }
+                        <a href="/blog/@post.Slug" class="cms-card-read-more">Read more →</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+</body>
+</html>

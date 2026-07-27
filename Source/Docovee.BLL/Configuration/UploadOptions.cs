@@ -7,4 +7,6 @@ public class UploadOptions
     public string DoctorsPublicPath { get; set; } = "/uploads/doctors";
     public string PatientsPhysicalPath { get; set; } = string.Empty;
     public string PatientsPublicPath { get; set; } = "/uploads/patients";
+    public string ContentImagesPhysicalPath { get; set; } = string.Empty;
+    public string ContentImagesPublicPath { get; set; } = "/uploads/content";
 }

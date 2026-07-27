@@ -1,0 +1,9 @@
+@page
+@model Docovee.Pages.Admin.Content.CreateModel
+@{
+    ViewData["Title"] = "New Content Page";
+    Model.PageHeading = "New content page";
+    Model.SubmitLabel = "Create page";
+}
+
+<partial name="_ContentForm" model="Model" />

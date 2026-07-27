@@ -1,0 +1,73 @@
+@page "/blog/{slug}"
+@model Docovee.Pages.Blog.PostModel
+@{
+    Layout = null;
+    var p = Model.Post!;
+    ViewData["Title"] = $"{p.Title} — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
+    @if (!string.IsNullOrWhiteSpace(p.MetaDescription))
+    {
+        <meta name="description" content="@p.MetaDescription" />
+    }
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/cms-public.css" asp-append-version="true" />
+</head>
+<body>
+<nav>
+    <div class="nav-left"><partial name="Shared/_SiteLogo" /></div>
+    <div class="nav-right">
+        <a href="/" class="nav-link">Find a Dentist</a>
+        <a href="/blog" class="nav-link">Blog</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <a href="/Account/Logout" class="nav-link">Logout</a>
+        }
+        else
+        {
+            <partial name="Shared/_AuthNav" />
+        }
+    </div>
+</nav>
+
+<div class="cms-shell cms-article-shell">
+    <article class="cms-article">
+        <header class="cms-article-header">
+            <div class="cms-breadcrumb"><a href="/blog">Blog</a> <span>›</span> <span>@p.Title</span></div>
+            <h1 class="cms-article-title">@p.Title</h1>
+            <p class="cms-article-meta">@p.UpdatedAtUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+        </header>
+
+        @if (!string.IsNullOrWhiteSpace(p.ImageUrl))
+        {
+            <img src="@p.ImageUrl" alt="@p.Title" class="cms-article-hero-img" />
+        }
+
+        @if (!string.IsNullOrWhiteSpace(p.VideoEmbedUrl))
+        {
+            <div class="cms-video-wrap">
+                <iframe src="@p.VideoEmbedUrl" title="@p.Title" allowfullscreen loading="lazy"></iframe>
+            </div>
+        }
+
+        <div class="cms-article-body">
+            @Html.Raw(p.BodyHtml ?? "")
+        </div>
+    </article>
+
+    <aside class="cms-article-sidebar">
+        <div class="cms-sidebar-cta">
+            <h3>Find a Houston dentist</h3>
+            <p>Let Nuvi match you with the right dentist — for free.</p>
+            <a href="/" class="cms-sidebar-btn">Find my dentist →</a>
+        </div>
+    </aside>
+</div>
+</body>
+</html>

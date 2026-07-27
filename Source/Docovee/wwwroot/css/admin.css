@@ -262,3 +262,105 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* ── CMS admin styles ── */
+.cms-index-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cms-filter-bar {
+  margin-bottom: 16px;
+}
+
+.cms-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cms-badge-blog    { background: #dbeafe; color: #1d4ed8; }
+.cms-badge-service { background: #d1fae5; color: #065f46; }
+
+.cms-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.cms-status-live  { background: #d1fae5; color: #065f46; }
+.cms-status-draft { background: #f3f4f6; color: #6b7280; }
+
+.cms-slug-link   { color: #1d4ed8; font-size: 13px; text-decoration: none; }
+.cms-slug-link:hover { text-decoration: underline; }
+.cms-slug-draft  { color: #9ca3af; font-size: 13px; }
+
+.cms-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: #1a2b22;
+}
+
+.cms-required { color: #b91c1c; }
+.cms-hint-inline { font-size: 12px; color: #6b8078; font-weight: 400; }
+
+.cms-slug-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.cms-slug-base {
+  background: #f1f5f2;
+  border: 1px solid #d4ddd9;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  padding: 10px 10px;
+  font-size: 13px;
+  color: #6b8078;
+  white-space: nowrap;
+}
+.cms-slug-preview-row .form-control {
+  border-radius: 0 8px 8px 0;
+}
+
+.cms-body-editor {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cms-current-image {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.cms-img-preview {
+  width: 140px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #d4ddd9;
+}
+.cms-check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+.cms-form-footer {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

@@ -82,6 +82,7 @@ public static class DependencyInjection
         services.AddScoped<IDoctorLocationService, DoctorLocationService>();
         services.AddSingleton<IDoctorImportJobService, DoctorImportJobService>();
         services.AddScoped<IAppSettingsService, AppSettingsService>();
+        services.AddScoped<IContentPageService, ContentPageService>();
         services.AddDocoveeIntegrations(configuration);
         services.AddScoped<IPmsCalendarService, PmsCalendarService>();
 

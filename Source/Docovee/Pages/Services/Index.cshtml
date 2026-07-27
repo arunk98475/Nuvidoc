@@ -1,0 +1,70 @@
+@page
+@model Docovee.Pages.Services.IndexModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"Dental Services — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
+    <meta name="description" content="Browse dental services and find a specialist in Houston with @Branding.SiteName." />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/cms-public.css" asp-append-version="true" />
+</head>
+<body>
+<nav>
+    <div class="nav-left"><partial name="Shared/_SiteLogo" /></div>
+    <div class="nav-right">
+        <a href="/" class="nav-link">Find a Dentist</a>
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <a href="/Account/Logout" class="nav-link">Logout</a>
+        }
+        else
+        {
+            <partial name="Shared/_AuthNav" />
+        }
+    </div>
+</nav>
+
+<div class="cms-shell">
+    <header class="cms-list-header">
+        <h1>Dental Services in Houston</h1>
+        <p>Find the right dentist for your specific dental need.</p>
+    </header>
+
+    @if (Model.Pages.Count == 0)
+    {
+        <p class="cms-empty">Service pages coming soon.</p>
+    }
+    else
+    {
+        <div class="cms-grid">
+            @foreach (var svcPage in Model.Pages)
+            {
+                <article class="cms-card">
+                    @if (!string.IsNullOrWhiteSpace(svcPage.ImageUrl))
+                    {
+                        <a href="/services/@svcPage.Slug" class="cms-card-img-wrap">
+                            <img src="@svcPage.ImageUrl" alt="@svcPage.Title" class="cms-card-img" loading="lazy" />
+                        </a>
+                    }
+                    <div class="cms-card-body">
+                        <h2 class="cms-card-title"><a href="/services/@svcPage.Slug">@svcPage.Title</a></h2>
+                        @if (!string.IsNullOrWhiteSpace(svcPage.Excerpt))
+                        {
+                            <p class="cms-card-excerpt">@svcPage.Excerpt</p>
+                        }
+                        <a href="/services/@svcPage.Slug" class="cms-card-read-more">Learn more →</a>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+</body>
+</html>

@@ -30,6 +30,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
     public DbSet<PatientInsuranceCoverage> PatientInsuranceCoverages => Set<PatientInsuranceCoverage>();
     public DbSet<AuditTrail> AuditTrails => Set<AuditTrail>();
+    public DbSet<ContentPage> ContentPages => Set<ContentPage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -291,6 +292,22 @@ public class DocoveeDbContext : DbContext
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ContentPage>(entity =>
+        {
+            entity.ToTable("content_pages");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PageType).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Slug).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(300).IsRequired();
+            entity.Property(e => e.MetaDescription).HasMaxLength(500);
+            entity.Property(e => e.BodyHtml).HasColumnType("longtext");
+            entity.Property(e => e.ImageUrl).HasColumnType("text");
+            entity.Property(e => e.Excerpt).HasMaxLength(500);
+            entity.Property(e => e.VideoEmbedUrl).HasColumnType("text");
+            entity.HasIndex(e => e.Slug).IsUnique();
+            entity.HasIndex(e => new { e.PageType, e.IsPublished });
         });
 
         modelBuilder.Entity<AuditTrail>(entity =>

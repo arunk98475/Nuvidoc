@@ -1,0 +1,86 @@
+@page
+@model Docovee.Pages.Admin.Content.IndexModel
+@{
+    ViewData["Title"] = "Content Pages";
+}
+
+<div class="admin-card">
+    <div class="cms-index-head">
+        <div>
+            <h1>Content Pages</h1>
+            <p>Create and manage blog posts and service/SEO landing pages. Published pages appear on the public site.</p>
+        </div>
+        <a asp-page="Create" class="btn btn-primary">+ New Page</a>
+    </div>
+</div>
+
+<div class="admin-card">
+    <div class="cms-filter-bar">
+        <form method="get">
+            <select name="type" class="form-control" style="width:auto;display:inline-block;" onchange="this.form.submit()">
+                <option value="" selected="@(Model.TypeFilter == "" ? "selected" : null)">All types</option>
+                <option value="blog" selected="@(Model.TypeFilter == "blog" ? "selected" : null)">Blog posts</option>
+                <option value="service" selected="@(Model.TypeFilter == "service" ? "selected" : null)">Service pages</option>
+            </select>
+        </form>
+    </div>
+
+    @if (Model.Pages.Count == 0)
+    {
+        <p style="color:#6b8078;padding:12px 0;">No pages yet. Click <strong>+ New Page</strong> to create your first.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Slug</th>
+                    <th>Status</th>
+                    <th>Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Model.Pages)
+                {
+                    <tr>
+                        <td><strong>@p.Title</strong></td>
+                        <td><span class="cms-badge cms-badge-@p.PageType">@p.PageType</span></td>
+                        <td>
+                            @if (p.IsPublished)
+                            {
+                                <a href="/@p.PageType/@p.Slug" target="_blank" class="cms-slug-link">/@p.PageType/@p.Slug</a>
+                            }
+                            else
+                            {
+                                <span class="cms-slug-draft">/@p.PageType/@p.Slug</span>
+                            }
+                        </td>
+                        <td>
+                            @if (p.IsPublished)
+                            {
+                                <span class="cms-status cms-status-live">Live</span>
+                            }
+                            else
+                            {
+                                <span class="cms-status cms-status-draft">Draft</span>
+                            }
+                        </td>
+                        <td style="font-size:13px;color:#6b8078;">@p.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</td>
+                        <td>
+                            <div class="actions">
+                                <a asp-page="Edit" asp-route-id="@p.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete &quot;@p.Title&quot;? This cannot be undone.');">
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>

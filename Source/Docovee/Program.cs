@@ -20,16 +20,20 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 
 var uploadsPath = Path.Combine(webRoot, "uploads", "doctors");
 var patientUploadsPath = Path.Combine(webRoot, "uploads", "patients");
+var contentUploadsPath = Path.Combine(webRoot, "uploads", "content");
 // Do not fail startup if IIS app-pool identity cannot create folders —
 // grant Modify on wwwroot\uploads (see deploy notes) and folders are created on first upload.
 TryCreateDirectory(uploadsPath);
 TryCreateDirectory(patientUploadsPath);
+TryCreateDirectory(contentUploadsPath);
 builder.Services.Configure<UploadOptions>(options =>
 {
     options.DoctorsPhysicalPath = uploadsPath;
     options.DoctorsPublicPath = "/uploads/doctors";
     options.PatientsPhysicalPath = patientUploadsPath;
     options.PatientsPublicPath = "/uploads/patients";
+    options.ContentImagesPhysicalPath = contentUploadsPath;
+    options.ContentImagesPublicPath = "/uploads/content";
 });
 
 static void TryCreateDirectory(string path)

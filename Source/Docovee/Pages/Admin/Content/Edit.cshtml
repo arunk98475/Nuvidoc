@@ -1,0 +1,9 @@
+@page "{id:int}"
+@model Docovee.Pages.Admin.Content.EditModel
+@{
+    ViewData["Title"] = "Edit Content Page";
+    Model.PageHeading = $"Edit: {Model.Input.Title}";
+    Model.SubmitLabel = "Save changes";
+}
+
+<partial name="_ContentForm" model="Model" />
