@@ -64,25 +64,35 @@ public static class NuviFlowContent
 
     public const string LogisticsLocationQuestion =
 
-        "So I can find the best-fit doctor near you — what's your ZIP code, city, or general area?";
+        "May I know your ZIP code in Houston — or just skip it?";
 
 
 
-    public const string LogisticsLocationChangeQuestionTemplate =
-
-        "Are you looking for doctors near {0}?";
+    public const string LogisticsLocationSkipOption = "Skip for now";
 
 
 
-    public static readonly string[] LogisticsLocationChangeOptions =
+    public static readonly string[] LogisticsLocationOptions =
 
-        ["Yes", "No"];
+        [LogisticsLocationSkipOption];
 
 
 
-    public static string FormatLogisticsLocationChangeQuestion(string cityName) =>
+    public static string FormatUseLastZipOption(string lastLocation) =>
 
-        string.Format(LogisticsLocationChangeQuestionTemplate, cityName.Trim());
+        $"Use last used ({lastLocation.Trim()})";
+
+
+
+    public static string[] FormatLogisticsLocationOptionsWithSaved(string lastLocation) =>
+
+        [FormatUseLastZipOption(lastLocation), LogisticsLocationSkipOption];
+
+
+
+    /// <summary>Default market when the patient skips ZIP (Houston-first launch).</summary>
+
+    public const string DefaultLocationWhenSkipped = "Houston, TX";
 
 
 

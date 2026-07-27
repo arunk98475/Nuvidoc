@@ -480,17 +480,10 @@ public class AnthropicChatService : IAnthropicChatService
         context.VisitPreference = "In-person only";
         context.LogisticsStep = 0;
 
-        string logisticsQuestion;
-        IReadOnlyList<string>? options = null;
-        if (IsReturningWithSavedLocation(context))
-        {
-            logisticsQuestion = NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!);
-            options = NuviFlowContent.LogisticsLocationChangeOptions;
-        }
-        else
-        {
-            logisticsQuestion = NuviFlowContent.LogisticsLocationQuestion;
-        }
+        string logisticsQuestion = NuviFlowContent.LogisticsLocationQuestion;
+        IReadOnlyList<string>? options = IsReturningWithSavedLocation(context)
+            ? NuviFlowContent.FormatLogisticsLocationOptionsWithSaved(context.LastKnownLocation!)
+            : NuviFlowContent.LogisticsLocationOptions;
 
         var combined = string.IsNullOrWhiteSpace(priorText) ? logisticsQuestion : $"{priorText}\n\n{logisticsQuestion}";
 
@@ -507,32 +500,8 @@ public class AnthropicChatService : IAnthropicChatService
         switch (context.LogisticsStep)
         {
             case 0:
-                if (IsReturningWithSavedLocation(context))
-                {
-                    if (IsYesAnswer(answer))
-                        return await ApplySavedLocationAndContinueAsync(session, context, cancellationToken);
-
-                    if (IsNoAnswer(answer))
-                    {
-                        context.LogisticsStep = LogisticsStepNewLocation;
-                        await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsLocationQuestion, cancellationToken);
-                        return BuildResponse(session, context, NuviFlowContent.LogisticsLocationQuestion,
-                            stage: NuviConversationStage.Logistics);
-                    }
-
-                    return BuildResponse(session, context,
-                        $"Please choose Yes or No — are you looking for doctors near {context.LastKnownLocation}?",
-                        stage: NuviConversationStage.Logistics,
-                        options: NuviFlowContent.LogisticsLocationChangeOptions);
-                }
-
-                context.LocationPreference = answer;
-                session.Location = answer;
-                return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
-
             case LogisticsStepNewLocation:
-                context.LocationPreference = answer;
-                session.Location = answer;
+                ApplyLocationAnswer(session, context, answer);
                 return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
 
             case 1:
@@ -855,6 +824,46 @@ public class AnthropicChatService : IAnthropicChatService
         context.LocationPreference = context.LastKnownLocation;
         session.Location = context.LastKnownLocation;
         return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
+    }
+
+    private static void ApplyLocationAnswer(SearchSession session, SearchContextData context, string answer)
+    {
+        if (IsUseLastLocationAnswer(answer) && !string.IsNullOrWhiteSpace(context.LastKnownLocation))
+        {
+            context.LocationPreference = context.LastKnownLocation;
+            session.Location = context.LastKnownLocation;
+            return;
+        }
+
+        if (IsLocationSkipAnswer(answer))
+        {
+            context.LocationPreference = NuviFlowContent.DefaultLocationWhenSkipped;
+            session.Location = NuviFlowContent.DefaultLocationWhenSkipped;
+            return;
+        }
+
+        context.LocationPreference = answer;
+        session.Location = answer;
+    }
+
+    private static bool IsUseLastLocationAnswer(string answer)
+    {
+        if (string.IsNullOrWhiteSpace(answer))
+            return false;
+
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower.StartsWith("use last used", StringComparison.Ordinal)
+            || lower is "use last" or "last used" or "last zip" or "last zip code";
+    }
+
+    private static bool IsLocationSkipAnswer(string answer)
+    {
+        if (string.IsNullOrWhiteSpace(answer))
+            return true;
+
+        var lower = answer.Trim().ToLowerInvariant();
+        return lower is "skip" or "skip for now" or "skip it" or "skip now" or "no" or "n" or "nope"
+            || lower.Contains("skip", StringComparison.Ordinal);
     }
 
     private async Task<ChatMessageResponse> ContinueLogisticsAfterLocationAsync(
@@ -1480,7 +1489,7 @@ public class AnthropicChatService : IAnthropicChatService
         var results = await _doctorSearch.SearchAsync(new DoctorSearchRequest
         {
             SessionKey = session.SessionKey,
-            Location = context.LocationPreference ?? session.Location ?? "Renton, WA",
+            Location = context.LocationPreference ?? session.Location ?? NuviFlowContent.DefaultLocationWhenSkipped,
             InsurancePlan = context.InsurancePreference,
             GenderPreference = "none",
             CommunicationStyle = session.CommunicationStyle,
@@ -2572,17 +2581,17 @@ public class AnthropicChatService : IAnthropicChatService
         context.LogisticsStep switch
         {
             0 when IsReturningWithSavedLocation(context) => (
-                NuviFlowContent.FormatLogisticsLocationChangeQuestion(context.LastKnownLocation!),
-                "yes if they want doctors near their saved location, or no if they want a different area",
-                NuviFlowContent.LogisticsLocationChangeOptions),
+                NuviFlowContent.LogisticsLocationQuestion,
+                "their ZIP code in Houston, use their last saved ZIP, or skip",
+                NuviFlowContent.FormatLogisticsLocationOptionsWithSaved(context.LastKnownLocation!)),
             0 => (
                 NuviFlowContent.LogisticsLocationQuestion,
-                "a city, ZIP code, neighborhood, or general area where they want care",
-                null),
+                "their ZIP code in Houston, or skip if they prefer not to share it",
+                NuviFlowContent.LogisticsLocationOptions),
             LogisticsStepNewLocation => (
                 NuviFlowContent.LogisticsLocationQuestion,
-                "a city, ZIP code, neighborhood, or general area where they want care",
-                null),
+                "their ZIP code in Houston, or skip if they prefer not to share it",
+                NuviFlowContent.LogisticsLocationOptions),
             1 => (
                 NuviFlowContent.LogisticsInsuranceTypeQuestion,
                 "whether they have insurance, want self-pay/cash-pay, or are not sure yet",

@@ -1302,10 +1302,21 @@
     if (popular) popular.hidden = !enabled;
   }
 
+  function preservePracticeScroll(fn) {
+    const scroller = document.querySelector(".dp-practice-scroll");
+    const scrollTop = scroller ? scroller.scrollTop : null;
+    fn();
+    if (!scroller || scrollTop === null) return;
+    scroller.scrollTop = scrollTop;
+    requestAnimationFrame(() => {
+      scroller.scrollTop = scrollTop;
+    });
+  }
+
   document.querySelectorAll(".dp-visit-row").forEach(row => {
     syncVisitRow(row);
     row.querySelector(".dp-visit-enabled")?.addEventListener("change", () => {
-      syncVisitRow(row);
+      preservePracticeScroll(() => syncVisitRow(row));
       markVisitDirty();
     });
     row.querySelectorAll('input[type="checkbox"]').forEach(input => {

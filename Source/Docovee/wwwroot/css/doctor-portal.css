@@ -2564,16 +2564,22 @@ body.dp-drawer-open {
 }
 
 .dp-visit-check {
+  position: relative;
   display: inline-flex;
   margin-top: 2px;
   cursor: pointer;
 }
 
+/* Overlay the visible box so focus scroll targets the checkbox, not a 1px off-flow input */
 .dp-visit-check input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 1px;
-  height: 1px;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .dp-visit-check-box {
@@ -3111,6 +3117,7 @@ body.dp-drawer-open {
 }
 
 .dp-hours-day-check {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -3121,9 +3128,13 @@ body.dp-drawer-open {
 
 .dp-hours-day-check input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 1px;
-  height: 1px;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .dp-hours-check-box {

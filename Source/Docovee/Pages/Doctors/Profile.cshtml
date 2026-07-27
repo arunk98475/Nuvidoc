@@ -88,6 +88,15 @@
                         }
                     </div>
                     <div class="zd-hero-actions">
+                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                        {
+                            <a class="zd-icon-btn zd-icon-btn-call" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/>
+                                </svg>
+                                Call
+                            </a>
+                        }
                         <button type="button" class="zd-icon-btn" onclick="navigator.share ? navigator.share({title: '@doctor.Name', url: location.href}) : navigator.clipboard.writeText(location.href)">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/></svg>
                             Share
@@ -286,7 +295,12 @@
                         }
                         @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
                         {
-                            <a class="zd-phone" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a>
+                            <a class="zd-phone" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/>
+                                </svg>
+                                Call @doctor.OfficePhoneNumber
+                            </a>
                         }
                     </div>
                 </div>
@@ -349,80 +363,44 @@
 
             <section class="zd-section" id="faqs">
                 <h2 class="zd-h2">FAQs</h2>
-                <details class="zd-faq"><summary>Is @doctor.Name accepting new patients?</summary><p>Yes — new patient appointments are available through @Branding.SiteName.</p></details>
-                <details class="zd-faq"><summary>What insurances does this office accept?</summary><p>See the Insurances section above, or enter your plan in the booking card to check if you're in-network.</p></details>
-                <details class="zd-faq"><summary>How do I book an appointment?</summary><p>Choose a reason for visit, insurance, and available time in the booking card, then submit your request.</p></details>
+                <details class="zd-faq"><summary>Is @doctor.Name accepting new patients?</summary><p>Yes — new patient appointments are available. Call the office to schedule.</p></details>
+                <details class="zd-faq"><summary>What insurances does this office accept?</summary><p>See the Insurances section above, or call the office to confirm your plan is in-network.</p></details>
+                <details class="zd-faq"><summary>How do I book an appointment?</summary><p>Online booking is coming soon. For now, call the office directly using the number on this page to schedule for free.</p></details>
             </section>
         </div>
 
         <aside class="zd-sidebar">
-            <div class="zd-book" id="pp-booking">
+            <div class="zd-book zd-book-readonly" id="pp-booking">
                 <h2 class="zd-book-title">Book an appointment for free</h2>
                 <p class="zd-book-sub">The office partners with @Branding.SiteName to schedule appointments</p>
 
-                <h3 class="zd-book-section">Scheduling details</h3>
+                @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                {
+                    <a class="zd-call-btn"
+                       href="tel:@RegexPhone(doctor.OfficePhoneNumber)"
+                       aria-label="Call @doctor.Name at @doctor.OfficePhoneNumber">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92z"/>
+                        </svg>
+                        Call @doctor.OfficePhoneNumber
+                    </a>
+                    <p class="zd-book-call-hint">Online booking is coming soon. Call the office to schedule for free.</p>
+                }
+                else
+                {
+                    <p class="zd-book-call-hint">Online booking is coming soon. Phone number is not listed yet — check back shortly.</p>
+                }
 
-                <select id="pp-visit-reason" class="zd-select" aria-label="Reason for visit">
-                    <partial name="Shared/_VisitReasonOptions" />
-                </select>
-
-                <div class="zd-book-ins" id="zd-book-ins">
-                    <button type="button" class="zd-book-ins-row" id="zd-ins-pill" aria-expanded="false" aria-controls="zd-book-ins-picker">
-                        <span id="zd-ins-pill-check" class="zd-book-ins-check" hidden aria-hidden="true">
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="8" fill="#1f7a4c"/><path d="M4.5 8.2 6.8 10.5 11.5 5.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </span>
-                        <span class="zd-book-ins-label" id="zd-ins-pill-text">Select insurance</span>
-                    </button>
-                    <div class="zd-book-ins-picker" id="zd-book-ins-picker" hidden>
-                        <select id="pp-insurance-carrier-book" class="zd-select" aria-label="Insurance carrier">
-                            <option value="">Select insurance carrier and plan</option>
-                            <option value="none">I'm paying without insurance</option>
-                            @foreach (var carrier in Model.InsuranceCatalog)
-                            {
-                                <option value="@carrier.Id">@carrier.Name</option>
-                            }
-                        </select>
-                        <select id="pp-insurance-plan-book" class="zd-select zd-ins-plan" aria-label="Insurance plan" disabled>
-                            <option value="">Add plan</option>
-                        </select>
+                <div class="zd-book-readonly-panel" aria-hidden="true">
+                    <h3 class="zd-book-section">Scheduling details</h3>
+                    <div class="zd-select zd-select-readonly">Select reason for visit</div>
+                    <div class="zd-select zd-select-readonly">Select insurance</div>
+                    <div class="zd-patient-type zd-patient-type-readonly">
+                        <span class="zd-ptype is-active"><span class="zd-ptype-check" aria-hidden="true">✓</span> New patient</span>
+                        <span class="zd-ptype"><span class="zd-ptype-check" aria-hidden="true">✓</span> Existing patient</span>
                     </div>
+                    <p class="zd-book-readonly-note">Availability will appear here once online booking is enabled.</p>
                 </div>
-                <div class="zd-book-ins-status" id="zd-book-ins-status" hidden>This dentist is in-network</div>
-
-                <div class="zd-patient-type" role="group" aria-label="Patient type">
-                    <button type="button" class="zd-ptype@(isNewPatient ? " is-active" : "")" data-new="true">
-                        <span class="zd-ptype-check" aria-hidden="true">✓</span> New patient
-                    </button>
-                    <button type="button" class="zd-ptype@(!isNewPatient ? " is-active" : "")" data-new="false">
-                        <span class="zd-ptype-check" aria-hidden="true">✓</span> Existing patient
-                    </button>
-                </div>
-
-                <div class="zd-date-range">
-                    <span id="zd-range-label">@dateRangeLabel</span>
-                    <div class="zd-range-nav">
-                        <button type="button" class="zd-range-arrow" id="zd-range-prev" aria-label="Previous dates">‹</button>
-                        <button type="button" class="zd-range-arrow" id="zd-range-next" aria-label="Next dates">›</button>
-                    </div>
-                </div>
-
-                <div class="zd-days" id="zd-days" role="tablist">
-                    @for (var i = 0; i < Model.BookingDays.Count; i++)
-                    {
-                        var day = Model.BookingDays[i];
-                        var has = day.AvailableCount > 0;
-                        <button type="button"
-                                class="zd-day@(has ? " has-appts" : " no-appts")@(i == 0 ? " is-active" : "")"
-                                data-day-index="@i"
-                                @(i >= 14 ? "hidden" : null)
-                                onclick="ppSelectDay(@i)">
-                            <span class="zd-day-name">@day.DayLabel</span>
-                            <span class="zd-day-date">@day.Date.ToString("MMM d")</span>
-                            <span class="zd-day-count">@(has ? (day.AvailableCount == 1 ? "1 appt" : $"{day.AvailableCount} appts") : "No appts")</span>
-                        </button>
-                    }
-                </div>
-                <button type="button" class="zd-text-link zd-more-avail" id="zd-more-avail">View more availability</button>
             </div>
         </aside>
     </div>
@@ -527,7 +505,14 @@
                 <span><span class="zd-stars">★</span> @avgRating.ToString("0.00") (@totalReviews patient ratings)</span>
             }
         </div>
-        <a class="zd-sticky-cta" href="#pp-booking">View availability</a>
+        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+        {
+            <a class="zd-sticky-cta" href="tel:@RegexPhone(doctor.OfficePhoneNumber)">Call @doctor.OfficePhoneNumber</a>
+        }
+        else
+        {
+            <a class="zd-sticky-cta" href="#pp-booking">View booking</a>
+        }
     </div>
 </div>
 
@@ -626,14 +611,14 @@
     }
 
     if (!activeCarrier || activeCarrier === "none") {
-      pillCheck.hidden = true;
+      if (pillCheck) pillCheck.hidden = true;
       if (insCheck) insCheck.hidden = true;
       if (dialogInsCheck) dialogInsCheck.hidden = true;
       const label = activeCarrier === "none" ? "Paying without insurance" : "Select insurance";
-      pillText.innerHTML = label;
+      if (pillText) pillText.innerHTML = label;
       if (dialogInsText) dialogInsText.textContent = label;
-      networkStatus.hidden = true;
-      bookInsStatus.hidden = true;
+      if (networkStatus) networkStatus.hidden = true;
+      if (bookInsStatus) bookInsStatus.hidden = true;
       if (dialogNetwork) dialogNetwork.hidden = true;
       return;
     }
@@ -643,23 +628,23 @@
     const name = carrier ? carrier.name : "Insurance";
     const display = planVal ? (name + " — " + planVal) : (name + " — Add plan");
     if (planVal) {
-      pillText.textContent = display;
+      if (pillText) pillText.textContent = display;
       if (dialogInsText) dialogInsText.textContent = display;
     } else {
-      pillText.innerHTML = name + " — <span class=\"zd-book-ins-add\">Add plan</span>";
+      if (pillText) pillText.innerHTML = name + " — <span class=\"zd-book-ins-add\">Add plan</span>";
       if (dialogInsText) dialogInsText.innerHTML = name + " — <span class=\"zd-book-ins-add\">Add plan</span>";
     }
 
     const accepted = acceptedCarrierIds.map(String).includes(String(activeCarrier));
-    pillCheck.hidden = !accepted;
+    if (pillCheck) pillCheck.hidden = !accepted;
     if (insCheck) insCheck.hidden = !accepted;
     if (dialogInsCheck) dialogInsCheck.hidden = !accepted;
-    networkStatus.hidden = !accepted;
-    bookInsStatus.hidden = !accepted;
+    if (networkStatus) networkStatus.hidden = !accepted;
+    if (bookInsStatus) bookInsStatus.hidden = !accepted;
     if (dialogNetwork) dialogNetwork.hidden = !accepted;
     if (accepted) {
-      networkStatus.textContent = "This dentist is in-network";
-      bookInsStatus.textContent = "This dentist is in-network";
+      if (networkStatus) networkStatus.textContent = "This dentist is in-network";
+      if (bookInsStatus) bookInsStatus.textContent = "This dentist is in-network";
       if (dialogNetworkText) dialogNetworkText.textContent = "In-network · " + name;
     }
   }
@@ -686,6 +671,7 @@
   });
 
   insPill?.addEventListener("click", () => {
+    if (!insPicker) return;
     const open = insPicker.hidden;
     insPicker.hidden = !open;
     insPill.setAttribute("aria-expanded", open ? "true" : "false");
@@ -693,7 +679,7 @@
 
   document.getElementById("zd-dialog-ins-btn")?.addEventListener("click", () => {
     bookDialog?.close();
-    insPicker.hidden = false;
+    if (insPicker) insPicker.hidden = false;
     carrierSelectBook?.focus();
     document.getElementById("pp-booking")?.scrollIntoView({ behavior: "smooth", block: "center" });
   });
@@ -726,16 +712,17 @@
     const start = dayPage * pageSize;
     const end = Math.min(start + pageSize - 1, allDays.length - 1);
     const label = document.getElementById("zd-range-label");
-    if (allDays[start] && allDays[end]) {
+    if (label && allDays[start] && allDays[end]) {
       label.textContent = allDays[start].dateText + " – " + allDays[end].dateText;
     }
     document.querySelectorAll(".zd-day").forEach((el, idx) => {
       el.hidden = !(idx >= start && idx <= end);
     });
     const maxPage = Math.max(0, Math.ceil(allDays.length / pageSize) - 1);
-    document.getElementById("zd-range-prev").disabled = dayPage <= 0;
-    document.getElementById("zd-range-next").disabled = dayPage >= maxPage;
-    // Keep "View more availability" always visible — it opens the booking popup.
+    const prev = document.getElementById("zd-range-prev");
+    const next = document.getElementById("zd-range-next");
+    if (prev) prev.disabled = dayPage <= 0;
+    if (next) next.disabled = dayPage >= maxPage;
   }
 
   document.getElementById("zd-range-prev")?.addEventListener("click", () => {

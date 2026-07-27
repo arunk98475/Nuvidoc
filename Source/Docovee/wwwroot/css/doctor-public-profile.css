@@ -372,11 +372,17 @@
 .zd-location-copy p { margin: 0 0 4px; font-size: 14px; color: #444; }
 
 .zd-phone {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 10px;
   color: #111;
   font-weight: 600;
   text-decoration: none;
+}
+
+.zd-phone:hover {
+  color: var(--zd-link);
 }
 
 .zd-list { margin: 0; padding-left: 18px; color: #444; }
@@ -454,6 +460,81 @@
   font-size: 13px;
   color: var(--zd-muted);
   line-height: 1.4;
+}
+
+.zd-call-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--zd-yellow);
+  color: #111;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  transition: background 0.15s ease;
+}
+
+.zd-call-btn:hover {
+  background: var(--zd-yellow-hover);
+}
+
+.zd-book-call-hint {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--zd-muted);
+  line-height: 1.45;
+}
+
+.zd-book-readonly-panel {
+  border-top: 1px solid var(--zd-border);
+  padding-top: 16px;
+  opacity: 0.55;
+  pointer-events: none;
+  user-select: none;
+}
+
+.zd-select-readonly {
+  color: var(--zd-muted);
+  background: #f5f5f5 !important;
+  cursor: default;
+}
+
+.zd-patient-type-readonly {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.zd-patient-type-readonly .zd-ptype {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+}
+
+.zd-book-readonly-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--zd-muted);
+  line-height: 1.4;
+}
+
+.zd-icon-btn-call {
+  text-decoration: none;
+  color: inherit;
 }
 
 .zd-book-section {
