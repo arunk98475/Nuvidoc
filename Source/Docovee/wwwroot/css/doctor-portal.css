@@ -460,6 +460,16 @@ body:has(.dp-content-practice) {
   gap: 12px;
 }
 
+.dp-practice-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 32px;
+}
+
+@media (max-width: 720px) {
+  .dp-practice-photos { grid-template-columns: 1fr; }
+}
+
 .dp-practice-logo {
   width: 96px;
   height: 96px;
@@ -3723,14 +3733,28 @@ body.dp-drawer-open {
 /* Photos & media settings */
 .dp-media-block + .dp-media-block { margin-top: 8px; }
 .dp-media-upload {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.4fr) auto;
   gap: 10px;
   align-items: center;
   margin: 12px 0 18px;
 }
-.dp-media-upload input[type=""file""] {
+.dp-media-file-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.dp-media-file-name {
   font-size: 13px;
+  color: #5a6f67;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .dp-media-grid {
   display: grid;
@@ -3758,6 +3782,12 @@ body.dp-drawer-open {
 }
 .dp-media-delete {
   padding: 8px 10px 12px;
+}
+.dp-media-delete .dp-practice-outline-btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 14px;
+  padding: 8px 12px;
 }
 @media (max-width: 720px) {
   .dp-media-upload { grid-template-columns: 1fr; }

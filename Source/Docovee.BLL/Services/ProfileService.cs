@@ -24,7 +24,11 @@ public interface IProfileService
     Task<(bool Success, string? Error)> UpdatePatientAutofillAsync(int patientId, bool enabled, CancellationToken cancellationToken = default);
     Task<string?> GetPatientSavedInformationJsonAsync(int patientId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateDoctorProfileAsync(int doctorId, DoctorProfileEditModel model, IFormFile? photo, IFormFile? video = null, CancellationToken cancellationToken = default);
-    Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(int doctorId, PracticeProfileInput model, IFormFile? logo, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> UpdatePracticeProfileAsync(
+        int doctorId,
+        PracticeProfileInput model,
+        IFormFile? logo,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<VisitReasonCategoryViewModel>> GetVisitReasonPreferencesAsync(int doctorId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateVisitReasonPreferencesAsync(int doctorId, VisitReasonPreferencesInput model, CancellationToken cancellationToken = default);
     Task<WorkingHoursPageModel?> GetWorkingHoursAsync(int doctorId, CancellationToken cancellationToken = default);
@@ -380,10 +384,15 @@ public class ProfileService : IProfileService
         {
             var photoUrl = await _fileService.SaveUploadedPhotoAsync(photo, cancellationToken);
             if (photoUrl != null)
+            {
                 doctor.PhotoUrl = photoUrl;
+                doctor.PracticeLogoUrl = photoUrl;
+            }
         }
 
         doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink);
+        if (string.IsNullOrWhiteSpace(doctor.PracticeLogoUrl) && !string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+            doctor.PracticeLogoUrl = doctor.PhotoUrl;
 
         if (video != null && video.Length > 0)
         {
@@ -463,10 +472,18 @@ public class ProfileService : IProfileService
 
         if (logo != null && logo.Length > 0)
         {
-            var logoUrl = await _fileService.SaveUploadedPhotoAsync(logo, cancellationToken);
-            if (logoUrl != null)
-                doctor.PracticeLogoUrl = logoUrl;
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(logo, cancellationToken);
+            if (photoUrl != null)
+            {
+                // Practice logo and public headshot are the same image.
+                doctor.PhotoUrl = photoUrl;
+                doctor.PracticeLogoUrl = photoUrl;
+            }
         }
+
+        doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink);
+        if (string.IsNullOrWhiteSpace(doctor.PracticeLogoUrl) && !string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+            doctor.PracticeLogoUrl = doctor.PhotoUrl;
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated practice profile {DoctorId}", doctorId);

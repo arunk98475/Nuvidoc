@@ -46,6 +46,8 @@
         var clinic = Model.MediaItems.Where(m => m.MediaType == "Clinic").ToList();
         var team = Model.MediaItems.Where(m => m.MediaType == "Team").ToList();
         var smile = Model.MediaItems.Where(m => m.MediaType == "Smile").ToList();
+        var family = Model.MediaItems.Where(m => m.MediaType == "Family").ToList();
+        var pets = Model.MediaItems.Where(m => m.MediaType == "Pets").ToList();
         <div class="dp-practice-form">
             <div class="dp-practice-scroll">
                 <div class="dp-practice-inner">
@@ -72,11 +74,14 @@
 
                     <div class="dp-practice-field">
                         <label class="dp-practice-label" for="dp-practice-logo">Practice logo <span class="dp-practice-optional">(optional)</span></label>
-                        <p class="dp-practice-hint">Shown on your public profile beside your practice name. Your headshot is managed separately under Account → Profile.</p>
+                        <p class="dp-practice-hint">This photo is also used as your public profile headshot</p>
                         <div class="dp-practice-logo-row">
-                            @if (!string.IsNullOrWhiteSpace(p.PracticeLogoUrl))
+                            @{
+                                var practicePhoto = !string.IsNullOrWhiteSpace(p.PhotoUrl) ? p.PhotoUrl : p.PracticeLogoUrl;
+                            }
+                            @if (!string.IsNullOrWhiteSpace(practicePhoto))
                             {
-                                <img src="@p.PracticeLogoUrl" alt="" class="dp-practice-logo" id="dp-practice-logo-preview" />
+                                <img src="@practicePhoto" alt="" class="dp-practice-logo" id="dp-practice-logo-preview" />
                             }
                             else
                             {
@@ -170,7 +175,9 @@
                 {
                     ("Clinic", "Clinic photos", "Office exterior, operatories, waiting room — shown near the top of your public profile", clinic),
                     ("Team", "Team photos", "Doctors, hygienists, and front desk", team),
-                    ("Smile", "Smile gallery", "Before/after or smile makeover photos (with patient consent)", smile)
+                    ("Smile", "Smile gallery", "Before/after or smile makeover photos (with patient consent)", smile),
+                    ("Family", "Family gallery", "Family-friendly moments and photos from your practice community", family),
+                    ("Pets", "Pets gallery", "Pet-friendly office moments and photos with furry patients", pets)
                 })
                 {
                     <section class="dp-practice-block dp-practice-block-divider dp-media-block">
@@ -181,7 +188,9 @@
 
                         <form method="post" asp-page-handler="AddMedia" enctype="multipart/form-data" class="dp-media-upload">
                             <input type="hidden" name="mediaType" value="@group.Item1" />
-                            <input type="file" name="MediaFile" accept="image/*" required />
+                            <input type="file" name="MediaFile" class="dp-media-file-input" accept="image/*" required hidden />
+                            <button type="button" class="dp-practice-outline-btn dp-media-file-btn">Choose file</button>
+                            <span class="dp-media-file-name" aria-live="polite">No file chosen</span>
                             <input type="text" name="caption" class="dp-practice-input" placeholder="Caption (optional)" maxlength="300" />
                             <button type="submit" class="dp-btn dp-btn-primary">Upload</button>
                         </form>
@@ -1144,25 +1153,81 @@
 
   btn?.addEventListener("click", copyBookingLink);
 
-  const logoBtn = document.getElementById("dp-practice-logo-btn");
-  const logoInput = document.getElementById("dp-practice-logo");
-  const logoPreview = document.getElementById("dp-practice-logo-preview");
-  logoBtn?.addEventListener("click", () => logoInput?.click());
-  logoInput?.addEventListener("change", () => {
-    const file = logoInput.files?.[0];
-    if (!file || !logoPreview) return;
-    const url = URL.createObjectURL(file);
-    if (logoPreview.tagName === "IMG") {
-      logoPreview.src = url;
-    } else {
-      const img = document.createElement("img");
-      img.id = "dp-practice-logo-preview";
-      img.className = "dp-practice-logo";
-      img.alt = "";
-      img.src = url;
-      logoPreview.replaceWith(img);
-    }
+  function wirePhotoReplace(btnId, inputId, previewId) {
+    const btn = document.getElementById(btnId);
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    btn?.addEventListener("click", () => input?.click());
+    input?.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file || !preview) return;
+      const url = URL.createObjectURL(file);
+      if (preview.tagName === "IMG") {
+        preview.src = url;
+      } else {
+        const img = document.createElement("img");
+        img.id = previewId;
+        img.className = "dp-practice-logo";
+        img.alt = "";
+        img.src = url;
+        preview.replaceWith(img);
+      }
+    });
+  }
+  wirePhotoReplace("dp-practice-logo-btn", "dp-practice-logo", "dp-practice-logo-preview");
+
+  document.querySelectorAll(".dp-media-upload").forEach(form => {
+    const input = form.querySelector(".dp-media-file-input");
+    const btn = form.querySelector(".dp-media-file-btn");
+    const name = form.querySelector(".dp-media-file-name");
+    if (!input || !btn) return;
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const scroller = document.querySelector(".dp-practice-scroll");
+      const scrollTop = scroller ? scroller.scrollTop : window.scrollY;
+      input.click();
+      if (scroller) {
+        scroller.scrollTop = scrollTop;
+        requestAnimationFrame(() => { scroller.scrollTop = scrollTop; });
+      } else {
+        window.scrollTo(0, scrollTop);
+      }
+    });
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (name) name.textContent = file ? file.name : "No file chosen";
+    });
   });
+
+  const PRACTICE_SCROLL_KEY = "dp-practice-scroll";
+  function savePracticeScroll() {
+    const scroller = document.querySelector(".dp-practice-scroll");
+    if (!scroller) return;
+    try {
+      sessionStorage.setItem(PRACTICE_SCROLL_KEY, String(scroller.scrollTop));
+    } catch { /* ignore */ }
+  }
+  function restorePracticeScroll() {
+    const scroller = document.querySelector(".dp-practice-scroll");
+    if (!scroller) return;
+    let raw = null;
+    try {
+      raw = sessionStorage.getItem(PRACTICE_SCROLL_KEY);
+      sessionStorage.removeItem(PRACTICE_SCROLL_KEY);
+    } catch { /* ignore */ }
+    if (raw == null) return;
+    const top = Number(raw);
+    if (!Number.isFinite(top)) return;
+    const apply = () => { scroller.scrollTop = top; };
+    apply();
+    requestAnimationFrame(apply);
+    setTimeout(apply, 0);
+    setTimeout(apply, 50);
+  }
+  document.querySelectorAll(".dp-media-upload, .dp-media-delete").forEach(form => {
+    form.addEventListener("submit", savePracticeScroll);
+  });
+  restorePracticeScroll();
 
   const desc = document.getElementById("PracticeInput_PracticeDescription");
   const count = document.getElementById("dp-practice-count");

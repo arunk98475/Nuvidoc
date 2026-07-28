@@ -85,18 +85,23 @@ img.dp-logo-mark {
   padding: 0;
 }
 
+nav.dp-nav,
 .dp-nav {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: stretch;
   gap: 1px;
-  flex: 1;
+  flex: 1 1 auto;
   height: auto;
+  min-height: 0;
   padding: 0;
   background: transparent;
   border: none;
+  border-bottom: none;
   position: static;
+  top: auto;
+  z-index: auto;
 }
 
 .dp-nav-item {
@@ -338,6 +343,12 @@ body:has(.dp-content-practice) {
   z-index: 2;
 }
 
+.dp-practice-save-inline {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 8px;
+}
+
 .dp-practice-hero h1 {
   margin: 0 0 8px;
   font-size: 40px;
@@ -447,6 +458,16 @@ body:has(.dp-content-practice) {
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
+}
+
+.dp-practice-photos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 32px;
+}
+
+@media (max-width: 720px) {
+  .dp-practice-photos { grid-template-columns: 1fr; }
 }
 
 .dp-practice-logo {
@@ -2564,16 +2585,22 @@ body.dp-drawer-open {
 }
 
 .dp-visit-check {
+  position: relative;
   display: inline-flex;
   margin-top: 2px;
   cursor: pointer;
 }
 
+/* Overlay the visible box so focus scroll targets the checkbox, not a 1px off-flow input */
 .dp-visit-check input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 1px;
-  height: 1px;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .dp-visit-check-box {
@@ -3111,6 +3138,7 @@ body.dp-drawer-open {
 }
 
 .dp-hours-day-check {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -3121,9 +3149,13 @@ body.dp-drawer-open {
 
 .dp-hours-day-check input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 1px;
-  height: 1px;
+  cursor: pointer;
+  z-index: 1;
 }
 
 .dp-hours-check-box {
@@ -3696,4 +3728,67 @@ body.dp-drawer-open {
   padding: 4px 10px;
   border-radius: 4px;
   text-transform: uppercase;
+}
+
+/* Photos & media settings */
+.dp-media-block + .dp-media-block { margin-top: 8px; }
+.dp-media-upload {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 18px;
+}
+.dp-media-file-input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.dp-media-file-name {
+  font-size: 13px;
+  color: #5a6f67;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dp-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+.dp-media-card {
+  margin: 0;
+  background: #f7faf8;
+  border: 1px solid #e5ebe8;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.dp-media-card img {
+  display: block;
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  background: #dde5e1;
+}
+.dp-media-card figcaption {
+  padding: 8px 10px 0;
+  font-size: 12px;
+  color: #5a6f67;
+}
+.dp-media-delete {
+  padding: 8px 10px 12px;
+}
+.dp-media-delete .dp-practice-outline-btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 14px;
+  padding: 8px 12px;
+}
+@media (max-width: 720px) {
+  .dp-media-upload { grid-template-columns: 1fr; }
 }

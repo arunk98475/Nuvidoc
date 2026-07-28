@@ -59,7 +59,11 @@
                     var clinicPhotos = doctor.Media.Where(m => m.MediaType == "Clinic").ToList();
                     var teamPhotos = doctor.Media.Where(m => m.MediaType == "Team").ToList();
                     var smilePhotos = doctor.Media.Where(m => m.MediaType == "Smile").ToList();
+                    var familyPhotos = doctor.Media.Where(m => m.MediaType == "Family").ToList();
+                    var petsPhotos = doctor.Media.Where(m => m.MediaType == "Pets").ToList();
                     var heroGallery = clinicPhotos.Concat(teamPhotos).Take(8).ToList();
+                    var hasGallery = teamPhotos.Count > 0 || smilePhotos.Count > 0
+                        || familyPhotos.Count > 0 || petsPhotos.Count > 0;
                     var hasSocial = !string.IsNullOrWhiteSpace(doctor.FacebookUrl)
                         || !string.IsNullOrWhiteSpace(doctor.InstagramUrl)
                         || !string.IsNullOrWhiteSpace(doctor.TikTokUrl)
@@ -74,7 +78,12 @@
                         @foreach (var photo in heroGallery)
                         {
                             <figure class="zd-gallery-item">
-                                <img src="@photo.Url" alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)" loading="lazy" />
+                                <button type="button" class="zd-lightbox-trigger"
+                                        data-zd-src="@photo.Url"
+                                        data-zd-alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)"
+                                        aria-label="View photo larger">
+                                    <img src="@photo.Url" alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)" loading="lazy" />
+                                </button>
                             </figure>
                         }
                     </div>
@@ -89,16 +98,12 @@
                         <div class="zd-photo zd-photo-fallback">@doctor.AvatarInitials</div>
                     }
                     <div class="zd-hero-copy">
-                        <div class="zd-hero-brand">
-                            @if (!string.IsNullOrWhiteSpace(doctor.PracticeLogoUrl))
-                            {
-                                <img class="zd-practice-logo" src="@doctor.PracticeLogoUrl" alt="@(doctor.PracticeName ?? "Practice logo")" />
-                            }
-                            @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
-                            {
+                        @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                        {
+                            <div class="zd-hero-brand">
                                 <span class="zd-practice-name">@doctor.PracticeName</span>
-                            }
-                        </div>
+                            </div>
+                        }
                         <h1 class="zd-name">@doctor.Name</h1>
                         <p class="zd-specialty">@doctor.Specialty</p>
                         @if (!string.IsNullOrWhiteSpace(streetCity))
@@ -173,7 +178,7 @@
             <nav class="zd-tabs" aria-label="Profile sections">
                 <a class="zd-tab is-active" href="#highlights">Highlights</a>
                 <a class="zd-tab" href="#about">About</a>
-                @if (teamPhotos.Count > 0 || smilePhotos.Count > 0)
+                @if (hasGallery)
                 {
                     <a class="zd-tab" href="#gallery">Gallery</a>
                 }
@@ -266,7 +271,7 @@
                 }
             </section>
 
-            @if (teamPhotos.Count > 0 || smilePhotos.Count > 0)
+            @if (hasGallery)
             {
                 <section class="zd-section" id="gallery">
                     <h2 class="zd-h2">Gallery</h2>
@@ -277,7 +282,12 @@
                             @foreach (var photo in teamPhotos)
                             {
                                 <figure class="zd-gallery-card">
-                                    <img src="@photo.Url" alt="@(photo.Caption ?? "Team photo")" loading="lazy" />
+                                    <button type="button" class="zd-lightbox-trigger"
+                                            data-zd-src="@photo.Url"
+                                            data-zd-alt="@(photo.Caption ?? "Team photo")"
+                                            aria-label="View photo larger">
+                                        <img src="@photo.Url" alt="@(photo.Caption ?? "Team photo")" loading="lazy" />
+                                    </button>
                                     @if (!string.IsNullOrWhiteSpace(photo.Caption))
                                     {
                                         <figcaption>@photo.Caption</figcaption>
@@ -293,7 +303,54 @@
                             @foreach (var photo in smilePhotos)
                             {
                                 <figure class="zd-gallery-card">
-                                    <img src="@photo.Url" alt="@(photo.Caption ?? "Smile photo")" loading="lazy" />
+                                    <button type="button" class="zd-lightbox-trigger"
+                                            data-zd-src="@photo.Url"
+                                            data-zd-alt="@(photo.Caption ?? "Smile photo")"
+                                            aria-label="View photo larger">
+                                        <img src="@photo.Url" alt="@(photo.Caption ?? "Smile photo")" loading="lazy" />
+                                    </button>
+                                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                                    {
+                                        <figcaption>@photo.Caption</figcaption>
+                                    }
+                                </figure>
+                            }
+                        </div>
+                    }
+                    @if (familyPhotos.Count > 0)
+                    {
+                        <h3 class="zd-h3">Family gallery</h3>
+                        <div class="zd-gallery-grid">
+                            @foreach (var photo in familyPhotos)
+                            {
+                                <figure class="zd-gallery-card">
+                                    <button type="button" class="zd-lightbox-trigger"
+                                            data-zd-src="@photo.Url"
+                                            data-zd-alt="@(photo.Caption ?? "Family photo")"
+                                            aria-label="View photo larger">
+                                        <img src="@photo.Url" alt="@(photo.Caption ?? "Family photo")" loading="lazy" />
+                                    </button>
+                                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                                    {
+                                        <figcaption>@photo.Caption</figcaption>
+                                    }
+                                </figure>
+                            }
+                        </div>
+                    }
+                    @if (petsPhotos.Count > 0)
+                    {
+                        <h3 class="zd-h3">Pets gallery</h3>
+                        <div class="zd-gallery-grid">
+                            @foreach (var photo in petsPhotos)
+                            {
+                                <figure class="zd-gallery-card">
+                                    <button type="button" class="zd-lightbox-trigger"
+                                            data-zd-src="@photo.Url"
+                                            data-zd-alt="@(photo.Caption ?? "Pet photo")"
+                                            aria-label="View photo larger">
+                                        <img src="@photo.Url" alt="@(photo.Caption ?? "Pet photo")" loading="lazy" />
+                                    </button>
                                     @if (!string.IsNullOrWhiteSpace(photo.Caption))
                                     {
                                         <figcaption>@photo.Caption</figcaption>
@@ -462,9 +519,12 @@
                             <p>“@review.ReviewText”</p>
                             @if (!string.IsNullOrWhiteSpace(review.PhotoUrl))
                             {
-                                <a class="zd-review-photo" href="@review.PhotoUrl" target="_blank" rel="noopener noreferrer">
+                                <button type="button" class="zd-review-photo zd-lightbox-trigger"
+                                        data-zd-src="@review.PhotoUrl"
+                                        data-zd-alt="Photo from @review.ReviewerName"
+                                        aria-label="View review photo larger">
                                     <img src="@review.PhotoUrl" alt="Photo from @review.ReviewerName" loading="lazy" />
-                                </a>
+                                </button>
                             }
                         </article>
                     }
@@ -1051,6 +1111,57 @@
       submitting = false;
     }
   };
+})();
+</script>
+<div class="zd-lightbox" id="zd-lightbox" hidden>
+    <button type="button" class="zd-lightbox-backdrop" id="zd-lightbox-backdrop" aria-label="Close photo"></button>
+    <div class="zd-lightbox-panel" role="dialog" aria-modal="true" aria-label="Expanded photo">
+        <button type="button" class="zd-lightbox-close" id="zd-lightbox-close" aria-label="Close">×</button>
+        <img class="zd-lightbox-img" id="zd-lightbox-img" alt="" />
+        <p class="zd-lightbox-caption" id="zd-lightbox-caption" hidden></p>
+    </div>
+</div>
+<script>
+(function () {
+  const root = document.getElementById("zd-lightbox");
+  const img = document.getElementById("zd-lightbox-img");
+  const caption = document.getElementById("zd-lightbox-caption");
+  const closeBtn = document.getElementById("zd-lightbox-close");
+  const backdrop = document.getElementById("zd-lightbox-backdrop");
+  if (!root || !img) return;
+
+  function openLightbox(src, alt) {
+    if (!src) return;
+    img.src = src;
+    img.alt = alt || "";
+    if (caption) {
+      const text = (alt || "").trim();
+      caption.textContent = text;
+      caption.hidden = !text;
+    }
+    root.hidden = false;
+    document.body.classList.add("zd-lightbox-open");
+    closeBtn?.focus();
+  }
+
+  function closeLightbox() {
+    root.hidden = true;
+    document.body.classList.remove("zd-lightbox-open");
+    img.removeAttribute("src");
+  }
+
+  document.addEventListener("click", (e) => {
+    const trigger = e.target.closest(".zd-lightbox-trigger");
+    if (!trigger) return;
+    e.preventDefault();
+    openLightbox(trigger.getAttribute("data-zd-src"), trigger.getAttribute("data-zd-alt"));
+  });
+
+  closeBtn?.addEventListener("click", closeLightbox);
+  backdrop?.addEventListener("click", closeLightbox);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !root.hidden) closeLightbox();
+  });
 })();
 </script>
 </body>
