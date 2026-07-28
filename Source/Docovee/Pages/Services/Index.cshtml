@@ -16,13 +16,13 @@
     <link rel="stylesheet" href="~/css/cms-public.css" asp-append-version="true" />
 </head>
 <body>
-@{ ViewData["ShowBlogLink"] = true; }
+@{ ViewData["ShowServicesLink"] = true; }
 <partial name="Shared/_PublicNav" />
 
 <div class="cms-shell">
     <header class="cms-list-header">
         <h1>Dental Services in Houston</h1>
-        <p>Find the right dentist for your specific dental need.</p>
+        <p>Emergency, same-day, near me, implants — find the right Houston dentist for your need.</p>
     </header>
 
     @if (Model.Pages.Count == 0)

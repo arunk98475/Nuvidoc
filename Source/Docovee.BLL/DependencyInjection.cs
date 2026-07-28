@@ -77,6 +77,7 @@ public static class DependencyInjection
         services.AddScoped<IPollingQuestionService, PollingQuestionService>();
         services.AddScoped<IDoctorLanguageService, DoctorLanguageService>();
         services.AddScoped<IDoctorReviewService, DoctorReviewService>();
+        services.AddScoped<IDoctorMediaService, DoctorMediaService>();
         services.AddScoped<IPatientDoctorContactService, PatientDoctorContactService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<IDoctorLocationService, DoctorLocationService>();

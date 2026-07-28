@@ -55,6 +55,30 @@
     <div class="zd-layout">
         <div class="zd-main">
             <section class="zd-hero">
+                @{
+                    var clinicPhotos = doctor.Media.Where(m => m.MediaType == "Clinic").ToList();
+                    var teamPhotos = doctor.Media.Where(m => m.MediaType == "Team").ToList();
+                    var smilePhotos = doctor.Media.Where(m => m.MediaType == "Smile").ToList();
+                    var heroGallery = clinicPhotos.Concat(teamPhotos).Take(8).ToList();
+                    var hasSocial = !string.IsNullOrWhiteSpace(doctor.FacebookUrl)
+                        || !string.IsNullOrWhiteSpace(doctor.InstagramUrl)
+                        || !string.IsNullOrWhiteSpace(doctor.TikTokUrl)
+                        || !string.IsNullOrWhiteSpace(doctor.LinkedInUrl)
+                        || !string.IsNullOrWhiteSpace(doctor.YoutubeChannelUrl);
+                    var videoEmbed = GetVideoEmbedUrl(doctor.VideoUrl);
+                    var isDirectVideo = !string.IsNullOrWhiteSpace(doctor.VideoUrl) && IsDirectVideoFile(doctor.VideoUrl!);
+                }
+                @if (heroGallery.Count > 0)
+                {
+                    <div class="zd-gallery-strip" aria-label="Clinic photos">
+                        @foreach (var photo in heroGallery)
+                        {
+                            <figure class="zd-gallery-item">
+                                <img src="@photo.Url" alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)" loading="lazy" />
+                            </figure>
+                        }
+                    </div>
+                }
                 <div class="zd-hero-row">
                     @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
                     {
@@ -65,11 +89,46 @@
                         <div class="zd-photo zd-photo-fallback">@doctor.AvatarInitials</div>
                     }
                     <div class="zd-hero-copy">
+                        <div class="zd-hero-brand">
+                            @if (!string.IsNullOrWhiteSpace(doctor.PracticeLogoUrl))
+                            {
+                                <img class="zd-practice-logo" src="@doctor.PracticeLogoUrl" alt="@(doctor.PracticeName ?? "Practice logo")" />
+                            }
+                            @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                            {
+                                <span class="zd-practice-name">@doctor.PracticeName</span>
+                            }
+                        </div>
                         <h1 class="zd-name">@doctor.Name</h1>
                         <p class="zd-specialty">@doctor.Specialty</p>
                         @if (!string.IsNullOrWhiteSpace(streetCity))
                         {
                             <p class="zd-address">@streetCity</p>
+                        }
+                        @if (hasSocial)
+                        {
+                            <div class="zd-social" aria-label="Social links">
+                                @if (!string.IsNullOrWhiteSpace(doctor.FacebookUrl))
+                                {
+                                    <a href="@doctor.FacebookUrl" target="_blank" rel="noopener noreferrer" class="zd-social-link" aria-label="Facebook">Facebook</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(doctor.InstagramUrl))
+                                {
+                                    <a href="@doctor.InstagramUrl" target="_blank" rel="noopener noreferrer" class="zd-social-link" aria-label="Instagram">Instagram</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(doctor.TikTokUrl))
+                                {
+                                    <a href="@doctor.TikTokUrl" target="_blank" rel="noopener noreferrer" class="zd-social-link" aria-label="TikTok">TikTok</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(doctor.LinkedInUrl))
+                                {
+                                    <a href="@doctor.LinkedInUrl" target="_blank" rel="noopener noreferrer" class="zd-social-link" aria-label="LinkedIn">LinkedIn</a>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(doctor.YoutubeChannelUrl))
+                                {
+                                    <a href="@doctor.YoutubeChannelUrl" target="_blank" rel="noopener noreferrer" class="zd-social-link" aria-label="YouTube">YouTube</a>
+                                }
+                            </div>
                         }
                     </div>
                     <div class="zd-hero-actions">
@@ -114,6 +173,10 @@
             <nav class="zd-tabs" aria-label="Profile sections">
                 <a class="zd-tab is-active" href="#highlights">Highlights</a>
                 <a class="zd-tab" href="#about">About</a>
+                @if (teamPhotos.Count > 0 || smilePhotos.Count > 0)
+                {
+                    <a class="zd-tab" href="#gallery">Gallery</a>
+                }
                 <a class="zd-tab" href="#insurances">Insurances</a>
                 <a class="zd-tab" href="#location">Location</a>
                 <a class="zd-tab" href="#reviews">Reviews</a>
@@ -184,7 +247,63 @@
                     }
                 </p>
                 <button type="button" class="zd-text-btn" id="zd-about-toggle" hidden>show more</button>
+
+                @if (!string.IsNullOrWhiteSpace(doctor.VideoUrl) && (videoEmbed != null || isDirectVideo))
+                {
+                    <div class="zd-video">
+                        <h3 class="zd-h3">Meet @doctor.Name</h3>
+                        @if (isDirectVideo)
+                        {
+                            <video class="zd-video-player" src="@doctor.VideoUrl" controls preload="metadata" playsinline></video>
+                        }
+                        else if (videoEmbed != null)
+                        {
+                            <div class="zd-video-frame">
+                                <iframe src="@videoEmbed" title="Introduction video for @doctor.Name" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+                            </div>
+                        }
+                    </div>
+                }
             </section>
+
+            @if (teamPhotos.Count > 0 || smilePhotos.Count > 0)
+            {
+                <section class="zd-section" id="gallery">
+                    <h2 class="zd-h2">Gallery</h2>
+                    @if (teamPhotos.Count > 0)
+                    {
+                        <h3 class="zd-h3">Our team</h3>
+                        <div class="zd-gallery-grid">
+                            @foreach (var photo in teamPhotos)
+                            {
+                                <figure class="zd-gallery-card">
+                                    <img src="@photo.Url" alt="@(photo.Caption ?? "Team photo")" loading="lazy" />
+                                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                                    {
+                                        <figcaption>@photo.Caption</figcaption>
+                                    }
+                                </figure>
+                            }
+                        </div>
+                    }
+                    @if (smilePhotos.Count > 0)
+                    {
+                        <h3 class="zd-h3">Smile gallery</h3>
+                        <div class="zd-gallery-grid">
+                            @foreach (var photo in smilePhotos)
+                            {
+                                <figure class="zd-gallery-card">
+                                    <img src="@photo.Url" alt="@(photo.Caption ?? "Smile photo")" loading="lazy" />
+                                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                                    {
+                                        <figcaption>@photo.Caption</figcaption>
+                                    }
+                                </figure>
+                            }
+                        </div>
+                    }
+                </section>
+            }
 
             <section class="zd-section" id="insurances">
                 <h2 class="zd-h2">Is this doctor in your insurance network?</h2>
@@ -341,6 +460,12 @@
                                 </div>
                             </div>
                             <p>“@review.ReviewText”</p>
+                            @if (!string.IsNullOrWhiteSpace(review.PhotoUrl))
+                            {
+                                <a class="zd-review-photo" href="@review.PhotoUrl" target="_blank" rel="noopener noreferrer">
+                                    <img src="@review.PhotoUrl" alt="Photo from @review.ReviewerName" loading="lazy" />
+                                </a>
+                            }
                         </article>
                     }
                 }
@@ -940,4 +1065,39 @@
     }
     private static string RenderStars(int rating) => RenderStars((decimal)rating);
     private static string RegexPhone(string phone) => new string(phone.Where(char.IsDigit).ToArray());
+
+    private static string? GetVideoEmbedUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+        var trimmed = url.Trim();
+        var yt = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (yt.Success)
+            return $"https://www.youtube.com/embed/{yt.Groups[1].Value}";
+
+        var vimeo = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"vimeo\.com\/(?:video\/)?(\d+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (vimeo.Success)
+            return $"https://player.vimeo.com/video/{vimeo.Groups[1].Value}";
+
+        var loom = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"loom\.com\/share\/([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (loom.Success)
+            return $"https://www.loom.com/embed/{loom.Groups[1].Value}";
+
+        return null;
+    }
+
+    private static bool IsDirectVideoFile(string url) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            url,
+            @"\.(mp4|webm|ogg|mov|m4v)(\?|$)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 }

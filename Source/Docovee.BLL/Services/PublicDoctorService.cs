@@ -64,6 +64,7 @@ public class PublicDoctorService : IPublicDoctorService
         var doctor = await _db.Doctors
             .AsNoTracking()
             .Include(d => d.PatientReviews)
+            .Include(d => d.Media)
             .Include(d => d.DoctorInsurances).ThenInclude(di => di.InsuranceCarrier).ThenInclude(c => c.Plans)
             .Include(d => d.DoctorLanguages).ThenInclude(dl => dl.DoctorLanguage)
             .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive, cancellationToken);
@@ -99,7 +100,22 @@ public class PublicDoctorService : IPublicDoctorService
                 Rating = r.Rating,
                 ReviewText = r.ReviewText,
                 WaitingTime = r.WaitingTime,
-                Recommendation = r.Recommendation
+                Recommendation = r.Recommendation,
+                PhotoUrl = r.PhotoUrl
+            })
+            .ToList();
+
+        var media = doctor.Media
+            .OrderBy(m => m.MediaType)
+            .ThenBy(m => m.SortOrder)
+            .ThenBy(m => m.Id)
+            .Select(m => new DoctorMediaDto
+            {
+                Id = m.Id,
+                MediaType = m.MediaType,
+                Url = m.Url,
+                Caption = m.Caption,
+                SortOrder = m.SortOrder
             })
             .ToList();
 
@@ -144,6 +160,7 @@ public class PublicDoctorService : IPublicDoctorService
             ZipCode = doctor.ZipCode,
             Address = doctor.Address,
             PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink),
+            PracticeLogoUrl = doctor.PracticeLogoUrl,
             AvatarInitials = doctor.AvatarInitials,
             OfficePhoneNumber = doctor.OfficePhoneNumber,
             Niche = doctor.Niche ?? doctor.TagLine,
@@ -156,6 +173,11 @@ public class PublicDoctorService : IPublicDoctorService
             VideoUrl = !string.IsNullOrWhiteSpace(doctor.VideoUrl)
                 ? doctor.VideoUrl.Trim()
                 : DoctorProfileHelper.ExtractVideoUrl(doctor.OnboardingProfileJson),
+            FacebookUrl = doctor.FacebookUrl,
+            InstagramUrl = doctor.InstagramUrl,
+            TikTokUrl = doctor.TikTokUrl,
+            LinkedInUrl = doctor.LinkedInUrl,
+            YoutubeChannelUrl = doctor.YoutubeChannelUrl,
             OffersDentalImplants = doctor.OffersDentalImplants,
             OffersTmj = doctor.OffersTmj,
             OffersBotox = doctor.OffersBotox,
@@ -163,7 +185,8 @@ public class PublicDoctorService : IPublicDoctorService
             AcceptedInsuranceCarrierIds = acceptedInsurances.Select(i => i.CarrierId).ToList(),
             AcceptedInsurances = acceptedInsurances,
             Languages = languages,
-            Reviews = reviews
+            Reviews = reviews,
+            Media = media
         };
     }
 

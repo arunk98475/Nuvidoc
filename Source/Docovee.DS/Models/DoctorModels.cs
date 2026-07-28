@@ -65,6 +65,16 @@ public class PublicDoctorReviewDto
     public string ReviewText { get; set; } = string.Empty;
     public string? WaitingTime { get; set; }
     public string? Recommendation { get; set; }
+    public string? PhotoUrl { get; set; }
+}
+
+public class DoctorMediaDto
+{
+    public int Id { get; set; }
+    public string MediaType { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string? Caption { get; set; }
+    public int SortOrder { get; set; }
 }
 
 public class PublicDoctorProfileDto
@@ -78,6 +88,7 @@ public class PublicDoctorProfileDto
     public string ZipCode { get; set; } = string.Empty;
     public string? Address { get; set; }
     public string? PhotoUrl { get; set; }
+    public string? PracticeLogoUrl { get; set; }
     public string AvatarInitials { get; set; } = string.Empty;
     public string? OfficePhoneNumber { get; set; }
     public string? Niche { get; set; }
@@ -88,6 +99,11 @@ public class PublicDoctorProfileDto
     public decimal GoogleRating { get; set; }
     public int GoogleReviewCount { get; set; }
     public string? VideoUrl { get; set; }
+    public string? FacebookUrl { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? TikTokUrl { get; set; }
+    public string? LinkedInUrl { get; set; }
+    public string? YoutubeChannelUrl { get; set; }
     public bool OffersDentalImplants { get; set; }
     public bool OffersTmj { get; set; }
     public bool OffersBotox { get; set; }
@@ -96,6 +112,7 @@ public class PublicDoctorProfileDto
     public IReadOnlyList<PublicDoctorInsuranceDto> AcceptedInsurances { get; set; } = Array.Empty<PublicDoctorInsuranceDto>();
     public IReadOnlyList<string> Languages { get; set; } = Array.Empty<string>();
     public IReadOnlyList<PublicDoctorReviewDto> Reviews { get; set; } = Array.Empty<PublicDoctorReviewDto>();
+    public IReadOnlyList<DoctorMediaDto> Media { get; set; } = Array.Empty<DoctorMediaDto>();
 }
 
 public class PublicDoctorInsuranceDto

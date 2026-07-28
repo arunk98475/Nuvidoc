@@ -14,5 +14,6 @@ public class DoctorPatientReview
     public string? WaitingTime { get; set; }
     /// <summary>Highly Recommended, Neutral, or Not Recommended.</summary>
     public string? Recommendation { get; set; }
+    public string? PhotoUrl { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

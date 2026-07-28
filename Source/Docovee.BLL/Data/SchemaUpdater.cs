@@ -428,6 +428,35 @@ public static class SchemaUpdater
         await EnsureTextColumnAsync(db, "home_page_content", "How3Body", cancellationToken);
         await EnsureColumnAsync(db, "home_page_content", "CtaNote", "varchar(200) NULL", cancellationToken);
 
+        // Media-heavy doctor profiles
+        await EnsureColumnAsync(db, "doctors", "PracticeLogoUrl", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "FacebookUrl", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "InstagramUrl", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "TikTokUrl", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "LinkedInUrl", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "YoutubeChannelUrl", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctor_patient_reviews", "PhotoUrl", "varchar(500) NULL", cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `doctor_media` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `LocationId` int NULL,
+                `MediaType` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `Url` varchar(500) CHARACTER SET utf8mb4 NOT NULL,
+                `Caption` varchar(300) CHARACTER SET utf8mb4 NULL,
+                `SortOrder` int NOT NULL DEFAULT 0,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_doctor_media_DoctorId_MediaType_SortOrder` (`DoctorId`, `MediaType`, `SortOrder`),
+                KEY `IX_doctor_media_LocationId` (`LocationId`),
+                CONSTRAINT `FK_doctor_media_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_doctor_media_doctor_locations_LocationId` FOREIGN KEY (`LocationId`) REFERENCES `doctor_locations` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
+
         Log("Schema updates complete.");
     }
 

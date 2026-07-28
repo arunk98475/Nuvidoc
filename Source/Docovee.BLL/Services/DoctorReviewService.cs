@@ -17,6 +17,7 @@ public interface IDoctorReviewService
         string reviewText,
         string? waitingTime,
         string? recommendation,
+        string? photoUrl = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -70,6 +71,7 @@ public class DoctorReviewService : IDoctorReviewService
                 ReviewText = r.ReviewText,
                 WaitingTime = r.WaitingTime,
                 Recommendation = r.Recommendation,
+                PhotoUrl = r.PhotoUrl,
                 CreatedAt = r.CreatedAt
             })
             .ToListAsync(cancellationToken);
@@ -108,7 +110,8 @@ public class DoctorReviewService : IDoctorReviewService
             Rating = request.Rating,
             ReviewText = request.ReviewText.Trim(),
             WaitingTime = waitingTime,
-            Recommendation = recommendation
+            Recommendation = recommendation,
+            PhotoUrl = string.IsNullOrWhiteSpace(request.PhotoUrl) ? null : request.PhotoUrl.Trim()
         });
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Patient review added for doctor {DoctorId}", request.DoctorId);
@@ -122,6 +125,7 @@ public class DoctorReviewService : IDoctorReviewService
         string reviewText,
         string? waitingTime,
         string? recommendation,
+        string? photoUrl = null,
         CancellationToken cancellationToken = default)
     {
         var patient = await _db.Patients.AsNoTracking()
@@ -167,6 +171,7 @@ public class DoctorReviewService : IDoctorReviewService
             ReviewText = reviewText,
             WaitingTime = waitingTime,
             Recommendation = recommendation,
+            PhotoUrl = photoUrl,
             PatientId = patientId
         }, cancellationToken);
     }

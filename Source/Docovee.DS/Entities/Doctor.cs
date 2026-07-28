@@ -13,8 +13,14 @@ public class Doctor
     public string? Address { get; set; }
     public string? OfficePhoneNumber { get; set; }
     public string? PhotoUrl { get; set; }
+    public string? PracticeLogoUrl { get; set; }
     public string? GmbPhotoLink { get; set; }
     public string? VideoUrl { get; set; }
+    public string? FacebookUrl { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? TikTokUrl { get; set; }
+    public string? LinkedInUrl { get; set; }
+    public string? YoutubeChannelUrl { get; set; }
     public string? SummaryOfReviews { get; set; }
     public string? Top3Procedures { get; set; }
     public string? Niche { get; set; }
@@ -48,4 +54,5 @@ public class Doctor
     public ICollection<DoctorPatientReview> PatientReviews { get; set; } = new List<DoctorPatientReview>();
     public ICollection<DoctorDoctorLanguage> DoctorLanguages { get; set; } = new List<DoctorDoctorLanguage>();
     public ICollection<DoctorLocation> Locations { get; set; } = new List<DoctorLocation>();
+    public ICollection<DoctorMedia> Media { get; set; } = new List<DoctorMedia>();
 }

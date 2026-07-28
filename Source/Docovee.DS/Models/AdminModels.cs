@@ -202,6 +202,7 @@ public class DoctorReviewRequest
     public string ReviewText { get; set; } = string.Empty;
     public string? WaitingTime { get; set; }
     public string? Recommendation { get; set; }
+    public string? PhotoUrl { get; set; }
     public int? PatientId { get; set; }
 }
 
@@ -213,6 +214,7 @@ public class DoctorReviewDto
     public string ReviewText { get; set; } = string.Empty;
     public string? WaitingTime { get; set; }
     public string? Recommendation { get; set; }
+    public string? PhotoUrl { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

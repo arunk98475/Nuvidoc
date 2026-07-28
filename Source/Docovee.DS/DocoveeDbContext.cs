@@ -32,6 +32,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<AuditTrail> AuditTrails => Set<AuditTrail>();
     public DbSet<ContentPage> ContentPages => Set<ContentPage>();
     public DbSet<HomePageContent> HomePageContents => Set<HomePageContent>();
+    public DbSet<DoctorMedia> DoctorMedia => Set<DoctorMedia>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,8 +54,14 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Address).HasMaxLength(500);
             entity.Property(e => e.OfficePhoneNumber).HasMaxLength(30);
             entity.Property(e => e.PhotoUrl).HasColumnType("text");
+            entity.Property(e => e.PracticeLogoUrl).HasColumnType("text");
             entity.Property(e => e.GmbPhotoLink).HasColumnType("text");
             entity.Property(e => e.VideoUrl).HasColumnType("text");
+            entity.Property(e => e.FacebookUrl).HasMaxLength(500);
+            entity.Property(e => e.InstagramUrl).HasMaxLength(500);
+            entity.Property(e => e.TikTokUrl).HasMaxLength(500);
+            entity.Property(e => e.LinkedInUrl).HasMaxLength(500);
+            entity.Property(e => e.YoutubeChannelUrl).HasMaxLength(500);
             entity.Property(e => e.SummaryOfReviews).HasColumnType("text");
             entity.Property(e => e.Top3Procedures).HasMaxLength(500);
             entity.Property(e => e.Niche).HasMaxLength(200);
@@ -80,8 +87,22 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.ReviewText).HasColumnType("text").IsRequired();
             entity.Property(e => e.WaitingTime).HasMaxLength(50);
             entity.Property(e => e.Recommendation).HasMaxLength(50);
+            entity.Property(e => e.PhotoUrl).HasMaxLength(500);
             entity.HasOne(e => e.Doctor).WithMany(d => d.PatientReviews).HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+        });
+
+        modelBuilder.Entity<DoctorMedia>(entity =>
+        {
+            entity.ToTable("doctor_media");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.MediaType).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.Url).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Caption).HasMaxLength(300);
+            entity.HasIndex(e => new { e.DoctorId, e.MediaType, e.SortOrder });
+            entity.HasOne(e => e.Doctor).WithMany(d => d.Media).HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.Location).WithMany().HasForeignKey(e => e.LocationId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<PollingQuestion>(entity =>

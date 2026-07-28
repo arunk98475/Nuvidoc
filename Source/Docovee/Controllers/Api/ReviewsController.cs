@@ -30,7 +30,7 @@ public class ReviewsController : ControllerBase
         {
             var (success, error) = await _reviewService.AddReviewForPatientAsync(
                 patientId, request.DoctorId, request.Rating, request.ReviewText,
-                request.WaitingTime, request.Recommendation, cancellationToken);
+                request.WaitingTime, request.Recommendation, request.PhotoUrl, cancellationToken);
             if (!success)
                 return BadRequest(new { message = error });
             return Ok(new { message = "Review submitted successfully." });

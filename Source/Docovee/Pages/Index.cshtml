@@ -4,7 +4,7 @@
 @model IndexModel
 @{
     Layout = null;
-    ViewData["Title"] = $"{Branding.SiteName} — Find a Dentist Near Me";
+    ViewData["Title"] = $"{Branding.SiteName} — Find a Dentist in Houston";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -14,6 +14,8 @@
     <title>@ViewData["Title"]</title>
     <partial name="Shared/_Favicon" />
     <meta name="description" content="@Model.Home.MetaDescription" />
+    <meta name="geo.region" content="US-TX" />
+    <meta name="geo.placename" content="Houston" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body>
@@ -39,6 +41,17 @@
         {
             <div class="nav-links">
                 <a class="nav-link" href="#" onclick="scrollToChat(); closeMobileNav(); return false;">Find a Dentist</a>
+                <div class="nav-dropdown">
+                    <a class="nav-link" href="#">Houston care</a>
+                    <div class="nav-dropdown-menu">
+                        <a class="nav-dropdown-item" href="/services/emergency-dentist-houston" onclick="closeMobileNav()">🚨 Emergency Dentist</a>
+                        <a class="nav-dropdown-item" href="/services/same-day-dentist-houston" onclick="closeMobileNav()">⚡ Same-Day Dentist</a>
+                        <a class="nav-dropdown-item" href="/services/dentist-near-me-houston" onclick="closeMobileNav()">📍 Dentist Near Me</a>
+                        <a class="nav-dropdown-item" href="/services/best-dentists-houston" onclick="closeMobileNav()">⭐ Best Dentists</a>
+                        <a class="nav-dropdown-item" href="/services/dental-implants-houston" onclick="closeMobileNav()">✨ Dental Implants</a>
+                        <a class="nav-dropdown-item" href="/services" onclick="closeMobileNav()">All Houston services →</a>
+                    </div>
+                </div>
                 <div class="nav-dropdown">
                     <a class="nav-link" href="#">Dental care</a>
                     <div class="nav-dropdown-menu">

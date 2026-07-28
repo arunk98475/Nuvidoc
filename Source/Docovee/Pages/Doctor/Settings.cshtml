@@ -43,12 +43,15 @@
     @if (Model.Section == "practice")
     {
         var descLen = (Model.PracticeInput.PracticeDescription ?? "").Length;
-        <form method="post" asp-page-handler="Practice" enctype="multipart/form-data" class="dp-practice-form">
+        var clinic = Model.MediaItems.Where(m => m.MediaType == "Clinic").ToList();
+        var team = Model.MediaItems.Where(m => m.MediaType == "Team").ToList();
+        var smile = Model.MediaItems.Where(m => m.MediaType == "Smile").ToList();
+        <div class="dp-practice-form">
             <div class="dp-practice-scroll">
                 <div class="dp-practice-inner">
                 @if (Model.Saved)
                 {
-                    <div class="dp-practice-alert is-success">Practice profile saved.</div>
+                    <div class="dp-practice-alert is-success">Saved.</div>
                 }
                 @if (!string.IsNullOrEmpty(Model.ErrorMessage))
                 {
@@ -60,6 +63,7 @@
                     <p>Manage your patient facing profile for your practice</p>
                 </header>
 
+                <form method="post" asp-page-handler="Practice" enctype="multipart/form-data" id="dp-practice-main-form">
                 <section class="dp-practice-block">
                     <div class="dp-practice-field">
                         <label class="dp-practice-label" for="PracticeInput_PracticeName">Practice name</label>
@@ -68,15 +72,15 @@
 
                     <div class="dp-practice-field">
                         <label class="dp-practice-label" for="dp-practice-logo">Practice logo <span class="dp-practice-optional">(optional)</span></label>
-                        <p class="dp-practice-hint">A good photo increases appointment bookings</p>
+                        <p class="dp-practice-hint">Shown on your public profile beside your practice name. Your headshot is managed separately under Account → Profile.</p>
                         <div class="dp-practice-logo-row">
-                            @if (!string.IsNullOrWhiteSpace(p.PhotoUrl))
+                            @if (!string.IsNullOrWhiteSpace(p.PracticeLogoUrl))
                             {
-                                <img src="@p.PhotoUrl" alt="" class="dp-practice-logo" id="dp-practice-logo-preview" />
+                                <img src="@p.PracticeLogoUrl" alt="" class="dp-practice-logo" id="dp-practice-logo-preview" />
                             }
                             else
                             {
-                                <div class="dp-practice-logo is-fallback" id="dp-practice-logo-preview">@(p.Name.Length > 0 ? p.Name[0] : '?')</div>
+                                <div class="dp-practice-logo is-fallback" id="dp-practice-logo-preview">@(string.IsNullOrWhiteSpace(p.PracticeName) ? (p.Name.Length > 0 ? p.Name[0] : '?') : p.PracticeName[0])</div>
                             }
                             <div>
                                 <input type="file" id="dp-practice-logo" name="PracticeLogo" accept="image/*" hidden />
@@ -96,9 +100,37 @@
                     </div>
 
                     <div class="dp-practice-field">
-                        <label class="dp-practice-label" for="PracticeInput_YoutubeVideoUrl">YouTube video link <span class="dp-practice-optional">(optional)</span></label>
+                        <label class="dp-practice-label" for="PracticeInput_YoutubeVideoUrl">Intro YouTube video <span class="dp-practice-optional">(optional)</span></label>
                         <p class="dp-practice-hint">Add an introduction video that appears on your public profile</p>
                         <input asp-for="PracticeInput.YoutubeVideoUrl" class="dp-practice-input" id="PracticeInput_YoutubeVideoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+                    </div>
+                </section>
+
+                <section class="dp-practice-block dp-practice-block-divider">
+                    <header class="dp-practice-section-head">
+                        <h2>Social links</h2>
+                        <p>Help patients find your practice on social media</p>
+                    </header>
+
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_FacebookUrl">Facebook</label>
+                        <input asp-for="PracticeInput.FacebookUrl" class="dp-practice-input" id="PracticeInput_FacebookUrl" type="url" placeholder="https://facebook.com/..." />
+                    </div>
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_InstagramUrl">Instagram</label>
+                        <input asp-for="PracticeInput.InstagramUrl" class="dp-practice-input" id="PracticeInput_InstagramUrl" type="url" placeholder="https://instagram.com/..." />
+                    </div>
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_TikTokUrl">TikTok</label>
+                        <input asp-for="PracticeInput.TikTokUrl" class="dp-practice-input" id="PracticeInput_TikTokUrl" type="url" placeholder="https://tiktok.com/@@..." />
+                    </div>
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_LinkedInUrl">LinkedIn</label>
+                        <input asp-for="PracticeInput.LinkedInUrl" class="dp-practice-input" id="PracticeInput_LinkedInUrl" type="url" placeholder="https://linkedin.com/..." />
+                    </div>
+                    <div class="dp-practice-field">
+                        <label class="dp-practice-label" for="PracticeInput_YoutubeChannelUrl">YouTube channel</label>
+                        <input asp-for="PracticeInput.YoutubeChannelUrl" class="dp-practice-input" id="PracticeInput_YoutubeChannelUrl" type="url" placeholder="https://youtube.com/@@..." />
                     </div>
                 </section>
 
@@ -128,13 +160,60 @@
                         </div>
                     </div>
                 </section>
+
+                <div class="dp-practice-save-inline">
+                    <button type="submit" class="dp-btn dp-btn-primary">Save changes</button>
+                </div>
+                </form>
+
+                @foreach (var group in new[]
+                {
+                    ("Clinic", "Clinic photos", "Office exterior, operatories, waiting room — shown near the top of your public profile", clinic),
+                    ("Team", "Team photos", "Doctors, hygienists, and front desk", team),
+                    ("Smile", "Smile gallery", "Before/after or smile makeover photos (with patient consent)", smile)
+                })
+                {
+                    <section class="dp-practice-block dp-practice-block-divider dp-media-block">
+                        <header class="dp-practice-section-head">
+                            <h2>@group.Item2</h2>
+                            <p>@group.Item3</p>
+                        </header>
+
+                        <form method="post" asp-page-handler="AddMedia" enctype="multipart/form-data" class="dp-media-upload">
+                            <input type="hidden" name="mediaType" value="@group.Item1" />
+                            <input type="file" name="MediaFile" accept="image/*" required />
+                            <input type="text" name="caption" class="dp-practice-input" placeholder="Caption (optional)" maxlength="300" />
+                            <button type="submit" class="dp-btn dp-btn-primary">Upload</button>
+                        </form>
+
+                        @if (group.Item4.Count == 0)
+                        {
+                            <p class="dp-practice-hint">No photos yet.</p>
+                        }
+                        else
+                        {
+                            <div class="dp-media-grid">
+                                @foreach (var item in group.Item4)
+                                {
+                                    <figure class="dp-media-card">
+                                        <img src="@item.Url" alt="@(item.Caption ?? group.Item2)" />
+                                        @if (!string.IsNullOrWhiteSpace(item.Caption))
+                                        {
+                                            <figcaption>@item.Caption</figcaption>
+                                        }
+                                        <form method="post" asp-page-handler="DeleteMedia" class="dp-media-delete">
+                                            <input type="hidden" name="mediaId" value="@item.Id" />
+                                            <button type="submit" class="dp-practice-outline-btn" onclick="return confirm('Remove this photo?');">Remove</button>
+                                        </form>
+                                    </figure>
+                                }
+                            </div>
+                        }
+                    </section>
+                }
                 </div>
             </div>
-
-            <footer class="dp-practice-footer">
-                <button type="submit" class="dp-btn dp-btn-primary">Save changes</button>
-            </footer>
-        </form>
+        </div>
     }
     else if (Model.Section == "locations")
     {

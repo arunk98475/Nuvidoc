@@ -89,7 +89,7 @@
                         }
                         else if (a.CanLeaveReview)
                         {
-                            <form method="post" asp-page-handler="SubmitReview" class="patient-review-form">
+                            <form method="post" asp-page-handler="SubmitReview" class="patient-review-form" enctype="multipart/form-data">
                                 <input type="hidden" name="doctorId" value="@a.DoctorId" />
                                 <label class="review-label">Review @a.DoctorName</label>
                                 <div class="review-rating-row">
@@ -126,6 +126,8 @@
 
                                 <label class="review-label" for="review-@a.Id">Your review</label>
                                 <textarea id="review-@a.Id" name="reviewText" class="review-textarea" rows="3" required placeholder="Share your experience with this doctor..."></textarea>
+                                <label class="review-label" for="review-photo-@a.Id">Photo <span class="hint">(optional)</span></label>
+                                <input id="review-photo-@a.Id" type="file" name="ReviewPhoto" accept="image/*" class="review-photo-input" />
                                 <button type="submit" class="btn-primary btn-sm">Submit review</button>
                             </form>
                         }

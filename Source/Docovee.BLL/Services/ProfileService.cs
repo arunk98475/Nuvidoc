@@ -112,6 +112,7 @@ public class ProfileService : IProfileService
             ZipCode = doctor.ZipCode,
             OfficePhoneNumber = doctor.OfficePhoneNumber,
             PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink),
+            PracticeLogoUrl = doctor.PracticeLogoUrl,
             GmbPhotoLink = doctor.GmbPhotoLink,
             GoogleRating = doctor.GoogleRating,
             GoogleReviewCount = doctor.GoogleReviewCount,
@@ -122,6 +123,11 @@ public class ProfileService : IProfileService
             VideoUrl = !string.IsNullOrWhiteSpace(doctor.VideoUrl)
                 ? doctor.VideoUrl.Trim()
                 : DoctorProfileHelper.ExtractVideoUrl(doctor.OnboardingProfileJson),
+            FacebookUrl = doctor.FacebookUrl,
+            InstagramUrl = doctor.InstagramUrl,
+            TikTokUrl = doctor.TikTokUrl,
+            LinkedInUrl = doctor.LinkedInUrl,
+            YoutubeChannelUrl = doctor.YoutubeChannelUrl,
             IsActive = doctor.IsActive,
             MemberSince = doctor.CreatedAt,
             ProfileCompletionPercent = doctor.ProfileCompletionPercent,
@@ -435,9 +441,21 @@ public class ProfileService : IProfileService
         if (!string.IsNullOrWhiteSpace(youtubeUrl) && !IsYoutubeUrl(youtubeUrl))
             return (false, "Please enter a valid YouTube video link (youtube.com or youtu.be).");
 
+        if (!TryNormalizeOptionalUrl(model.FacebookUrl, "Facebook", out var facebookUrl, out var socialError)
+            || !TryNormalizeOptionalUrl(model.InstagramUrl, "Instagram", out var instagramUrl, out socialError)
+            || !TryNormalizeOptionalUrl(model.TikTokUrl, "TikTok", out var tikTokUrl, out socialError)
+            || !TryNormalizeOptionalUrl(model.LinkedInUrl, "LinkedIn", out var linkedInUrl, out socialError)
+            || !TryNormalizeOptionalUrl(model.YoutubeChannelUrl, "YouTube channel", out var youtubeChannelUrl, out socialError))
+            return (false, socialError);
+
         doctor.PracticeName = model.PracticeName.Trim();
         doctor.SummaryOfReviews = string.IsNullOrWhiteSpace(description) ? null : description;
         doctor.VideoUrl = string.IsNullOrWhiteSpace(youtubeUrl) ? null : youtubeUrl;
+        doctor.FacebookUrl = facebookUrl;
+        doctor.InstagramUrl = instagramUrl;
+        doctor.TikTokUrl = tikTokUrl;
+        doctor.LinkedInUrl = linkedInUrl;
+        doctor.YoutubeChannelUrl = youtubeChannelUrl;
         doctor.OnboardingProfileJson = DoctorProfileHelper.MergePracticeSettings(
             doctor.OnboardingProfileJson,
             model.PracticeWebsite,
@@ -445,12 +463,11 @@ public class ProfileService : IProfileService
 
         if (logo != null && logo.Length > 0)
         {
-            var photoUrl = await _fileService.SaveUploadedPhotoAsync(logo, cancellationToken);
-            if (photoUrl != null)
-                doctor.PhotoUrl = photoUrl;
+            var logoUrl = await _fileService.SaveUploadedPhotoAsync(logo, cancellationToken);
+            if (logoUrl != null)
+                doctor.PracticeLogoUrl = logoUrl;
         }
 
-        doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink);
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated practice profile {DoctorId}", doctorId);
         return (true, null);
@@ -674,6 +691,38 @@ public class ProfileService : IProfileService
         if (value < 5 || value > 240)
             return fallback;
         return value;
+    }
+
+    private static bool TryNormalizeOptionalUrl(
+        string? value,
+        string label,
+        out string? normalized,
+        out string? error)
+    {
+        normalized = null;
+        error = null;
+        if (string.IsNullOrWhiteSpace(value))
+            return true;
+
+        var trimmed = value.Trim();
+        if (!trimmed.Contains("://", StringComparison.Ordinal))
+            trimmed = "https://" + trimmed;
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            error = $"Please enter a valid {label} URL.";
+            return false;
+        }
+
+        normalized = uri.ToString();
+        if (normalized.Length > 500)
+        {
+            error = $"{label} URL must be 500 characters or fewer.";
+            return false;
+        }
+
+        return true;
     }
 
     private static bool IsYoutubeUrl(string url)

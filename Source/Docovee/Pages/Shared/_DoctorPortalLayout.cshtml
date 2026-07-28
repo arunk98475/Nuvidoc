@@ -74,7 +74,7 @@
                     <svg class="dp-nav-chevron" viewBox="0 0 12 8" width="10" height="7" aria-hidden="true"><path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
                 </button>
                 <div class="dp-nav-sub" id="dp-settings-sub" @(settingsOpen ? null : "hidden")>
-                    <a class="@(settingsSection == "practice" ? "active" : "")" href="/Doctor/Settings/practice">Practice details</a>
+                    <a class="@(settingsSection == "practice" || settingsSection == "media" ? "active" : "")" href="/Doctor/Settings/practice">Practice details</a>
                     <a class="@(settingsSection == "locations" || settingsSection == "location" ? "active" : "")" href="/Doctor/Settings/locations">Locations</a>
                     <a class="@(settingsSection == "visit-reasons" ? "active" : "")" href="/Doctor/Settings/visit-reasons">Visit reasons</a>
                     <a class="@(settingsSection == "insurance" ? "active" : "")" href="/Doctor/Settings/insurance">Insurance</a>

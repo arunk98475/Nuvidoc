@@ -13,4 +13,6 @@ public static class AppSettingKeys
     public const string PromotedDoctorIds = "PromotedDoctorIds";
     public const string MaxAiQuestions = "MaxAiQuestions";
     public const string ReviewEligibleDaysAfterConfirmed = "ReviewEligibleDaysAfterConfirmed";
+    /// <summary>One-time flag: Houston dentist homepage + SEO landing pages seeded.</summary>
+    public const string HoustonMarketingSeeded = "HoustonMarketingSeeded";
 }

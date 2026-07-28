@@ -1116,3 +1116,120 @@ select.zd-select {
   .zd-ins-plan { grid-column: 1 / -1; }
   .zd-days { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Media-heavy profile */
+.zd-gallery-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(160px, 1fr);
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 0 20px;
+  padding-bottom: 4px;
+  scroll-snap-type: x mandatory;
+}
+.zd-gallery-item {
+  margin: 0;
+  scroll-snap-align: start;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #e8e4df;
+  aspect-ratio: 4 / 3;
+}
+.zd-gallery-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.zd-hero-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.zd-practice-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--zd-border);
+}
+.zd-practice-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--zd-muted);
+  letter-spacing: 0.01em;
+}
+.zd-social {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.zd-social-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--zd-link);
+  text-decoration: none;
+  padding: 4px 0;
+}
+.zd-social-link:hover { text-decoration: underline; }
+.zd-video { margin-top: 20px; }
+.zd-video-frame {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+.zd-video-frame iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.zd-video-player {
+  width: 100%;
+  max-height: 420px;
+  border-radius: 12px;
+  background: #111;
+}
+.zd-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 8px 0 20px;
+}
+.zd-gallery-card {
+  margin: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #efecea;
+}
+.zd-gallery-card img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+}
+.zd-gallery-card figcaption {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--zd-muted);
+}
+.zd-review-photo {
+  display: block;
+  margin-top: 10px;
+  max-width: 220px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.zd-review-photo img {
+  width: 100%;
+  height: auto;
+  display: block;
+}

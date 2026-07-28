@@ -16,17 +16,20 @@ public class AppointmentsModel : PageModel
     private readonly IDoctorReviewService _reviewService;
     private readonly IAppointmentService _appointments;
     private readonly IAppSettingsService _appSettings;
+    private readonly IDoctorFileService _fileService;
 
     public AppointmentsModel(
         IProfileService profileService,
         IDoctorReviewService reviewService,
         IAppointmentService appointments,
-        IAppSettingsService appSettings)
+        IAppSettingsService appSettings,
+        IDoctorFileService fileService)
     {
         _profileService = profileService;
         _reviewService = reviewService;
         _appointments = appointments;
         _appSettings = appSettings;
+        _fileService = fileService;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -57,8 +60,21 @@ public class AppointmentsModel : PageModel
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
+        string? photoUrl = null;
+        var photo = Request.Form.Files.GetFile("ReviewPhoto");
+        if (photo != null && photo.Length > 0)
+        {
+            photoUrl = await _fileService.SaveUploadedPhotoAsync(photo);
+            if (photoUrl == null)
+            {
+                ReviewError = "Could not save that photo. Use JPG, PNG, WebP, or GIF.";
+                await LoadAsync(patientId);
+                return Page();
+            }
+        }
+
         var (success, error) = await _reviewService.AddReviewForPatientAsync(
-            patientId, doctorId, rating, reviewText, waitingTime, recommendation);
+            patientId, doctorId, rating, reviewText, waitingTime, recommendation, photoUrl);
 
         if (!success)
         {

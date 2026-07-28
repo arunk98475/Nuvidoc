@@ -19,6 +19,7 @@ public class SettingsModel : PageModel
         "practice",
         "locations",
         "location", // legacy alias
+        "media",
         "visit-reasons",
         "insurance",
         "working-hours",
@@ -30,17 +31,20 @@ public class SettingsModel : PageModel
     private readonly IProfileService _profileService;
     private readonly IDoctorLocationService _locationService;
     private readonly IDoctorInsuranceService _insuranceService;
+    private readonly IDoctorMediaService _mediaService;
     private readonly IPmsCalendarService _pms;
 
     public SettingsModel(
         IProfileService profileService,
         IDoctorLocationService locationService,
         IDoctorInsuranceService insuranceService,
+        IDoctorMediaService mediaService,
         IPmsCalendarService pms)
     {
         _profileService = profileService;
         _locationService = locationService;
         _insuranceService = insuranceService;
+        _mediaService = mediaService;
         _pms = pms;
     }
 
@@ -67,6 +71,7 @@ public class SettingsModel : PageModel
     public IReadOnlyList<DoctorInsuranceRowDto> InsuranceRows { get; private set; } = Array.Empty<DoctorInsuranceRowDto>();
     public IReadOnlyList<InsuranceCarrierDto> AvailableCarriers { get; private set; } = Array.Empty<InsuranceCarrierDto>();
     public WorkingHoursPageModel? WorkingHours { get; private set; }
+    public IReadOnlyList<DoctorMediaDto> MediaItems { get; private set; } = Array.Empty<DoctorMediaDto>();
     public IReadOnlyList<string> TimeOptions { get; private set; } = BuildTimeOptions();
     public string LocationsJson { get; private set; } = "[]";
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
@@ -115,6 +120,43 @@ public class SettingsModel : PageModel
 
         var logo = Request.Form.Files.GetFile("PracticeLogo");
         var (success, error) = await _profileService.UpdatePracticeProfileAsync(doctorId, PracticeInput, logo, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "practice", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "practice", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostAddMediaAsync(string mediaType, string? caption, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var file = Request.Form.Files.GetFile("MediaFile");
+        if (file == null || file.Length == 0)
+        {
+            ErrorMessage = "Please choose a photo to upload.";
+            return await LoadPageAsync(doctorId, "practice", cancellationToken);
+        }
+
+        var (success, error) = await _mediaService.AddPhotoAsync(doctorId, mediaType, file, caption, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "practice", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "practice", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostDeleteMediaAsync(int mediaId, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _mediaService.DeleteAsync(doctorId, mediaId, cancellationToken);
         if (!success)
         {
             ErrorMessage = error;
@@ -253,6 +295,9 @@ public class SettingsModel : PageModel
         if (Section == "location")
             Section = "locations";
 
+        if (Section == "media")
+            Section = "practice";
+
         // Integrations is read-only for doctors; only visible after admin enables NexHealth.
         if (Section == "integrations")
         {
@@ -285,9 +330,17 @@ public class SettingsModel : PageModel
                 PracticeDescription = Profile.PracticeDescription,
                 YoutubeVideoUrl = Profile.VideoUrl,
                 PracticeWebsite = Profile.PracticeWebsite,
-                AllowGoogleBookings = Profile.AllowGoogleBookings
+                AllowGoogleBookings = Profile.AllowGoogleBookings,
+                FacebookUrl = Profile.FacebookUrl,
+                InstagramUrl = Profile.InstagramUrl,
+                TikTokUrl = Profile.TikTokUrl,
+                LinkedInUrl = Profile.LinkedInUrl,
+                YoutubeChannelUrl = Profile.YoutubeChannelUrl
             };
         }
+
+        if (Section == "practice")
+            MediaItems = await _mediaService.GetForDoctorAsync(doctorId, cancellationToken);
 
         if (Section == "locations")
         {

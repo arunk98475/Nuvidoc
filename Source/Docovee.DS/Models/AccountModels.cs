@@ -63,6 +63,7 @@ public class DoctorProfileDto
     public string? Address { get; set; }
     public string? OfficePhoneNumber { get; set; }
     public string? PhotoUrl { get; set; }
+    public string? PracticeLogoUrl { get; set; }
     public string? GmbPhotoLink { get; set; }
     public string City { get; set; } = string.Empty;
     public string State { get; set; } = string.Empty;
@@ -75,6 +76,11 @@ public class DoctorProfileDto
     public string? TagLine { get; set; }
     public string? Niche { get; set; }
     public string? VideoUrl { get; set; }
+    public string? FacebookUrl { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? TikTokUrl { get; set; }
+    public string? LinkedInUrl { get; set; }
+    public string? YoutubeChannelUrl { get; set; }
     public bool IsActive { get; set; }
     public DateTime MemberSince { get; set; }
     public int ProfileCompletionPercent { get; set; }
@@ -90,6 +96,11 @@ public class PracticeProfileInput
     public string? YoutubeVideoUrl { get; set; }
     public string? PracticeWebsite { get; set; }
     public bool AllowGoogleBookings { get; set; } = true;
+    public string? FacebookUrl { get; set; }
+    public string? InstagramUrl { get; set; }
+    public string? TikTokUrl { get; set; }
+    public string? LinkedInUrl { get; set; }
+    public string? YoutubeChannelUrl { get; set; }
 }
 
 public class AccountRegisterRequest
