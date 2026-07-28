@@ -27,7 +27,8 @@ body {
   flex-direction: column;
 }
 
-nav {
+nav,
+.site-nav {
   background: var(--white);
   border-bottom: 1px solid var(--rule);
   padding: 0 40px;
@@ -38,6 +39,21 @@ nav {
   position: sticky;
   top: 0;
   z-index: 100;
+  gap: 24px;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.nav-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
   gap: 24px;
 }
 
@@ -52,6 +68,46 @@ nav {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.nav-burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.nav-burger-line {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--ink);
+  border-radius: 1px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.site-nav.is-open .nav-burger-line:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.site-nav.is-open .nav-burger-line:nth-child(2) {
+  opacity: 0;
+}
+.site-nav.is-open .nav-burger-line:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+body.nav-drawer-open {
+  overflow: hidden;
 }
 
 .nav-dropdown {
@@ -2280,9 +2336,110 @@ footer.site-footer {
   color: var(--sage-md) !important;
 }
 
+@media (max-width: 900px) {
+  .site-nav,
+  nav.site-nav {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 64px;
+    padding: 10px 16px;
+    gap: 0;
+  }
+
+  .nav-burger {
+    display: inline-flex;
+  }
+
+  .nav-panel {
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    flex: none;
+    gap: 8px;
+    padding: 12px 0 16px;
+    border-top: 1px solid var(--rule);
+    margin-top: 10px;
+    max-height: calc(100vh - 72px);
+    overflow-y: auto;
+  }
+
+  .site-nav.is-open .nav-panel {
+    display: flex;
+  }
+
+  .nav-links {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    width: 100%;
+  }
+
+  .nav-links .nav-link {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .nav-dropdown-menu {
+    position: static;
+    display: block;
+    box-shadow: none;
+    border: none;
+    padding: 0 0 0 12px;
+    min-width: 0;
+    background: transparent;
+  }
+
+  .nav-dropdown > .nav-link::after {
+    content: '';
+  }
+
+  .nav-right {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--fog);
+  }
+
+  .nav-auth {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .nav-login-dropdown {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .nav-practice-btn,
+  .nav-login-btn,
+  .nav-signup-btn,
+  .nav-cta {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+    padding: 12px 16px;
+  }
+
+  .nav-login-menu {
+    position: static;
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid var(--rule);
+    margin-top: 0;
+  }
+}
+
 @media (max-width: 768px) {
-  .nav-links { display: none; }
-  nav { padding: 0 20px; }
+  nav:not(.site-nav) { padding: 0 20px; }
   .hero-steps-strip { grid-template-columns: 1fr 1fr; }
   .hero-step-cell:nth-child(2) { border-right: none; }
   .hero-step-cell { border-bottom: 1px solid var(--rule); }
@@ -4282,21 +4439,21 @@ footer.site-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 28px;
 }
 
 .dl-mark {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   object-fit: cover;
   line-height: 0;
 }
 
 .dl-brand-name {
-  font-size: 26px;
+  font-size: 34px;
   font-weight: 700;
   color: #111;
   letter-spacing: -0.02em;
@@ -4472,8 +4629,13 @@ footer.site-footer {
     font-size: 22px;
   }
 
+  .dl-mark {
+    width: 36px;
+    height: 36px;
+  }
+
   .dl-brand-name {
-    font-size: 22px;
+    font-size: 28px;
   }
 }
 
@@ -5066,4 +5228,24 @@ footer.site-footer {
 
 .perm-save:hover {
   background: #e6b800;
+}
+
+/* Floating admin "Edit homepage" control */
+.admin-edit-homepage-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: #1a2b22;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+.admin-edit-homepage-btn:hover {
+  background: #3d6b5a;
+  color: #fff;
 }

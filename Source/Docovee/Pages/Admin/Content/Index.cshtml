@@ -49,13 +49,17 @@
                         <td><strong>@p.Title</strong></td>
                         <td><span class="cms-badge cms-badge-@p.PageType">@p.PageType</span></td>
                         <td>
+                            @{
+                                var publicBase = p.PageType == "service" ? "services" : p.PageType;
+                                var publicPath = $"/{publicBase}/{p.Slug}";
+                            }
                             @if (p.IsPublished)
                             {
-                                <a href="/@p.PageType/@p.Slug" target="_blank" class="cms-slug-link">/@p.PageType/@p.Slug</a>
+                                <a href="@publicPath" target="_blank" class="cms-slug-link">@publicPath</a>
                             }
                             else
                             {
-                                <span class="cms-slug-draft">/@p.PageType/@p.Slug</span>
+                                <span class="cms-slug-draft">@publicPath</span>
                             }
                         </td>
                         <td>

@@ -1,0 +1,49 @@
+<script>
+(function () {
+  const nav = document.getElementById('site-nav');
+  const btn = document.getElementById('nav-burger');
+  const panel = document.getElementById('nav-panel');
+  if (!nav || !btn || !panel) return;
+
+  function closeMobileNav() {
+    nav.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Open menu');
+    document.body.classList.remove('nav-drawer-open');
+  }
+
+  function openMobileNav() {
+    nav.classList.add('is-open');
+    btn.setAttribute('aria-expanded', 'true');
+    btn.setAttribute('aria-label', 'Close menu');
+    document.body.classList.add('nav-drawer-open');
+  }
+
+  window.closeMobileNav = closeMobileNav;
+
+  btn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (nav.classList.contains('is-open')) closeMobileNav();
+    else openMobileNav();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeMobileNav();
+  });
+
+  // Close after tapping a plain link inside the panel (keep dropdown toggles open)
+  panel.addEventListener('click', function (e) {
+    const a = e.target.closest('a');
+    if (!a) return;
+    if (a.classList.contains('nav-link') && a.getAttribute('href') === '#') return;
+    if (window.matchMedia('(max-width: 900px)').matches) {
+      // Delay slightly so navigation / scroll handlers run first
+      setTimeout(closeMobileNav, 50);
+    }
+  });
+
+  window.addEventListener('resize', function () {
+    if (window.innerWidth > 900) closeMobileNav();
+  });
+})();
+</script>

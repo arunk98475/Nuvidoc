@@ -55,6 +55,61 @@ public class SiteSettingsModel
     public int ReviewEligibleDaysAfterConfirmed { get; set; } = 1;
 }
 
+/// <summary>Editable homepage marketing copy. Empty values use built-in defaults.</summary>
+public class HomePageContentModel
+{
+    public string MetaDescription { get; set; } = string.Empty;
+    public string HeroEyebrow { get; set; } = string.Empty;
+    public string HeroHeadlineHtml { get; set; } = string.Empty;
+    public string HeroSubtext { get; set; } = string.Empty;
+
+    public string Stat1Num { get; set; } = string.Empty;
+    public string Stat1Label { get; set; } = string.Empty;
+    public string Stat2Num { get; set; } = string.Empty;
+    public string Stat2Label { get; set; } = string.Empty;
+    public string Stat3Num { get; set; } = string.Empty;
+    public string Stat3Label { get; set; } = string.Empty;
+    public string Stat4Num { get; set; } = string.Empty;
+    public string Stat4Label { get; set; } = string.Empty;
+
+    public string InsuranceTitle { get; set; } = string.Empty;
+
+    public string WhyEyebrow { get; set; } = string.Empty;
+    public string WhyHeadlineHtml { get; set; } = string.Empty;
+    public string Why1Title { get; set; } = string.Empty;
+    public string Why1Body { get; set; } = string.Empty;
+    public string Why2Title { get; set; } = string.Empty;
+    public string Why2Body { get; set; } = string.Empty;
+    public string Why3Title { get; set; } = string.Empty;
+    public string Why3Body { get; set; } = string.Empty;
+
+    public string VisitEyebrow { get; set; } = string.Empty;
+    public string VisitHeadlineHtml { get; set; } = string.Empty;
+
+    public string SpecialtyEyebrow { get; set; } = string.Empty;
+    public string SpecialtyHeadlineHtml { get; set; } = string.Empty;
+    public string SpecialtyBody { get; set; } = string.Empty;
+
+    public string DoctorsEyebrow { get; set; } = string.Empty;
+    public string DoctorsHeadlineHtml { get; set; } = string.Empty;
+    public string DoctorsSubtitle { get; set; } = string.Empty;
+
+    public string HowEyebrow { get; set; } = string.Empty;
+    public string HowHeadlineHtml { get; set; } = string.Empty;
+    public string How1Title { get; set; } = string.Empty;
+    public string How1Body { get; set; } = string.Empty;
+    public string How2Title { get; set; } = string.Empty;
+    public string How2Body { get; set; } = string.Empty;
+    public string How3Title { get; set; } = string.Empty;
+    public string How3Body { get; set; } = string.Empty;
+
+    public string CtaEyebrow { get; set; } = string.Empty;
+    public string CtaHeadlineHtml { get; set; } = string.Empty;
+    public string CtaSubtext { get; set; } = string.Empty;
+    public string CtaButtonText { get; set; } = string.Empty;
+    public string CtaNote { get; set; } = string.Empty;
+}
+
 public class DoctorAdminDto
 {
     public int Id { get; set; }

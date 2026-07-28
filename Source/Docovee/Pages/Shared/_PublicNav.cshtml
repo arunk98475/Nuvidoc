@@ -1,0 +1,38 @@
+@*
+  Simple public site nav with mobile burger.
+  Optional ViewData["NavExtraLinks"] is not used; pages can set ViewData["ShowBlogLink"] etc. later.
+*@
+<nav id="site-nav" class="site-nav">
+    <div class="nav-brand">
+        <partial name="Shared/_SiteLogo" />
+    </div>
+    <button type="button" class="nav-burger" id="nav-burger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-panel">
+        <span class="nav-burger-line"></span>
+        <span class="nav-burger-line"></span>
+        <span class="nav-burger-line"></span>
+    </button>
+    <div class="nav-panel" id="nav-panel">
+        <div class="nav-links">
+            <a href="/" class="nav-link">Find a Dentist</a>
+            @if (ViewData["ShowServicesLink"] as bool? == true)
+            {
+                <a href="/services" class="nav-link">Services</a>
+            }
+            @if (ViewData["ShowBlogLink"] as bool? == true)
+            {
+                <a href="/blog" class="nav-link">Blog</a>
+            }
+        </div>
+        <div class="nav-right">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a href="/Account/Logout" class="nav-link">Logout</a>
+            }
+            else
+            {
+                <partial name="Shared/_AuthNav" />
+            }
+        </div>
+    </div>
+</nav>
+<partial name="Shared/_MobileNavScript" />

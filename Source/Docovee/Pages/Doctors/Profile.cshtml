@@ -49,22 +49,7 @@
 </head>
 <body class="zd-page">
 
-<nav>
-    <div class="nav-left">
-        <partial name="Shared/_SiteLogo" />
-    </div>
-    <div class="nav-right">
-        <a href="/" class="nav-link">Find a Dentist</a>
-        @if (User.Identity?.IsAuthenticated == true)
-        {
-            <a href="/Account/Logout" class="nav-link">Logout</a>
-        }
-        else
-        {
-            <partial name="Shared/_AuthNav" />
-        }
-    </div>
-</nav>
+<partial name="Shared/_PublicNav" />
 
 <div class="zd-shell">
     <div class="zd-layout">

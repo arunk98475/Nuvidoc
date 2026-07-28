@@ -1,18 +1,22 @@
-@model IReadOnlyList<Docovee.DS.Models.FeaturedDoctorCardDto>
+@model Docovee.Pages.Shared.HomeMarketingModel
 @using Docovee.DS.Models
+@{
+    var doctors = Model.FeaturedDoctors;
+    var home = Model.Home;
+}
 
 <section class="hp-stats" aria-label="Trust statistics">
     <div class="hp-stats-inner">
-        <div class="hp-stat"><div class="hp-stat-num">3 min</div><div class="hp-stat-label">Average time to match</div></div>
-        <div class="hp-stat"><div class="hp-stat-num">Growing</div><div class="hp-stat-label">Dentist network across the US</div></div>
-        <div class="hp-stat"><div class="hp-stat-num">98%</div><div class="hp-stat-label">Patient satisfaction rate</div></div>
-        <div class="hp-stat"><div class="hp-stat-num">$0</div><div class="hp-stat-label">Cost to patients — always free</div></div>
+        <div class="hp-stat"><div class="hp-stat-num">@home.Stat1Num</div><div class="hp-stat-label">@home.Stat1Label</div></div>
+        <div class="hp-stat"><div class="hp-stat-num">@home.Stat2Num</div><div class="hp-stat-label">@home.Stat2Label</div></div>
+        <div class="hp-stat"><div class="hp-stat-num">@home.Stat3Num</div><div class="hp-stat-label">@home.Stat3Label</div></div>
+        <div class="hp-stat"><div class="hp-stat-num">@home.Stat4Num</div><div class="hp-stat-label">@home.Stat4Label</div></div>
     </div>
 </section>
 
 <section class="hp-insurance-bar" aria-label="Insurance partners">
     <div class="hp-insurance-inner">
-        <div class="hp-insurance-title">Works with major dental insurance plans</div>
+        <div class="hp-insurance-title">@home.InsuranceTitle</div>
         <div class="hp-insurance-logos">
             <span class="hp-ins-logo hp-ins-aetna">DELTA DENTAL</span>
             <span class="hp-ins-logo hp-ins-cigna">CIGNA</span>
@@ -30,24 +34,24 @@
 <section class="hp-section hp-section-white" aria-labelledby="why-heading">
     <div class="hp-container">
         <div class="hp-section-header">
-            <div class="section-eyebrow">Why @Branding.SiteName</div>
-            <h2 class="section-h2" id="why-heading">Finding a dentist shouldn't feel like<br><em>searching in the dark.</em></h2>
+            <div class="section-eyebrow">@home.WhyEyebrow</div>
+            <h2 class="section-h2" id="why-heading">@Html.Raw(home.WhyHeadlineHtml)</h2>
         </div>
         <div class="hp-why-grid">
             <div class="hp-why-card hp-why-featured">
                 <div class="hp-why-icon">🎯</div>
-                <h3>Matched, not just listed</h3>
-                <p>Most finders show you a list. @Branding.SiteName understands your situation and finds the dentist who's actually right for you — needs, location, and preferences.</p>
+                <h3>@home.Why1Title</h3>
+                <p>@home.Why1Body</p>
             </div>
             <div class="hp-why-card">
                 <div class="hp-why-icon">⚡</div>
-                <h3>Book in minutes, not days</h3>
-                <p>No hold music. No calling three offices. See real availability and request a visit instantly.</p>
+                <h3>@home.Why2Title</h3>
+                <p>@home.Why2Body</p>
             </div>
             <div class="hp-why-card">
                 <div class="hp-why-icon">🤝</div>
-                <h3>Reviews you can trust</h3>
-                <p>Reviews from verified patients who actually visited. We track what matters: did they listen, were they on time, would patients go back.</p>
+                <h3>@home.Why3Title</h3>
+                <p>@home.Why3Body</p>
             </div>
         </div>
     </div>
@@ -58,8 +62,8 @@
 <section class="hp-section hp-section-mist" aria-labelledby="visit-reasons-heading">
     <div class="hp-container">
         <div class="hp-section-header">
-            <div class="section-eyebrow">Common Visit Reasons</div>
-            <h2 class="section-h2" id="visit-reasons-heading">What brings you in <em>today?</em></h2>
+            <div class="section-eyebrow">@home.VisitEyebrow</div>
+            <h2 class="section-h2" id="visit-reasons-heading">@Html.Raw(home.VisitHeadlineHtml)</h2>
         </div>
         <div class="hp-reasons-grid">
             <button type="button" class="hp-reason-btn" onclick="fillChatInput('I need a teeth cleaning')"><span class="hp-reason-emoji">🦷</span><span>Cleaning</span></button>
@@ -84,9 +88,9 @@
     <div class="hp-container">
         <div class="hp-specialties-grid">
             <div>
-                <div class="section-eyebrow">Dental care</div>
-                <h2 class="section-h2" id="specialties-heading">Dentists.<br><em>One place.</em></h2>
-                <p class="section-body">We're focused on dentistry first. Tell @Branding.ChatBotName what you need — general care, ortho, implants, or emergency relief — and we'll match you.</p>
+                <div class="section-eyebrow">@home.SpecialtyEyebrow</div>
+                <h2 class="section-h2" id="specialties-heading">@Html.Raw(home.SpecialtyHeadlineHtml)</h2>
+                <p class="section-body">@home.SpecialtyBody</p>
             </div>
             <div class="hp-specialty-tags">
                 <div class="hp-specialty-tag">🦷 General Dentist</div>
@@ -107,14 +111,14 @@
 <section class="hp-section hp-section-mist" id="testimonials" aria-labelledby="testimonials-heading">
     <div class="hp-container">
         <div class="hp-section-header">
-            <div class="section-eyebrow">Top Dentists</div>
-            <h2 class="section-h2" id="testimonials-heading">Real dentists.<br><em>Real results.</em></h2>
-            <p class="section-body hp-doctors-subtitle">Highly rated providers in our network — tap a card to view profile, contact info, and reviews.</p>
+            <div class="section-eyebrow">@home.DoctorsEyebrow</div>
+            <h2 class="section-h2" id="testimonials-heading">@Html.Raw(home.DoctorsHeadlineHtml)</h2>
+            <p class="section-body hp-doctors-subtitle">@home.DoctorsSubtitle</p>
         </div>
-        @if (Model is { Count: > 0 })
+        @if (doctors is { Count: > 0 })
         {
             <div class="hp-testimonials-grid">
-                @foreach (var doctor in Model)
+                @foreach (var doctor in doctors)
                 {
                     var stars = doctor.GoogleRating > 0
                         ? new string('★', (int)Math.Round(doctor.GoogleRating))
@@ -164,24 +168,24 @@
 <section class="hp-section hp-section-white" id="how-it-works" aria-labelledby="how-heading">
     <div class="hp-container">
         <div class="hp-section-header">
-            <div class="section-eyebrow">No more guessing</div>
-            <h2 class="section-h2" id="how-heading">We do the work.<br><em>You just show up.</em></h2>
+            <div class="section-eyebrow">@home.HowEyebrow</div>
+            <h2 class="section-h2" id="how-heading">@Html.Raw(home.HowHeadlineHtml)</h2>
         </div>
         <div class="hp-steps-panel">
             <div class="hp-step-panel-item">
                 <div class="hp-step-panel-num">01</div>
-                <h3>Tell us what's wrong</h3>
-                <p>Describe what's going on in your own words — “my molar hurts when I bite” works perfectly.</p>
+                <h3>@home.How1Title</h3>
+                <p>@home.How1Body</p>
             </div>
             <div class="hp-step-panel-item">
                 <div class="hp-step-panel-num">02</div>
-                <h3>We find your best match</h3>
-                <p>A few quick follow-ups — urgency, location, preferences — then we rank dentists by fit. Not by who paid the most.</p>
+                <h3>@home.How2Title</h3>
+                <p>@home.How2Body</p>
             </div>
             <div class="hp-step-panel-item">
                 <div class="hp-step-panel-num">03</div>
-                <h3>Book and we handle the rest</h3>
-                <p>Request a visit online. The office confirms, and you're on the calendar.</p>
+                <h3>@home.How3Title</h3>
+                <p>@home.How3Body</p>
             </div>
         </div>
     </div>
@@ -189,11 +193,11 @@
 
 <section class="hp-cta" aria-labelledby="cta-heading">
     <div class="hp-cta-inner">
-        <div class="section-eyebrow hp-cta-eyebrow">Start Now — It's Free</div>
-        <h2 id="cta-heading">The right dentist is<br><em>closer than you think.</em></h2>
-        <p>Tell us what's going on. We'll handle matching and booking. Always free for patients.</p>
-        <button type="button" class="hp-cta-btn" onclick="scrollToChat()">Find My Dentist Now →</button>
-        <div class="hp-cta-note">Free for patients · No account required to start</div>
+        <div class="section-eyebrow hp-cta-eyebrow">@home.CtaEyebrow</div>
+        <h2 id="cta-heading">@Html.Raw(home.CtaHeadlineHtml)</h2>
+        <p>@home.CtaSubtext</p>
+        <button type="button" class="hp-cta-btn" onclick="scrollToChat()">@home.CtaButtonText</button>
+        <div class="hp-cta-note">@home.CtaNote</div>
     </div>
 </section>
 

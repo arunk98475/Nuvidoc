@@ -1,3 +1,8 @@
+@{
+    var path = Context.Request.Path.Value ?? "";
+    bool IsActive(string prefix) =>
+        path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,26 +13,31 @@
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
 </head>
 <body>
-    <header class="admin-header">
-        <a href="/Admin/Doctors" class="admin-logo">
-            <img class="admin-logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="24" height="24" />
-            <span class="admin-logo-text">@Branding.SiteNameLower <span>admin</span></span>
-        </a>
-        <nav>
-            <a href="/Admin/Doctors">Doctors</a>
-            <a href="/Admin/Patients">Patients</a>
-            <a href="/Admin/PollingQuestions">Polling Questions</a>
-            <a href="/Admin/DoctorLanguages">Doctor Languages</a>
-            <a href="/Admin/Content">Content Pages</a>
-            <a href="/Admin/Settings">Settings</a>
-            <a href="/Admin/AuditTrail">Audit trail</a>
-            <a href="/">Public Site</a>
-            <a href="/Admin/Logout">Logout</a>
-        </nav>
-    </header>
-    <main class="admin-main">
-        @RenderBody()
-    </main>
+    <div class="admin-shell">
+        <aside class="admin-sidebar">
+            <a href="/Admin/Doctors" class="admin-logo">
+                <img class="admin-logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="24" height="24" />
+                <span class="admin-logo-text">@Branding.SiteNameLower <span>admin</span></span>
+            </a>
+            <nav class="admin-nav">
+                <a href="/Admin/Doctors" class="@(IsActive("/Admin/Doctors") ? "active" : null)">Doctors</a>
+                <a href="/Admin/Patients" class="@(IsActive("/Admin/Patients") ? "active" : null)">Patients</a>
+                <a href="/Admin/PollingQuestions" class="@(IsActive("/Admin/PollingQuestions") ? "active" : null)">Polling Questions</a>
+                <a href="/Admin/DoctorLanguages" class="@(IsActive("/Admin/DoctorLanguages") ? "active" : null)">Doctor Languages</a>
+                <a href="/Admin/HomePage" class="@(IsActive("/Admin/HomePage") ? "active" : null)">Home Page</a>
+                <a href="/Admin/Content" class="@(IsActive("/Admin/Content") ? "active" : null)">Content Pages</a>
+                <a href="/Admin/Settings" class="@(IsActive("/Admin/Settings") ? "active" : null)">Settings</a>
+                <a href="/Admin/AuditTrail" class="@(IsActive("/Admin/AuditTrail") ? "active" : null)">Audit trail</a>
+            </nav>
+            <div class="admin-sidebar-footer">
+                <a href="/">Public Site</a>
+                <a href="/Admin/Logout">Logout</a>
+            </div>
+        </aside>
+        <main class="admin-main">
+            @RenderBody()
+        </main>
+    </div>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

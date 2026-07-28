@@ -12,24 +12,34 @@ namespace Docovee.Pages
         private readonly IProfileService _profileService;
         private readonly IPublicDoctorService _publicDoctorService;
         private readonly IAppointmentService _appointments;
+        private readonly IHomePageContentService _homePage;
+        private readonly IBrandingService _branding;
 
         public IndexModel(
             IProfileService profileService,
             IPublicDoctorService publicDoctorService,
-            IAppointmentService appointments)
+            IAppointmentService appointments,
+            IHomePageContentService homePage,
+            IBrandingService branding)
         {
             _profileService = profileService;
             _publicDoctorService = publicDoctorService;
             _appointments = appointments;
+            _homePage = homePage;
+            _branding = branding;
         }
 
         public string? PatientFullName { get; private set; }
         public int PatientNotifyCount { get; private set; }
         public IReadOnlyList<FeaturedDoctorCardDto> FeaturedDoctors { get; private set; } = Array.Empty<FeaturedDoctorCardDto>();
+        public HomePageContentModel Home { get; private set; } = new();
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             FeaturedDoctors = await _publicDoctorService.GetFeaturedAsync(3, cancellationToken);
+
+            var saved = await _homePage.GetForEditAsync(cancellationToken);
+            Home = HomePageContentService.Resolve(saved, _branding.SiteName, _branding.ChatBotName);
 
             if (User.Identity?.IsAuthenticated != true || !User.IsInRole(AuthRoles.Patient))
                 return;

@@ -13,73 +13,89 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
     <partial name="Shared/_Favicon" />
-    <meta name="description" content="Find the right dentist near you. @Branding.SiteName matches you with top-rated local dentists based on your needs." />
+    <meta name="description" content="@Model.Home.MetaDescription" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
 <body>
 
-<nav>
-    <div class="nav-left">
+@if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Admin))
+{
+    <a href="/Admin/HomePage" class="admin-edit-homepage-btn">✎ Edit homepage</a>
+}
+
+<nav id="site-nav" class="site-nav">
+    <div class="nav-brand">
         <partial name="Shared/_SiteLogo" />
+    </div>
+
+    <button type="button" class="nav-burger" id="nav-burger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-panel">
+        <span class="nav-burger-line"></span>
+        <span class="nav-burger-line"></span>
+        <span class="nav-burger-line"></span>
+    </button>
+
+    <div class="nav-panel" id="nav-panel">
         @if (!(User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)))
         {
             <div class="nav-links">
-                <a class="nav-link" href="#" onclick="scrollToChat(); return false;">Find a Dentist</a>
+                <a class="nav-link" href="#" onclick="scrollToChat(); closeMobileNav(); return false;">Find a Dentist</a>
                 <div class="nav-dropdown">
                     <a class="nav-link" href="#">Dental care</a>
                     <div class="nav-dropdown-menu">
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); return false;">🦷 General Dentist</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an orthodontist'); return false;">😁 Orthodontist</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an oral surgeon'); return false;">🦴 Oral Surgeon</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a periodontist'); return false;">🦷 Periodontist</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want dental implants'); return false;">✨ Dental Implants</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want teeth whitening'); return false;">💎 Whitening</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I am interested in Invisalign'); return false;">🦷 Invisalign</a>
-                        <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); return false;">🌿 Tell Nuvi what you need →</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); closeMobileNav(); return false;">🦷 General Dentist</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an orthodontist'); closeMobileNav(); return false;">😁 Orthodontist</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an oral surgeon'); closeMobileNav(); return false;">🦴 Oral Surgeon</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a periodontist'); closeMobileNav(); return false;">🦷 Periodontist</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want dental implants'); closeMobileNav(); return false;">✨ Dental Implants</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want teeth whitening'); closeMobileNav(); return false;">💎 Whitening</a>
+                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I am interested in Invisalign'); closeMobileNav(); return false;">🦷 Invisalign</a>
+                        <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); closeMobileNav(); return false;">🌿 Tell Nuvi what you need →</a>
                     </div>
                 </div>
-                <a class="nav-link" href="#how-it-works">How It Works</a>
-                <a class="nav-link" href="#testimonials">Reviews</a>
+                <a class="nav-link" href="#how-it-works" onclick="closeMobileNav()">How It Works</a>
+                <a class="nav-link" href="#testimonials" onclick="closeMobileNav()">Reviews</a>
             </div>
         }
-    </div>
-    <div class="nav-right" id="nav-right" @(User.Identity?.IsAuthenticated == true ? "data-authenticated=\"true\"" : "")>
-        @if (User.Identity?.IsAuthenticated == true)
-        {
-            if (User.IsInRole(AuthRoles.Admin))
+        <div class="nav-right" id="nav-right" @(User.Identity?.IsAuthenticated == true ? "data-authenticated=\"true\"" : "")>
+            @if (User.Identity?.IsAuthenticated == true)
             {
-                <a href="/Admin/Patients" class="nav-link">Admin Panel</a>
-                <a href="/Account/Logout" class="nav-link">Logout</a>
-            }
-            else if (User.IsInRole(AuthRoles.Patient))
-            {
-                ViewData["PatientDisplayName"] = Model.PatientFullName;
-                ViewData["PatientNotifyCount"] = Model.PatientNotifyCount;
-                <partial name="Shared/_PatientAccountMenu" />
-            }
-            else if (User.IsInRole(AuthRoles.Doctor))
-            {
-                <a href="/Doctor" class="nav-link">Doctor portal</a>
-                <a href="/Account/Logout" class="nav-link">Logout</a>
+                if (User.IsInRole(AuthRoles.Admin))
+                {
+                    <a href="/Admin/Patients" class="nav-link">Admin Panel</a>
+                    <a href="/Account/Logout" class="nav-link">Logout</a>
+                }
+                else if (User.IsInRole(AuthRoles.Patient))
+                {
+                    ViewData["PatientDisplayName"] = Model.PatientFullName;
+                    ViewData["PatientNotifyCount"] = Model.PatientNotifyCount;
+                    <partial name="Shared/_PatientAccountMenu" />
+                }
+                else if (User.IsInRole(AuthRoles.Doctor))
+                {
+                    <a href="/Doctor" class="nav-link">Doctor portal</a>
+                    <a href="/Account/Logout" class="nav-link">Logout</a>
+                }
+                else
+                {
+                    <a href="/Account/Logout" class="nav-link">Logout</a>
+                }
             }
             else
             {
-                <a href="/Account/Logout" class="nav-link">Logout</a>
+                <partial name="Shared/_AuthNav" />
+                <button class="nav-cta" onclick="window.scrollTo({top:0,behavior:'smooth'}); closeMobileNav();">Find My Dentist</button>
             }
-        }
-        else
-        {
-            <partial name="Shared/_AuthNav" />
-            <button class="nav-cta" onclick="window.scrollTo({top:0,behavior:'smooth'})">Find My Dentist</button>
-        }
+        </div>
     </div>
 </nav>
+<partial name="Shared/_MobileNavScript" />
+
 
 <div class="hero-chat" id="hero-section">
     <div class="hero-left">
-        <div class="hero-eyebrow">Find the Best Doctor Near Me · Book Online Today</div>
-        <h1>Find a doctor<br>you can <em>trust.</em></h1>
-        <p>Tell @Branding.ChatBotName what's going on. Your personal AI concierge finds the doctor who truly fits you — not just any doctor, the right one.</p>
+        <div class="hero-eyebrow">@Model.Home.HeroEyebrow</div>
+        <h1>@Html.Raw(Model.Home.HeroHeadlineHtml)</h1>
+        <p>@Model.Home.HeroSubtext</p>
     </div>
 
     <div class="hero-chat-split-wrap" id="hero-chat-split-wrap">
@@ -138,7 +154,7 @@
 
 @if (!(User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)))
 {
-    <partial name="Shared/_HomeMarketing" model="Model.FeaturedDoctors" />
+    <partial name="Shared/_HomeMarketing" model="new Docovee.Pages.Shared.HomeMarketingModel { FeaturedDoctors = Model.FeaturedDoctors, Home = Model.Home }" />
 
     <footer class="site-footer site-footer-rich">
         <div class="site-footer-inner">

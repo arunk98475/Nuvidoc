@@ -31,6 +31,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<PatientInsuranceCoverage> PatientInsuranceCoverages => Set<PatientInsuranceCoverage>();
     public DbSet<AuditTrail> AuditTrails => Set<AuditTrail>();
     public DbSet<ContentPage> ContentPages => Set<ContentPage>();
+    public DbSet<HomePageContent> HomePageContents => Set<HomePageContent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -292,6 +293,54 @@ public class DocoveeDbContext : DbContext
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<HomePageContent>(entity =>
+        {
+            entity.ToTable("home_page_content");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.MetaDescription).HasMaxLength(500);
+            entity.Property(e => e.HeroEyebrow).HasMaxLength(300);
+            entity.Property(e => e.HeroHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.HeroSubtext).HasColumnType("text");
+            entity.Property(e => e.Stat1Num).HasMaxLength(40);
+            entity.Property(e => e.Stat1Label).HasMaxLength(120);
+            entity.Property(e => e.Stat2Num).HasMaxLength(40);
+            entity.Property(e => e.Stat2Label).HasMaxLength(120);
+            entity.Property(e => e.Stat3Num).HasMaxLength(40);
+            entity.Property(e => e.Stat3Label).HasMaxLength(120);
+            entity.Property(e => e.Stat4Num).HasMaxLength(40);
+            entity.Property(e => e.Stat4Label).HasMaxLength(120);
+            entity.Property(e => e.InsuranceTitle).HasMaxLength(300);
+            entity.Property(e => e.WhyEyebrow).HasMaxLength(200);
+            entity.Property(e => e.WhyHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.Why1Title).HasMaxLength(200);
+            entity.Property(e => e.Why1Body).HasColumnType("text");
+            entity.Property(e => e.Why2Title).HasMaxLength(200);
+            entity.Property(e => e.Why2Body).HasColumnType("text");
+            entity.Property(e => e.Why3Title).HasMaxLength(200);
+            entity.Property(e => e.Why3Body).HasColumnType("text");
+            entity.Property(e => e.VisitEyebrow).HasMaxLength(200);
+            entity.Property(e => e.VisitHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.SpecialtyEyebrow).HasMaxLength(200);
+            entity.Property(e => e.SpecialtyHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.SpecialtyBody).HasColumnType("text");
+            entity.Property(e => e.DoctorsEyebrow).HasMaxLength(200);
+            entity.Property(e => e.DoctorsHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.DoctorsSubtitle).HasColumnType("text");
+            entity.Property(e => e.HowEyebrow).HasMaxLength(200);
+            entity.Property(e => e.HowHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.How1Title).HasMaxLength(200);
+            entity.Property(e => e.How1Body).HasColumnType("text");
+            entity.Property(e => e.How2Title).HasMaxLength(200);
+            entity.Property(e => e.How2Body).HasColumnType("text");
+            entity.Property(e => e.How3Title).HasMaxLength(200);
+            entity.Property(e => e.How3Body).HasColumnType("text");
+            entity.Property(e => e.CtaEyebrow).HasMaxLength(200);
+            entity.Property(e => e.CtaHeadlineHtml).HasColumnType("text");
+            entity.Property(e => e.CtaSubtext).HasColumnType("text");
+            entity.Property(e => e.CtaButtonText).HasMaxLength(100);
+            entity.Property(e => e.CtaNote).HasMaxLength(200);
         });
 
         modelBuilder.Entity<ContentPage>(entity =>

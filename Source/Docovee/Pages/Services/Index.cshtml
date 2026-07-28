@@ -16,20 +16,8 @@
     <link rel="stylesheet" href="~/css/cms-public.css" asp-append-version="true" />
 </head>
 <body>
-<nav>
-    <div class="nav-left"><partial name="Shared/_SiteLogo" /></div>
-    <div class="nav-right">
-        <a href="/" class="nav-link">Find a Dentist</a>
-        @if (User.Identity?.IsAuthenticated == true)
-        {
-            <a href="/Account/Logout" class="nav-link">Logout</a>
-        }
-        else
-        {
-            <partial name="Shared/_AuthNav" />
-        }
-    </div>
-</nav>
+@{ ViewData["ShowBlogLink"] = true; }
+<partial name="Shared/_PublicNav" />
 
 <div class="cms-shell">
     <header class="cms-list-header">

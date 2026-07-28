@@ -1,0 +1,363 @@
+@page
+@model Docovee.Pages.Admin.HomePage.IndexModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Edit Home Page";
+    var home = Model.Input;
+    var doctors = Model.FeaturedDoctors;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] — @Branding.SiteName Admin</title>
+    <partial name="Shared/_Favicon" />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/admin-home-editor.css" asp-append-version="true" />
+</head>
+<body class="home-editor-body">
+
+<form method="post" id="home-editor-form" class="home-editor-form">
+    @Html.AntiForgeryToken()
+
+    <header class="home-editor-bar">
+        <div class="home-editor-bar-left">
+            <a href="/Admin/Doctors" class="home-editor-back">← Admin</a>
+            <strong>Editing homepage</strong>
+            <span class="home-editor-hint">Click green-outlined text to edit · italic: Ctrl+I · new line: Enter</span>
+        </div>
+        <div class="home-editor-bar-right">
+            @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+            {
+                <span class="home-editor-saved">@Model.SuccessMessage</span>
+            }
+            <button type="submit" formaction="?handler=LoadDefaults" class="home-editor-btn home-editor-btn-ghost" formnovalidate
+                    onclick="return confirm('Reset all fields to default copy? Unsaved changes will be lost.');">
+                Load defaults
+            </button>
+            <a href="/" target="_blank" class="home-editor-btn home-editor-btn-ghost">View live ↗</a>
+            <button type="submit" class="home-editor-btn home-editor-btn-primary">Save changes</button>
+        </div>
+    </header>
+
+    <div class="home-editor-seo">
+        <label for="Input_MetaDescription">SEO meta description (Google search snippet)</label>
+        <input asp-for="Input.MetaDescription" id="Input_MetaDescription" class="home-editor-seo-input" maxlength="500" />
+    </div>
+
+    @foreach (var name in new[] {
+        "HeroEyebrow","HeroHeadlineHtml","HeroSubtext",
+        "Stat1Num","Stat1Label","Stat2Num","Stat2Label","Stat3Num","Stat3Label","Stat4Num","Stat4Label",
+        "InsuranceTitle",
+        "WhyEyebrow","WhyHeadlineHtml","Why1Title","Why1Body","Why2Title","Why2Body","Why3Title","Why3Body",
+        "VisitEyebrow","VisitHeadlineHtml",
+        "SpecialtyEyebrow","SpecialtyHeadlineHtml","SpecialtyBody",
+        "DoctorsEyebrow","DoctorsHeadlineHtml","DoctorsSubtitle",
+        "HowEyebrow","HowHeadlineHtml","How1Title","How1Body","How2Title","How2Body","How3Title","How3Body",
+        "CtaEyebrow","CtaHeadlineHtml","CtaSubtext","CtaButtonText","CtaNote"
+    })
+    {
+        var prop = typeof(Docovee.DS.Models.HomePageContentModel).GetProperty(name);
+        var val = prop?.GetValue(home)?.ToString() ?? "";
+        <input type="hidden" name="Input.@name" id="field-@name" value="@val" />
+    }
+
+    <div class="home-editor-canvas">
+
+        <div class="hero-chat" id="hero-section">
+            <div class="hero-left">
+                <div class="home-edit-wrap" data-label="Eyebrow">
+                    <div class="hero-eyebrow home-editable" contenteditable="true" data-sync="HeroEyebrow" data-plain="true">@home.HeroEyebrow</div>
+                </div>
+                <div class="home-edit-wrap" data-label="Headline">
+                    <h1 class="home-editable home-editable-html" contenteditable="true" data-sync="HeroHeadlineHtml">@Html.Raw(home.HeroHeadlineHtml)</h1>
+                </div>
+                <div class="home-edit-wrap" data-label="Supporting text">
+                    <p class="home-editable" contenteditable="true" data-sync="HeroSubtext" data-plain="true">@home.HeroSubtext</p>
+                </div>
+            </div>
+            <div class="hero-right home-editor-chat-mock" aria-hidden="true">
+                <div class="chat-window">
+                    <div class="chat-header">
+                        <div class="ai-avatar"><img src="~/images/favicon.png" asp-append-version="true" alt="" width="32" height="32" /></div>
+                        <div>
+                            <div class="ai-name">@Branding.ChatBotName</div>
+                            <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right dentist</div>
+                        </div>
+                    </div>
+                    <div class="chat-messages">
+                        <div class="msg ai">
+                            <div class="msg-avatar">@Branding.ChatBotName</div>
+                            <div class="msg-bubble">Chat preview — not editable here</div>
+                        </div>
+                    </div>
+                    <div class="chips">
+                        <span class="chip">I need a dentist</span>
+                        <span class="chip">Tooth pain</span>
+                        <span class="chip">Dental implants</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <section class="hp-stats">
+            <div class="hp-stats-inner">
+                <div class="hp-stat">
+                    <div class="home-edit-wrap" data-label="Stat 1"><div class="hp-stat-num home-editable" contenteditable="true" data-sync="Stat1Num" data-plain="true">@home.Stat1Num</div></div>
+                    <div class="home-edit-wrap" data-label="Label"><div class="hp-stat-label home-editable" contenteditable="true" data-sync="Stat1Label" data-plain="true">@home.Stat1Label</div></div>
+                </div>
+                <div class="hp-stat">
+                    <div class="home-edit-wrap" data-label="Stat 2"><div class="hp-stat-num home-editable" contenteditable="true" data-sync="Stat2Num" data-plain="true">@home.Stat2Num</div></div>
+                    <div class="home-edit-wrap" data-label="Label"><div class="hp-stat-label home-editable" contenteditable="true" data-sync="Stat2Label" data-plain="true">@home.Stat2Label</div></div>
+                </div>
+                <div class="hp-stat">
+                    <div class="home-edit-wrap" data-label="Stat 3"><div class="hp-stat-num home-editable" contenteditable="true" data-sync="Stat3Num" data-plain="true">@home.Stat3Num</div></div>
+                    <div class="home-edit-wrap" data-label="Label"><div class="hp-stat-label home-editable" contenteditable="true" data-sync="Stat3Label" data-plain="true">@home.Stat3Label</div></div>
+                </div>
+                <div class="hp-stat">
+                    <div class="home-edit-wrap" data-label="Stat 4"><div class="hp-stat-num home-editable" contenteditable="true" data-sync="Stat4Num" data-plain="true">@home.Stat4Num</div></div>
+                    <div class="home-edit-wrap" data-label="Label"><div class="hp-stat-label home-editable" contenteditable="true" data-sync="Stat4Label" data-plain="true">@home.Stat4Label</div></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="hp-insurance-bar">
+            <div class="hp-insurance-inner">
+                <div class="home-edit-wrap" data-label="Insurance title">
+                    <div class="hp-insurance-title home-editable" contenteditable="true" data-sync="InsuranceTitle" data-plain="true">@home.InsuranceTitle</div>
+                </div>
+                <div class="hp-insurance-logos home-editor-static">
+                    <span class="hp-ins-logo">DELTA DENTAL</span>
+                    <span class="hp-ins-logo">CIGNA</span>
+                    <span class="hp-ins-logo">UNITED</span>
+                    <span class="hp-ins-logo">BLUE CROSS</span>
+                    <span class="hp-ins-logo">AETNA</span>
+                    <span class="hp-ins-logo">HUMANA</span>
+                    <span class="hp-ins-more">+ more →</span>
+                </div>
+            </div>
+        </section>
+
+        <hr class="hp-divider" />
+
+        <section class="hp-section hp-section-white">
+            <div class="hp-container">
+                <div class="hp-section-header">
+                    <div class="home-edit-wrap" data-label="Section label"><div class="section-eyebrow home-editable" contenteditable="true" data-sync="WhyEyebrow" data-plain="true">@home.WhyEyebrow</div></div>
+                    <div class="home-edit-wrap" data-label="Headline"><h2 class="section-h2 home-editable" contenteditable="true" data-sync="WhyHeadlineHtml">@Html.Raw(home.WhyHeadlineHtml)</h2></div>
+                </div>
+                <div class="hp-why-grid">
+                    <div class="hp-why-card hp-why-featured">
+                        <div class="hp-why-icon">🎯</div>
+                        <div class="home-edit-wrap" data-label="Card title"><h3 class="home-editable" contenteditable="true" data-sync="Why1Title" data-plain="true">@home.Why1Title</h3></div>
+                        <div class="home-edit-wrap" data-label="Card text"><p class="home-editable" contenteditable="true" data-sync="Why1Body" data-plain="true">@home.Why1Body</p></div>
+                    </div>
+                    <div class="hp-why-card">
+                        <div class="hp-why-icon">⚡</div>
+                        <div class="home-edit-wrap" data-label="Card title"><h3 class="home-editable" contenteditable="true" data-sync="Why2Title" data-plain="true">@home.Why2Title</h3></div>
+                        <div class="home-edit-wrap" data-label="Card text"><p class="home-editable" contenteditable="true" data-sync="Why2Body" data-plain="true">@home.Why2Body</p></div>
+                    </div>
+                    <div class="hp-why-card">
+                        <div class="hp-why-icon">🤝</div>
+                        <div class="home-edit-wrap" data-label="Card title"><h3 class="home-editable" contenteditable="true" data-sync="Why3Title" data-plain="true">@home.Why3Title</h3></div>
+                        <div class="home-edit-wrap" data-label="Card text"><p class="home-editable" contenteditable="true" data-sync="Why3Body" data-plain="true">@home.Why3Body</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="hp-divider" />
+
+        <section class="hp-section hp-section-mist">
+            <div class="hp-container">
+                <div class="hp-section-header">
+                    <div class="home-edit-wrap" data-label="Section label"><div class="section-eyebrow home-editable" contenteditable="true" data-sync="VisitEyebrow" data-plain="true">@home.VisitEyebrow</div></div>
+                    <div class="home-edit-wrap" data-label="Headline"><h2 class="section-h2 home-editable" contenteditable="true" data-sync="VisitHeadlineHtml">@Html.Raw(home.VisitHeadlineHtml)</h2></div>
+                </div>
+                <div class="hp-reasons-grid home-editor-static">
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">🦷</span><span>Cleaning</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">😣</span><span>Tooth Pain</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">✨</span><span>Implants</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">💎</span><span>Whitening</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">😁</span><span>Invisalign</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">📋</span><span>New patient exam</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">🚨</span><span>Emergency</span></span>
+                    <span class="hp-reason-btn"><span class="hp-reason-emoji">🦴</span><span>TMJ</span></span>
+                    <span class="hp-reason-btn hp-reason-btn-accent"><span class="hp-reason-emoji">✦</span><span>Something else</span></span>
+                </div>
+            </div>
+        </section>
+
+        <hr class="hp-divider" />
+
+        <section class="hp-section hp-section-white">
+            <div class="hp-container">
+                <div class="hp-specialties-grid">
+                    <div>
+                        <div class="home-edit-wrap" data-label="Section label"><div class="section-eyebrow home-editable" contenteditable="true" data-sync="SpecialtyEyebrow" data-plain="true">@home.SpecialtyEyebrow</div></div>
+                        <div class="home-edit-wrap" data-label="Headline"><h2 class="section-h2 home-editable" contenteditable="true" data-sync="SpecialtyHeadlineHtml">@Html.Raw(home.SpecialtyHeadlineHtml)</h2></div>
+                        <div class="home-edit-wrap" data-label="Body text"><p class="section-body home-editable" contenteditable="true" data-sync="SpecialtyBody" data-plain="true">@home.SpecialtyBody</p></div>
+                    </div>
+                    <div class="hp-specialty-tags home-editor-static">
+                        <div class="hp-specialty-tag">🦷 General Dentist</div>
+                        <div class="hp-specialty-tag">😁 Orthodontist</div>
+                        <div class="hp-specialty-tag">🦴 Oral Surgeon</div>
+                        <div class="hp-specialty-tag">🦷 Periodontist</div>
+                        <div class="hp-specialty-tag">✨ Implants</div>
+                        <div class="hp-specialty-tag">💎 Cosmetic</div>
+                        <div class="hp-specialty-tag">👶 Pediatric Dentistry</div>
+                        <div class="hp-specialty-tag hp-specialty-more">Ask Nuvi →</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <hr class="hp-divider" />
+
+        <section class="hp-section hp-section-mist" id="testimonials">
+            <div class="hp-container">
+                <div class="hp-section-header">
+                    <div class="home-edit-wrap" data-label="Section label"><div class="section-eyebrow home-editable" contenteditable="true" data-sync="DoctorsEyebrow" data-plain="true">@home.DoctorsEyebrow</div></div>
+                    <div class="home-edit-wrap" data-label="Headline"><h2 class="section-h2 home-editable" contenteditable="true" data-sync="DoctorsHeadlineHtml">@Html.Raw(home.DoctorsHeadlineHtml)</h2></div>
+                    <div class="home-edit-wrap" data-label="Subtitle"><p class="section-body hp-doctors-subtitle home-editable" contenteditable="true" data-sync="DoctorsSubtitle" data-plain="true">@home.DoctorsSubtitle</p></div>
+                </div>
+                @if (doctors is { Count: > 0 })
+                {
+                    <div class="hp-testimonials-grid home-editor-static">
+                        @foreach (var doctor in doctors)
+                        {
+                            var stars = doctor.GoogleRating > 0 ? new string('★', (int)Math.Round(doctor.GoogleRating)) : "★★★★★";
+                            <div class="hp-testimonial hp-doctor-card">
+                                <div class="hp-stars">@stars</div>
+                                <p>@(string.IsNullOrWhiteSpace(doctor.HighlightText) ? $"Trusted {doctor.Specialty}." : doctor.HighlightText)</p>
+                                <footer>
+                                    @if (!string.IsNullOrWhiteSpace(doctor.PhotoUrl))
+                                    {
+                                        <img class="hp-doctor-card-photo" src="@doctor.PhotoUrl" alt="" />
+                                    }
+                                    else
+                                    {
+                                        <span class="hp-testimonial-avatar">@doctor.AvatarInitials</span>
+                                    }
+                                    <div>
+                                        <strong>@doctor.Name</strong>
+                                        <span>@doctor.Specialty · @doctor.City, @doctor.State</span>
+                                    </div>
+                                </footer>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="section-body home-editor-static">Doctor cards come from your Doctors list (top rated).</p>
+                }
+            </div>
+        </section>
+
+        <hr class="hp-divider" />
+
+        <section class="hp-section hp-section-white" id="how-it-works">
+            <div class="hp-container">
+                <div class="hp-section-header">
+                    <div class="home-edit-wrap" data-label="Section label"><div class="section-eyebrow home-editable" contenteditable="true" data-sync="HowEyebrow" data-plain="true">@home.HowEyebrow</div></div>
+                    <div class="home-edit-wrap" data-label="Headline"><h2 class="section-h2 home-editable" contenteditable="true" data-sync="HowHeadlineHtml">@Html.Raw(home.HowHeadlineHtml)</h2></div>
+                </div>
+                <div class="hp-steps-panel">
+                    <div class="hp-step-panel-item">
+                        <div class="hp-step-panel-num">01</div>
+                        <div class="home-edit-wrap" data-label="Step title"><h3 class="home-editable" contenteditable="true" data-sync="How1Title" data-plain="true">@home.How1Title</h3></div>
+                        <div class="home-edit-wrap" data-label="Step text"><p class="home-editable" contenteditable="true" data-sync="How1Body" data-plain="true">@home.How1Body</p></div>
+                    </div>
+                    <div class="hp-step-panel-item">
+                        <div class="hp-step-panel-num">02</div>
+                        <div class="home-edit-wrap" data-label="Step title"><h3 class="home-editable" contenteditable="true" data-sync="How2Title" data-plain="true">@home.How2Title</h3></div>
+                        <div class="home-edit-wrap" data-label="Step text"><p class="home-editable" contenteditable="true" data-sync="How2Body" data-plain="true">@home.How2Body</p></div>
+                    </div>
+                    <div class="hp-step-panel-item">
+                        <div class="hp-step-panel-num">03</div>
+                        <div class="home-edit-wrap" data-label="Step title"><h3 class="home-editable" contenteditable="true" data-sync="How3Title" data-plain="true">@home.How3Title</h3></div>
+                        <div class="home-edit-wrap" data-label="Step text"><p class="home-editable" contenteditable="true" data-sync="How3Body" data-plain="true">@home.How3Body</p></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="hp-cta">
+            <div class="hp-cta-inner">
+                <div class="home-edit-wrap" data-label="Eyebrow"><div class="section-eyebrow hp-cta-eyebrow home-editable" contenteditable="true" data-sync="CtaEyebrow" data-plain="true">@home.CtaEyebrow</div></div>
+                <div class="home-edit-wrap" data-label="Headline"><h2 class="home-editable" contenteditable="true" data-sync="CtaHeadlineHtml">@Html.Raw(home.CtaHeadlineHtml)</h2></div>
+                <div class="home-edit-wrap" data-label="Supporting text"><p class="home-editable" contenteditable="true" data-sync="CtaSubtext" data-plain="true">@home.CtaSubtext</p></div>
+                <div class="home-edit-wrap home-edit-wrap-btn" data-label="Button text"><div class="hp-cta-btn home-editable" contenteditable="true" data-sync="CtaButtonText" data-plain="true">@home.CtaButtonText</div></div>
+                <div class="home-edit-wrap" data-label="Note"><div class="hp-cta-note home-editable" contenteditable="true" data-sync="CtaNote" data-plain="true">@home.CtaNote</div></div>
+            </div>
+        </section>
+
+        <nav class="hp-browse home-editor-static" aria-label="Browse directory">
+            <div class="hp-container">
+                <div class="hp-browse-grid">
+                    <div>
+                        <div class="hp-browse-title">Browse Dentists</div>
+                        <a href="#">Dentists Near Me</a>
+                        <a href="#">Orthodontists</a>
+                        <a href="#">Oral Surgeons</a>
+                    </div>
+                    <div>
+                        <div class="hp-browse-title">Browse Concerns</div>
+                        <a href="#">Tooth Pain</a>
+                        <a href="#">Cleaning</a>
+                        <a href="#">Emergency Dental</a>
+                    </div>
+                    <div>
+                        <div class="hp-browse-title">Browse Procedures</div>
+                        <a href="#">Dental Implants</a>
+                        <a href="#">Teeth Whitening</a>
+                        <a href="#">Invisalign</a>
+                    </div>
+                    <div>
+                        <div class="hp-browse-title">@Branding.SiteName</div>
+                        <a href="#">About Us</a>
+                        <a href="#">How It Works</a>
+                        <a href="#">Create Account</a>
+                    </div>
+                </div>
+                <p class="home-editor-browse-note">Footer browse links are fixed (they open chat). Only shown here for layout.</p>
+            </div>
+        </nav>
+    </div>
+</form>
+
+<script>
+(function () {
+  const form = document.getElementById('home-editor-form');
+  if (!form) return;
+
+  function syncAll() {
+    form.querySelectorAll('.home-editable[data-sync]').forEach(el => {
+      const field = document.getElementById('field-' + el.dataset.sync);
+      if (!field) return;
+      if (el.dataset.plain === 'true') {
+        field.value = (el.innerText || '').trim();
+      } else {
+        let html = el.innerHTML
+          .replace(/<div><br><\/div>/gi, '<br>')
+          .replace(/<div>/gi, '<br>')
+          .replace(/<\/div>/gi, '')
+          .replace(/&nbsp;/gi, ' ')
+          .trim();
+        html = html.replace(/^(<br\s*\/?>)+/i, '').replace(/(<br\s*\/?>)+$/i, '');
+        field.value = html;
+      }
+    });
+  }
+
+  form.addEventListener('submit', syncAll);
+  form.querySelectorAll('.home-editable').forEach(el => {
+    el.addEventListener('focus', () => el.closest('.home-edit-wrap')?.classList.add('is-focused'));
+    el.addEventListener('blur', () => el.closest('.home-edit-wrap')?.classList.remove('is-focused'));
+  });
+})();
+</script>
+</body>
+</html>

@@ -375,6 +375,59 @@ public static class SchemaUpdater
             """,
             cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `home_page_content` (
+                `Id`                 INT NOT NULL PRIMARY KEY,
+                `MetaDescription`    VARCHAR(500) NULL,
+                `HeroEyebrow`        VARCHAR(300) NULL,
+                `HeroHeadlineHtml`   TEXT NULL,
+                `HeroSubtext`        TEXT NULL,
+                `WhyEyebrow`         VARCHAR(200) NULL,
+                `WhyHeadlineHtml`    TEXT NULL,
+                `HowEyebrow`         VARCHAR(200) NULL,
+                `HowHeadlineHtml`    TEXT NULL,
+                `CtaEyebrow`         VARCHAR(200) NULL,
+                `CtaHeadlineHtml`    TEXT NULL,
+                `CtaSubtext`         TEXT NULL,
+                `CtaButtonText`      VARCHAR(100) NULL,
+                `UpdatedAtUtc`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            cancellationToken);
+
+        // Extra homepage editor fields (added after initial home_page_content table)
+        await EnsureColumnAsync(db, "home_page_content", "Stat1Num", "varchar(40) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat1Label", "varchar(120) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat2Num", "varchar(40) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat2Label", "varchar(120) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat3Num", "varchar(40) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat3Label", "varchar(120) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat4Num", "varchar(40) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Stat4Label", "varchar(120) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "InsuranceTitle", "varchar(300) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Why1Title", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "Why1Body", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Why2Title", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "Why2Body", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "Why3Title", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "Why3Body", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "VisitEyebrow", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "VisitHeadlineHtml", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "SpecialtyEyebrow", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "SpecialtyHeadlineHtml", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "SpecialtyBody", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "DoctorsEyebrow", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "DoctorsHeadlineHtml", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "DoctorsSubtitle", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "How1Title", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "How1Body", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "How2Title", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "How2Body", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "How3Title", "varchar(200) NULL", cancellationToken);
+        await EnsureTextColumnAsync(db, "home_page_content", "How3Body", cancellationToken);
+        await EnsureColumnAsync(db, "home_page_content", "CtaNote", "varchar(200) NULL", cancellationToken);
+
         Log("Schema updates complete.");
     }
 
