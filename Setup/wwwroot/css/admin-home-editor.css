@@ -1,0 +1,238 @@
+/* Visual homepage editor (WordPress-style inline editing) */
+
+.home-editor-body {
+  background: #f5f7f6;
+  min-height: 100vh;
+  display: block;
+}
+
+.home-editor-form {
+  padding-top: 56px;
+}
+
+.home-editor-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  height: 56px;
+  background: #1a2b22;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+
+.home-editor-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.home-editor-bar-left strong {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.home-editor-back {
+  color: #c2d9cf;
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.home-editor-back:hover { color: #fff; }
+
+.home-editor-hint {
+  font-size: 12px;
+  color: #8aa399;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-editor-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.home-editor-saved {
+  font-size: 12px;
+  color: #a7f3d0;
+  margin-right: 4px;
+}
+
+.home-editor-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.home-editor-btn-ghost {
+  background: transparent;
+  color: #c2d9cf;
+  border: 1px solid #3d5a4c;
+}
+.home-editor-btn-ghost:hover {
+  color: #fff;
+  border-color: #6b8078;
+}
+
+.home-editor-btn-primary {
+  background: #ffef4b;
+  color: #1a2b22;
+}
+.home-editor-btn-primary:hover {
+  background: #f5e63a;
+}
+
+.home-editor-seo {
+  background: #fff;
+  border-bottom: 1px solid #d4ddd9;
+  padding: 12px 24px 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.home-editor-seo label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b8078;
+  margin-bottom: 6px;
+}
+
+.home-editor-seo-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4ddd9;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.home-editor-canvas {
+  background: #fff;
+}
+
+/* Editable region chrome */
+.home-edit-wrap {
+  position: relative;
+  outline: 1px dashed transparent;
+  border-radius: 6px;
+  transition: outline-color 0.15s, background 0.15s;
+  margin: 0 auto;
+}
+
+.home-edit-wrap:hover,
+.home-edit-wrap.is-focused {
+  outline-color: #3d6b5a;
+  background: rgba(61, 107, 90, 0.06);
+}
+
+.home-edit-wrap::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #3d6b5a;
+  padding: 2px 8px;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.home-edit-wrap:hover::before,
+.home-edit-wrap.is-focused::before {
+  opacity: 1;
+}
+
+.hp-cta .home-edit-wrap:hover,
+.hp-cta .home-edit-wrap.is-focused {
+  background: rgba(255, 255, 255, 0.08);
+  outline-color: #7fb3f0;
+}
+
+.hp-cta .home-edit-wrap::before {
+  background: #7fb3f0;
+  color: #0a1628;
+}
+
+.home-editable {
+  outline: none;
+  min-width: 40px;
+  cursor: text;
+}
+
+.home-editable:empty::before {
+  content: "Click to edit…";
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.home-edit-wrap-btn {
+  display: inline-block;
+  width: auto;
+}
+
+.home-edit-wrap-btn .hp-cta-btn {
+  min-width: 200px;
+  cursor: text;
+}
+
+/* Chat mock — visual only */
+.home-editor-chat-mock {
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.home-editor-chat-mock .chip {
+  cursor: default;
+}
+
+.home-editor-static {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.home-editor-browse-note {
+  text-align: center;
+  font-size: 12px;
+  color: #6b8078;
+  margin-top: 20px;
+  opacity: 1;
+}
+
+@media (max-width: 900px) {
+  .home-editor-hint { display: none; }
+  .home-editor-bar {
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+  }
+  .home-editor-form { padding-top: 88px; }
+}

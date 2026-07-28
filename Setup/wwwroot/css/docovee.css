@@ -27,7 +27,8 @@ body {
   flex-direction: column;
 }
 
-nav,
+/* Site header only — exclude footer browse <nav class="hp-browse"> */
+nav:not(.hp-browse),
 .site-nav {
   background: var(--white);
   border-bottom: 1px solid var(--rule);
@@ -2299,6 +2300,10 @@ footer.site-footer {
   background: #0F1F35;
   padding: 60px 32px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: block;
+  height: auto;
+  position: static;
+  z-index: auto;
 }
 
 .hp-browse-grid {
