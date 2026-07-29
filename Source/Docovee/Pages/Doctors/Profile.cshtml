@@ -79,18 +79,26 @@
                 }
                 @if (heroGallery.Count > 0)
                 {
-                    <div class="zd-gallery-strip" aria-label="Clinic photos">
-                        @foreach (var photo in heroGallery)
-                        {
-                            <figure class="zd-gallery-item">
-                                <button type="button" class="zd-lightbox-trigger"
-                                        data-zd-src="@photo.Url"
-                                        data-zd-alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)"
-                                        aria-label="View photo larger">
-                                    <img src="@photo.Url" alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)" loading="lazy" />
-                                </button>
-                            </figure>
-                        }
+                    <div class="zd-gallery-strip-wrap" data-zd-gallery-strip>
+                        <button type="button" class="zd-gallery-seek zd-gallery-seek-prev" aria-label="Previous photos" hidden>
+                            <img src="~/images/gallery-arrow-prev.png" asp-append-version="true" alt="" width="18" height="18" />
+                        </button>
+                        <div class="zd-gallery-strip" aria-label="Clinic photos">
+                            @foreach (var photo in heroGallery)
+                            {
+                                <figure class="zd-gallery-item">
+                                    <button type="button" class="zd-lightbox-trigger"
+                                            data-zd-src="@photo.Url"
+                                            data-zd-alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)"
+                                            aria-label="View photo larger">
+                                        <img src="@photo.Url" alt="@(photo.Caption ?? doctor.PracticeName ?? doctor.Name)" loading="lazy" />
+                                    </button>
+                                </figure>
+                            }
+                        </div>
+                        <button type="button" class="zd-gallery-seek zd-gallery-seek-next" aria-label="Next photos" hidden>
+                            <img src="~/images/gallery-arrow-next.png" asp-append-version="true" alt="" width="18" height="18" />
+                        </button>
                     </div>
                 }
                 <div class="zd-hero-row">
@@ -1151,6 +1159,47 @@
         <p class="zd-lightbox-caption" id="zd-lightbox-caption" hidden></p>
     </div>
 </div>
+<script>
+(function () {
+  document.querySelectorAll("[data-zd-gallery-strip]").forEach((wrap) => {
+    const strip = wrap.querySelector(".zd-gallery-strip");
+    const prev = wrap.querySelector(".zd-gallery-seek-prev");
+    const next = wrap.querySelector(".zd-gallery-seek-next");
+    if (!strip || !prev || !next) return;
+
+    function stepSize() {
+      const item = strip.querySelector(".zd-gallery-item");
+      if (!item) return Math.max(200, Math.floor(strip.clientWidth * 0.8));
+      const styles = getComputedStyle(strip);
+      const gap = parseFloat(styles.columnGap || styles.gap || "0") || 0;
+      return item.getBoundingClientRect().width + gap;
+    }
+
+    function updateSeekers() {
+      const maxScroll = Math.max(0, strip.scrollWidth - strip.clientWidth - 1);
+      const overflow = maxScroll > 0;
+      prev.hidden = !overflow;
+      next.hidden = !overflow;
+      if (!overflow) return;
+      prev.disabled = strip.scrollLeft <= 1;
+      next.disabled = strip.scrollLeft >= maxScroll;
+    }
+
+    prev.addEventListener("click", () => {
+      strip.scrollBy({ left: -stepSize(), behavior: "smooth" });
+    });
+    next.addEventListener("click", () => {
+      strip.scrollBy({ left: stepSize(), behavior: "smooth" });
+    });
+    strip.addEventListener("scroll", updateSeekers, { passive: true });
+    window.addEventListener("resize", updateSeekers);
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(updateSeekers).observe(strip);
+    }
+    updateSeekers();
+  });
+})();
+</script>
 <script>
 (function () {
   const root = document.getElementById("zd-lightbox");
