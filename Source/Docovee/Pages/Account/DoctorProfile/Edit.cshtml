@@ -107,7 +107,7 @@
                 <div class="form-group">
                     <label for="Video">Upload intro video</label>
                     <input type="file" id="Video" name="Video" accept="video/*" class="field-input" />
-                    <p class="hint">Optional — mp4, webm, mov, ogg, or m4v (up to 100 MB). Uploading replaces the video link below.</p>
+                    <p class="hint">Optional — mp4, webm, mov, ogg, or m4v (up to @Model.MaxVideoUploadMb MB). Uploading replaces the video link below.</p>
                 </div>
                 <div class="form-group">
                     <label asp-for="Input.VideoUrl">Or video link</label>

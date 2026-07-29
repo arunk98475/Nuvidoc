@@ -7,8 +7,14 @@ public static class DoctorMediaTypes
     public const string Smile = "Smile";
     public const string Family = "Family";
     public const string Pets = "Pets";
+    public const string Video = "Video";
 
-    public static readonly string[] All = [Clinic, Team, Smile, Family, Pets];
+    public static readonly string[] PhotoTypes = [Clinic, Team, Smile, Family, Pets];
+    public static readonly string[] All = [..PhotoTypes, Video];
+
+    public static bool IsPhotoType(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && PhotoTypes.Any(t => string.Equals(t, value.Trim(), StringComparison.OrdinalIgnoreCase));
 
     public static bool IsValid(string? value) =>
         !string.IsNullOrWhiteSpace(value)
@@ -16,6 +22,9 @@ public static class DoctorMediaTypes
 
     public static string Normalize(string value) =>
         All.First(t => string.Equals(t, value.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    public static string NormalizePhotoType(string value) =>
+        PhotoTypes.First(t => string.Equals(t, value.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 public class DoctorMedia
@@ -28,6 +37,7 @@ public class DoctorMedia
     public string MediaType { get; set; } = DoctorMediaTypes.Clinic;
     public string Url { get; set; } = string.Empty;
     public string? Caption { get; set; }
+    public long FileSizeBytes { get; set; }
     public int SortOrder { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

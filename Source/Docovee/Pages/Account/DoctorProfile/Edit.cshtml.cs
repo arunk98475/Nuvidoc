@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using Docovee.BLL.Auth;
+using Docovee.BLL.Configuration;
 using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 using UsStateList = Docovee.BLL.Data.UsStates;
 
 namespace Docovee.Pages.Account.DoctorProfile;
@@ -14,11 +16,16 @@ public class EditModel : PageModel
 {
     private readonly IProfileService _profileService;
     private readonly IInsuranceService _insuranceService;
+    private readonly UploadOptions _uploadOptions;
 
-    public EditModel(IProfileService profileService, IInsuranceService insuranceService)
+    public EditModel(
+        IProfileService profileService,
+        IInsuranceService insuranceService,
+        IOptions<UploadOptions> uploadOptions)
     {
         _profileService = profileService;
         _insuranceService = insuranceService;
+        _uploadOptions = uploadOptions.Value;
     }
 
     [BindProperty]
@@ -29,6 +36,7 @@ public class EditModel : PageModel
     public string? CurrentPhotoUrl { get; set; }
     public string? CurrentVideoUrl { get; set; }
     public string? ErrorMessage { get; set; }
+    public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
 
     public async Task<IActionResult> OnGetAsync()
     {

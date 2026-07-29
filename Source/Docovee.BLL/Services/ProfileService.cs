@@ -396,9 +396,9 @@ public class ProfileService : IProfileService
 
         if (video != null && video.Length > 0)
         {
-            var videoUrl = await _fileService.SaveUploadedVideoAsync(video, cancellationToken);
+            var videoUrl = await _fileService.SaveUploadedVideoAsync(video, cancellationToken: cancellationToken);
             if (videoUrl == null)
-                return (false, "Please upload a valid video (mp4, webm, mov, ogg, m4v — up to 100 MB).");
+                return (false, $"Please upload a valid video (mp4, webm, mov, ogg, m4v — up to {_fileService.MaxVideoMb} MB).");
             doctor.VideoUrl = videoUrl;
         }
         else if (!string.IsNullOrWhiteSpace(model.VideoUrl))
@@ -446,10 +446,6 @@ public class ProfileService : IProfileService
         if (description?.Length > 20000)
             return (false, "Practice description must be 20,000 characters or fewer.");
 
-        var youtubeUrl = model.YoutubeVideoUrl?.Trim();
-        if (!string.IsNullOrWhiteSpace(youtubeUrl) && !IsYoutubeUrl(youtubeUrl))
-            return (false, "Please enter a valid YouTube video link (youtube.com or youtu.be).");
-
         if (!TryNormalizeOptionalUrl(model.FacebookUrl, "Facebook", out var facebookUrl, out var socialError)
             || !TryNormalizeOptionalUrl(model.InstagramUrl, "Instagram", out var instagramUrl, out socialError)
             || !TryNormalizeOptionalUrl(model.TikTokUrl, "TikTok", out var tikTokUrl, out socialError)
@@ -459,7 +455,6 @@ public class ProfileService : IProfileService
 
         doctor.PracticeName = model.PracticeName.Trim();
         doctor.SummaryOfReviews = string.IsNullOrWhiteSpace(description) ? null : description;
-        doctor.VideoUrl = string.IsNullOrWhiteSpace(youtubeUrl) ? null : youtubeUrl;
         doctor.FacebookUrl = facebookUrl;
         doctor.InstagramUrl = instagramUrl;
         doctor.TikTokUrl = tikTokUrl;
@@ -740,15 +735,6 @@ public class ProfileService : IProfileService
         }
 
         return true;
-    }
-
-    private static bool IsYoutubeUrl(string url)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            return false;
-
-        var host = uri.Host.ToLowerInvariant();
-        return host is "youtube.com" or "www.youtube.com" or "m.youtube.com" or "youtu.be" or "www.youtu.be";
     }
 
     private static string BuildInitials(string name)

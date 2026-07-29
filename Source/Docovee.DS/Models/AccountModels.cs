@@ -93,7 +93,6 @@ public class PracticeProfileInput
 {
     public string PracticeName { get; set; } = string.Empty;
     public string? PracticeDescription { get; set; }
-    public string? YoutubeVideoUrl { get; set; }
     public string? PracticeWebsite { get; set; }
     public bool AllowGoogleBookings { get; set; } = true;
     public string? FacebookUrl { get; set; }

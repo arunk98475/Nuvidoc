@@ -74,6 +74,7 @@ public class DoctorMediaDto
     public string MediaType { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string? Caption { get; set; }
+    public long FileSizeBytes { get; set; }
     public int SortOrder { get; set; }
 }
 

@@ -115,9 +115,19 @@ public class PublicDoctorService : IPublicDoctorService
                 MediaType = m.MediaType,
                 Url = m.Url,
                 Caption = m.Caption,
+                FileSizeBytes = m.FileSizeBytes,
                 SortOrder = m.SortOrder
             })
             .ToList();
+
+        var firstUploadedVideo = media
+            .FirstOrDefault(m => string.Equals(m.MediaType, "Video", StringComparison.OrdinalIgnoreCase)
+                                 && !string.IsNullOrWhiteSpace(m.Url))
+            ?.Url;
+
+        var legacyVideoUrl = !string.IsNullOrWhiteSpace(doctor.VideoUrl)
+            ? doctor.VideoUrl.Trim()
+            : DoctorProfileHelper.ExtractVideoUrl(doctor.OnboardingProfileJson);
 
         var insurers = doctor.DoctorInsurances
             .Where(di => di.InsuranceCarrier != null && di.InsuranceCarrier.IsActive)
@@ -170,9 +180,7 @@ public class PublicDoctorService : IPublicDoctorService
             GraduationYear = doctor.GraduationYear,
             GoogleRating = doctor.GoogleRating,
             GoogleReviewCount = doctor.GoogleReviewCount,
-            VideoUrl = !string.IsNullOrWhiteSpace(doctor.VideoUrl)
-                ? doctor.VideoUrl.Trim()
-                : DoctorProfileHelper.ExtractVideoUrl(doctor.OnboardingProfileJson),
+            VideoUrl = firstUploadedVideo ?? legacyVideoUrl,
             FacebookUrl = doctor.FacebookUrl,
             InstagramUrl = doctor.InstagramUrl,
             TikTokUrl = doctor.TikTokUrl,

@@ -457,6 +457,8 @@ public static class SchemaUpdater
             """,
             cancellationToken);
 
+        await EnsureColumnAsync(db, "doctor_media", "FileSizeBytes", "bigint NOT NULL DEFAULT 0", cancellationToken);
+
         Log("Schema updates complete.");
     }
 

@@ -103,12 +103,6 @@
                         <textarea asp-for="PracticeInput.PracticeDescription" class="dp-practice-textarea" id="PracticeInput_PracticeDescription" rows="8" maxlength="20000"></textarea>
                         <div class="dp-practice-count"><span id="dp-practice-count">@descLen</span>/20000</div>
                     </div>
-
-                    <div class="dp-practice-field">
-                        <label class="dp-practice-label" for="PracticeInput_YoutubeVideoUrl">Intro YouTube video <span class="dp-practice-optional">(optional)</span></label>
-                        <p class="dp-practice-hint">Add an introduction video that appears on your public profile</p>
-                        <input asp-for="PracticeInput.YoutubeVideoUrl" class="dp-practice-input" id="PracticeInput_YoutubeVideoUrl" type="url" placeholder="https://www.youtube.com/watch?v=..." />
-                    </div>
                 </section>
 
                 <section class="dp-practice-block dp-practice-block-divider">
@@ -170,6 +164,70 @@
                     <button type="submit" class="dp-btn dp-btn-primary">Save changes</button>
                 </div>
                 </form>
+
+                @{
+                    var videos = Model.MediaItems.Where(m => m.MediaType == "Video").ToList();
+                }
+                <section class="dp-practice-block dp-practice-block-divider dp-media-block">
+                    <header class="dp-practice-section-head">
+                        <h2>Videos</h2>
+                        <p>Upload videos or add YouTube links for your public profile</p>
+                    </header>
+
+                    <form method="post" asp-page-handler="AddVideo" enctype="multipart/form-data" class="dp-media-upload">
+                        <input type="file" name="MediaFile" class="dp-media-file-input" accept="video/mp4,video/webm,video/ogg,video/quicktime,.mp4,.webm,.ogg,.mov,.m4v" required hidden />
+                        <button type="button" class="dp-practice-outline-btn dp-media-file-btn">Choose file</button>
+                        <span class="dp-media-file-name" aria-live="polite">No file chosen</span>
+                        <input type="text" name="caption" class="dp-practice-input" placeholder="Caption (optional)" maxlength="300" />
+                        <button type="submit" class="dp-btn dp-btn-primary">Upload Video</button>
+                    </form>
+                    <p class="dp-practice-hint">mp4, webm, mov, ogg, or m4v — up to @Model.MaxVideoUploadMb MB total (@Model.VideoMbUsed MB used, @Model.VideoMbRemaining MB left)</p>
+
+                    <form method="post" asp-page-handler="AddYoutubeVideo" class="dp-media-upload dp-media-youtube-form">
+                        <input type="url" name="youtubeUrl" class="dp-practice-input" placeholder="https://www.youtube.com/watch?v=..." required />
+                        <input type="text" name="caption" class="dp-practice-input" placeholder="Caption (optional)" maxlength="300" />
+                        <button type="submit" class="dp-btn dp-btn-primary">Add YouTube link</button>
+                    </form>
+                    <p class="dp-practice-hint">Paste a YouTube watch, share, shorts, or embed link — each appears as its own card</p>
+
+                    @if (videos.Count == 0)
+                    {
+                        <p class="dp-practice-hint">No videos yet.</p>
+                    }
+                    else
+                    {
+                        <div class="dp-media-grid dp-media-grid-video">
+                            @foreach (var item in videos)
+                            {
+                                var embedUrl = SettingsModel.GetVideoEmbedUrl(item.Url);
+                                <figure class="dp-media-card dp-media-card-video">
+                                    @if (embedUrl != null)
+                                    {
+                                        <div class="dp-media-video-frame">
+                                            <iframe src="@embedUrl" title="@(item.Caption ?? "YouTube video")" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <video class="js-plyr" src="@item.Url" controls playsinline preload="metadata"></video>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(item.Caption))
+                                    {
+                                        <figcaption>@item.Caption</figcaption>
+                                    }
+                                    else if (embedUrl != null)
+                                    {
+                                        <figcaption>YouTube</figcaption>
+                                    }
+                                    <form method="post" asp-page-handler="DeleteMedia" class="dp-media-delete">
+                                        <input type="hidden" name="mediaId" value="@item.Id" />
+                                        <button type="submit" class="dp-practice-outline-btn" onclick="return confirm('Remove this video?');">Remove</button>
+                                    </form>
+                                </figure>
+                            }
+                        </div>
+                    }
+                </section>
 
                 @foreach (var group in new[]
                 {
@@ -1112,7 +1170,19 @@
     }
 </div>
 
+@section Styles {
+@if (Model.Section == "practice")
+{
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.8.4/dist/plyr.css" crossorigin="anonymous" />
+}
+}
+
 @section Scripts {
+@if (Model.Section == "practice")
+{
+    <script src="https://cdn.jsdelivr.net/npm/plyr@3.8.4/dist/plyr.min.js" crossorigin="anonymous"></script>
+    <script src="~/js/plyr-init.js" asp-append-version="true"></script>
+}
 <script>
 (function () {
   const btn = document.getElementById("dp-settings-copy-link");

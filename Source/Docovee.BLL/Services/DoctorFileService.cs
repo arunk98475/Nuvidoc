@@ -6,8 +6,10 @@ namespace Docovee.BLL.Services;
 
 public interface IDoctorFileService
 {
+    long MaxVideoBytes { get; }
+    int MaxVideoMb { get; }
     Task<string?> SaveUploadedPhotoAsync(IFormFile file, CancellationToken cancellationToken = default);
-    Task<string?> SaveUploadedVideoAsync(IFormFile file, CancellationToken cancellationToken = default);
+    Task<string?> SaveUploadedVideoAsync(IFormFile file, long? maxBytes = null, CancellationToken cancellationToken = default);
     Task<string?> DownloadAndSavePhotoAsync(string url, CancellationToken cancellationToken = default);
 }
 
@@ -23,8 +25,6 @@ public class DoctorFileService : IDoctorFileService
         ".mp4", ".webm", ".ogg", ".mov", ".m4v"
     };
 
-    private const long MaxVideoBytes = 100L * 1024 * 1024;
-
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly UploadOptions _options;
 
@@ -34,17 +34,21 @@ public class DoctorFileService : IDoctorFileService
         _options = options.Value;
     }
 
+    public long MaxVideoBytes => _options.MaxUploadBytes;
+    public int MaxVideoMb => _options.MaxUploadMb;
+
     private string VideoPhysicalPath => Path.Combine(_options.DoctorsPhysicalPath, "videos");
 
     private string VideoPublicPath =>
         $"{_options.DoctorsPublicPath.TrimEnd('/')}/videos";
 
-    public async Task<string?> SaveUploadedVideoAsync(IFormFile file, CancellationToken cancellationToken = default)
+    public async Task<string?> SaveUploadedVideoAsync(IFormFile file, long? maxBytes = null, CancellationToken cancellationToken = default)
     {
         if (file == null || file.Length == 0)
             return null;
 
-        if (file.Length > MaxVideoBytes)
+        var limit = maxBytes ?? MaxVideoBytes;
+        if (limit > 0 && file.Length > limit)
             return null;
 
         var ext = Path.GetExtension(file.FileName);

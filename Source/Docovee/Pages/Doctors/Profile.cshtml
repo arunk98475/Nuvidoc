@@ -46,6 +46,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/doctor-public-profile.css" asp-append-version="true" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/plyr@3.8.4/dist/plyr.css" crossorigin="anonymous" />
 </head>
 <body class="zd-page">
 
@@ -62,6 +63,7 @@
                     var familyPhotos = doctor.Media.Where(m => m.MediaType == "Family").ToList();
                     var petsPhotos = doctor.Media.Where(m => m.MediaType == "Pets").ToList();
                     var heroGallery = clinicPhotos.Concat(teamPhotos).Take(8).ToList();
+                    var videos = doctor.Media.Where(m => m.MediaType == "Video").ToList();
                     var hasGallery = teamPhotos.Count > 0 || smilePhotos.Count > 0
                         || familyPhotos.Count > 0 || petsPhotos.Count > 0;
                     var hasSocial = !string.IsNullOrWhiteSpace(doctor.FacebookUrl)
@@ -69,8 +71,11 @@
                         || !string.IsNullOrWhiteSpace(doctor.TikTokUrl)
                         || !string.IsNullOrWhiteSpace(doctor.LinkedInUrl)
                         || !string.IsNullOrWhiteSpace(doctor.YoutubeChannelUrl);
-                    var videoEmbed = GetVideoEmbedUrl(doctor.VideoUrl);
-                    var isDirectVideo = !string.IsNullOrWhiteSpace(doctor.VideoUrl) && IsDirectVideoFile(doctor.VideoUrl!);
+                    var legacyVideoEmbed = videos.Count == 0 ? GetVideoEmbedUrl(doctor.VideoUrl) : null;
+                    var legacyIsDirectVideo = videos.Count == 0
+                        && !string.IsNullOrWhiteSpace(doctor.VideoUrl)
+                        && IsDirectVideoFile(doctor.VideoUrl!);
+                    var hasVideos = videos.Count > 0 || legacyIsDirectVideo || legacyVideoEmbed != null;
                 }
                 @if (heroGallery.Count > 0)
                 {
@@ -253,18 +258,43 @@
                 </p>
                 <button type="button" class="zd-text-btn" id="zd-about-toggle" hidden>show more</button>
 
-                @if (!string.IsNullOrWhiteSpace(doctor.VideoUrl) && (videoEmbed != null || isDirectVideo))
+                @if (hasVideos)
                 {
                     <div class="zd-video">
-                        <h3 class="zd-h3">Meet @doctor.Name</h3>
-                        @if (isDirectVideo)
+                        <h3 class="zd-h3">Videos</h3>
+                        @if (videos.Count > 0)
                         {
-                            <video class="zd-video-player" src="@doctor.VideoUrl" controls preload="metadata" playsinline></video>
+                            <div class="zd-video-list">
+                                @foreach (var video in videos)
+                                {
+                                    var itemEmbed = GetVideoEmbedUrl(video.Url);
+                                    <div class="zd-video-item">
+                                        @if (itemEmbed != null)
+                                        {
+                                            <div class="zd-video-frame">
+                                                <iframe src="@itemEmbed" title="@(video.Caption ?? $"Video for {doctor.Name}")" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <video class="zd-video-player js-plyr" src="@video.Url" controls preload="metadata" playsinline></video>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(video.Caption))
+                                        {
+                                            <p class="zd-video-caption">@video.Caption</p>
+                                        }
+                                    </div>
+                                }
+                            </div>
                         }
-                        else if (videoEmbed != null)
+                        else if (legacyIsDirectVideo)
+                        {
+                            <video class="zd-video-player js-plyr" src="@doctor.VideoUrl" controls preload="metadata" playsinline></video>
+                        }
+                        else if (legacyVideoEmbed != null)
                         {
                             <div class="zd-video-frame">
-                                <iframe src="@videoEmbed" title="Introduction video for @doctor.Name" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+                                <iframe src="@legacyVideoEmbed" title="Video for @doctor.Name" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
                             </div>
                         }
                     </div>
@@ -1164,6 +1194,8 @@
   });
 })();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/plyr@3.8.4/dist/plyr.min.js" crossorigin="anonymous"></script>
+<script src="~/js/plyr-init.js" asp-append-version="true"></script>
 </body>
 </html>
 

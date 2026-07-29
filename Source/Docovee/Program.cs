@@ -6,6 +6,7 @@ using Docovee.Pages.Account;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Http;
+using System.Xml.Linq;
 
 var contentRoot = Directory.GetCurrentDirectory();
 var webRoot = Path.Combine(contentRoot, "wwwroot");
@@ -21,6 +22,7 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 var uploadsPath = Path.Combine(webRoot, "uploads", "doctors");
 var patientUploadsPath = Path.Combine(webRoot, "uploads", "patients");
 var contentUploadsPath = Path.Combine(webRoot, "uploads", "content");
+var maxUploadBytes = ReadMaxAllowedContentLength(contentRoot);
 // Do not fail startup if IIS app-pool identity cannot create folders —
 // grant Modify on wwwroot\uploads (see deploy notes) and folders are created on first upload.
 TryCreateDirectory(uploadsPath);
@@ -34,7 +36,31 @@ builder.Services.Configure<UploadOptions>(options =>
     options.PatientsPublicPath = "/uploads/patients";
     options.ContentImagesPhysicalPath = contentUploadsPath;
     options.ContentImagesPublicPath = "/uploads/content";
+    options.MaxUploadBytes = maxUploadBytes;
 });
+
+static long ReadMaxAllowedContentLength(string contentRoot)
+{
+    var path = Path.Combine(contentRoot, "web.config");
+    if (!File.Exists(path))
+        return UploadOptions.DefaultMaxUploadBytes;
+
+    try
+    {
+        var doc = System.Xml.Linq.XDocument.Load(path);
+        var attr = doc.Descendants("requestLimits")
+            .Attributes("maxAllowedContentLength")
+            .FirstOrDefault();
+        if (attr != null && long.TryParse(attr.Value, out var bytes) && bytes > 0)
+            return bytes;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[NuviDoc] WARNING: could not read maxAllowedContentLength from web.config — {ex.Message}");
+    }
+
+    return UploadOptions.DefaultMaxUploadBytes;
+}
 
 static void TryCreateDirectory(string path)
 {
@@ -51,6 +77,15 @@ static void TryCreateDirectory(string path)
         Console.WriteLine($"[NuviDoc] WARNING: cannot create '{path}' — {ex.Message}");
     }
 }
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = maxUploadBytes;
+});
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = maxUploadBytes;
+});
 
 builder.Services.AddAuthorization(options =>
 {

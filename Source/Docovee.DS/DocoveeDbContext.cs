@@ -99,6 +99,7 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.MediaType).HasMaxLength(40).IsRequired();
             entity.Property(e => e.Url).HasMaxLength(500).IsRequired();
             entity.Property(e => e.Caption).HasMaxLength(300);
+            entity.Property(e => e.FileSizeBytes);
             entity.HasIndex(e => new { e.DoctorId, e.MediaType, e.SortOrder });
             entity.HasOne(e => e.Doctor).WithMany(d => d.Media).HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Location).WithMany().HasForeignKey(e => e.LocationId)

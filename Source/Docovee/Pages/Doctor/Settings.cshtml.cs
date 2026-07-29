@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using Docovee.BLL.Auth;
+using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
 using Docovee.BLL.Services;
 using Docovee.DS.Models;
@@ -8,6 +9,7 @@ using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace Docovee.Pages.Doctor;
 
@@ -33,20 +35,28 @@ public class SettingsModel : PageModel
     private readonly IDoctorInsuranceService _insuranceService;
     private readonly IDoctorMediaService _mediaService;
     private readonly IPmsCalendarService _pms;
+    private readonly UploadOptions _uploadOptions;
 
     public SettingsModel(
         IProfileService profileService,
         IDoctorLocationService locationService,
         IDoctorInsuranceService insuranceService,
         IDoctorMediaService mediaService,
-        IPmsCalendarService pms)
+        IPmsCalendarService pms,
+        IOptions<UploadOptions> uploadOptions)
     {
         _profileService = profileService;
         _locationService = locationService;
         _insuranceService = insuranceService;
         _mediaService = mediaService;
         _pms = pms;
+        _uploadOptions = uploadOptions.Value;
     }
+
+    public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
+    public long VideoBytesUsed { get; private set; }
+    public int VideoMbUsed => (int)(VideoBytesUsed / (1024L * 1024L));
+    public int VideoMbRemaining => Math.Max(0, (int)((_uploadOptions.MaxUploadBytes - VideoBytesUsed) / (1024L * 1024L)));
 
     [BindProperty]
     public PracticeProfileInput PracticeInput { get; set; } = new();
@@ -142,6 +152,43 @@ public class SettingsModel : PageModel
         }
 
         var (success, error) = await _mediaService.AddPhotoAsync(doctorId, mediaType, file, caption, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "practice", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "practice", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostAddVideoAsync(string? caption, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var file = Request.Form.Files.GetFile("MediaFile");
+        if (file == null || file.Length == 0)
+        {
+            ErrorMessage = "Please choose a video to upload.";
+            return await LoadPageAsync(doctorId, "practice", cancellationToken);
+        }
+
+        var (success, error) = await _mediaService.AddVideoAsync(doctorId, file, caption, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "practice", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "practice", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostAddYoutubeVideoAsync(string? youtubeUrl, string? caption, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _mediaService.AddYoutubeVideoAsync(doctorId, youtubeUrl ?? "", caption, cancellationToken);
         if (!success)
         {
             ErrorMessage = error;
@@ -328,7 +375,6 @@ public class SettingsModel : PageModel
             {
                 PracticeName = Profile.PracticeName ?? Profile.Name,
                 PracticeDescription = Profile.PracticeDescription,
-                YoutubeVideoUrl = Profile.VideoUrl,
                 PracticeWebsite = Profile.PracticeWebsite,
                 AllowGoogleBookings = Profile.AllowGoogleBookings,
                 FacebookUrl = Profile.FacebookUrl,
@@ -340,7 +386,10 @@ public class SettingsModel : PageModel
         }
 
         if (Section == "practice")
+        {
             MediaItems = await _mediaService.GetForDoctorAsync(doctorId, cancellationToken);
+            VideoBytesUsed = await _mediaService.GetVideoBytesUsedAsync(doctorId, cancellationToken);
+        }
 
         if (Section == "locations")
         {
@@ -373,5 +422,34 @@ public class SettingsModel : PageModel
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";
         return Page();
+    }
+
+    public static string? GetVideoEmbedUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        var trimmed = url.Trim();
+        var yt = System.Text.RegularExpressions.Regex.Match(
+            trimmed,
+            @"(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([\w-]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (yt.Success)
+            return $"https://www.youtube.com/embed/{yt.Groups[1].Value}";
+
+        return null;
+    }
+
+    public static bool IsDirectVideoFile(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return false;
+
+        return url.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)
+            || url.EndsWith(".webm", StringComparison.OrdinalIgnoreCase)
+            || url.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase)
+            || url.EndsWith(".mov", StringComparison.OrdinalIgnoreCase)
+            || url.EndsWith(".m4v", StringComparison.OrdinalIgnoreCase)
+            || url.Contains("/uploads/doctors/videos/", StringComparison.OrdinalIgnoreCase);
     }
 }
