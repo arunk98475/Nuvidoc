@@ -8,9 +8,9 @@ public interface IDoctorFileService
 {
     long MaxVideoBytes { get; }
     int MaxVideoMb { get; }
-    Task<string?> SaveUploadedPhotoAsync(IFormFile file, CancellationToken cancellationToken = default);
-    Task<string?> SaveUploadedVideoAsync(IFormFile file, long? maxBytes = null, CancellationToken cancellationToken = default);
-    Task<string?> DownloadAndSavePhotoAsync(string url, CancellationToken cancellationToken = default);
+    Task<string?> SaveUploadedPhotoAsync(int doctorId, IFormFile file, CancellationToken cancellationToken = default);
+    Task<string?> SaveUploadedVideoAsync(int doctorId, IFormFile file, long? maxBytes = null, CancellationToken cancellationToken = default);
+    Task<string?> DownloadAndSavePhotoAsync(int doctorId, string url, CancellationToken cancellationToken = default);
 }
 
 public class DoctorFileService : IDoctorFileService
@@ -37,14 +37,25 @@ public class DoctorFileService : IDoctorFileService
     public long MaxVideoBytes => _options.MaxUploadBytes;
     public int MaxVideoMb => _options.MaxUploadMb;
 
-    private string VideoPhysicalPath => Path.Combine(_options.DoctorsPhysicalPath, "videos");
+    private string DoctorPhysicalPath(int doctorId) =>
+        Path.Combine(_options.DoctorsPhysicalPath, doctorId.ToString());
 
-    private string VideoPublicPath =>
-        $"{_options.DoctorsPublicPath.TrimEnd('/')}/videos";
+    private string DoctorPublicPath(int doctorId) =>
+        $"{_options.DoctorsPublicPath.TrimEnd('/')}/{doctorId}";
 
-    public async Task<string?> SaveUploadedVideoAsync(IFormFile file, long? maxBytes = null, CancellationToken cancellationToken = default)
+    private string VideoPhysicalPath(int doctorId) =>
+        Path.Combine(DoctorPhysicalPath(doctorId), "videos");
+
+    private string VideoPublicPath(int doctorId) =>
+        $"{DoctorPublicPath(doctorId)}/videos";
+
+    public async Task<string?> SaveUploadedVideoAsync(
+        int doctorId,
+        IFormFile file,
+        long? maxBytes = null,
+        CancellationToken cancellationToken = default)
     {
-        if (file == null || file.Length == 0)
+        if (doctorId <= 0 || file == null || file.Length == 0)
             return null;
 
         var limit = maxBytes ?? MaxVideoBytes;
@@ -55,38 +66,48 @@ public class DoctorFileService : IDoctorFileService
         if (string.IsNullOrEmpty(ext) || !AllowedVideoExtensions.Contains(ext))
             return null;
 
-        Directory.CreateDirectory(VideoPhysicalPath);
+        var videoDir = VideoPhysicalPath(doctorId);
+        Directory.CreateDirectory(videoDir);
 
         var fileName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
-        var fullPath = Path.Combine(VideoPhysicalPath, fileName);
+        var fullPath = Path.Combine(videoDir, fileName);
 
         await using var stream = new FileStream(fullPath, FileMode.Create);
         await file.CopyToAsync(stream, cancellationToken);
 
-        return $"{VideoPublicPath}/{fileName}";
+        return $"{VideoPublicPath(doctorId)}/{fileName}";
     }
 
-    public async Task<string?> SaveUploadedPhotoAsync(IFormFile file, CancellationToken cancellationToken = default)
+    public async Task<string?> SaveUploadedPhotoAsync(
+        int doctorId,
+        IFormFile file,
+        CancellationToken cancellationToken = default)
     {
-        if (file == null || file.Length == 0)
+        if (doctorId <= 0 || file == null || file.Length == 0)
             return null;
 
         var ext = Path.GetExtension(file.FileName);
         if (string.IsNullOrEmpty(ext) || !AllowedExtensions.Contains(ext))
             return null;
 
+        var doctorDir = DoctorPhysicalPath(doctorId);
+        Directory.CreateDirectory(doctorDir);
+
         var fileName = $"{Guid.NewGuid():N}{ext.ToLowerInvariant()}";
-        var fullPath = Path.Combine(_options.DoctorsPhysicalPath, fileName);
+        var fullPath = Path.Combine(doctorDir, fileName);
 
         await using var stream = new FileStream(fullPath, FileMode.Create);
         await file.CopyToAsync(stream, cancellationToken);
 
-        return $"{_options.DoctorsPublicPath.TrimEnd('/')}/{fileName}";
+        return $"{DoctorPublicPath(doctorId)}/{fileName}";
     }
 
-    public async Task<string?> DownloadAndSavePhotoAsync(string url, CancellationToken cancellationToken = default)
+    public async Task<string?> DownloadAndSavePhotoAsync(
+        int doctorId,
+        string url,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        if (doctorId <= 0 || string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return null;
 
         try
@@ -105,13 +126,16 @@ public class DoctorFileService : IDoctorFileService
                 _ => ".jpg"
             };
 
+            var doctorDir = DoctorPhysicalPath(doctorId);
+            Directory.CreateDirectory(doctorDir);
+
             var fileName = $"{Guid.NewGuid():N}{ext}";
-            var fullPath = Path.Combine(_options.DoctorsPhysicalPath, fileName);
+            var fullPath = Path.Combine(doctorDir, fileName);
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             await using var fileStream = new FileStream(fullPath, FileMode.Create);
             await stream.CopyToAsync(fileStream, cancellationToken);
 
-            return $"{_options.DoctorsPublicPath.TrimEnd('/')}/{fileName}";
+            return $"{DoctorPublicPath(doctorId)}/{fileName}";
         }
         catch
         {

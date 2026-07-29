@@ -131,16 +131,20 @@ public class AdminDoctorService : IAdminDoctorService
         ApplyModel(doctor, model);
         ApplyCredentials(doctor, model, isCreate: true);
 
-        if (photo != null)
-        {
-            var photoUrl = await _fileService.SaveUploadedPhotoAsync(photo, cancellationToken);
-            if (photoUrl != null)
-                doctor.PhotoUrl = photoUrl;
-        }
-
         doctor.AvatarInitials = BuildInitials(doctor.Name);
         _db.Doctors.Add(doctor);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (photo != null)
+        {
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(doctor.Id, photo, cancellationToken);
+            if (photoUrl != null)
+            {
+                doctor.PhotoUrl = photoUrl;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         _logger.LogInformation("Admin created doctor {Name}", doctor.Name);
         return (true, null);
     }
@@ -161,7 +165,7 @@ public class AdminDoctorService : IAdminDoctorService
 
         if (photo != null)
         {
-            var photoUrl = await _fileService.SaveUploadedPhotoAsync(photo, cancellationToken);
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(doctor.Id, photo, cancellationToken);
             if (photoUrl != null)
                 doctor.PhotoUrl = photoUrl;
         }

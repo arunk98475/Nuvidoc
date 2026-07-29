@@ -64,7 +64,7 @@ public class AppointmentsModel : PageModel
         var photo = Request.Form.Files.GetFile("ReviewPhoto");
         if (photo != null && photo.Length > 0)
         {
-            photoUrl = await _fileService.SaveUploadedPhotoAsync(photo);
+            photoUrl = await _fileService.SaveUploadedPhotoAsync(doctorId, photo);
             if (photoUrl == null)
             {
                 ReviewError = "Could not save that photo. Use JPG, PNG, WebP, or GIF.";

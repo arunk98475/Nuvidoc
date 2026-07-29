@@ -135,17 +135,20 @@ public class AccountRegistrationService : IAccountRegistrationService
         };
         doctor.PasswordHash = _doctorHasher.HashPassword(doctor, request.Password);
 
-        if (doctorPhoto != null)
-        {
-            var photoUrl = await _fileService.SaveUploadedPhotoAsync(doctorPhoto, cancellationToken);
-            if (photoUrl != null)
-                doctor.PhotoUrl = photoUrl;
-        }
-
         doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink);
 
         _db.Doctors.Add(doctor);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (doctorPhoto != null)
+        {
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(doctor.Id, doctorPhoto, cancellationToken);
+            if (photoUrl != null)
+            {
+                doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(photoUrl, doctor.GmbPhotoLink);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
 
         await SetDoctorInsurancesAsync(doctor.Id, request.InsuranceCarrierIds, cancellationToken);
 

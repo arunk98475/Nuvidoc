@@ -382,7 +382,7 @@ public class ProfileService : IProfileService
 
         if (photo != null)
         {
-            var photoUrl = await _fileService.SaveUploadedPhotoAsync(photo, cancellationToken);
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(doctorId, photo, cancellationToken);
             if (photoUrl != null)
             {
                 doctor.PhotoUrl = photoUrl;
@@ -396,7 +396,7 @@ public class ProfileService : IProfileService
 
         if (video != null && video.Length > 0)
         {
-            var videoUrl = await _fileService.SaveUploadedVideoAsync(video, cancellationToken: cancellationToken);
+            var videoUrl = await _fileService.SaveUploadedVideoAsync(doctorId, video, cancellationToken: cancellationToken);
             if (videoUrl == null)
                 return (false, $"Please upload a valid video (mp4, webm, mov, ogg, m4v — up to {_fileService.MaxVideoMb} MB).");
             doctor.VideoUrl = videoUrl;
@@ -467,7 +467,7 @@ public class ProfileService : IProfileService
 
         if (logo != null && logo.Length > 0)
         {
-            var photoUrl = await _fileService.SaveUploadedPhotoAsync(logo, cancellationToken);
+            var photoUrl = await _fileService.SaveUploadedPhotoAsync(doctorId, logo, cancellationToken);
             if (photoUrl != null)
             {
                 // Practice logo and public headshot are the same image.

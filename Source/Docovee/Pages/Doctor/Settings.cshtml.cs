@@ -450,6 +450,10 @@ public class SettingsModel : PageModel
             || url.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase)
             || url.EndsWith(".mov", StringComparison.OrdinalIgnoreCase)
             || url.EndsWith(".m4v", StringComparison.OrdinalIgnoreCase)
+            || System.Text.RegularExpressions.Regex.IsMatch(
+                url,
+                @"/uploads/doctors/\d+/videos/",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase)
             || url.Contains("/uploads/doctors/videos/", StringComparison.OrdinalIgnoreCase);
     }
 }

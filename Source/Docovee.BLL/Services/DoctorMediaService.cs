@@ -99,7 +99,7 @@ public class DoctorMediaService : IDoctorMediaService
         if (count >= MaxPhotosPerType)
             return (false, $"You can upload up to {MaxPhotosPerType} {normalizedType.ToLowerInvariant()} photos.");
 
-        var url = await _fileService.SaveUploadedPhotoAsync(file, cancellationToken);
+        var url = await _fileService.SaveUploadedPhotoAsync(doctorId, file, cancellationToken);
         if (string.IsNullOrWhiteSpace(url))
             return (false, "Could not save that image. Use JPG, PNG, WebP, or GIF.");
 
@@ -146,7 +146,7 @@ public class DoctorMediaService : IDoctorMediaService
             return (false, $"This video exceeds the remaining space ({remainingMb} MB of {_uploadOptions.MaxUploadMb} MB total left).");
         }
 
-        var url = await _fileService.SaveUploadedVideoAsync(file, remaining, cancellationToken);
+        var url = await _fileService.SaveUploadedVideoAsync(doctorId, file, remaining, cancellationToken);
         if (string.IsNullOrWhiteSpace(url))
             return (false, $"Could not save that video. Use mp4, webm, mov, ogg, or m4v (up to {_uploadOptions.MaxUploadMb} MB total).");
 
