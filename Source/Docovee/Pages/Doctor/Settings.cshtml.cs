@@ -54,9 +54,11 @@ public class SettingsModel : PageModel
     }
 
     public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
+    public long MaxVideoUploadBytes => _uploadOptions.MaxUploadBytes;
     public long VideoBytesUsed { get; private set; }
+    public long VideoBytesRemaining => Math.Max(0, MaxVideoUploadBytes - VideoBytesUsed);
     public int VideoMbUsed => (int)(VideoBytesUsed / (1024L * 1024L));
-    public int VideoMbRemaining => Math.Max(0, (int)((_uploadOptions.MaxUploadBytes - VideoBytesUsed) / (1024L * 1024L)));
+    public int VideoMbRemaining => Math.Max(0, (int)(VideoBytesRemaining / (1024L * 1024L)));
 
     [BindProperty]
     public PracticeProfileInput PracticeInput { get; set; } = new();

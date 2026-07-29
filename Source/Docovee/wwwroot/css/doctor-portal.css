@@ -1050,6 +1050,21 @@ body.dp-location-modal-open {
   font-weight: 600;
 }
 .dp-btn-primary:hover { filter: brightness(0.97); }
+.dp-btn-primary:disabled,
+.dp-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+  background: #e8e8e8;
+  border-color: #ddd;
+  color: #888;
+}
+.dp-media-video-size-msg.is-error {
+  color: #b42318;
+}
+.dp-media-video-size-msg.is-ok {
+  color: #1a7a4c;
+}
 .dp-btn-ghost { background: transparent; }
 .dp-btn-block { width: 100%; }
 .dp-btn-sm { padding: 6px 12px; font-size: 13px; }

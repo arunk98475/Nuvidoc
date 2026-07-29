@@ -174,14 +174,17 @@
                         <p>Upload videos or add YouTube links for your public profile</p>
                     </header>
 
-                    <form method="post" asp-page-handler="AddVideo" enctype="multipart/form-data" class="dp-media-upload">
+                    <form method="post" asp-page-handler="AddVideo" enctype="multipart/form-data" class="dp-media-upload dp-media-video-upload"
+                          data-max-bytes="@Model.VideoBytesRemaining"
+                          data-max-total-mb="@Model.MaxVideoUploadMb">
                         <input type="file" name="MediaFile" class="dp-media-file-input" accept="video/mp4,video/webm,video/ogg,video/quicktime,.mp4,.webm,.ogg,.mov,.m4v" required hidden />
                         <button type="button" class="dp-practice-outline-btn dp-media-file-btn">Choose file</button>
                         <span class="dp-media-file-name" aria-live="polite">No file chosen</span>
                         <input type="text" name="caption" class="dp-practice-input" placeholder="Caption (optional)" maxlength="300" />
-                        <button type="submit" class="dp-btn dp-btn-primary">Upload Video</button>
+                        <button type="submit" class="dp-btn dp-btn-primary dp-media-video-submit" disabled>Upload Video</button>
                     </form>
                     <p class="dp-practice-hint">mp4, webm, mov, ogg, or m4v — up to @Model.MaxVideoUploadMb MB total (@Model.VideoMbUsed MB used, @Model.VideoMbRemaining MB left)</p>
+                    <p class="dp-practice-hint dp-media-video-size-msg" aria-live="polite" hidden></p>
 
                     <form method="post" asp-page-handler="AddYoutubeVideo" class="dp-media-upload dp-media-youtube-form">
                         <input type="url" name="youtubeUrl" class="dp-practice-input" placeholder="https://www.youtube.com/watch?v=..." required />
@@ -1266,8 +1269,73 @@
     input.addEventListener("change", () => {
       const file = input.files?.[0];
       if (name) name.textContent = file ? file.name : "No file chosen";
+      if (form.classList.contains("dp-media-video-upload")) {
+        validateVideoUploadForm(form, file || null);
+      }
     });
+    if (form.classList.contains("dp-media-video-upload")) {
+      validateVideoUploadForm(form, null);
+      form.addEventListener("submit", (e) => {
+        const file = input.files?.[0];
+        if (!isVideoFileAllowed(form, file)) {
+          e.preventDefault();
+          validateVideoUploadForm(form, file || null);
+        }
+      });
+    }
   });
+
+  function formatMb(bytes) {
+    if (!Number.isFinite(bytes) || bytes < 0) return "0";
+    const mb = bytes / (1024 * 1024);
+    return mb >= 10 ? String(Math.round(mb)) : mb.toFixed(1).replace(/\.0$/, "");
+  }
+
+  function isVideoFileAllowed(form, file) {
+    if (!file) return false;
+    const maxBytes = Number(form.dataset.maxBytes || "0");
+    return file.size > 0 && file.size <= maxBytes;
+  }
+
+  function validateVideoUploadForm(form, file) {
+    const submit = form.querySelector(".dp-media-video-submit");
+    const msg = form.parentElement?.querySelector(".dp-media-video-size-msg");
+    const maxBytes = Number(form.dataset.maxBytes || "0");
+    const maxTotalMb = form.dataset.maxTotalMb || "";
+
+    if (!submit) return;
+
+    if (!file) {
+      submit.disabled = true;
+      if (msg) {
+        msg.hidden = true;
+        msg.textContent = "";
+        msg.classList.remove("is-error", "is-ok");
+      }
+      return;
+    }
+
+    const ok = isVideoFileAllowed(form, file);
+    submit.disabled = !ok;
+    if (!msg) return;
+
+    if (ok) {
+      msg.hidden = false;
+      msg.classList.remove("is-error");
+      msg.classList.add("is-ok");
+      msg.textContent = `Ready to upload (${formatMb(file.size)} MB).`;
+    } else if (maxBytes <= 0) {
+      msg.hidden = false;
+      msg.classList.remove("is-ok");
+      msg.classList.add("is-error");
+      msg.textContent = `Video storage is full (${maxTotalMb} MB total). Remove a video to upload another.`;
+    } else {
+      msg.hidden = false;
+      msg.classList.remove("is-ok");
+      msg.classList.add("is-error");
+      msg.textContent = `This file is ${formatMb(file.size)} MB. You only have ${formatMb(maxBytes)} MB left of ${maxTotalMb} MB total.`;
+    }
+  }
 
   const PRACTICE_SCROLL_KEY = "dp-practice-scroll";
   function savePracticeScroll() {
