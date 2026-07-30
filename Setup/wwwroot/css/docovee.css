@@ -177,7 +177,13 @@ body.nav-drawer-open {
 
 .logo span { color: var(--ink); }
 
-.nav-right { display: flex; gap: 10px; align-items: center; }
+.nav-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
 
 .nav-auth {
   display: flex;
@@ -929,6 +935,8 @@ body.pl-open {
 }
 
 .nuvi-doctor-card.recommended { border-color: var(--sage); background: var(--sage-lt); }
+.nuvi-doctor-card.sponsored { border-color: #c9a227; }
+.nuvi-doctor-card.sponsored.recommended { background: #fbf8ee; }
 
 .nuvi-rec-badge {
   font-size: 10px;
@@ -937,6 +945,15 @@ body.pl-open {
   letter-spacing: 0.08em;
   color: var(--sage);
   margin-bottom: 8px;
+}
+
+.nuvi-sponsored-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9a7b1a;
+  margin-bottom: 6px;
 }
 
 .nuvi-doctor-card-top { display: flex; gap: 12px; align-items: flex-start; }
@@ -958,6 +975,7 @@ body.pl-open {
 .nuvi-doctor-name { font-size: 14px; font-weight: 600; }
 .nuvi-doctor-spec { font-size: 12px; color: var(--muted); }
 .nuvi-doctor-loc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.nuvi-doctor-phone { font-size: 12px; color: var(--ink); margin-top: 4px; font-weight: 500; }
 
 .nuvi-match-score { text-align: center; margin-left: auto; flex-shrink: 0; }
 .nuvi-match-num { font-size: 18px; font-weight: 600; color: var(--sage); }
@@ -1088,6 +1106,23 @@ body.pl-open {
 .nuvi-profile-review-stars { color: #e6a817; font-size: 12px; margin-bottom: 4px; }
 .nuvi-profile-review-text { font-size: 13px; font-style: italic; line-height: 1.45; }
 .nuvi-profile-review-author { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.nuvi-profile-review-source {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.nuvi-google-reviews-block + .nuvi-patient-reviews-block {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+.nuvi-google-reviews-block .nuvi-profile-review:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
 
 .chat-input-area {
   padding: 16px;
@@ -2454,6 +2489,7 @@ footer.site-footer {
     gap: 10px;
     padding-top: 8px;
     border-top: 1px solid var(--fog);
+    margin-left: 0;
   }
 
   .nav-auth {
