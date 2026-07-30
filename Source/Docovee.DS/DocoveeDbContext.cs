@@ -62,6 +62,7 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.TikTokUrl).HasMaxLength(500);
             entity.Property(e => e.LinkedInUrl).HasMaxLength(500);
             entity.Property(e => e.YoutubeChannelUrl).HasMaxLength(500);
+            entity.Property(e => e.Website).HasMaxLength(500);
             entity.Property(e => e.SummaryOfReviews).HasColumnType("text");
             entity.Property(e => e.Top3Procedures).HasMaxLength(500);
             entity.Property(e => e.Niche).HasMaxLength(200);

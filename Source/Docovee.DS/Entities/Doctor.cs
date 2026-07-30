@@ -21,6 +21,8 @@ public class Doctor
     public string? TikTokUrl { get; set; }
     public string? LinkedInUrl { get; set; }
     public string? YoutubeChannelUrl { get; set; }
+    public string? Website { get; set; }
+    public bool AllowGoogleBookings { get; set; } = true;
     public string? SummaryOfReviews { get; set; }
     public string? Top3Procedures { get; set; }
     public string? Niche { get; set; }

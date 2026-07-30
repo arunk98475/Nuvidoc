@@ -186,6 +186,9 @@ public class PublicDoctorService : IPublicDoctorService
             TikTokUrl = doctor.TikTokUrl,
             LinkedInUrl = doctor.LinkedInUrl,
             YoutubeChannelUrl = doctor.YoutubeChannelUrl,
+            Website = !string.IsNullOrWhiteSpace(doctor.Website)
+                ? doctor.Website.Trim()
+                : DoctorProfileHelper.ExtractPracticeSettings(doctor.OnboardingProfileJson).Website,
             OffersDentalImplants = doctor.OffersDentalImplants,
             OffersTmj = doctor.OffersTmj,
             OffersBotox = doctor.OffersBotox,

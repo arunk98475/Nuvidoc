@@ -156,6 +156,10 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "OnboardingProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "OnboardingQuestionIndex", "int NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "ProfileCompletionPercent", "int NOT NULL DEFAULT 0", cancellationToken);
+        // Homepage / EF Doctor queries need these early (schema runs in background after Kestrel starts).
+        await EnsureColumnAsync(db, "doctors", "Website", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "AllowGoogleBookings", "tinyint(1) NOT NULL DEFAULT 1", cancellationToken);
+        await TryBackfillAllowGoogleBookingsAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);
@@ -524,5 +528,31 @@ public static class SchemaUpdater
             """;
 
         await db.Database.ExecuteSqlRawAsync(modifySql, cancellationToken);
+    }
+
+    private static async Task TryBackfillAllowGoogleBookingsAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Copy false flags from legacy onboarding JSON into the new column (once).
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                UPDATE doctors
+                SET AllowGoogleBookings = 0
+                WHERE OnboardingProfileJson IS NOT NULL
+                  AND OnboardingProfileJson <> ''
+                  AND JSON_VALID(OnboardingProfileJson)
+                  AND LOWER(JSON_UNQUOTE(JSON_EXTRACT(
+                        OnboardingProfileJson,
+                        '$.practiceSettings.allowGoogleBookings'))) IN ('false', '0')
+                """,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Log($"AllowGoogleBookings JSON backfill skipped — {ex.Message}");
+        }
     }
 }

@@ -50,6 +50,10 @@
         <input asp-for="VideoUrl" class="form-control" placeholder="YouTube, Vimeo, Loom, or .mp4 link" />
     </div>
     <div class="form-group">
+        <label asp-for="Website">Website</label>
+        <input asp-for="Website" class="form-control" placeholder="https://..." />
+    </div>
+    <div class="form-group">
         <label asp-for="GoogleRating">Rating (1–5)</label>
         <input asp-for="GoogleRating" type="number" step="0.1" min="0" max="5" class="form-control" />
     </div>

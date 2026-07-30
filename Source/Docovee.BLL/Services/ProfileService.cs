@@ -100,7 +100,11 @@ public class ProfileService : IProfileService
             ? (decimal)doctor.PatientReviews.Average(r => r.Rating)
             : null;
 
-        var (website, allowGoogle) = DoctorProfileHelper.ExtractPracticeSettings(doctor.OnboardingProfileJson);
+        var (websiteFromJson, _) = DoctorProfileHelper.ExtractPracticeSettings(doctor.OnboardingProfileJson);
+        var website = !string.IsNullOrWhiteSpace(doctor.Website)
+            ? doctor.Website.Trim()
+            : websiteFromJson;
+        var allowGoogle = doctor.AllowGoogleBookings;
 
         return new DoctorProfileDto
         {
@@ -450,19 +454,23 @@ public class ProfileService : IProfileService
             || !TryNormalizeOptionalUrl(model.InstagramUrl, "Instagram", out var instagramUrl, out socialError)
             || !TryNormalizeOptionalUrl(model.TikTokUrl, "TikTok", out var tikTokUrl, out socialError)
             || !TryNormalizeOptionalUrl(model.LinkedInUrl, "LinkedIn", out var linkedInUrl, out socialError)
-            || !TryNormalizeOptionalUrl(model.YoutubeChannelUrl, "YouTube channel", out var youtubeChannelUrl, out socialError))
+            || !TryNormalizeOptionalUrl(model.YoutubeChannelUrl, "YouTube channel", out var youtubeChannelUrl, out socialError)
+            || !TryNormalizeOptionalUrl(model.PracticeWebsite, "Practice website", out var practiceWebsite, out socialError))
             return (false, socialError);
 
         doctor.PracticeName = model.PracticeName.Trim();
         doctor.SummaryOfReviews = string.IsNullOrWhiteSpace(description) ? null : description;
+        doctor.Website = practiceWebsite;
+        doctor.AllowGoogleBookings = model.AllowGoogleBookings;
         doctor.FacebookUrl = facebookUrl;
         doctor.InstagramUrl = instagramUrl;
         doctor.TikTokUrl = tikTokUrl;
         doctor.LinkedInUrl = linkedInUrl;
         doctor.YoutubeChannelUrl = youtubeChannelUrl;
+        // Keep JSON in sync for any legacy readers.
         doctor.OnboardingProfileJson = DoctorProfileHelper.MergePracticeSettings(
             doctor.OnboardingProfileJson,
-            model.PracticeWebsite,
+            practiceWebsite,
             model.AllowGoogleBookings);
 
         if (logo != null && logo.Length > 0)

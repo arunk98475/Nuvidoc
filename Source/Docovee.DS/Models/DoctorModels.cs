@@ -105,6 +105,7 @@ public class PublicDoctorProfileDto
     public string? TikTokUrl { get; set; }
     public string? LinkedInUrl { get; set; }
     public string? YoutubeChannelUrl { get; set; }
+    public string? Website { get; set; }
     public bool OffersDentalImplants { get; set; }
     public bool OffersTmj { get; set; }
     public bool OffersBotox { get; set; }

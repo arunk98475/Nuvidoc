@@ -242,6 +242,7 @@ public class AdminDoctorService : IAdminDoctorService
                     OfficePhoneNumber = GetValue(row, "Office Phone Number", "Phone"),
                     GmbPhotoLink = gmbLink,
                     VideoUrl = GetValue(row, "Video Url", "VideoUrl", "Video Link", "Video"),
+                    Website = Truncate(GetValue(row, "Website", "Practice Website", "PracticeWebsite", "URL", "Url"), 500),
                     SummaryOfReviews = GetValue(row, "Summary of Reviews"),
                     Top3Procedures = GetValue(row, "Top 3 Procedures", "Top3Procedures"),
                     Niche = GetValue(row, "Niche"),
@@ -331,6 +332,7 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.GmbPhotoLink = DoctorPhotoHelper.NormalizeStoredLink(model.GmbPhotoLink);
         doctor.PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(model.PhotoUrl, doctor.GmbPhotoLink);
         doctor.VideoUrl = string.IsNullOrWhiteSpace(model.VideoUrl) ? null : model.VideoUrl.Trim();
+        doctor.Website = string.IsNullOrWhiteSpace(model.Website) ? null : model.Website.Trim();
         doctor.SummaryOfReviews = model.SummaryOfReviews?.Trim();
         doctor.Top3Procedures = model.Top3Procedures?.Trim();
         doctor.Niche = model.Niche?.Trim();
@@ -404,6 +406,7 @@ public class AdminDoctorService : IAdminDoctorService
         PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(doctor.PhotoUrl, doctor.GmbPhotoLink),
         GmbPhotoLink = doctor.GmbPhotoLink,
         VideoUrl = doctor.VideoUrl,
+        Website = doctor.Website,
         SummaryOfReviews = doctor.SummaryOfReviews,
         Top3Procedures = doctor.Top3Procedures,
         Niche = doctor.Niche,
@@ -492,6 +495,14 @@ public class AdminDoctorService : IAdminDoctorService
                 return value.Trim();
         }
         return null;
+    }
+
+    private static string? Truncate(string? value, int maxLen)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLen ? trimmed : trimmed[..maxLen];
     }
 
     private static bool ParseBool(string? value) =>
