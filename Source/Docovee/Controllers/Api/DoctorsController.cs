@@ -31,9 +31,10 @@ public class DoctorsController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<ActionResult<PublicDoctorProfileDto>> GetProfile(
         int id,
+        [FromQuery] bool liveGoogleReviews = false,
         CancellationToken cancellationToken = default)
     {
-        var profile = await _publicDoctorService.GetPublicProfileAsync(id, cancellationToken);
+        var profile = await _publicDoctorService.GetPublicProfileAsync(id, liveGoogleReviews, cancellationToken);
         if (profile == null)
             return NotFound();
 

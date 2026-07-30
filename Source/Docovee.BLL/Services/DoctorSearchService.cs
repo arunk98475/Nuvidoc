@@ -18,20 +18,17 @@ public class DoctorSearchService : IDoctorSearchService
     private readonly IDocoveeLogger _logger;
     private readonly IAppSettingsService _appSettings;
     private readonly IAnthropicMatchingService _matchingService;
-    private readonly IWebDoctorDiscoveryService _webDiscovery;
 
     public DoctorSearchService(
         DocoveeDbContext db,
         IDocoveeLogger logger,
         IAppSettingsService appSettings,
-        IAnthropicMatchingService matchingService,
-        IWebDoctorDiscoveryService webDiscovery)
+        IAnthropicMatchingService matchingService)
     {
         _db = db;
         _logger = logger;
         _appSettings = appSettings;
         _matchingService = matchingService;
-        _webDiscovery = webDiscovery;
     }
 
     public async Task<IReadOnlyList<DoctorDto>> SearchAsync(DoctorSearchRequest request, CancellationToken cancellationToken = default)
@@ -63,20 +60,12 @@ public class DoctorSearchService : IDoctorSearchService
         var locationQuery = NormalizeLocationInput(request.Location);
         var hasLocation = !string.IsNullOrWhiteSpace(locationQuery);
 
+        // Match only against doctors already in the database (no web discovery).
         var filtered = await LoadSpecialtyMatchesAsync(specialty, cancellationToken);
-
-        if (filtered.Count == 0 && hasLocation)
-        {
-            _logger.LogInformation(
-                "No local doctors for specialty {Specialty}; discovering in {Location} via web search.",
-                specialty, request.Location);
-            filtered = (await _webDiscovery.DiscoverAndImportAsync(
-                request.Location, specialty, resultCount, cancellationToken)).ToList();
-        }
 
         if (filtered.Count == 0)
         {
-            _logger.LogWarning("No doctors matched specialty {Specialty}. Returning empty result set.", specialty);
+            _logger.LogWarning("No doctors in DB matched specialty {Specialty}. Returning empty result set.", specialty);
             return Array.Empty<DoctorDto>();
         }
 
@@ -89,21 +78,12 @@ public class DoctorSearchService : IDoctorSearchService
             }
             else
             {
-                _logger.LogInformation(
-                    "No doctors in DB for {Location}; discovering via web search.",
-                    request.Location);
-                var discovered = (await _webDiscovery.DiscoverAndImportAsync(
-                    request.Location, specialty, resultCount, cancellationToken)).ToList();
-
-                if (discovered.Count == 0)
-                {
-                    _logger.LogWarning("Web discovery found no doctors for {Location} and specialty {Specialty}.",
-                        request.Location, specialty);
-                    return Array.Empty<DoctorDto>();
-                }
-
-                var discoveredInArea = discovered.Where(d => LocationMatches(locationQuery, d)).ToList();
-                filtered = discoveredInArea.Count > 0 ? discoveredInArea : discovered;
+                // Never fall back to other cities when the patient gave a location —
+                // that was returning Atlanta/Chicago for Houston ZIPs.
+                _logger.LogWarning(
+                    "No DB doctors matched location {Location} for specialty {Specialty}. Returning empty.",
+                    request.Location, specialty);
+                return Array.Empty<DoctorDto>();
             }
         }
 
@@ -122,6 +102,9 @@ public class DoctorSearchService : IDoctorSearchService
             session.SearchNotes = (session.SearchNotes ?? "") + $" Additional matching preference: {request.AdditionalPreference.Trim()}.";
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        // Link by phone (last 10 digits) so sponsored DB listings win over duplicates.
+        filtered = await LinkDoctorsByPhoneAsync(filtered, cancellationToken);
 
         var rankings = await _matchingService.RankDoctorsAsync(session, filtered, cancellationToken);
         var rankingMap = rankings.ToDictionary(r => r.DoctorId, r => r);
@@ -153,10 +136,16 @@ public class DoctorSearchService : IDoctorSearchService
                     var preferenceNote = "Strong fit for your weighted preferences";
                     reason = string.IsNullOrWhiteSpace(reason) ? preferenceNote : $"{reason}; {preferenceNote}";
                 }
+                if (d.IsSponsored)
+                {
+                    var sponsoredNote = "Sponsored";
+                    reason = string.IsNullOrWhiteSpace(reason) ? sponsoredNote : $"{reason}; {sponsoredNote}";
+                }
 
                 return MapDoctor(d, request.Latitude, request.Longitude, score, reason);
             })
-            .OrderByDescending(d => d.MatchScore)
+            .OrderByDescending(d => d.IsSponsored)
+            .ThenByDescending(d => d.MatchScore)
             .ThenByDescending(d => d.GoogleRating)
             .Take(resultCount)
             .ToList();
@@ -166,6 +155,163 @@ public class DoctorSearchService : IDoctorSearchService
 
         _logger.LogInformation("Doctor search returned {Count} results for session {SessionKey}", results.Count, request.SessionKey);
         return results;
+    }
+
+    /// <summary>
+    /// Before listing, replace each candidate with the best existing DB doctor that shares
+    /// the same phone (last 10 digits), preferring sponsored accounts. Dedupes by phone.
+    /// </summary>
+    private async Task<List<DS.Entities.Doctor>> LinkDoctorsByPhoneAsync(
+        List<DS.Entities.Doctor> candidates,
+        CancellationToken cancellationToken)
+    {
+        if (candidates.Count == 0)
+            return candidates;
+
+        var allActive = await _db.Doctors
+            .AsNoTracking()
+            .Include(d => d.DoctorInsurances)
+            .ThenInclude(di => di.InsuranceCarrier)
+            .Include(d => d.DoctorLanguages)
+            .ThenInclude(dl => dl.DoctorLanguage)
+            .Include(d => d.PatientReviews)
+            .Include(d => d.Locations)
+            .Where(d => d.IsActive)
+            .ToListAsync(cancellationToken);
+
+        var byPhone = new Dictionary<string, DS.Entities.Doctor>(StringComparer.Ordinal);
+        foreach (var doctor in allActive)
+        {
+            foreach (var phoneKey in GetDoctorPhoneKeys(doctor))
+            {
+                if (!byPhone.TryGetValue(phoneKey, out var existing)
+                    || PreferDoctor(doctor, existing))
+                {
+                    byPhone[phoneKey] = doctor;
+                }
+            }
+        }
+
+        var linked = new List<DS.Entities.Doctor>();
+        var seenIds = new HashSet<int>();
+        var seenPhones = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var candidate in candidates)
+        {
+            var phoneKeys = GetDoctorPhoneKeys(candidate).ToList();
+            DS.Entities.Doctor? preferred = null;
+            string? matchedPhone = null;
+
+            foreach (var key in phoneKeys)
+            {
+                if (byPhone.TryGetValue(key, out var match))
+                {
+                    if (preferred == null || PreferDoctor(match, preferred))
+                    {
+                        preferred = match;
+                        matchedPhone = key;
+                    }
+                }
+            }
+
+            var resolved = preferred ?? candidate;
+
+            if (matchedPhone != null && !seenPhones.Add(matchedPhone))
+                continue;
+            if (!seenIds.Add(resolved.Id))
+                continue;
+
+            linked.Add(resolved);
+        }
+
+        // Ensure every sponsored doctor in the same specialty/area phones still appear if
+        // they were displaced — already covered by replacement. Sort sponsored first for ranker input.
+        return linked
+            .OrderByDescending(d => d.IsSponsored)
+            .ThenByDescending(d => d.GoogleRating)
+            .ToList();
+    }
+
+    private static IEnumerable<string> GetDoctorPhoneKeys(DS.Entities.Doctor doctor)
+    {
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        var office = PhoneNumberHelper.NormalizeLast10(doctor.OfficePhoneNumber);
+        if (office != null)
+            keys.Add(office);
+
+        if (doctor.Locations != null)
+        {
+            foreach (var loc in doctor.Locations)
+            {
+                var locPhone = PhoneNumberHelper.NormalizeLast10(loc.PhoneNumber);
+                if (locPhone != null)
+                    keys.Add(locPhone);
+            }
+        }
+
+        return keys;
+    }
+
+    /// <summary>Prefer sponsored, registered, real ZIP/state, then higher rating / newer id.</summary>
+    private static bool PreferDoctor(DS.Entities.Doctor candidate, DS.Entities.Doctor current)
+    {
+        if (candidate.IsSponsored != current.IsSponsored)
+            return candidate.IsSponsored;
+
+        var candidateRegistered = !string.IsNullOrWhiteSpace(candidate.Username);
+        var currentRegistered = !string.IsNullOrWhiteSpace(current.Username);
+        if (candidateRegistered != currentRegistered)
+            return candidateRegistered;
+
+        var candidateZipQuality = HasRealZip(candidate);
+        var currentZipQuality = HasRealZip(current);
+        if (candidateZipQuality != currentZipQuality)
+            return candidateZipQuality;
+
+        var candidateStateQuality = HasRealState(candidate);
+        var currentStateQuality = HasRealState(current);
+        if (candidateStateQuality != currentStateQuality)
+            return candidateStateQuality;
+
+        var candidatePhoneQuality = HasCleanUsPhone(candidate.OfficePhoneNumber);
+        var currentPhoneQuality = HasCleanUsPhone(current.OfficePhoneNumber);
+        if (candidatePhoneQuality != currentPhoneQuality)
+            return candidatePhoneQuality;
+
+        if (candidate.GoogleRating != current.GoogleRating)
+            return candidate.GoogleRating > current.GoogleRating;
+
+        // Prefer newer CSV/admin imports over older web-discovery duplicates.
+        return candidate.Id > current.Id;
+    }
+
+    private static bool HasRealZip(DS.Entities.Doctor doctor)
+    {
+        var zip = ExtractZip(doctor.ZipCode);
+        if (zip != null)
+            return true;
+        // Address often embeds the real ZIP when ZipCode column is 00000.
+        return ExtractZip(doctor.Address) != null || ExtractZip(doctor.Location) != null;
+    }
+
+    private static bool HasRealState(DS.Entities.Doctor doctor)
+    {
+        var state = (doctor.State ?? string.Empty).Trim();
+        return !string.IsNullOrWhiteSpace(state)
+            && !state.Equals("NA", StringComparison.OrdinalIgnoreCase)
+            && !state.Equals("-", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasCleanUsPhone(string? phone)
+    {
+        var digits = new string((phone ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (digits.Length == 11 && digits.StartsWith('1'))
+            digits = digits[1..];
+        // Reject mangled values like "(134) 620 23432" (11+ digits kept without stripping country code cleanly).
+        if (digits.Length != 10)
+            return false;
+        // US area codes don't start with 0 or 1.
+        return digits[0] is >= '2' and <= '9';
     }
 
     private async Task<List<DS.Entities.Doctor>> LoadSpecialtyMatchesAsync(
@@ -178,6 +324,7 @@ public class DoctorSearchService : IDoctorSearchService
             .Include(d => d.DoctorLanguages)
             .ThenInclude(dl => dl.DoctorLanguage)
             .Include(d => d.PatientReviews)
+            .Include(d => d.Locations)
             .Where(d => d.IsActive)
             .ToListAsync(cancellationToken);
 
@@ -223,8 +370,9 @@ public class DoctorSearchService : IDoctorSearchService
             SummaryOfReviews = doctor.SummaryOfReviews,
             PatientReviewAverage = patientAvg,
             PatientReviewCount = patientReviews.Count,
-            OfficePhoneNumber = doctor.OfficePhoneNumber,
-            YearsOfPractice = doctor.YearsOfPractice
+            OfficePhoneNumber = PhoneNumberHelper.FormatUsDisplay(doctor.OfficePhoneNumber),
+            YearsOfPractice = doctor.YearsOfPractice,
+            IsSponsored = doctor.IsSponsored
         };
     }
 
@@ -261,19 +409,55 @@ public class DoctorSearchService : IDoctorSearchService
         var lower = location.ToLowerInvariant().Trim();
         foreach (var (typo, fix) in LocationTypoCorrections)
             lower = lower.Replace(typo, fix, StringComparison.Ordinal);
+
+        // "Use last used (77006)" → prefer the ZIP inside parentheses when present.
+        var parenZip = System.Text.RegularExpressions.Regex.Match(lower, @"\((\d{5})(?:-\d{4})?\)");
+        if (parenZip.Success)
+            return parenZip.Groups[1].Value;
+
         return lower;
     }
 
     private static bool LocationMatches(string locationQuery, DS.Entities.Doctor doctor)
     {
-        var city = doctor.City.ToLowerInvariant();
+        var queryZip = ExtractZip(locationQuery);
+        var doctorZip = ExtractZip(doctor.ZipCode);
+
+        // Exact ZIP column match (ignore 00000 placeholders).
+        if (queryZip != null && doctorZip != null && queryZip == doctorZip)
+            return true;
+
+        // Same as: Address LIKE '%77006%' (also Location / City / ZipCode).
+        if (queryZip != null && DoctorTextContainsZip(doctor, queryZip))
+            return true;
+
+        // Houston-area ZIP → any Houston / greater-Houston doctor in DB.
+        if (queryZip != null && IsHoustonAreaZip(queryZip) && IsHoustonAreaDoctor(doctor))
+            return true;
+
+        // ZIP prefix (same 3-digit sectional center) when doctor has a real ZIP.
+        if (queryZip != null && doctorZip != null
+            && queryZip.Length >= 3 && doctorZip.Length >= 3
+            && queryZip[..3] == doctorZip[..3])
+            return true;
+
+        var city = (doctor.City ?? string.Empty).ToLowerInvariant();
+        var locationLabel = (doctor.Location ?? string.Empty).ToLowerInvariant();
         var token = locationQuery.Split(',')[0].Trim();
 
-        if (locationQuery.Contains(city) || city.Contains(token))
+        if (!string.IsNullOrWhiteSpace(city)
+            && (locationQuery.Contains(city) || city.Contains(token) || (city.Contains("houston") && token.Contains("houston"))))
             return true;
 
-        if (doctor.Location != null && doctor.Location.ToLowerInvariant().Contains(token))
+        if (!string.IsNullOrWhiteSpace(locationLabel) && locationLabel.Contains(token))
             return true;
+
+        // City field sometimes stores "11224 Wilcrest Houston" — treat as Houston.
+        if (token is "houston" or "houston tx" || locationQuery.Contains("houston"))
+        {
+            if (IsHoustonAreaDoctor(doctor))
+                return true;
+        }
 
         if (!string.IsNullOrWhiteSpace(doctor.State))
         {
@@ -285,17 +469,81 @@ public class DoctorSearchService : IDoctorSearchService
             var queryStateCode = UsStates.CodeFromNameOrCode(locationQuery)
                 ?? UsStates.CodeFromNameOrCode(token);
             if (queryStateCode != null
-                && doctorState.Equals(queryStateCode, StringComparison.OrdinalIgnoreCase))
+                && doctorState.Equals(queryStateCode, StringComparison.OrdinalIgnoreCase)
+                && queryZip == null)
                 return true;
 
             var doctorStateName = UsStates.All
                 .FirstOrDefault(s => s.Code.Equals(doctorState, StringComparison.OrdinalIgnoreCase)).Name;
             if (!string.IsNullOrWhiteSpace(doctorStateName)
-                && locationQuery.Contains(doctorStateName.ToLowerInvariant()))
+                && locationQuery.Contains(doctorStateName.ToLowerInvariant())
+                && queryZip == null)
                 return true;
         }
 
         return FuzzyCityMatch(token, city);
+    }
+
+    /// <summary>
+    /// Equivalent to SQL: Address LIKE '%77006%' (also checks Location, City, ZipCode).
+    /// </summary>
+    private static bool DoctorTextContainsZip(DS.Entities.Doctor doctor, string zip)
+    {
+        if (string.IsNullOrWhiteSpace(zip))
+            return false;
+
+        static bool ContainsZip(string? haystack, string zipCode) =>
+            !string.IsNullOrWhiteSpace(haystack)
+            && haystack.Contains(zipCode, StringComparison.OrdinalIgnoreCase);
+
+        return ContainsZip(doctor.Address, zip)
+            || ContainsZip(doctor.Location, zip)
+            || ContainsZip(doctor.City, zip)
+            || ContainsZip(doctor.ZipCode, zip);
+    }
+
+    private static string? ExtractZip(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(value, @"\b(\d{5})(?:-\d{4})?\b");
+        if (!match.Success)
+            return null;
+
+        var zip = match.Groups[1].Value;
+        return zip is "00000" ? null : zip;
+    }
+
+    /// <summary>Houston + common surrounding ZIPs (770–775).</summary>
+    private static bool IsHoustonAreaZip(string zip) =>
+        zip.StartsWith("770", StringComparison.Ordinal)
+        || zip.StartsWith("772", StringComparison.Ordinal)
+        || zip.StartsWith("773", StringComparison.Ordinal)
+        || zip.StartsWith("774", StringComparison.Ordinal)
+        || zip.StartsWith("775", StringComparison.Ordinal);
+
+    private static bool IsHoustonAreaDoctor(DS.Entities.Doctor doctor)
+    {
+        var city = (doctor.City ?? string.Empty).ToLowerInvariant();
+        var location = (doctor.Location ?? string.Empty).ToLowerInvariant();
+        var address = (doctor.Address ?? string.Empty).ToLowerInvariant();
+
+        if (city.Contains("houston") || location.Contains("houston") || address.Contains("houston"))
+            return true;
+
+        var zip = ExtractZip(doctor.ZipCode);
+        if (zip != null && IsHoustonAreaZip(zip))
+            return true;
+
+        var state = (doctor.State ?? string.Empty).Trim();
+        if (state.Equals("TX", StringComparison.OrdinalIgnoreCase)
+            && (city.Contains("katy") || city.Contains("sugar land") || city.Contains("pasadena")
+                || city.Contains("pearland") || city.Contains("baytown") || city.Contains("spring")
+                || city.Contains("cypress") || city.Contains("humble") || city.Contains("missouri city")))
+            return true;
+
+        return false;
     }
 
     private static bool FuzzyCityMatch(string a, string b)

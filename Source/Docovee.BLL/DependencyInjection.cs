@@ -58,6 +58,10 @@ public static class DependencyInjection
         services.AddHttpClient<IAnthropicValidationService, AnthropicValidationService>();
         services.AddHttpClient<IAnthropicMatchingService, AnthropicMatchingService>();
         services.AddHttpClient<IWebDoctorDiscoveryService, WebDoctorDiscoveryService>();
+        services.AddHttpClient<IClaudeGoogleReviewService, ClaudeGoogleReviewService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(90);
+        });
 
         services.AddScoped<IDoctorSearchService, DoctorSearchService>();
         services.AddScoped<IPublicDoctorService, PublicDoctorService>();

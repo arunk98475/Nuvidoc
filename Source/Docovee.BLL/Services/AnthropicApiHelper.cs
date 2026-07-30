@@ -14,7 +14,8 @@ public static class AnthropicApiHelper
         int maxTokens,
         string system,
         IEnumerable<object> messages,
-        bool includeWebSearch = false)
+        bool includeWebSearch = false,
+        int? webSearchMaxUses = null)
     {
         var payload = new Dictionary<string, object>
         {
@@ -26,13 +27,14 @@ public static class AnthropicApiHelper
 
         if (includeWebSearch && options.EnableWebSearch)
         {
+            var maxUses = Math.Max(1, webSearchMaxUses ?? options.WebSearchMaxUses);
             payload["tools"] = new object[]
             {
                 new Dictionary<string, object>
                 {
                     ["type"] = WebSearchToolType,
                     ["name"] = "web_search",
-                    ["max_uses"] = Math.Max(1, options.WebSearchMaxUses)
+                    ["max_uses"] = maxUses
                 }
             };
         }

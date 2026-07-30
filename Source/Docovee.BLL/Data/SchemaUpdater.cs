@@ -160,6 +160,9 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "Website", "varchar(500) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "AllowGoogleBookings", "tinyint(1) NOT NULL DEFAULT 1", cancellationToken);
         await TryBackfillAllowGoogleBookingsAsync(db, cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "IsSponsored", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "GoogleReviewsFetchedAt", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "GoogleReviewsFilePath", "varchar(500) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);

@@ -173,7 +173,12 @@ public class WebDoctorDiscoveryService : IWebDoctorDiscoveryService
         {
             var existingByPhoneId = await FindDoctorIdByPhoneAsync(normalizedPhone, cancellationToken);
             if (existingByPhoneId.HasValue)
+            {
+                _logger.LogInformation(
+                    "Skipping insert for {Name} — phone match (last 10 digits) found existing doctor id {Id}",
+                    name, existingByPhoneId.Value);
                 return existingByPhoneId.Value;
+            }
         }
 
         var existing = await _db.Doctors
@@ -277,33 +282,38 @@ public class WebDoctorDiscoveryService : IWebDoctorDiscoveryService
             .Include(d => d.DoctorLanguages)
             .ThenInclude(dl => dl.DoctorLanguage)
             .Include(d => d.PatientReviews)
+            .Include(d => d.Locations)
             .Where(d => ids.Contains(d.Id))
             .ToListAsync(cancellationToken);
 
     private async Task<int?> FindDoctorIdByPhoneAsync(string normalizedPhone, CancellationToken cancellationToken)
     {
-        var candidates = await _db.Doctors
+        var doctorPhones = await _db.Doctors
             .AsNoTracking()
             .Where(d => d.IsActive && d.OfficePhoneNumber != null && d.OfficePhoneNumber != "")
-            .Select(d => new { d.Id, d.OfficePhoneNumber })
+            .Select(d => new { d.Id, Phone = d.OfficePhoneNumber, d.IsSponsored })
             .ToListAsync(cancellationToken);
 
-        return candidates
-            .FirstOrDefault(d => NormalizePhone(d.OfficePhoneNumber) == normalizedPhone)
-            ?.Id;
+        var matches = doctorPhones
+            .Where(d => PhoneNumberHelper.NormalizeLast10(d.Phone) == normalizedPhone)
+            .OrderByDescending(d => d.IsSponsored)
+            .ThenByDescending(d => d.Id)
+            .ToList();
+        if (matches.Count > 0)
+            return matches[0].Id;
+
+        var locationPhones = await _db.DoctorLocations
+            .AsNoTracking()
+            .Where(l => l.PhoneNumber != null && l.PhoneNumber != "")
+            .Select(l => new { l.DoctorId, Phone = l.PhoneNumber })
+            .ToListAsync(cancellationToken);
+
+        var locationMatch = locationPhones.FirstOrDefault(l =>
+            PhoneNumberHelper.NormalizeLast10(l.Phone) == normalizedPhone);
+        return locationMatch?.DoctorId;
     }
 
-    private static string? NormalizePhone(string? phone)
-    {
-        if (string.IsNullOrWhiteSpace(phone))
-            return null;
-
-        var digits = new string(phone.Where(char.IsDigit).ToArray());
-        if (digits.Length == 11 && digits.StartsWith('1'))
-            digits = digits[1..];
-
-        return digits.Length >= 10 ? digits : null;
-    }
+    private static string? NormalizePhone(string? phone) => PhoneNumberHelper.NormalizeLast10(phone);
 
     private static string? FormatPhone(string? phone)
     {

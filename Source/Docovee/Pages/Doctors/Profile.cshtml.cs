@@ -44,7 +44,7 @@ public class ProfileModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
-        var doctor = await _publicDoctors.GetPublicProfileAsync(id, cancellationToken);
+        var doctor = await _publicDoctors.GetPublicProfileAsync(id, cancellationToken: cancellationToken);
         if (doctor == null)
             return NotFound();
 

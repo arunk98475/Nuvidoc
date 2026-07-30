@@ -46,6 +46,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IBrandingService _branding;
     private readonly IDoctorLanguageService _doctorLanguages;
     private readonly IPatientDoctorContactService _patientDoctorContacts;
+    private readonly IClaudeGoogleReviewService _googleReviews;
 
     public AnthropicChatService(
         HttpClient httpClient,
@@ -59,7 +60,8 @@ public class AnthropicChatService : IAnthropicChatService
         IAccountAuthService accountAuthService,
         IBrandingService branding,
         IDoctorLanguageService doctorLanguages,
-        IPatientDoctorContactService patientDoctorContacts)
+        IPatientDoctorContactService patientDoctorContacts,
+        IClaudeGoogleReviewService googleReviews)
     {
         _httpClient = httpClient;
         _db = db;
@@ -73,6 +75,7 @@ public class AnthropicChatService : IAnthropicChatService
         _branding = branding;
         _doctorLanguages = doctorLanguages;
         _patientDoctorContacts = patientDoctorContacts;
+        _googleReviews = googleReviews;
     }
 
     private string TriageSystemPrompt => $"""
@@ -835,6 +838,15 @@ public class AnthropicChatService : IAnthropicChatService
             return;
         }
 
+        // Chip text like "Use last used (77006)" without saved location — pull ZIP from parentheses.
+        var parenZip = System.Text.RegularExpressions.Regex.Match(answer ?? string.Empty, @"\((\d{5})(?:-\d{4})?\)");
+        if (IsUseLastLocationAnswer(answer ?? string.Empty) && parenZip.Success)
+        {
+            context.LocationPreference = parenZip.Groups[1].Value;
+            session.Location = parenZip.Groups[1].Value;
+            return;
+        }
+
         if (IsLocationSkipAnswer(answer))
         {
             context.LocationPreference = NuviFlowContent.DefaultLocationWhenSkipped;
@@ -1360,6 +1372,8 @@ public class AnthropicChatService : IAnthropicChatService
                 doctorCards: await LoadMatchedDoctorsAsync(session, context, cancellationToken));
 
         var doctorDetail = MapDoctorDetail(doctor, session);
+        var liveReviews = await _googleReviews.LookupAsync(doctor, cancellationToken);
+        ApplyLiveGoogleReviews(doctorDetail, liveReviews);
         context.Stage = NuviConversationStage.RecommendationReveal;
 
         if (context.RecommendedDoctorIds.Contains(doctorId.Value))
@@ -1370,7 +1384,7 @@ public class AnthropicChatService : IAnthropicChatService
         }
 
         var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
-        var text = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, cancellationToken);
+        var text = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, liveReviews, cancellationToken);
         context.RecommendedDoctorIds.Add(doctorId.Value);
 
         await SaveAssistantMessageAsync(session, text, cancellationToken);
@@ -1437,8 +1451,10 @@ public class AnthropicChatService : IAnthropicChatService
             return BuildResponse(session, context, "I couldn't find that doctor's contact info.");
 
         var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
-        var contactText = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, cancellationToken);
+        var liveReviews = await _googleReviews.LookupAsync(doctor, cancellationToken);
+        var contactText = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, liveReviews, cancellationToken);
         var doctorDetail = MapDoctorDetail(doctor, session);
+        ApplyLiveGoogleReviews(doctorDetail, liveReviews);
 
         if (session.PatientId.HasValue)
         {
@@ -1498,7 +1514,7 @@ public class AnthropicChatService : IAnthropicChatService
             AdditionalPreference = context.WildcardConcern
         }, cancellationToken);
 
-        return results.Take(3).ToList();
+        return results;
     }
 
     private async Task<IReadOnlyList<DoctorDto>> LoadMatchedDoctorsAsync(
@@ -1523,8 +1539,9 @@ public class AnthropicChatService : IAnthropicChatService
             GoogleRating = d.GoogleRating,
             GoogleReviewCount = d.GoogleReviewCount,
             Tag = d.TagLine ?? d.Niche ?? d.SpecialtyCategory,
-            OfficePhoneNumber = d.OfficePhoneNumber,
-            YearsOfPractice = d.YearsOfPractice
+            OfficePhoneNumber = PhoneNumberHelper.FormatUsDisplay(d.OfficePhoneNumber),
+            YearsOfPractice = d.YearsOfPractice,
+            IsSponsored = d.IsSponsored
         }).ToList();
     }
 
@@ -1554,17 +1571,19 @@ public class AnthropicChatService : IAnthropicChatService
 
     private async Task<string> BuildDoctorConciergeRecommendationAsync(
         Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context,
+        GoogleReviewLookupResult? liveReviews,
         CancellationToken cancellationToken)
     {
-        var prose = await GenerateDoctorRecommendationProseAsync(doctor, chiefComplaint, session, cancellationToken);
+        var prose = await GenerateDoctorRecommendationProseAsync(doctor, chiefComplaint, session, liveReviews, cancellationToken);
         if (string.IsNullOrWhiteSpace(prose))
-            prose = BuildDoctorRecommendationFallback(doctor, chiefComplaint, session, context);
+            prose = BuildDoctorRecommendationFallback(doctor, chiefComplaint, session, context, liveReviews);
 
         return prose;
     }
 
     private async Task<string?> GenerateDoctorRecommendationProseAsync(
-        Doctor doctor, string chiefComplaint, SearchSession session, CancellationToken cancellationToken)
+        Doctor doctor, string chiefComplaint, SearchSession session, GoogleReviewLookupResult? liveReviews,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
             return null;
@@ -1574,15 +1593,31 @@ public class AnthropicChatService : IAnthropicChatService
             ? doctor.City
             : $"{doctor.City}, {doctor.State}";
 
+        var rating = liveReviews?.Found == true && liveReviews.GoogleRating > 0
+            ? liveReviews.GoogleRating
+            : doctor.GoogleRating;
+        var reviewCount = liveReviews?.Found == true && liveReviews.GoogleReviewCount > 0
+            ? liveReviews.GoogleReviewCount
+            : doctor.GoogleReviewCount;
+        var reviewSummary = !string.IsNullOrWhiteSpace(liveReviews?.SummaryOfReviews)
+            ? liveReviews.SummaryOfReviews
+            : doctor.SummaryOfReviews;
+
         var facts = new StringBuilder();
         facts.AppendLine($"Doctor name: {doctor.Name}");
         facts.AppendLine($"Specialty: {doctor.Specialty}");
         if (!string.IsNullOrWhiteSpace(location)) facts.AppendLine($"Location: {location}");
-        if (doctor.GoogleRating > 0) facts.AppendLine($"Google rating: {doctor.GoogleRating:0.#} stars ({doctor.GoogleReviewCount} reviews)");
+        if (rating > 0) facts.AppendLine($"Google rating: {rating:0.#} stars ({reviewCount} reviews)");
         if (doctor.YearsOfPractice.HasValue) facts.AppendLine($"Years of practice: {doctor.YearsOfPractice}");
         if (!string.IsNullOrWhiteSpace(doctor.Niche)) facts.AppendLine($"Focus areas: {doctor.Niche}");
         if (!string.IsNullOrWhiteSpace(doctor.Top3Procedures)) facts.AppendLine($"Top procedures: {doctor.Top3Procedures}");
-        if (!string.IsNullOrWhiteSpace(doctor.SummaryOfReviews)) facts.AppendLine($"Review summary: {doctor.SummaryOfReviews}");
+        if (!string.IsNullOrWhiteSpace(reviewSummary)) facts.AppendLine($"Review summary: {reviewSummary}");
+        if (liveReviews?.Reviews is { Count: > 0 })
+        {
+            facts.AppendLine("Recent Google review snippets:");
+            foreach (var review in liveReviews.Reviews.Take(3))
+                facts.AppendLine($"- {review.Rating}/5 {review.ReviewerName}: \"{review.ReviewText}\"");
+        }
 
         var systemPrompt = $"""
             You are {_branding.ChatBotName}, a warm doctor-matching concierge for {_branding.SiteName}.
@@ -1630,7 +1665,8 @@ public class AnthropicChatService : IAnthropicChatService
     }
 
     private static string BuildDoctorRecommendationFallback(
-        Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context)
+        Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context,
+        GoogleReviewLookupResult? liveReviews = null)
     {
         var complaint = string.IsNullOrWhiteSpace(chiefComplaint)
             ? "what you've shared"
@@ -1640,9 +1676,13 @@ public class AnthropicChatService : IAnthropicChatService
             ? doctor.City
             : $"{doctor.City}, {doctor.State}";
 
+        var rating = liveReviews?.Found == true && liveReviews.GoogleRating > 0
+            ? liveReviews.GoogleRating
+            : doctor.GoogleRating;
+
         var fitDetails = new List<string>();
-        if (doctor.GoogleRating > 0)
-            fitDetails.Add($"excellent reviews ({doctor.GoogleRating:0.#} stars)");
+        if (rating > 0)
+            fitDetails.Add($"excellent reviews ({rating:0.#} stars)");
 
         var relevantFocus = GetComplaintRelevantFocus(chiefComplaint, doctor);
         if (!string.IsNullOrWhiteSpace(relevantFocus))
@@ -1662,6 +1702,19 @@ public class AnthropicChatService : IAnthropicChatService
 
         return $"Based on everything you've told me — especially that you're dealing with {complaint} — I think {doctor.Name} is your best fit.{yearsText}{fitSentence} " +
                $"They help patients get relief every day, and I'm confident they can take great care of you.";
+    }
+
+    private static void ApplyLiveGoogleReviews(DoctorDetailDto detail, GoogleReviewLookupResult? live)
+    {
+        if (live == null || !live.Found)
+            return;
+
+        if (live.GoogleRating > 0)
+            detail.GoogleRating = live.GoogleRating;
+        if (live.GoogleReviewCount > 0)
+            detail.GoogleReviewCount = live.GoogleReviewCount;
+        if (!string.IsNullOrWhiteSpace(live.SummaryOfReviews))
+            detail.SummaryOfReviews = live.SummaryOfReviews;
     }
 
     private static string? GetComplaintRelevantFocus(string chiefComplaint, Doctor doctor)

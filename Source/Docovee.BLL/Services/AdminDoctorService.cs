@@ -74,6 +74,7 @@ public class AdminDoctorService : IAdminDoctorService
                 d.PhotoUrl,
                 d.GmbPhotoLink,
                 d.IsActive,
+                d.IsSponsored,
                 PatientReviewCount = d.PatientReviews.Count
             })
             .ToListAsync(cancellationToken);
@@ -104,6 +105,7 @@ public class AdminDoctorService : IAdminDoctorService
                 GoogleReviewCount = d.GoogleReviewCount,
                 PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(d.PhotoUrl, d.GmbPhotoLink),
                 IsActive = d.IsActive,
+                IsSponsored = d.IsSponsored,
                 PatientReviewCount = d.PatientReviewCount,
                 IsNexHealthIntegrated = integratedIds.Contains(d.Id)
             }).ToList(),
@@ -354,6 +356,7 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.TagLine = model.TagLine?.Trim();
         doctor.Gender = ParseGender(model.Gender);
         doctor.IsActive = model.IsActive;
+        doctor.IsSponsored = model.IsSponsored;
     }
 
     private void ApplyCredentials(Doctor doctor, DoctorAdminEditModel model, bool isCreate)
@@ -428,6 +431,7 @@ public class AdminDoctorService : IAdminDoctorService
         TagLine = doctor.TagLine,
         Gender = doctor.Gender.ToString(),
         IsActive = doctor.IsActive,
+        IsSponsored = doctor.IsSponsored,
         Username = doctor.Username
     };
 

@@ -123,6 +123,7 @@ public class DoctorAdminDto
     public int GoogleReviewCount { get; set; }
     public string? PhotoUrl { get; set; }
     public bool IsActive { get; set; }
+    public bool IsSponsored { get; set; }
     public int PatientReviewCount { get; set; }
     public bool IsNexHealthIntegrated { get; set; }
 }
@@ -162,6 +163,7 @@ public class DoctorAdminEditModel
     public string? TagLine { get; set; }
     public string Gender { get; set; } = "Other";
     public bool IsActive { get; set; } = true;
+    public bool IsSponsored { get; set; }
     public string? Username { get; set; }
     public string? Password { get; set; }
 }

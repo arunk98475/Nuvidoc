@@ -40,6 +40,7 @@ public class DoctorDto
     public int PatientReviewCount { get; set; }
     public string? OfficePhoneNumber { get; set; }
     public int? YearsOfPractice { get; set; }
+    public bool IsSponsored { get; set; }
 }
 
 public class FeaturedDoctorCardDto
@@ -66,6 +67,8 @@ public class PublicDoctorReviewDto
     public string? WaitingTime { get; set; }
     public string? Recommendation { get; set; }
     public string? PhotoUrl { get; set; }
+    /// <summary>e.g. "Google" for live Google reviews; null/empty for NuviDoc patient reviews.</summary>
+    public string? Source { get; set; }
 }
 
 public class DoctorMediaDto
@@ -99,6 +102,8 @@ public class PublicDoctorProfileDto
     public int? GraduationYear { get; set; }
     public decimal GoogleRating { get; set; }
     public int GoogleReviewCount { get; set; }
+    public IReadOnlyList<PublicDoctorReviewDto> GoogleReviews { get; set; } = Array.Empty<PublicDoctorReviewDto>();
+    public bool GoogleReviewsLive { get; set; }
     public string? VideoUrl { get; set; }
     public string? FacebookUrl { get; set; }
     public string? InstagramUrl { get; set; }

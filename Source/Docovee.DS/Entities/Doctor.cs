@@ -41,10 +41,16 @@ public class Doctor
     public double? Longitude { get; set; }
     public decimal GoogleRating { get; set; }
     public int GoogleReviewCount { get; set; }
+    /// <summary>UTC timestamp of the last successful Claude Google-review fetch.</summary>
+    public DateTime? GoogleReviewsFetchedAt { get; set; }
+    /// <summary>Relative path under doctor uploads, e.g. "{id}/google-reviews.json".</summary>
+    public string? GoogleReviewsFilePath { get; set; }
     public string AvatarInitials { get; set; } = string.Empty;
     public string? TagLine { get; set; }
     public Gender Gender { get; set; }
     public bool IsActive { get; set; } = true;
+    /// <summary>Sponsored / paid listings appear at the top of patient search results.</summary>
+    public bool IsSponsored { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }

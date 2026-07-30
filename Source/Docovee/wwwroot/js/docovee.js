@@ -220,16 +220,21 @@ function addDoctorCards(doctors) {
   doctors.forEach((d, i) => {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "nuvi-doctor-card" + (d.recommended ? " recommended" : "");
+    card.className = "nuvi-doctor-card" + (d.recommended ? " recommended" : "") + (d.isSponsored ? " sponsored" : "");
     card.dataset.doctorId = String(d.id);
+    const badges = [
+      d.isSponsored ? '<div class="nuvi-sponsored-badge">Sponsored</div>' : "",
+      d.recommended ? '<div class="nuvi-rec-badge">Best Match</div>' : ""
+    ].filter(Boolean).join("");
     card.innerHTML = `
-      ${d.recommended ? '<div class="nuvi-rec-badge">Best Match</div>' : ""}
+      ${badges}
       <div class="nuvi-doctor-card-top">
         <div class="nuvi-doctor-avatar">${escapeHtml(d.avatarInitials)}</div>
         <div>
           <div class="nuvi-doctor-name">${escapeHtml(d.name)}</div>
           <div class="nuvi-doctor-spec">${escapeHtml(d.specialty)}</div>
           <div class="nuvi-doctor-loc">${escapeHtml(d.location)}</div>
+          ${d.officePhoneNumber ? `<div class="nuvi-doctor-phone">${escapeHtml(d.officePhoneNumber)}</div>` : ""}
         </div>
         <div class="nuvi-match-score">
           <div class="nuvi-match-num">${d.matchScore}</div>
@@ -312,7 +317,7 @@ function buildDoctorProfileHtml(data, { modal = false, panel = false } = {}) {
     ? `<a class="${phoneClass}" href="tel:${data.officePhoneNumber.replace(/\D/g, "")}" onclick="event.stopPropagation()">📞 Call ${escapeHtml(data.name)} — ${escapeHtml(data.officePhoneNumber)}</a>`
     : "<p>Contact number not available</p>";
 
-  const reviewsHtml = (data.reviews || []).length
+  const patientReviewsHtml = (data.reviews || []).length
     ? data.reviews.map((r) => {
         const metaParts = [];
         if (r.waitingTime) metaParts.push(`Waiting time: ${escapeHtml(r.waitingTime)}`);
@@ -328,9 +333,37 @@ function buildDoctorProfileHtml(data, { modal = false, panel = false } = {}) {
           <div class="${reviewAuthorClass}">— ${escapeHtml(r.reviewerName)}</div>
         </div>`;
       }).join("")
-    : data.summaryOfReviews
+    : "";
+
+  const googleReviews = data.googleReviews || [];
+  const googleReviewsHtml = googleReviews.length
+    ? googleReviews.map((r) => {
+        const meta = r.recommendation
+          ? `<div class="${reviewAuthorClass} nuvi-profile-review-meta">${escapeHtml(r.recommendation)}</div>`
+          : `<div class="${reviewAuthorClass} nuvi-profile-review-meta">Google review</div>`;
+        return `
+        <div class="${reviewClass}">
+          <div class="${reviewStarsClass}">${renderStars(r.rating)}</div>
+          <div class="${reviewTextClass}">"${escapeHtml(r.reviewText)}"</div>
+          ${meta}
+          <div class="${reviewAuthorClass}">— ${escapeHtml(r.reviewerName)}</div>
+        </div>`;
+      }).join("")
+    : "";
+
+  let reviewsHtml = "";
+  if (googleReviewsHtml) {
+    const sourceLabel = data.googleReviewsLive ? "Google reviews · live" : "Google reviews";
+    reviewsHtml += `<div class="nuvi-google-reviews-block"><div class="nuvi-profile-review-source">${sourceLabel}</div>${googleReviewsHtml}</div>`;
+  }
+  if (patientReviewsHtml) {
+    reviewsHtml += `<div class="nuvi-patient-reviews-block">${googleReviewsHtml ? `<div class="nuvi-profile-review-source">Patient reviews on NuviDoc</div>` : ""}${patientReviewsHtml}</div>`;
+  }
+  if (!reviewsHtml) {
+    reviewsHtml = data.summaryOfReviews
       ? `<p>${escapeHtml(data.summaryOfReviews)}</p>`
-      : "<p>No patient reviews yet.</p>";
+      : "<p>No reviews available yet.</p>";
+  }
 
   const videoHtml = buildVideoHtml(data.videoUrl);
   const openHint = linkable
@@ -366,8 +399,9 @@ function buildDoctorProfileHtml(data, { modal = false, panel = false } = {}) {
   return `<div class="nuvi-profile-linkable" role="link" tabindex="0" data-doctor-id="${escapeHtml(String(data.id))}" title="Open full doctor profile">${inner}</div>`;
 }
 
-async function fetchDoctorProfile(doctorId) {
-  const res = await fetch(`/api/doctors/${doctorId}`, { credentials: "same-origin" });
+async function fetchDoctorProfile(doctorId, { liveGoogleReviews = false } = {}) {
+  const qs = liveGoogleReviews ? "?liveGoogleReviews=true" : "";
+  const res = await fetch(`/api/doctors/${doctorId}${qs}`, { credentials: "same-origin" });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return null;
   return data;
@@ -387,10 +421,10 @@ async function openDoctorSidePanel(doctorId) {
   document.getElementById("hero-section")?.classList.add("has-doctor-panel");
   panel.hidden = false;
   panel.setAttribute("aria-hidden", "false");
-  body.innerHTML = '<div class="hero-doctor-panel-loading">Loading doctor profile…</div>';
+  body.innerHTML = '<div class="hero-doctor-panel-loading">Loading doctor profile &amp; Google reviews…</div>';
 
   try {
-    const data = await fetchDoctorProfile(doctorId);
+    const data = await fetchDoctorProfile(doctorId, { liveGoogleReviews: true });
     if (!data) {
       body.innerHTML = '<div class="hero-doctor-panel-loading">Unable to load this doctor profile.</div>';
       return;
@@ -442,14 +476,14 @@ async function addDoctorProfileInChat(doctorId) {
   wrap.className = "msg ai nuvi-profile-wrap";
   wrap.innerHTML = `<div class="msg-avatar">${NUVI_AVATAR}</div>
     <div class="msg-bubble nuvi-profile-bubble">
-      <div class="nuvi-profile-loading">Loading doctor profile…</div>
+      <div class="nuvi-profile-loading">Loading doctor profile &amp; Google reviews…</div>
     </div>`;
   msgs.appendChild(wrap);
   msgs.scrollTop = msgs.scrollHeight;
 
   const bubble = wrap.querySelector(".nuvi-profile-bubble");
   try {
-    const data = await fetchDoctorProfile(doctorId);
+    const data = await fetchDoctorProfile(doctorId, { liveGoogleReviews: true });
     if (!data) {
       bubble.innerHTML = '<div class="nuvi-profile-loading">Unable to load this doctor profile.</div>';
       return;

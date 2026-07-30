@@ -70,7 +70,7 @@
                         <td>@(d.Location ?? $"{d.City}, {d.State}")</td>
                         <td>★ @d.GoogleRating (@d.GoogleReviewCount)</td>
                         <td>@d.PatientReviewCount</td>
-                        <td>@(d.IsActive ? "Active" : "Inactive")</td>
+                        <td>@(d.IsActive ? "Active" : "Inactive")@(d.IsSponsored ? " · Sponsored" : "")</td>
                         <td>
                             @if (d.IsNexHealthIntegrated)
                             {

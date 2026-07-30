@@ -8,14 +8,22 @@ namespace Docovee.BLL.Services;
 public interface IPublicDoctorService
 {
     Task<IReadOnlyList<FeaturedDoctorCardDto>> GetFeaturedAsync(int count = 3, CancellationToken cancellationToken = default);
-    Task<PublicDoctorProfileDto?> GetPublicProfileAsync(int doctorId, CancellationToken cancellationToken = default);
+    Task<PublicDoctorProfileDto?> GetPublicProfileAsync(
+        int doctorId,
+        bool liveGoogleReviews = false,
+        CancellationToken cancellationToken = default);
 }
 
 public class PublicDoctorService : IPublicDoctorService
 {
     private readonly DocoveeDbContext _db;
+    private readonly IClaudeGoogleReviewService _googleReviews;
 
-    public PublicDoctorService(DocoveeDbContext db) => _db = db;
+    public PublicDoctorService(DocoveeDbContext db, IClaudeGoogleReviewService googleReviews)
+    {
+        _db = db;
+        _googleReviews = googleReviews;
+    }
 
     public async Task<IReadOnlyList<FeaturedDoctorCardDto>> GetFeaturedAsync(
         int count = 3, CancellationToken cancellationToken = default)
@@ -59,7 +67,9 @@ public class PublicDoctorService : IPublicDoctorService
     }
 
     public async Task<PublicDoctorProfileDto?> GetPublicProfileAsync(
-        int doctorId, CancellationToken cancellationToken = default)
+        int doctorId,
+        bool liveGoogleReviews = false,
+        CancellationToken cancellationToken = default)
     {
         var doctor = await _db.Doctors
             .AsNoTracking()
@@ -69,7 +79,28 @@ public class PublicDoctorService : IPublicDoctorService
             .Include(d => d.DoctorLanguages).ThenInclude(dl => dl.DoctorLanguage)
             .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive, cancellationToken);
 
-        return doctor == null ? null : MapProfile(doctor);
+        if (doctor == null)
+            return null;
+
+        var profile = MapProfile(doctor);
+
+        if (liveGoogleReviews)
+        {
+            var live = await _googleReviews.LookupAsync(doctor, cancellationToken);
+            if (live != null && live.Found)
+            {
+                if (live.GoogleRating > 0)
+                    profile.GoogleRating = live.GoogleRating;
+                if (live.GoogleReviewCount > 0)
+                    profile.GoogleReviewCount = live.GoogleReviewCount;
+                if (!string.IsNullOrWhiteSpace(live.SummaryOfReviews))
+                    profile.SummaryOfReviews = live.SummaryOfReviews;
+                profile.GoogleReviews = live.Reviews;
+                profile.GoogleReviewsLive = !live.FromCache && (live.Reviews.Count > 0 || live.GoogleRating > 0);
+            }
+        }
+
+        return profile;
     }
 
     private static FeaturedDoctorCardDto MapFeatured(Doctor doctor, bool isFeatured) => new()
