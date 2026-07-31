@@ -643,9 +643,9 @@ body.pl-open {
 
 .hero-doctor-panel-inner {
   position: relative;
-  background: var(--white);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  background: transparent;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
   max-height: calc(100vh - 120px);
   display: flex;
@@ -656,12 +656,13 @@ body.pl-open {
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 2;
+  z-index: 3;
   width: 32px;
   height: 32px;
   border: none;
   border-radius: 50%;
-  background: var(--mist);
+  background: var(--white);
+  border: 1px solid var(--rule);
   color: var(--muted);
   font-size: 22px;
   line-height: 1;
@@ -672,25 +673,108 @@ body.pl-open {
 }
 
 .hero-doctor-panel-close:hover {
-  background: var(--rule);
+  background: var(--mist);
   color: var(--ink);
 }
 
 .hero-doctor-panel-body {
   overflow-y: auto;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 2px;
 }
 
 .hero-doctor-panel-loading {
-  padding: 48px 24px;
+  padding: 56px 24px;
   text-align: center;
   color: var(--muted);
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+.hero-doctor-panel-loading .nuvi-loading {
+  margin-right: 0;
+  gap: 6px;
+}
+
+.hero-doctor-panel-loading .nuvi-loading span {
+  width: 8px;
+  height: 8px;
 }
 
 .hero-chat.has-doctor-panel .hero-left,
 .hero-chat.has-doctor-panel .hero-steps-strip {
   max-width: 1120px;
+}
+
+.nuvi-panel-ai-card {
+  background: var(--white);
+  border: 1px solid var(--sage-md);
+  border-radius: var(--radius);
+  padding: 16px 18px 16px;
+  box-shadow: 0 1px 2px rgba(26, 43, 34, 0.04);
+}
+
+.nuvi-panel-ai-card.is-loading {
+  border-color: var(--rule);
+}
+
+.nuvi-panel-ai-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-right: 36px;
+}
+
+.nuvi-panel-ai-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nuvi-panel-ai-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.nuvi-panel-ai-card-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.nuvi-panel-ai-card-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.nuvi-panel-profile-card {
+  background: var(--white);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(26, 43, 34, 0.04);
+}
+
+.nuvi-panel-profile-card .hero-doctor-panel-loading {
+  padding: 40px 20px;
 }
 
 .hero-doctor-panel-body .nuvi-profile-header {
