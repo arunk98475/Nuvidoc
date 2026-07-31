@@ -1379,8 +1379,7 @@ public class AnthropicChatService : IAnthropicChatService
         if (context.RecommendedDoctorIds.Contains(doctorId.Value))
         {
             return BuildResponse(session, context, string.Empty, stage: NuviConversationStage.RecommendationReveal,
-                selectedDoctor: doctorDetail,
-                options: GetOtherMatchesOptions(context, doctorId));
+                selectedDoctor: doctorDetail);
         }
 
         var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
@@ -1396,8 +1395,7 @@ public class AnthropicChatService : IAnthropicChatService
         }
 
         return BuildResponse(session, context, text, stage: NuviConversationStage.RecommendationReveal,
-            selectedDoctor: doctorDetail,
-            options: GetOtherMatchesOptions(context, doctorId));
+            selectedDoctor: doctorDetail);
     }
 
     private async Task<ChatMessageResponse> HandleBookingInitiationAsync(
@@ -1443,7 +1441,6 @@ public class AnthropicChatService : IAnthropicChatService
         var doctorId = context.SelectedDoctorId;
         if (!doctorId.HasValue)
             return BuildResponse(session, context, "Which doctor would you like to learn more about?",
-                options: GetOtherMatchesOptions(context, null),
                 stage: NuviConversationStage.Confirmation);
 
         var doctor = await _db.Doctors.AsNoTracking().FirstOrDefaultAsync(d => d.Id == doctorId.Value, cancellationToken);
@@ -1467,8 +1464,7 @@ public class AnthropicChatService : IAnthropicChatService
         await SaveAssistantMessageAsync(session, contactText, cancellationToken);
 
         return BuildResponse(session, context, contactText, stage: NuviConversationStage.Confirmation,
-            selectedDoctor: doctorDetail,
-            options: GetOtherMatchesOptions(context, doctorId));
+            selectedDoctor: doctorDetail);
     }
 
     private void ApplyDeepDivePreferences(SearchSession session, SearchContextData context)
@@ -1554,20 +1550,6 @@ public class AnthropicChatService : IAnthropicChatService
 
         return all.Where(d => d.Id != excludeDoctorId.Value).ToList();
     }
-
-    private static bool HasOtherMatches(SearchContextData context, int? excludeDoctorId = null)
-    {
-        if (context.MatchedDoctorIds == null || context.MatchedDoctorIds.Count == 0)
-            return false;
-
-        if (!excludeDoctorId.HasValue)
-            return context.MatchedDoctorIds.Count > 1;
-
-        return context.MatchedDoctorIds.Any(id => id != excludeDoctorId.Value);
-    }
-
-    private static IReadOnlyList<string>? GetOtherMatchesOptions(SearchContextData context, int? excludeDoctorId) =>
-        HasOtherMatches(context, excludeDoctorId) ? ["Show my other matches"] : null;
 
     private async Task<string> BuildDoctorConciergeRecommendationAsync(
         Doctor doctor, string chiefComplaint, SearchSession session, SearchContextData context,

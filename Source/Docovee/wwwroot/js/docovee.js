@@ -11,6 +11,12 @@ let awaitingWildcardConcern = false;
 let currentPollingQuestionKind = null;
 const recommendedDoctorIds = new Set();
 const pendingDoctorSelections = new Set();
+/** @type {Map<number, string>} AI concierge notes keyed by doctor id (shown atop the detail panel). */
+const doctorAiComments = new Map();
+/** Doctor id currently shown in the side panel (if any). */
+let panelDoctorId = null;
+/** True while waiting for Nuvi's recommendation text for the open panel doctor. */
+let panelAiLoading = false;
 
 const branding = window.nuvidocBranding || { siteName: "NuviDoc", chatBotName: "Nuvi" };
 const NUVI_AVATAR = branding.chatBotName;
@@ -185,6 +191,22 @@ async function requestLocation() {
 
 function addMessage(text, role, extras = {}) {
   const msgs = document.getElementById("chat-messages");
+  const trimmed = (text ?? "").trim();
+  // Doctor explore copy belongs on the detail panel (top), not as a chat bubble.
+  const moveAiCommentToPanel =
+    role === "ai" &&
+    extras.selectedDoctor?.id &&
+    !extras.doctorCards?.length &&
+    !extras.loading &&
+    !!trimmed;
+
+  if (moveAiCommentToPanel) {
+    const doctorId = extras.selectedDoctor.id;
+    doctorAiComments.set(Number(doctorId), trimmed);
+    setDoctorPanelAiState(doctorId, { aiComment: trimmed, aiLoading: false });
+    return;
+  }
+
   const div = document.createElement("div");
   div.className = `msg ${role}`;
   let bubbleContent = escapeHtml(text).replace(/\n/g, "<br>");
@@ -208,6 +230,69 @@ function addMessage(text, role, extras = {}) {
   }
 
   msgs.scrollTop = msgs.scrollHeight;
+}
+
+function buildPanelAiCommentHtml(aiComment = "", aiLoading = false) {
+  const comment = (aiComment || "").trim();
+  if (!comment && !aiLoading) return "";
+
+  const textHtml = aiLoading
+    ? `<span class="nuvi-loading"><span></span><span></span><span></span></span> Matching this dentist to what you shared…`
+    : escapeHtml(comment).replace(/\n/g, "<br>");
+
+  return `<div class="nuvi-panel-ai-card${aiLoading ? " is-loading" : ""}">
+      <div class="nuvi-panel-ai-card-head">
+        <div class="nuvi-panel-ai-avatar" aria-hidden="true">${escapeHtml(NUVI_AVATAR.charAt(0))}</div>
+        <div class="nuvi-panel-ai-card-meta">
+          <div class="nuvi-panel-ai-card-label">${escapeHtml(NUVI_AVATAR)}</div>
+          <div class="nuvi-panel-ai-card-sub">Why this dentist fits</div>
+        </div>
+      </div>
+      <div class="nuvi-panel-ai-card-text">${textHtml}</div>
+    </div>`;
+}
+
+function composeDoctorPanelBody(aiHtml, profileHtml) {
+  const profile = profileHtml
+    ? `<div class="nuvi-panel-profile-card">${profileHtml}</div>`
+    : "";
+  return `${aiHtml || ""}${profile}`;
+}
+
+function setDoctorPanelAiState(doctorId, { aiComment = "", aiLoading = false } = {}) {
+  const id = Number(doctorId);
+  const comment = (aiComment || "").trim();
+  if (comment) {
+    doctorAiComments.set(id, comment);
+    panelAiLoading = false;
+  } else {
+    panelAiLoading = !!aiLoading;
+  }
+
+  const body = document.getElementById("hero-doctor-panel-body");
+  const panel = document.getElementById("hero-doctor-panel");
+  const panelOpen = panel && !panel.hidden && panelDoctorId === id;
+
+  if (!panelOpen || !body) {
+    openDoctorSidePanel(id, { aiComment: comment, aiLoading: !comment && !!aiLoading });
+    return;
+  }
+
+  const html = buildPanelAiCommentHtml(comment || doctorAiComments.get(id) || "", !comment && !!aiLoading);
+  const existing = body.querySelector(".nuvi-panel-ai-card");
+  if (!html) {
+    existing?.remove();
+    return;
+  }
+
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    const profileCard = body.querySelector(".nuvi-panel-profile-card");
+    if (profileCard) profileCard.insertAdjacentHTML("beforebegin", html);
+    else body.insertAdjacentHTML("afterbegin", html);
+  }
+  body.scrollTop = 0;
 }
 
 function addDoctorCards(doctors) {
@@ -407,10 +492,26 @@ async function fetchDoctorProfile(doctorId, { liveGoogleReviews = false } = {}) 
   return data;
 }
 
-async function openDoctorSidePanel(doctorId) {
+async function openDoctorSidePanel(doctorId, options = {}) {
   const wrap = document.getElementById("hero-chat-split-wrap");
   const panel = document.getElementById("hero-doctor-panel");
   const body = document.getElementById("hero-doctor-panel-body");
+  const id = Number(doctorId);
+  const aiComment = (options.aiComment || doctorAiComments.get(id) || "").trim();
+  const aiLoading = !!options.aiLoading && !aiComment;
+  if (aiComment) {
+    doctorAiComments.set(id, aiComment);
+    panelAiLoading = false;
+  } else if (typeof options.aiLoading === "boolean") {
+    panelAiLoading = aiLoading;
+  } else if (!aiComment && panelAiLoading && panelDoctorId === id) {
+    // keep existing loading flag while profile refreshes
+  } else if (!aiComment) {
+    panelAiLoading = false;
+  }
+  const showAiLoading = !aiComment && (aiLoading || panelAiLoading);
+  panelDoctorId = id;
+
   if (!wrap || !panel || !body) {
     await addDoctorProfileInChat(doctorId);
     return;
@@ -421,15 +522,30 @@ async function openDoctorSidePanel(doctorId) {
   document.getElementById("hero-section")?.classList.add("has-doctor-panel");
   panel.hidden = false;
   panel.setAttribute("aria-hidden", "false");
-  body.innerHTML = '<div class="hero-doctor-panel-loading">Loading doctor profile &amp; Google reviews…</div>';
+
+  const loadingAiHtml = buildPanelAiCommentHtml(aiComment, showAiLoading);
+  body.innerHTML = composeDoctorPanelBody(
+    loadingAiHtml,
+    '<div class="hero-doctor-panel-loading" aria-label="Loading"><span class="nuvi-loading"><span></span><span></span><span></span></span></div>'
+  );
+  body.scrollTop = 0;
 
   try {
     const data = await fetchDoctorProfile(doctorId, { liveGoogleReviews: true });
+    if (panelDoctorId !== id) return;
     if (!data) {
-      body.innerHTML = '<div class="hero-doctor-panel-loading">Unable to load this doctor profile.</div>';
+      body.innerHTML = composeDoctorPanelBody(
+        buildPanelAiCommentHtml(aiComment, showAiLoading),
+        '<div class="hero-doctor-panel-loading">Unable to load this doctor profile.</div>'
+      );
       return;
     }
-    body.innerHTML = buildDoctorProfileHtml(data, { panel: true });
+    const latestComment = (doctorAiComments.get(id) || aiComment || "").trim();
+    const stillLoadingAi = !latestComment && (panelAiLoading || showAiLoading);
+    body.innerHTML = composeDoctorPanelBody(
+      buildPanelAiCommentHtml(latestComment, stillLoadingAi),
+      buildDoctorProfileHtml(data, { panel: true })
+    );
     const linkable = body.querySelector(".nuvi-profile-linkable");
     if (linkable) {
       const openProfile = () => openDoctorPublicProfile(data.id);
@@ -444,11 +560,14 @@ async function openDoctorSidePanel(doctorId) {
         }
       };
     }
+    body.scrollTop = 0;
   } catch {
-    body.innerHTML = '<div class="hero-doctor-panel-loading">Unable to load this doctor profile.</div>';
+    if (panelDoctorId !== id) return;
+    body.innerHTML = composeDoctorPanelBody(
+      buildPanelAiCommentHtml(aiComment, showAiLoading),
+      '<div class="hero-doctor-panel-loading">Unable to load this doctor profile.</div>'
+    );
   }
-
-  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function closeDoctorSidePanel() {
@@ -460,6 +579,8 @@ function closeDoctorSidePanel() {
     panel.hidden = true;
     panel.setAttribute("aria-hidden", "true");
   }
+  panelDoctorId = null;
+  panelAiLoading = false;
   highlightDoctorCard(null);
 }
 
@@ -701,7 +822,10 @@ async function sendMessage(action = null, selectedDoctorId = null) {
   const matchSearchStartedAt = pendingMatchSearch ? Date.now() : 0;
   if (pendingMatchSearch) {
     addMessage(MATCH_SEARCH_LOADING_MESSAGE, "ai", { loading: true });
-  } else if (!isRepeatDoctorSelection) {
+  } else if (doctorIdNum != null) {
+    // Doctor recommendation loading belongs on the detail panel — avoid chat scroll.
+    setDoctorPanelAiState(doctorIdNum, { aiLoading: true });
+  } else {
     showTyping();
   }
 
@@ -716,7 +840,15 @@ async function sendMessage(action = null, selectedDoctorId = null) {
     if (!ok) {
       removeTyping();
       const errText = data.title || data.detail || data.message || data.error || `Server error (${status})`;
-      addMessage(`Sorry — ${errText}. Please try again.`, "ai");
+      if (doctorIdNum != null) {
+        panelAiLoading = false;
+        setDoctorPanelAiState(doctorIdNum, {
+          aiComment: `Sorry — ${errText}. Please try again.`,
+          aiLoading: false
+        });
+      } else {
+        addMessage(`Sorry — ${errText}. Please try again.`, "ai");
+      }
       document.getElementById("send-btn").disabled = false;
       return;
     }
@@ -798,6 +930,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
             selectedDoctor: data.selectedDoctor
           });
         } else if (data.selectedDoctor?.id) {
+          panelAiLoading = false;
           openDoctorSidePanel(data.selectedDoctor.id);
         }
       }
@@ -809,7 +942,15 @@ async function sendMessage(action = null, selectedDoctorId = null) {
     applyChatResponseState(data);
   } catch {
     removeTyping();
-    addMessage("I'm having trouble connecting right now. Please try again.", "ai");
+    if (doctorIdNum != null) {
+      panelAiLoading = false;
+      setDoctorPanelAiState(doctorIdNum, {
+        aiComment: "I'm having trouble connecting right now. Please try again.",
+        aiLoading: false
+      });
+    } else {
+      addMessage("I'm having trouble connecting right now. Please try again.", "ai");
+    }
   } finally {
     if (doctorIdNum != null) pendingDoctorSelections.delete(doctorIdNum);
   }
@@ -822,7 +963,8 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
 function selectDoctor(doctorId) {
   const doctorIdNum = Number(doctorId);
-  openDoctorSidePanel(doctorIdNum);
+  const needsAi = !recommendedDoctorIds.has(doctorIdNum);
+  openDoctorSidePanel(doctorIdNum, { aiLoading: needsAi && !doctorAiComments.has(doctorIdNum) });
   if (recommendedDoctorIds.has(doctorIdNum) || pendingDoctorSelections.has(doctorIdNum)) return;
   pendingDoctorSelections.add(doctorIdNum);
   sendMessage(null, doctorIdNum);
