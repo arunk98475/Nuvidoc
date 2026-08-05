@@ -945,6 +945,7 @@ body.pl-open {
 .msg.user .msg-bubble { background: var(--sage); color: white; border-bottom-right-radius: 4px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 16px; }
+.chips.chips-reveal { animation: fadeIn 0.35s ease; }
 
 .chip {
   font-size: 13px;

@@ -123,22 +123,8 @@
                     <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right dentist</div>
                 </div>
             </div>
-            <div class="chat-messages" id="chat-messages">
-                <div class="msg ai">
-                        <div class="msg-avatar">@Branding.ChatBotName</div>
-                    <div class="msg-bubble">
-                        @if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient))
-                        {
-                            @:Hi @(Model.PatientFullName ?? User.Identity!.Name)! 👋 I'm @Branding.ChatBotName — your personal dentist-matching concierge. Welcome back! What's going on with your teeth or smile?
-                        }
-                        else
-                        {
-                            @:Hi! I'm @Branding.ChatBotName 👋 I'm here to match you with the right dentist — not just any dentist, the right one for YOU. Tooth pain, cleaning, implants, or a new dental home — tell me what's going on.
-                        }
-                    </div>
-                </div>
-            </div>
-            <div class="chips" id="quick-chips">
+            <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
+            <div class="chips" id="quick-chips" style="display:none" aria-hidden="true">
                 <button class="chip" onclick="sendChip(this)">I need a dentist</button>
                 <button class="chip" onclick="sendChip(this)">Tooth pain</button>
                 <button class="chip" onclick="sendChip(this)">Dental implants</button>
@@ -191,11 +177,17 @@
     </div>
 </div>
 
+@{
+    var welcomeMessage = User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)
+        ? $"Hi {Model.PatientFullName ?? User.Identity!.Name}! 👋 I'm {Branding.ChatBotName} — your personal dentist-matching concierge. Welcome back! What's going on with your teeth or smile?"
+        : $"Hi! I'm {Branding.ChatBotName} 👋 I'm here to match you with the right dentist — not just any dentist, the right one for YOU. Tooth pain, cleaning, implants, or a new dental home — tell me what's going on.";
+}
 <script>
   window.nuvidocBranding = {
     siteName: "@Branding.SiteName",
     chatBotName: "@Branding.ChatBotName",
-    matchSearchLoadingMessage: @Html.Raw(JsonSerializer.Serialize(NuviFlowContent.MatchSearchLoadingMessage))
+    matchSearchLoadingMessage: @Html.Raw(JsonSerializer.Serialize(NuviFlowContent.MatchSearchLoadingMessage)),
+    welcomeMessage: @Html.Raw(JsonSerializer.Serialize(welcomeMessage))
   };
 </script>
 <script src="~/js/docovee.js" asp-append-version="true"></script>

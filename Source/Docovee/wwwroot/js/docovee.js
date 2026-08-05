@@ -30,21 +30,56 @@ document.addEventListener("DOMContentLoaded", () => {
   if (chatInput?.tagName === "TEXTAREA") autoResize(chatInput);
 
   const params = new URLSearchParams(window.location.search);
-  if (params.get("signup") === "patient" || params.get("signup") === "1") {
+  const isSignup = params.get("signup") === "patient" || params.get("signup") === "1";
+  if (isSignup) {
     startPatientSignupViaChat();
     const url = new URL(window.location.href);
     url.searchParams.delete("signup");
     window.history.replaceState({}, "", url.pathname + url.search + url.hash);
-  } else if (params.get("chat") === "1" || params.get("chat") === "true") {
-    scrollToChat();
-    const url = new URL(window.location.href);
-    url.searchParams.delete("chat");
-    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
-    setTimeout(function () {
-      document.getElementById("chat-input")?.focus();
-    }, 80);
+  } else {
+    const focusChat = params.get("chat") === "1" || params.get("chat") === "true";
+    if (focusChat) {
+      scrollToChat();
+      const url = new URL(window.location.href);
+      url.searchParams.delete("chat");
+      window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    }
+    playWelcomeIntro({ focusInput: focusChat });
   }
 });
+
+/** Brief typing indicator, then first welcome bubble + quick-reply chips. */
+function playWelcomeIntro(options = {}) {
+  const msgs = document.getElementById("chat-messages");
+  const welcome = branding.welcomeMessage;
+  if (!msgs || !welcome) return;
+
+  const chipsEl = document.getElementById("quick-chips");
+  const input = document.getElementById("chat-input");
+  const sendBtn = document.getElementById("send-btn");
+  if (chipsEl) {
+    chipsEl.style.display = "none";
+    chipsEl.setAttribute("aria-hidden", "true");
+  }
+  if (input) input.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  showTyping();
+
+  const typingMs = 1400;
+  setTimeout(() => {
+    removeTyping();
+    addMessage(welcome, "ai");
+    if (chipsEl) {
+      chipsEl.style.display = "flex";
+      chipsEl.removeAttribute("aria-hidden");
+      chipsEl.classList.add("chips-reveal");
+    }
+    if (input) input.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (options.focusInput) input?.focus();
+  }, typingMs);
+}
 
 function startPatientSignupViaChat() {
   scrollToChat();
