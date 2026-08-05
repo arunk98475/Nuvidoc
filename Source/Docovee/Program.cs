@@ -115,6 +115,14 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AllowAnonymousToFolder("/Doctors");
 });
 builder.Services.AddControllers();
+builder.Services.AddCors(options =>
+{
+    // Native MAUI apps (emulator / device) call the API outside the web origin.
+    options.AddPolicy("MobileApp", policy =>
+        policy.AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
 builder.Services.AddDocoveeBll(builder.Configuration);
 builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>();
 builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
@@ -148,23 +156,29 @@ if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(goo
 
 builder.Services.AddHttpsRedirection(options =>
 {
-    options.HttpsPort = 443;
-    options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
+    // Only force HTTPS in Production. In Development / LAN (e.g. :37788) this
+    // redirect was sending browsers to https://host:443 → appears as host with no port.
+    if (!builder.Environment.IsDevelopment())
+    {
+        options.HttpsPort = 443;
+        options.RedirectStatusCode = StatusCodes.Status307TemporaryRedirect;
+    }
 });
 
 var app = builder.Build();
 
-Console.WriteLine("[NuviDoc] Web server starting — open https://localhost:7212 or http://localhost:5274");
+Console.WriteLine("[NuviDoc] Web server starting — open http://localhost:5274, https://localhost:7212, or LAN profile http://192.168.1.13:37788");
 
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseCors("MobileApp");
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -173,7 +187,7 @@ app.MapRazorPages();
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
-    Console.WriteLine("[NuviDoc] ✓ Server is listening — browse to https://localhost:7212 or http://localhost:5274");
+    Console.WriteLine("[NuviDoc] ✓ Server is listening — browse to http://localhost:5274, https://localhost:7212, or LAN http://192.168.1.13:37788");
 });
 
 app.Run();

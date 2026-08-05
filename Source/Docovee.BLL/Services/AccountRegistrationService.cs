@@ -16,6 +16,8 @@ public interface IAccountRegistrationService
         AccountRegisterRequest request,
         IFormFile? doctorPhoto = null,
         CancellationToken cancellationToken = default);
+
+    Task<bool> PatientUsernameExistsAsync(string username, CancellationToken cancellationToken = default);
 }
 
 public class AccountRegistrationService : IAccountRegistrationService
@@ -48,6 +50,15 @@ public class AccountRegistrationService : IAccountRegistrationService
                 AccountType = request.AccountType
             })
         };
+
+    public Task<bool> PatientUsernameExistsAsync(string username, CancellationToken cancellationToken = default)
+    {
+        var key = username.Trim();
+        if (string.IsNullOrWhiteSpace(key))
+            return Task.FromResult(false);
+
+        return _db.Patients.AsNoTracking().AnyAsync(p => p.Username == key, cancellationToken);
+    }
 
     private async Task<AccountRegisterResponse> RegisterPatientAsync(
         AccountRegisterRequest request,
