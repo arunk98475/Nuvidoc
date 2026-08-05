@@ -3,13 +3,6 @@
     x:Class="nuvidoc.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:local="clr-namespace:nuvidoc"
     Shell.FlyoutBehavior="Disabled"
-    Title="nuvidoc">
-
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
-
+    Title="NuviDoc">
 </Shell>
