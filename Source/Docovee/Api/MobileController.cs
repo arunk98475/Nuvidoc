@@ -10,11 +10,16 @@ public class MobileController : ControllerBase
 {
     private readonly IBrandingService _branding;
     private readonly IAccountRegistrationService _registration;
+    private readonly IAccountAuthService _auth;
 
-    public MobileController(IBrandingService branding, IAccountRegistrationService registration)
+    public MobileController(
+        IBrandingService branding,
+        IAccountRegistrationService registration,
+        IAccountAuthService auth)
     {
         _branding = branding;
         _registration = registration;
+        _auth = auth;
     }
 
     /// <summary>Minimal home-screen content for the native Android / iOS app.</summary>
@@ -67,8 +72,50 @@ public class MobileController : ControllerBase
         {
             Available = !exists,
             Message = exists
-                ? "You already have an account with that email. Patient login will be added next — try a different email to register for now."
+                ? "You already have an account with that email. Please sign in instead."
                 : null
+        });
+    }
+
+    /// <summary>Patient login for the native app.</summary>
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(MobilePatientLoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(MobilePatientLoginResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<MobilePatientLoginResponse>> LoginPatient(
+        [FromBody] MobilePatientLoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new MobilePatientLoginResponse
+            {
+                Success = false,
+                Message = "Email and password are required."
+            });
+        }
+
+        var (success, error) = await _auth.LoginAsync(new AccountLoginRequest
+        {
+            AccountType = AccountType.Patient,
+            Username = request.Email.Trim(),
+            Password = request.Password
+        }, HttpContext, cancellationToken);
+
+        if (!success)
+        {
+            return BadRequest(new MobilePatientLoginResponse
+            {
+                Success = false,
+                Message = error ?? "Invalid email or password."
+            });
+        }
+
+        return Ok(new MobilePatientLoginResponse
+        {
+            Success = true,
+            Message = "Signed in.",
+            Email = request.Email.Trim(),
+            FullName = HttpContext.User?.Identity?.Name
         });
     }
 
