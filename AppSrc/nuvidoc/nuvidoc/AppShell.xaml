@@ -110,25 +110,34 @@
                             BackgroundColor="{StaticResource SageLt}"
                             StrokeShape="RoundRectangle 20"
                             VerticalOptions="Center">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border" Binding="{Binding Title}" Value="Login">
+                                    <Setter Property="BackgroundColor" Value="{StaticResource Fog}" />
+                                </DataTrigger>
+                            </Border.Triggers>
                             <Label
                                 Text="⌂"
                                 FontSize="20"
                                 TextColor="{StaticResource Sage}"
                                 HorizontalOptions="Center"
-                                VerticalOptions="Center" />
+                                VerticalOptions="Center">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label" Binding="{Binding Title}" Value="Login">
+                                        <Setter Property="Text" Value="👤" />
+                                        <Setter Property="FontSize" Value="18" />
+                                        <Setter Property="TextColor" Value="{StaticResource Ink}" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
                         </Border>
 
-                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
-                            <Label
-                                Text="{Binding Title}"
-                                FontFamily="OpenSansSemibold"
-                                FontSize="16"
-                                TextColor="{StaticResource Ink}" />
-                            <Label
-                                Text="Chat with Nuvi"
-                                FontSize="12"
-                                TextColor="{StaticResource Muted}" />
-                        </VerticalStackLayout>
+                        <Label
+                            Grid.Column="1"
+                            Text="{Binding Title}"
+                            FontFamily="OpenSansSemibold"
+                            FontSize="16"
+                            TextColor="{StaticResource Ink}"
+                            VerticalOptions="Center" />
                     </Grid>
                 </Border>
             </Grid>

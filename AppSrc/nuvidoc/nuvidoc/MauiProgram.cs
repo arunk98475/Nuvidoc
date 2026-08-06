@@ -37,7 +37,8 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddTransient<RegistrationPage>();
-        builder.Services.AddTransient<LoginPage>();
+        // Singleton: held by the Login FlyoutItem for the app lifetime.
+        builder.Services.AddSingleton<LoginPage>();
         builder.Services.AddSingleton<AppShell>();
 
 #if DEBUG
