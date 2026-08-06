@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="nuvidoc.SearchResultPage"
+             Title="Your matches"
+             BackgroundColor="{StaticResource Mist}">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                StrokeThickness="0"
+                BackgroundColor="White"
+                Padding="16,12">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <Image Source="favicon_large.png"
+                       WidthRequest="36"
+                       HeightRequest="36"
+                       Aspect="AspectFit"
+                       VerticalOptions="Center" />
+                <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                    <Label Text="Your matches"
+                           FontFamily="OpenSansSemibold"
+                           FontSize="18"
+                           TextColor="{StaticResource Ink}" />
+                    <Label x:Name="SubtitleLabel"
+                           Text="Nuvi is finding the right dentists for you"
+                           FontSize="12"
+                           TextColor="{StaticResource Muted}" />
+                </VerticalStackLayout>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <VerticalStackLayout x:Name="LoadingPanel"
+                                 VerticalOptions="Center"
+                                 HorizontalOptions="Center"
+                                 Spacing="16"
+                                 Padding="24">
+                <ActivityIndicator IsRunning="True"
+                                   Color="{StaticResource Sage}"
+                                   WidthRequest="40"
+                                   HeightRequest="40"
+                                   HorizontalOptions="Center" />
+                <Label Text="Searching, please wait…"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="18"
+                       TextColor="{StaticResource Ink}"
+                       HorizontalTextAlignment="Center" />
+                <Label Text="Nuvi is matching you with the best dentists."
+                       FontSize="14"
+                       TextColor="{StaticResource Muted}"
+                       HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+
+            <ScrollView x:Name="ResultsScroll" IsVisible="False" Padding="16,12">
+                <VerticalStackLayout x:Name="CardsLayout" Spacing="12" />
+            </ScrollView>
+
+            <VerticalStackLayout x:Name="ErrorPanel"
+                                 IsVisible="False"
+                                 VerticalOptions="Center"
+                                 Padding="24"
+                                 Spacing="12">
+                <Label x:Name="ErrorLabel"
+                       Text="Something went wrong."
+                       FontSize="15"
+                       TextColor="{StaticResource Ink}"
+                       HorizontalTextAlignment="Center" />
+                <Button Text="Try again"
+                        BackgroundColor="{StaticResource Sage}"
+                        TextColor="White"
+                        FontFamily="OpenSansSemibold"
+                        CornerRadius="24"
+                        HeightRequest="48"
+                        Clicked="OnRetryClicked" />
+            </VerticalStackLayout>
+        </Grid>
+    </Grid>
+</ContentPage>

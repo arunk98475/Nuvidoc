@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="nuvidoc.DoctorProfilePage"
+             Title="Doctor profile"
+             BackgroundColor="{StaticResource Mist}">
+
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0"
+                StrokeThickness="0"
+                BackgroundColor="White"
+                Padding="12,10">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <Button Text="← Back"
+                        BackgroundColor="Transparent"
+                        TextColor="{StaticResource Sage}"
+                        FontFamily="OpenSansSemibold"
+                        FontSize="15"
+                        Padding="0"
+                        HeightRequest="40"
+                        Clicked="OnBackClicked" />
+                <Label Grid.Column="1"
+                       x:Name="HeaderTitleLabel"
+                       Text="Doctor profile"
+                       FontFamily="OpenSansSemibold"
+                       FontSize="17"
+                       TextColor="{StaticResource Ink}"
+                       VerticalTextAlignment="Center"
+                       LineBreakMode="TailTruncation" />
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1" Padding="16,12">
+            <VerticalStackLayout Spacing="14">
+                <!-- Nuvi comment card: always visible; shows loading until comments arrive -->
+                <Border x:Name="NuviBanner"
+                        StrokeThickness="0"
+                        BackgroundColor="{StaticResource SageLt}"
+                        Padding="14,12"
+                        StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout Spacing="8">
+                        <HorizontalStackLayout Spacing="8">
+                            <Image Source="favicon_large.png"
+                                   WidthRequest="28"
+                                   HeightRequest="28"
+                                   Aspect="AspectFit"
+                                   VerticalOptions="Start" />
+                            <Label Text="Why Nuvi matched you"
+                                   FontFamily="OpenSansSemibold"
+                                   FontSize="14"
+                                   TextColor="{StaticResource Sage}"
+                                   VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+
+                        <HorizontalStackLayout x:Name="NuviLoadingRow"
+                                               Spacing="10"
+                                               IsVisible="True">
+                            <ActivityIndicator IsRunning="True"
+                                               Color="{StaticResource Sage}"
+                                               WidthRequest="22"
+                                               HeightRequest="22"
+                                               VerticalOptions="Center" />
+                            <Label Text="Loading…"
+                                   FontSize="14"
+                                   TextColor="{StaticResource Muted}"
+                                   VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+
+                        <Label x:Name="NuviCommentLabel"
+                               IsVisible="False"
+                               FontSize="14"
+                               TextColor="{StaticResource Ink}"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Profile body: card snapshot and/or loading while full profile loads -->
+                <VerticalStackLayout x:Name="ProfileLayout" Spacing="12" />
+
+                <VerticalStackLayout x:Name="ProfileLoadingPanel"
+                                     Spacing="10"
+                                     Padding="0,8"
+                                     IsVisible="True">
+                    <ActivityIndicator IsRunning="True"
+                                       Color="{StaticResource Sage}"
+                                       WidthRequest="28"
+                                       HeightRequest="28"
+                                       HorizontalOptions="Center" />
+                    <Label Text="Loading doctor details…"
+                           FontSize="13"
+                           TextColor="{StaticResource Muted}"
+                           HorizontalTextAlignment="Center" />
+                </VerticalStackLayout>
+
+                <Label x:Name="ErrorLabel"
+                       IsVisible="False"
+                       FontSize="14"
+                       TextColor="{StaticResource Ink}"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,12" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>
