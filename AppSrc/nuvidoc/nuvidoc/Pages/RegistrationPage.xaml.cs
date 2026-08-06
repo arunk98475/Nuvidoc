@@ -34,10 +34,14 @@ public partial class RegistrationPage : ContentPage, IQueryAttributable
         _api = api;
     }
 
+    private bool _returnToChat;
+
     public void ApplyQueryAttributes(IDictionary<string, object> query)
     {
         if (query.TryGetValue("concern", out var value) && value is string concern)
-            _concern = concern;
+            _concern = Uri.UnescapeDataString(concern);
+        if (query.TryGetValue("returnToChat", out var ret) && ret is string s)
+            _returnToChat = s == "1" || s.Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
     protected override void OnAppearing()
@@ -141,7 +145,8 @@ public partial class RegistrationPage : ContentPage, IQueryAttributable
                 _step = Step.DateOfBirth;
                 AddAi("What's your date of birth? (MM/DD/YYYY — dental offices need this to keep your chart accurate.)");
                 HintLabel.Text = "Step 4 of 6 · Date of birth";
-                AnswerEntry.Keyboard = Keyboard.Numeric;
+                AnswerEntry.Keyboard = Keyboard.Default;
+                AnswerEntry.IsPassword = false;
                 break;
 
             case Step.DateOfBirth:
@@ -213,9 +218,23 @@ public partial class RegistrationPage : ContentPage, IQueryAttributable
             AnswerEntry.IsEnabled = false;
             SendBtn.IsEnabled = false;
             AnswerEntry.IsPassword = false;
+            Preferences.Default.Set("patient_signed_in", true);
+            Preferences.Default.Set("patient_account_created", true);
             AddAi(result.Message ?? "Registration successful.");
-            AddAi("Patient matching and office calling from the PDF flow come next — for now your account is ready.");
             HintLabel.Text = "Account created";
+
+            if (_returnToChat)
+            {
+                AddAi("Taking you back to Nuvi to finish booking…");
+                await Task.Delay(600);
+                await Shell.Current.GoToAsync("//MainPage");
+            }
+            else
+            {
+                AddAi("You can continue chatting with Nuvi from Home.");
+                await Task.Delay(400);
+                await Shell.Current.GoToAsync("//MainPage");
+            }
         }
         catch (Exception ex)
         {

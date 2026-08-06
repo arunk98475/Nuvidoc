@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="nuvidoc.LoginPage"
+             Title="Patient login"
+             BackgroundColor="{StaticResource Mist}">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24,32" Spacing="16" MaximumWidthRequest="420" HorizontalOptions="Center">
+            <Label Text="Patient login"
+                   FontFamily="OpenSansSemibold"
+                   FontSize="28"
+                   TextColor="{StaticResource Ink}" />
+            <Label Text="Sign in with the email you used for your NuviDoc account."
+                   FontSize="14"
+                   TextColor="{StaticResource Muted}"
+                   LineBreakMode="WordWrap" />
+
+            <Entry x:Name="EmailEntry"
+                   Placeholder="Email"
+                   Keyboard="Email"
+                   FontSize="15"
+                   BackgroundColor="White"
+                   TextColor="{StaticResource Ink}" />
+
+            <Entry x:Name="PasswordEntry"
+                   Placeholder="Password"
+                   IsPassword="True"
+                   FontSize="15"
+                   BackgroundColor="White"
+                   TextColor="{StaticResource Ink}" />
+
+            <Button Text="Sign in"
+                    BackgroundColor="{StaticResource Sage}"
+                    TextColor="White"
+                    FontFamily="OpenSansSemibold"
+                    CornerRadius="24"
+                    HeightRequest="48"
+                    Clicked="OnLoginClicked" />
+
+            <Button Text="Create free account"
+                    BackgroundColor="Transparent"
+                    TextColor="{StaticResource Sage}"
+                    Clicked="OnRegisterClicked" />
+
+            <Label x:Name="StatusLabel"
+                   FontSize="13"
+                   TextColor="{StaticResource Muted}"
+                   LineBreakMode="WordWrap" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

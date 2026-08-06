@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="nuvidoc.ChatPage"
+             Title="Nuvi"
+             BackgroundColor="{StaticResource Mist}">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Padding="0">
+        <Border Grid.Row="0" StrokeThickness="0" BackgroundColor="White" Padding="16,12">
+            <Grid ColumnDefinitions="*,Auto">
+                <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+                    <Border WidthRequest="36" HeightRequest="36" StrokeThickness="0"
+                            BackgroundColor="{StaticResource Sage}" StrokeShape="RoundRectangle 18">
+                        <Label Text="N" TextColor="White" FontFamily="OpenSansSemibold"
+                               HorizontalTextAlignment="Center" VerticalTextAlignment="Center" />
+                    </Border>
+                    <VerticalStackLayout Spacing="0">
+                        <Label Text="Nuvi" FontFamily="OpenSansSemibold" FontSize="16" TextColor="{StaticResource Ink}" />
+                        <Label Text="Patient matching · in-person only" FontSize="12" TextColor="{StaticResource Muted}" />
+                    </VerticalStackLayout>
+                </HorizontalStackLayout>
+                <Label x:Name="ProgressLabel" Grid.Column="1" FontSize="11" TextColor="{StaticResource Muted}"
+                       VerticalTextAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <ScrollView x:Name="ChatScroll" Grid.Row="1" Padding="16,12">
+            <VerticalStackLayout x:Name="MessagesLayout" Spacing="10" />
+        </ScrollView>
+
+        <FlexLayout x:Name="ChipsLayout" Grid.Row="2" Wrap="Wrap" Direction="Row"
+                    JustifyContent="Start" AlignItems="Start" Padding="12,0,12,8" />
+
+        <VerticalStackLayout Grid.Row="3" Spacing="8" Padding="16,8,16,16" BackgroundColor="White">
+            <Entry x:Name="AnswerEntry" Placeholder="Type your answer…" ReturnType="Send"
+                   Completed="OnSendClicked" FontSize="15"
+                   BackgroundColor="{StaticResource Fog}" TextColor="{StaticResource Ink}" />
+            <Button x:Name="SendBtn" Text="Send" BackgroundColor="{StaticResource Sage}" TextColor="White"
+                    FontFamily="OpenSansSemibold" CornerRadius="24" HeightRequest="48"
+                    Clicked="OnSendClicked" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>

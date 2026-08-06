@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Net;
+using Microsoft.Extensions.Logging;
 using nuvidoc.Services;
 
 namespace nuvidoc;
@@ -16,14 +17,27 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        builder.Services.AddHttpClient<NuvidocApiClient>(client =>
+        builder.Services.AddSingleton<ApiCookieContainer>();
+
+        builder.Services.AddHttpClient<NuvidocApiClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(ApiConfig.BaseUrl.TrimEnd('/') + "/");
-            client.Timeout = TimeSpan.FromSeconds(30);
+            client.Timeout = TimeSpan.FromSeconds(120);
+        })
+        .ConfigurePrimaryHttpMessageHandler(sp =>
+        {
+            var cookies = sp.GetRequiredService<ApiCookieContainer>();
+            return new HttpClientHandler
+            {
+                CookieContainer = cookies.Cookies,
+                UseCookies = true,
+                AutomaticDecompression = DecompressionMethods.All
+            };
         });
 
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddTransient<RegistrationPage>();
+        builder.Services.AddTransient<LoginPage>();
         builder.Services.AddSingleton<AppShell>();
 
 #if DEBUG

@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="nuvidoc.MainPage"
+             Title="NuviDoc"
+             BackgroundColor="{StaticResource Mist}">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto">
+        <Border Grid.Row="0" StrokeThickness="0" BackgroundColor="White" Padding="16,12">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <Image Source="favicon_large.png"
+                       WidthRequest="40"
+                       HeightRequest="40"
+                       Aspect="AspectFit"
+                       VerticalOptions="Center" />
+                <VerticalStackLayout Grid.Column="1" Spacing="0" VerticalOptions="Center">
+                    <Label x:Name="BrandLabel" Text="Nuvi" FontFamily="OpenSansSemibold"
+                           FontSize="18" TextColor="{StaticResource Ink}" />
+                    <Label x:Name="StatusLabel" Text="Connecting…" FontSize="12"
+                           TextColor="{StaticResource Muted}" />
+                </VerticalStackLayout>
+                <Label x:Name="StageLabel" Grid.Column="2" FontSize="11"
+                       TextColor="{StaticResource Muted}" VerticalTextAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <ScrollView x:Name="ChatScroll" Grid.Row="1" Padding="16,12">
+            <VerticalStackLayout x:Name="MessagesLayout" Spacing="10" />
+        </ScrollView>
+
+        <FlexLayout x:Name="ChipsLayout" Grid.Row="2" Wrap="Wrap" Direction="Row"
+                    JustifyContent="Start" AlignItems="Start" Padding="12,0,12,8" />
+
+        <VerticalStackLayout Grid.Row="3" Spacing="8" Padding="16,8,16,16" BackgroundColor="White">
+            <Entry x:Name="ChatEntry"
+                   Placeholder="Tell Nuvi what's going on…"
+                   ReturnType="Send"
+                   Completed="OnChatSend"
+                   FontSize="15"
+                   BackgroundColor="{StaticResource Fog}"
+                   TextColor="{StaticResource Ink}" />
+            <Button x:Name="SendBtn"
+                    Text="Send"
+                    BackgroundColor="{StaticResource Sage}"
+                    TextColor="White"
+                    FontFamily="OpenSansSemibold"
+                    CornerRadius="24"
+                    HeightRequest="48"
+                    Clicked="OnChatSend" />
+        </VerticalStackLayout>
+    </Grid>
+</ContentPage>
