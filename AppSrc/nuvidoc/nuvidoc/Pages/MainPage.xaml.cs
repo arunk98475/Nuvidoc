@@ -12,6 +12,9 @@ public partial class MainPage : ContentPage
     private static readonly string MatchSearchLoadingMessage =
         "Please wait for a while — I'm searching for the best matches for you.";
 
+    /// <summary>Minimum time (ms) to show the typing dots before the first welcome message.</summary>
+    private const int WelcomeTypingMinMs = 5000;
+
     private readonly NuvidocApiClient _api;
     private readonly MatchNavState _matchNav;
     private Guid? _sessionKey;
@@ -25,6 +28,7 @@ public partial class MainPage : ContentPage
     private bool _busy;
     private bool _started;
     private View? _typingView;
+    private CancellationTokenSource? _typingAnimCts;
     private readonly HashSet<int> _recommendedDoctorIds = new();
     private MobileBootstrapDto? _bootstrap;
 
@@ -61,6 +65,8 @@ public partial class MainPage : ContentPage
         SendBtn.IsEnabled = false;
         ShowTyping();
 
+        var startedAt = DateTime.UtcNow;
+
         string welcome;
         string botName = "Nuvi";
         IReadOnlyList<string> chips =
@@ -95,7 +101,12 @@ public partial class MainPage : ContentPage
             StatusLabel.Text = "Offline — start NuviDoc API";
         }
 
-        await Task.Delay(1400);
+        // Keep typing indicator visible at least WelcomeTypingMinMs before the first message.
+        var elapsed = (int)(DateTime.UtcNow - startedAt).TotalMilliseconds;
+        var remaining = WelcomeTypingMinMs - elapsed;
+        if (remaining > 0)
+            await Task.Delay(remaining);
+
         RemoveTyping();
         AddAi(welcome);
         SetChips(chips);
@@ -382,6 +393,7 @@ public partial class MainPage : ContentPage
     private void ShowTyping()
     {
         RemoveTyping();
+
         var row = new HorizontalStackLayout { Spacing = 10 };
         row.Children.Add(new Image
         {
@@ -391,27 +403,74 @@ public partial class MainPage : ContentPage
             Aspect = Aspect.AspectFit,
             VerticalOptions = LayoutOptions.Start
         });
+
+        var dot1 = CreateTypingDot();
+        var dot2 = CreateTypingDot();
+        var dot3 = CreateTypingDot();
+
+        var dots = new HorizontalStackLayout
+        {
+            Spacing = 5,
+            VerticalOptions = LayoutOptions.Center,
+            Children = { dot1, dot2, dot3 }
+        };
+
         var bubble = new Border
         {
             StrokeThickness = 0,
-            Padding = new Thickness(14, 10),
+            Padding = new Thickness(16, 12),
             BackgroundColor = Color.FromArgb("#E8EDEB"),
-            StrokeShape = new RoundRectangle { CornerRadius = 14 }
-        };
-        bubble.Content = new Label
-        {
-            Text = "Nuvi is typing…",
-            FontSize = 13,
-            TextColor = Color.FromArgb("#6B8078")
+            StrokeShape = new RoundRectangle { CornerRadius = 14 },
+            Content = dots
         };
         row.Children.Add(bubble);
         _typingView = row;
         MessagesLayout.Children.Add(row);
         _ = ChatScroll.ScrollToAsync(MessagesLayout, ScrollToPosition.End, false);
+
+        _typingAnimCts = new CancellationTokenSource();
+        _ = AnimateTypingDotsAsync(new[] { dot1, dot2, dot3 }, _typingAnimCts.Token);
+    }
+
+    private static BoxView CreateTypingDot() => new()
+    {
+        WidthRequest = 8,
+        HeightRequest = 8,
+        CornerRadius = 4,
+        Color = Color.FromArgb("#6B8078"),
+        Opacity = 0.35,
+        VerticalOptions = LayoutOptions.Center
+    };
+
+    private static async Task AnimateTypingDotsAsync(BoxView[] dots, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                for (var i = 0; i < dots.Length; i++)
+                {
+                    if (token.IsCancellationRequested) return;
+
+                    for (var j = 0; j < dots.Length; j++)
+                        dots[j].Opacity = j == i ? 1.0 : 0.35;
+
+                    await Task.Delay(280, token);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Typing indicator removed.
+        }
     }
 
     private void RemoveTyping()
     {
+        _typingAnimCts?.Cancel();
+        _typingAnimCts?.Dispose();
+        _typingAnimCts = null;
+
         if (_typingView != null)
         {
             MessagesLayout.Children.Remove(_typingView);
