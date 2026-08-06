@@ -110,61 +110,13 @@
                             BackgroundColor="{StaticResource SageLt}"
                             StrokeShape="RoundRectangle 20"
                             VerticalOptions="Center">
-                            <Border.Triggers>
-                                <DataTrigger TargetType="Border" Binding="{Binding Title}" Value="Login">
-                                    <Setter Property="BackgroundColor" Value="{StaticResource Fog}" />
-                                </DataTrigger>
-                                <DataTrigger TargetType="Border" Binding="{Binding Title}" Value="Logout">
-                                    <Setter Property="BackgroundColor" Value="{StaticResource Fog}" />
-                                </DataTrigger>
-                            </Border.Triggers>
-
                             <Image
-                                Source="home.png"
+                                Source="{Binding FlyoutIcon}"
                                 WidthRequest="22"
                                 HeightRequest="22"
                                 Aspect="AspectFit"
                                 HorizontalOptions="Center"
-                                VerticalOptions="Center">
-                                <Image.Triggers>
-                                    <DataTrigger TargetType="Image" Binding="{Binding Title}" Value="Login">
-                                        <Setter Property="IsVisible" Value="False" />
-                                    </DataTrigger>
-                                    <DataTrigger TargetType="Image" Binding="{Binding Title}" Value="Logout">
-                                        <Setter Property="IsVisible" Value="False" />
-                                    </DataTrigger>
-                                </Image.Triggers>
-                            </Image>
-
-                            <Image
-                                Source="login.png"
-                                WidthRequest="22"
-                                HeightRequest="22"
-                                Aspect="AspectFit"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                IsVisible="False">
-                                <Image.Triggers>
-                                    <DataTrigger TargetType="Image" Binding="{Binding Title}" Value="Login">
-                                        <Setter Property="IsVisible" Value="True" />
-                                    </DataTrigger>
-                                </Image.Triggers>
-                            </Image>
-
-                            <Image
-                                Source="logout.png"
-                                WidthRequest="22"
-                                HeightRequest="22"
-                                Aspect="AspectFit"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Center"
-                                IsVisible="False">
-                                <Image.Triggers>
-                                    <DataTrigger TargetType="Image" Binding="{Binding Title}" Value="Logout">
-                                        <Setter Property="IsVisible" Value="True" />
-                                    </DataTrigger>
-                                </Image.Triggers>
-                            </Image>
+                                VerticalOptions="Center" />
                         </Border>
 
                         <Label

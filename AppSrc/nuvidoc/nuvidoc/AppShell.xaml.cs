@@ -20,7 +20,9 @@ public partial class AppShell : Shell
                 {
                     Title = "Home",
                     Content = homePage,
-                    Route = "home"
+                    Route = "home",
+                    Icon = "home.png",
+                    FlyoutIcon = "home.png"
                 }
             }
         });
@@ -37,7 +39,9 @@ public partial class AppShell : Shell
                 {
                     Title = "Login",
                     Content = loginPage,
-                    Route = "login"
+                    Route = "login",
+                    Icon = "login.png",
+                    FlyoutIcon = "login.png"
                 }
             }
         };
@@ -54,7 +58,9 @@ public partial class AppShell : Shell
                 {
                     Title = "Logout",
                     Content = logoutPage,
-                    Route = "logout"
+                    Route = "logout",
+                    Icon = "logout.png",
+                    FlyoutIcon = "logout.png"
                 }
             }
         };
