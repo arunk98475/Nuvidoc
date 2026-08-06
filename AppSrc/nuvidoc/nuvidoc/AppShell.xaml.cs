@@ -42,6 +42,9 @@ public partial class AppShell : Shell
 
     private async void OnAuthMenuClicked(object? sender, EventArgs e)
     {
+        // MenuItems don't auto-close the flyout (unlike FlyoutItems).
+        FlyoutIsPresented = false;
+
         if (Preferences.Default.Get("patient_signed_in", false))
         {
             Preferences.Default.Remove("patient_signed_in");
