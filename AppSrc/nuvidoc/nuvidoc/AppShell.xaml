@@ -5,28 +5,180 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     FlyoutBehavior="Flyout"
     FlyoutBackgroundColor="{StaticResource Mist}"
+    FlyoutWidth="300"
+    FlyoutHeaderBehavior="Fixed"
+    Shell.BackgroundColor="White"
+    Shell.ForegroundColor="{StaticResource Sage}"
+    Shell.TitleColor="{StaticResource Ink}"
+    Shell.NavBarHasShadow="False"
     Title="NuviDoc">
+
+    <Shell.FlyoutHeader>
+        <Grid Padding="20,36,20,24" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="{StaticResource Sage}" Offset="0" />
+                    <GradientStop Color="{StaticResource PrimaryDark}" Offset="1" />
+                </LinearGradientBrush>
+            </Grid.Background>
+
+            <HorizontalStackLayout Spacing="14" VerticalOptions="Center">
+                <Border
+                    StrokeThickness="0"
+                    BackgroundColor="White"
+                    WidthRequest="52"
+                    HeightRequest="52"
+                    StrokeShape="RoundRectangle 26"
+                    VerticalOptions="Center">
+                    <Image
+                        Source="favicon_large.png"
+                        WidthRequest="36"
+                        HeightRequest="36"
+                        Aspect="AspectFit"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center" />
+                </Border>
+
+                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                    <Label
+                        Text="NuviDoc"
+                        FontFamily="OpenSansSemibold"
+                        FontSize="22"
+                        TextColor="White" />
+                    <Label
+                        Text="Your dental matchmaker"
+                        FontSize="12"
+                        TextColor="#D8E8E0" />
+                </VerticalStackLayout>
+            </HorizontalStackLayout>
+
+            <BoxView
+                Grid.Row="1"
+                HeightRequest="1"
+                Color="#FFFFFF33"
+                Margin="0,8,0,0" />
+
+            <VerticalStackLayout Grid.Row="2" Spacing="2" Margin="0,4,0,0">
+                <Label
+                    x:Name="FlyoutUserLabel"
+                    Text="Welcome"
+                    FontFamily="OpenSansSemibold"
+                    FontSize="15"
+                    TextColor="White" />
+                <Label
+                    x:Name="FlyoutUserStatusLabel"
+                    Text="Sign in to save your progress"
+                    FontSize="12"
+                    TextColor="#D8E8E0" />
+            </VerticalStackLayout>
+        </Grid>
+    </Shell.FlyoutHeader>
 
     <Shell.ItemTemplate>
         <DataTemplate>
-            <Grid Padding="20,14">
-                <Label
-                    Text="{Binding Title}"
-                    TextColor="{StaticResource Black}"
-                    FontSize="16"
-                    VerticalOptions="Center" />
+            <Grid Padding="16,6">
+                <Border
+                    x:Name="FlyoutItemBorder"
+                    Padding="14,12"
+                    Stroke="{StaticResource Rule}"
+                    StrokeThickness="1"
+                    BackgroundColor="White"
+                    StrokeShape="RoundRectangle 14">
+                    <Border.Shadow>
+                        <Shadow Brush="#1A2B2215" Offset="0,2" Radius="8" Opacity="0.35" />
+                    </Border.Shadow>
+                    <Border.VisualStateManager.VisualStateGroups>
+                        <VisualStateGroupList>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="Selected">
+                                    <VisualState.Setters>
+                                        <Setter Property="BackgroundColor" Value="{StaticResource SageLt}" />
+                                        <Setter Property="Stroke" Value="{StaticResource Sage}" />
+                                    </VisualState.Setters>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateGroupList>
+                    </Border.VisualStateManager.VisualStateGroups>
+
+                    <Grid ColumnDefinitions="44,*" ColumnSpacing="12">
+                        <Border
+                            Grid.Column="0"
+                            WidthRequest="40"
+                            HeightRequest="40"
+                            StrokeThickness="0"
+                            BackgroundColor="{StaticResource SageLt}"
+                            StrokeShape="RoundRectangle 20"
+                            VerticalOptions="Center">
+                            <Label
+                                Text="⌂"
+                                FontSize="20"
+                                TextColor="{StaticResource Sage}"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        </Border>
+
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label
+                                Text="{Binding Title}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="16"
+                                TextColor="{StaticResource Ink}" />
+                            <Label
+                                Text="Chat with Nuvi"
+                                FontSize="12"
+                                TextColor="{StaticResource Muted}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
             </Grid>
         </DataTemplate>
     </Shell.ItemTemplate>
 
     <Shell.MenuItemTemplate>
         <DataTemplate>
-            <Grid Padding="20,14">
-                <Label
-                    Text="{Binding Text}"
-                    TextColor="{StaticResource Black}"
-                    FontSize="16"
-                    VerticalOptions="Center" />
+            <Grid Padding="16,6">
+                <Border
+                    Padding="14,12"
+                    Stroke="{StaticResource Rule}"
+                    StrokeThickness="1"
+                    BackgroundColor="White"
+                    StrokeShape="RoundRectangle 14">
+                    <Border.Shadow>
+                        <Shadow Brush="#1A2B2215" Offset="0,2" Radius="8" Opacity="0.35" />
+                    </Border.Shadow>
+
+                    <Grid ColumnDefinitions="44,*" ColumnSpacing="12">
+                        <Border
+                            Grid.Column="0"
+                            WidthRequest="40"
+                            HeightRequest="40"
+                            StrokeThickness="0"
+                            BackgroundColor="{StaticResource Fog}"
+                            StrokeShape="RoundRectangle 20"
+                            VerticalOptions="Center">
+                            <Label
+                                x:Name="AuthIconLabel"
+                                Text="👤"
+                                FontSize="18"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Center" />
+                        </Border>
+
+                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                            <Label
+                                Text="{Binding Text}"
+                                FontFamily="OpenSansSemibold"
+                                FontSize="16"
+                                TextColor="{StaticResource Ink}" />
+                            <Label
+                                x:Name="AuthSubtitleLabel"
+                                Text="Access your account"
+                                FontSize="12"
+                                TextColor="{StaticResource Muted}" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
             </Grid>
         </DataTemplate>
     </Shell.MenuItemTemplate>

@@ -32,12 +32,30 @@ public partial class AppShell : Shell
         Routing.RegisterRoute(nameof(LoginPage), typeof(LoginPage));
 
         Navigated += (_, _) => RefreshAuthMenu();
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(FlyoutIsPresented) && FlyoutIsPresented)
+                RefreshAuthMenu();
+        };
     }
 
     private void RefreshAuthMenu()
     {
         var signedIn = Preferences.Default.Get("patient_signed_in", false);
-        _authMenuItem.Text = signedIn ? "Logout" : "Login";
+        _authMenuItem.Text = signedIn ? "Sign out" : "Sign in";
+
+        if (signedIn)
+        {
+            var name = Preferences.Default.Get("patient_full_name", string.Empty);
+            var email = Preferences.Default.Get("patient_email", string.Empty);
+            FlyoutUserLabel.Text = string.IsNullOrWhiteSpace(name) ? email : name;
+            FlyoutUserStatusLabel.Text = string.IsNullOrWhiteSpace(email) ? "Signed in" : email;
+        }
+        else
+        {
+            FlyoutUserLabel.Text = "Welcome";
+            FlyoutUserStatusLabel.Text = "Sign in to save your progress";
+        }
     }
 
     private async void OnAuthMenuClicked(object? sender, EventArgs e)

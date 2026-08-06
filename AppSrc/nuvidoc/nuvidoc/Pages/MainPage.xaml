@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="nuvidoc.MainPage"
              Title="NuviDoc"
+             Shell.NavBarIsVisible="False"
              BackgroundColor="{StaticResource Mist}">
 
     <Grid RowDefinitions="Auto,*,Auto,Auto">
@@ -32,13 +33,21 @@
                     JustifyContent="Start" AlignItems="Start" Padding="12,0,12,8" />
 
         <VerticalStackLayout Grid.Row="3" Spacing="8" Padding="16,8,16,16" BackgroundColor="White">
-            <Entry x:Name="ChatEntry"
-                   Placeholder="Tell Nuvi what's going on…"
-                   ReturnType="Send"
-                   Completed="OnChatSend"
-                   FontSize="15"
-                   BackgroundColor="{StaticResource Fog}"
-                   TextColor="{StaticResource Ink}" />
+            <Border
+                StrokeThickness="0"
+                BackgroundColor="{StaticResource Fog}"
+                StrokeShape="RoundRectangle 24"
+                Padding="16,4"
+                HeightRequest="48">
+                <Entry x:Name="ChatEntry"
+                       Placeholder="Tell Nuvi what's going on…"
+                       ReturnType="Send"
+                       Completed="OnChatSend"
+                       FontSize="15"
+                       BackgroundColor="Transparent"
+                       TextColor="{StaticResource Ink}"
+                       VerticalOptions="Center" />
+            </Border>
             <Button x:Name="SendBtn"
                     Text="Send"
                     BackgroundColor="{StaticResource Sage}"
