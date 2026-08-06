@@ -13,6 +13,7 @@ public partial class MainPage : ContentPage
         "Please wait for a while — I'm searching for the best matches for you.";
 
     private readonly NuvidocApiClient _api;
+    private readonly MatchNavState _matchNav;
     private Guid? _sessionKey;
     private string _currentStage = "Greeting";
     private bool _usePasswordInput;
@@ -27,10 +28,11 @@ public partial class MainPage : ContentPage
     private readonly HashSet<int> _recommendedDoctorIds = new();
     private MobileBootstrapDto? _bootstrap;
 
-    public MainPage(NuvidocApiClient api)
+    public MainPage(NuvidocApiClient api, MatchNavState matchNav)
     {
         InitializeComponent();
         _api = api;
+        _matchNav = matchNav;
     }
 
     protected override async void OnAppearing()
@@ -176,25 +178,9 @@ public partial class MainPage : ContentPage
                     AddAi(string.IsNullOrWhiteSpace(data.Text) ? MatchSearchLoadingMessage : data.Text, loading: true);
 
                 ApplyChatResponseState(data);
-
-                var search = await _api.SendChatMessageAsync(new ChatMessageRequest
-                {
-                    SessionKey = _sessionKey,
-                    Action = "match_search",
-                    Message = ""
-                });
-
-                if (!search.Ok)
-                {
-                    AddAi("Sorry — match search failed. Please try again.");
-                    return;
-                }
-
-                await Task.Delay(800);
-                AddAi(string.IsNullOrWhiteSpace(search.Data.Text) ? "Here are your matches." : search.Data.Text);
-                if (search.Data.DoctorCards?.Count > 0)
-                    AddDoctorCards(search.Data.DoctorCards);
-                ApplyChatResponseState(search.Data);
+                _sessionKey = data.SessionKey;
+                _matchNav.BeginSearch(data.SessionKey);
+                await Shell.Current.GoToAsync(nameof(SearchResultPage));
                 return;
             }
 

@@ -70,8 +70,10 @@ public partial class AppShell : Shell
 
         RefreshAuthMenu();
 
-        // Registration stays a pushed page (not in the flyout).
+        // Pushed pages (not in the flyout).
         Routing.RegisterRoute(nameof(RegistrationPage), typeof(RegistrationPage));
+        Routing.RegisterRoute(nameof(SearchResultPage), typeof(SearchResultPage));
+        Routing.RegisterRoute(nameof(DoctorProfilePage), typeof(DoctorProfilePage));
 
         Navigated += (_, _) => RefreshAuthMenu();
         PropertyChanged += (_, e) =>

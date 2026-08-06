@@ -85,6 +85,18 @@ public sealed class NuvidocApiClient
         return (response.IsSuccessStatusCode, (int)response.StatusCode, data);
     }
 
+    public async Task<PublicDoctorProfileDto?> GetDoctorProfileAsync(
+        int doctorId,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await _http.GetAsync($"api/doctors/{doctorId}", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<PublicDoctorProfileDto>(JsonOptions, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<DoctorDto>> GetFeaturedDoctorsAsync(
         int count = 6,
         CancellationToken cancellationToken = default)

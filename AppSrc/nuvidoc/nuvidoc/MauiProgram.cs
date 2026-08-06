@@ -18,6 +18,7 @@ public static class MauiProgram
             });
 
         builder.Services.AddSingleton<ApiCookieContainer>();
+        builder.Services.AddSingleton<MatchNavState>();
 
         builder.Services.AddHttpClient<NuvidocApiClient>((sp, client) =>
         {
@@ -37,6 +38,8 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddTransient<RegistrationPage>();
+        builder.Services.AddTransient<SearchResultPage>();
+        builder.Services.AddTransient<DoctorProfilePage>();
         // Singletons: held by FlyoutItems for the app lifetime.
         builder.Services.AddSingleton<LoginPage>();
         builder.Services.AddSingleton<LogoutPage>();
