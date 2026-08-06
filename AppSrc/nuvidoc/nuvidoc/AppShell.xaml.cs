@@ -3,9 +3,9 @@
 public partial class AppShell : Shell
 {
     private readonly FlyoutItem _loginFlyout;
-    private readonly MenuItem _signOutMenuItem;
+    private readonly FlyoutItem _logoutFlyout;
 
-    public AppShell(MainPage homePage, LoginPage loginPage)
+    public AppShell(MainPage homePage, LoginPage loginPage, LogoutPage logoutPage)
     {
         InitializeComponent();
 
@@ -13,6 +13,7 @@ public partial class AppShell : Shell
         {
             Title = "Home",
             Route = "MainPage",
+            FlyoutIcon = "home.png",
             Items =
             {
                 new ShellContent
@@ -24,12 +25,12 @@ public partial class AppShell : Shell
             }
         });
 
-        // Login as FlyoutItem (same type as Home) so the drawer closes and navigates correctly.
-        // Do NOT reuse homePage, and do NOT RegisterRoute("LoginPage") — that conflicts with this item.
+        // All flyout entries are FlyoutItems so Home ↔ Login/Logout navigation works the same way.
         _loginFlyout = new FlyoutItem
         {
             Title = "Login",
             Route = "Login",
+            FlyoutIcon = "login.png",
             Items =
             {
                 new ShellContent
@@ -40,10 +41,26 @@ public partial class AppShell : Shell
                 }
             }
         };
-        Items.Add(_loginFlyout);
 
-        _signOutMenuItem = new MenuItem { Text = "Sign out" };
-        _signOutMenuItem.Clicked += OnSignOutClicked;
+        // Do NOT reuse homePage here — one page cannot live in two FlyoutItems.
+        _logoutFlyout = new FlyoutItem
+        {
+            Title = "Logout",
+            Route = "Logout",
+            FlyoutIcon = "logout.png",
+            Items =
+            {
+                new ShellContent
+                {
+                    Title = "Logout",
+                    Content = logoutPage,
+                    Route = "logout"
+                }
+            }
+        };
+
+        Items.Add(_loginFlyout);
+        Items.Add(_logoutFlyout);
 
         RefreshAuthMenu();
 
@@ -58,21 +75,13 @@ public partial class AppShell : Shell
         };
     }
 
-    private void RefreshAuthMenu()
+    /// <summary>Show Login when signed out, Logout when signed in.</summary>
+    public void RefreshAuthMenu()
     {
         var signedIn = Preferences.Default.Get("patient_signed_in", false);
 
         _loginFlyout.FlyoutItemIsVisible = !signedIn;
-
-        if (signedIn)
-        {
-            if (!Items.Contains(_signOutMenuItem))
-                Items.Add(_signOutMenuItem);
-        }
-        else if (Items.Contains(_signOutMenuItem))
-        {
-            Items.Remove(_signOutMenuItem);
-        }
+        _logoutFlyout.FlyoutItemIsVisible = signedIn;
 
         if (signedIn)
         {
@@ -86,18 +95,5 @@ public partial class AppShell : Shell
             FlyoutUserLabel.Text = "Welcome";
             FlyoutUserStatusLabel.Text = "Sign in to save your progress";
         }
-    }
-
-    private async void OnSignOutClicked(object? sender, EventArgs e)
-    {
-        FlyoutIsPresented = false;
-
-        Preferences.Default.Remove("patient_signed_in");
-        Preferences.Default.Remove("patient_email");
-        Preferences.Default.Remove("patient_full_name");
-        Preferences.Default.Remove("patient_account_created");
-        RefreshAuthMenu();
-        await DisplayAlert("Signed out", "You are signed out on this device.", "OK");
-        await GoToAsync("//MainPage");
     }
 }
