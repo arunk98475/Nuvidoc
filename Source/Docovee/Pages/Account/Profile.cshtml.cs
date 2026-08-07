@@ -16,17 +16,20 @@ public class ProfileModel : PageModel
     private readonly IAppointmentService _appointments;
     private readonly IInsuranceService _insuranceService;
     private readonly IPatientInsuranceProfileService _insuranceProfile;
+    private readonly IPatientNotificationService _notifications;
 
     public ProfileModel(
         IProfileService profileService,
         IAppointmentService appointments,
         IInsuranceService insuranceService,
-        IPatientInsuranceProfileService insuranceProfile)
+        IPatientInsuranceProfileService insuranceProfile,
+        IPatientNotificationService notifications)
     {
         _profileService = profileService;
         _appointments = appointments;
         _insuranceService = insuranceService;
         _insuranceProfile = insuranceProfile;
+        _notifications = notifications;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -44,6 +47,8 @@ public class ProfileModel : PageModel
     public string? FormSuccess { get; set; }
 
     public IReadOnlyList<PatientAppointmentDto> UpcomingAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
+    public IReadOnlyList<PatientNotificationDto> Notifications { get; set; } = Array.Empty<PatientNotificationDto>();
+    public int UnreadNotificationCount { get; set; }
 
     [BindProperty]
     public PatientProfileEditModel PersonalInput { get; set; } = new();
@@ -92,6 +97,13 @@ public class ProfileModel : PageModel
 
         await LoadAsync(patientId);
         if (Profile == null) return NotFound();
+
+        if (normalized == "notifications")
+        {
+            await _notifications.MarkAllReadAsync(patientId);
+            UnreadNotificationCount = 0;
+        }
+
         return Page();
     }
 
@@ -321,6 +333,9 @@ public class ProfileModel : PageModel
                         && AppointmentStatuses.Normalize(a.Status) != AppointmentStatuses.PatientNoShow)
             .OrderBy(a => a.StartsAt)
             .ToList();
+
+        Notifications = await _notifications.GetForPatientAsync(patientId);
+        UnreadNotificationCount = await _notifications.CountUnreadAsync(patientId);
 
         InsuranceCatalog = await _insuranceService.GetCarriersWithPlansAsync();
         InsuranceProfile = await _insuranceProfile.GetAsync(patientId);

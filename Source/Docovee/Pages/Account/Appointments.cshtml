@@ -4,7 +4,7 @@
     Layout = null;
     ViewData["Title"] = $"Appointment history — {Branding.SiteName}";
     ViewData["PatientDisplayName"] = Model.Profile?.FullName;
-    ViewData["PatientNotifyCount"] = Model.UpcomingAppointments.Count;
+    ViewData["PatientNotifyCount"] = Model.UnreadNotificationCount;
 }
 <!DOCTYPE html>
 <html lang="en">

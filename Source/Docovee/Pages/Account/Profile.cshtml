@@ -6,7 +6,7 @@
     Layout = null;
     ViewData["Title"] = $"Settings — {Branding.SiteName}";
     ViewData["PatientDisplayName"] = Model.Profile?.FullName;
-    ViewData["PatientNotifyCount"] = Model.UpcomingAppointments.Count;
+    ViewData["PatientNotifyCount"] = Model.UnreadNotificationCount;
     var section = Model.Section;
     var edit = Model.EditField;
     var medical = Model.Coverage(PatientInsuranceTypes.Medical);
@@ -42,9 +42,9 @@
             <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
             <a class="pat-nav-item @(section == "notifications" ? "active" : "")" href="/Account/Profile?section=notifications">
                 <span>Notifications</span>
-                @if (Model.UpcomingAppointments.Count > 0)
+                @if (Model.UnreadNotificationCount > 0)
                 {
-                    <span class="pat-nav-badge">@Model.UpcomingAppointments.Count</span>
+                    <span class="pat-nav-badge">@Model.UnreadNotificationCount</span>
                 }
             </a>
             <a class="pat-nav-item @(section == "permissions" ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
@@ -545,36 +545,62 @@
         {
             <div class="pat-panel-head">
                 <h1>Notifications</h1>
-                <p>Upcoming appointments and booking updates.</p>
+                <p>Booking confirmations and call updates from Nuvi.</p>
             </div>
 
-            @if (Model.UpcomingAppointments.Count == 0)
+            @if (Model.Notifications.Count == 0 && Model.UpcomingAppointments.Count == 0)
             {
                 <div class="pi-list">
                     <div class="pi-row">
                         <div class="pi-row-body">
-                            <div class="pi-value">No upcoming appointments.</div>
-                            <p class="pi-hint"><a class="pi-link" href="/?chat=1">Find a doctor</a> to book a visit.</p>
+                            <div class="pi-value">No notifications yet.</div>
+                            <p class="pi-hint"><a class="pi-link" href="/?chat=1">Find a doctor</a> and Nuvi will notify you here when an appointment is booked.</p>
                         </div>
                     </div>
                 </div>
             }
             else
             {
-                <div class="pi-list">
-                    @foreach (var a in Model.UpcomingAppointments)
-                    {
-                        <div class="pi-row">
-                            <div class="pi-row-body">
-                                <div class="pi-label">@a.StartsAt.ToString("ddd, MMM d") · @a.StartsAt.ToString("h:mm tt")</div>
-                                <div class="pi-value">@a.DoctorName</div>
-                                <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
-                                <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
+                @if (Model.Notifications.Count > 0)
+                {
+                    <div class="pi-list">
+                        @foreach (var n in Model.Notifications)
+                        {
+                            <div class="pi-row @(n.IsRead ? "" : "pi-row-unread")">
+                                <div class="pi-row-body">
+                                    <div class="pi-label">@n.CreatedAt.ToLocalTime().ToString("ddd, MMM d · h:mm tt")</div>
+                                    <div class="pi-value">@n.Title</div>
+                                    <p class="pi-hint">@n.Body</p>
+                                </div>
+                                @if (n.DoctorId is > 0)
+                                {
+                                    <a class="pi-action" href="/doctors/@n.DoctorId">View</a>
+                                }
                             </div>
-                            <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
-                        </div>
-                    }
-                </div>
+                        }
+                    </div>
+                }
+
+                @if (Model.UpcomingAppointments.Count > 0)
+                {
+                    <div class="pat-panel-head" style="margin-top:1.5rem;">
+                        <h2 style="font-size:1.1rem;margin:0;">Upcoming appointments</h2>
+                    </div>
+                    <div class="pi-list">
+                        @foreach (var a in Model.UpcomingAppointments)
+                        {
+                            <div class="pi-row">
+                                <div class="pi-row-body">
+                                    <div class="pi-label">@a.StartsAt.ToString("ddd, MMM d") · @a.StartsAt.ToString("h:mm tt")</div>
+                                    <div class="pi-value">@a.DoctorName</div>
+                                    <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
+                                    <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
+                                </div>
+                                <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
+                            </div>
+                        }
+                    </div>
+                }
             }
         }
     </main>

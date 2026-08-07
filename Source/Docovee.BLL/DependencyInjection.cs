@@ -91,6 +91,8 @@ public static class DependencyInjection
         services.AddScoped<IPatientDoctorContactService, PatientDoctorContactService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<IDoctorLocationService, DoctorLocationService>();
+        services.AddScoped<IPatientNotificationService, PatientNotificationService>();
+        services.AddScoped<IVoiceCallBookingService, VoiceCallBookingService>();
         services.AddSingleton<IDoctorImportJobService, DoctorImportJobService>();
         services.AddScoped<IAppSettingsService, AppSettingsService>();
         services.AddScoped<IContentPageService, ContentPageService>();

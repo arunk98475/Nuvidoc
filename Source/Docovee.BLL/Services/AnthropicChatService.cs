@@ -48,6 +48,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IPatientDoctorContactService _patientDoctorContacts;
     private readonly IClaudeGoogleReviewService _googleReviews;
     private readonly INuviVoiceCallingService _voiceCalling;
+    private readonly IVoiceCallBookingService _voiceBookings;
     private readonly TwilioOptions _twilioOptions;
 
     public AnthropicChatService(
@@ -65,6 +66,7 @@ public class AnthropicChatService : IAnthropicChatService
         IPatientDoctorContactService patientDoctorContacts,
         IClaudeGoogleReviewService googleReviews,
         INuviVoiceCallingService voiceCalling,
+        IVoiceCallBookingService voiceBookings,
         IOptions<TwilioOptions> twilioOptions)
     {
         _httpClient = httpClient;
@@ -81,6 +83,7 @@ public class AnthropicChatService : IAnthropicChatService
         _patientDoctorContacts = patientDoctorContacts;
         _googleReviews = googleReviews;
         _voiceCalling = voiceCalling;
+        _voiceBookings = voiceBookings;
         _twilioOptions = twilioOptions.Value;
     }
 
@@ -1662,6 +1665,25 @@ public class AnthropicChatService : IAnthropicChatService
             text = $"{planText}\n\nI've started the call to {topName}'s office now. I'll update you here as soon as I hear back.";
             if (!string.IsNullOrWhiteSpace(callResult.ConversationId))
                 text += $" (ref: {callResult.ConversationId})";
+
+            if (!string.IsNullOrWhiteSpace(callResult.ConversationId))
+            {
+                await _voiceBookings.RecordInitiatedCallAsync(new VoiceOutboundCallRecordRequest
+                {
+                    ConversationId = callResult.ConversationId!,
+                    CallSid = callResult.CallSid,
+                    SessionKey = session.SessionKey,
+                    SearchSessionId = session.Id,
+                    PatientId = session.PatientId,
+                    DoctorId = target.Value.Doctor.Id,
+                    PatientName = GetDisplayName(context),
+                    PatientPhone = context.PendingPhone,
+                    PatientEmail = context.PendingEmail,
+                    VisitReason = string.IsNullOrWhiteSpace(chiefComplaint) ? "dental appointment" : chiefComplaint,
+                    ToNumber = dialNumber
+                }, cancellationToken);
+                _voiceBookings.ScheduleConversationPolling(callResult.ConversationId!);
+            }
         }
         else
         {

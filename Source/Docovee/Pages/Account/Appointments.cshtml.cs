@@ -15,6 +15,7 @@ public class AppointmentsModel : PageModel
     private readonly IProfileService _profileService;
     private readonly IDoctorReviewService _reviewService;
     private readonly IAppointmentService _appointments;
+    private readonly IPatientNotificationService _notifications;
     private readonly IAppSettingsService _appSettings;
     private readonly IDoctorFileService _fileService;
 
@@ -22,12 +23,14 @@ public class AppointmentsModel : PageModel
         IProfileService profileService,
         IDoctorReviewService reviewService,
         IAppointmentService appointments,
+        IPatientNotificationService notifications,
         IAppSettingsService appSettings,
         IDoctorFileService fileService)
     {
         _profileService = profileService;
         _reviewService = reviewService;
         _appointments = appointments;
+        _notifications = notifications;
         _appSettings = appSettings;
         _fileService = fileService;
     }
@@ -35,6 +38,7 @@ public class AppointmentsModel : PageModel
     public PatientProfileDto? Profile { get; set; }
     public IReadOnlyList<PatientAppointmentDto> PastAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
     public IReadOnlyList<PatientAppointmentDto> UpcomingAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
+    public int UnreadNotificationCount { get; private set; }
     public int ReviewEligibleDaysAfterConfirmed { get; private set; } = 1;
     public bool ReviewSubmitted { get; set; }
     public string? ReviewError { get; set; }
@@ -111,6 +115,8 @@ public class AppointmentsModel : PageModel
             .Select(a => ApplyReviewEligibility(a, ReviewEligibleDaysAfterConfirmed))
             .OrderByDescending(a => a.StartsAt)
             .ToList();
+
+        UnreadNotificationCount = await _notifications.CountUnreadAsync(patientId);
     }
 
     private static PatientAppointmentDto ApplyReviewEligibility(

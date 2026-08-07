@@ -466,6 +466,59 @@ public static class SchemaUpdater
 
         await EnsureColumnAsync(db, "doctor_media", "FileSizeBytes", "bigint NOT NULL DEFAULT 0", cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `voice_outbound_calls` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `ConversationId` varchar(100) CHARACTER SET utf8mb4 NOT NULL,
+                `CallSid` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `SessionKey` char(36) CHARACTER SET utf8mb4 NOT NULL,
+                `SearchSessionId` int NULL,
+                `PatientId` int NULL,
+                `DoctorId` int NOT NULL,
+                `PatientName` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `PatientPhone` varchar(30) CHARACTER SET utf8mb4 NULL,
+                `PatientEmail` varchar(200) CHARACTER SET utf8mb4 NULL,
+                `VisitReason` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `ToNumber` varchar(30) CHARACTER SET utf8mb4 NULL,
+                `Status` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `OutcomeNotes` varchar(2000) CHARACTER SET utf8mb4 NULL,
+                `AppointmentId` int NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                `CompletedAt` datetime(6) NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_voice_outbound_calls_ConversationId` (`ConversationId`),
+                KEY `IX_voice_outbound_calls_SessionKey` (`SessionKey`),
+                KEY `IX_voice_outbound_calls_PatientId` (`PatientId`),
+                CONSTRAINT `FK_voice_outbound_calls_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_voice_outbound_calls_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE SET NULL,
+                CONSTRAINT `FK_voice_outbound_calls_search_sessions_SearchSessionId` FOREIGN KEY (`SearchSessionId`) REFERENCES `search_sessions` (`Id`) ON DELETE SET NULL,
+                CONSTRAINT `FK_voice_outbound_calls_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `patient_notifications` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `Type` varchar(60) CHARACTER SET utf8mb4 NOT NULL,
+                `Title` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `Body` varchar(1000) CHARACTER SET utf8mb4 NOT NULL,
+                `AppointmentId` int NULL,
+                `DoctorId` int NULL,
+                `IsRead` tinyint(1) NOT NULL DEFAULT 0,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_patient_notifications_PatientId_IsRead_CreatedAt` (`PatientId`, `IsRead`, `CreatedAt`),
+                CONSTRAINT `FK_patient_notifications_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_patient_notifications_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
+
         Log("Schema updates complete.");
     }
 

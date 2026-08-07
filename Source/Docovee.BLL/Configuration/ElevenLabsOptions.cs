@@ -23,4 +23,10 @@ public class ElevenLabsOptions
 
     /// <summary>API base URL (override only if needed).</summary>
     public string BaseUrl { get; set; } = "https://api.elevenlabs.io";
+
+    /// <summary>
+    /// Optional HMAC secret from ElevenLabs post-call webhook settings.
+    /// When empty, webhook signature verification is skipped (dev only).
+    /// </summary>
+    public string? WebhookSecret { get; set; }
 }

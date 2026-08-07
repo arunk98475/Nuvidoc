@@ -1,3 +1,4 @@
+using System.Text;
 using Docovee.BLL.Services;
 using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -10,13 +11,16 @@ namespace Docovee.Controllers.Api;
 public class IntegrationsWebhookController : ControllerBase
 {
     private readonly IPmsCalendarService _pms;
+    private readonly IVoiceCallBookingService _voiceBookings;
     private readonly ILogger<IntegrationsWebhookController> _logger;
 
     public IntegrationsWebhookController(
         IPmsCalendarService pms,
+        IVoiceCallBookingService voiceBookings,
         ILogger<IntegrationsWebhookController> logger)
     {
         _pms = pms;
+        _voiceBookings = voiceBookings;
         _logger = logger;
     }
 
@@ -36,6 +40,34 @@ public class IntegrationsWebhookController : ControllerBase
         CancellationToken cancellationToken)
     {
         return await HandleInboundAsync(PmsProviders.NexHealth, doctorId, cancellationToken);
+    }
+
+    /// <summary>
+    /// ElevenLabs post-call webhook. Configure in Agents → Settings → Post-call webhooks:
+    /// URL: {PublicBaseUrl}/api/integrations/elevenlabs/webhook
+    /// </summary>
+    [HttpPost("elevenlabs/webhook")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ElevenLabsWebhook(CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
+        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var signature = Request.Headers["ElevenLabs-Signature"].FirstOrDefault()
+            ?? Request.Headers["elevenlabs-signature"].FirstOrDefault();
+
+        try
+        {
+            var ok = await _voiceBookings.ProcessPostCallWebhookAsync(rawBody, signature, cancellationToken);
+            if (!ok)
+                return Unauthorized(new { success = false, error = "Invalid webhook signature or payload." });
+
+            return Ok(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ElevenLabs webhook processing failed");
+            return StatusCode(500, new { success = false, error = "Webhook processing failed." });
+        }
     }
 
     [HttpPost("sync")]

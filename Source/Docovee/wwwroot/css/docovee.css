@@ -2985,6 +2985,21 @@ footer.site-footer {
   border-bottom: 1px solid #e5e5e5;
 }
 
+.pi-row-unread .pi-value {
+  font-weight: 700;
+}
+
+.pi-row-unread .pi-label::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #1a73e8;
+  vertical-align: middle;
+}
+
 .pi-row-stack {
   flex-direction: column;
   gap: 12px;

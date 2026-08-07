@@ -25,6 +25,8 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorDoctorLanguage> DoctorDoctorLanguages => Set<DoctorDoctorLanguage>();
     public DbSet<PatientDoctorContactView> PatientDoctorContactViews => Set<PatientDoctorContactView>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<VoiceOutboundCall> VoiceOutboundCalls => Set<VoiceOutboundCall>();
+    public DbSet<PatientNotification> PatientNotifications => Set<PatientNotification>();
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
@@ -280,6 +282,40 @@ public class DocoveeDbContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+        });
+
+        modelBuilder.Entity<VoiceOutboundCall>(entity =>
+        {
+            entity.ToTable("voice_outbound_calls");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ConversationId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.CallSid).HasMaxLength(100);
+            entity.Property(e => e.PatientName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.PatientPhone).HasMaxLength(30);
+            entity.Property(e => e.PatientEmail).HasMaxLength(200);
+            entity.Property(e => e.VisitReason).HasMaxLength(500);
+            entity.Property(e => e.ToNumber).HasMaxLength(30);
+            entity.Property(e => e.Status).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.OutcomeNotes).HasMaxLength(2000);
+            entity.HasIndex(e => e.ConversationId).IsUnique();
+            entity.HasIndex(e => e.SessionKey);
+            entity.HasIndex(e => e.PatientId);
+            entity.HasOne(e => e.SearchSession).WithMany().HasForeignKey(e => e.SearchSessionId);
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
+        });
+
+        modelBuilder.Entity<PatientNotification>(entity =>
+        {
+            entity.ToTable("patient_notifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Type).HasMaxLength(60).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Body).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(e => new { e.PatientId, e.IsRead, e.CreatedAt });
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
         });
 
         modelBuilder.Entity<PmsConnection>(entity =>
