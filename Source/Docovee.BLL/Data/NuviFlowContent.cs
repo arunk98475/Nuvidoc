@@ -192,6 +192,66 @@ public static class NuviFlowContent
 
 
 
+    public const string CallOfficesPermissionQuestion =
+
+        "Would you like me to call their offices to book an appointment?";
+
+
+
+    public const string MatchRevealAfterListMessage =
+
+        "Above is the list of doctors I found that match your requirements. I think they could be a great fit. Here's who I found—and why I think each one could be the right choice.\n\nWould you like me to call their offices to book an appointment?";
+
+
+
+    public static readonly string[] CallOfficesPermissionOptions =
+
+        ["Yes", "No"];
+
+
+
+    public const string CallOfficesDeclineEndMessage =
+
+        "No problem — I've saved your matches above. You can tap any doctor card anytime, or refresh to start a new search. I'm here whenever you need me.";
+
+
+
+    public const string CallOfficesAskQuestionsPrompt =
+
+        "So I can reach out to these docs, can I ask you a few questions?";
+
+
+
+    public static readonly string[] CallOfficesAskQuestionsOptions =
+
+        ["Yes", "No"];
+
+
+
+    public const string CallOfficesAllOrTopQuestion =
+
+        "Do I need to call all doctors or just top one?";
+
+
+
+    public static readonly string[] CallOfficesAllOrTopOptions =
+
+        ["ALL", "Top one"];
+
+
+
+    public const string CallOfficesPreferenceQuestion =
+
+        "Which one you give preference?";
+
+
+
+    public static readonly string[] CallOfficesPreferenceOptions =
+
+        ["Dentist", "Date and Time"];
+
+
+
     public const string DeepDiveWildcardQuestion =
 
         "Is there anything else that matters to you when finding your perfect doctor that we haven't asked yet?";

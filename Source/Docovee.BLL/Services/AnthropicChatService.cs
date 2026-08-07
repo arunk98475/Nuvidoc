@@ -208,6 +208,8 @@ public class AnthropicChatService : IAnthropicChatService
             NuviConversationStage.DeepDive => await HandleDeepDiveAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.RecommendationReveal => await HandleRecommendationRevealAsync(session, context, request, cancellationToken),
             NuviConversationStage.DoctorExplore => await HandleDoctorExploreAsync(session, context, request, cancellationToken),
+            NuviConversationStage.CallingConsent => await HandleCallingConsentAsync(session, context, request, effectiveMessage, cancellationToken),
+            NuviConversationStage.CallingOffices => await HandleCallingOfficesAsync(session, context, cancellationToken),
             NuviConversationStage.BookingInitiation => await HandleBookingInitiationAsync(session, context, request, cancellationToken),
             NuviConversationStage.Confirmation or NuviConversationStage.Complete => BuildResponse(session, context,
                 "You're all set! I'm here whenever you need to find another doctor.", flowComplete: true),
@@ -1284,13 +1286,25 @@ public class AnthropicChatService : IAnthropicChatService
         context.RecommendedDoctorIds.Clear();
 
         var displayName = GetDisplayName(context);
-        var revealText = doctors.Count > 0
-            ? $"{displayName}, based on everything you've shared, I've personally matched you with {doctors.Count} doctor{(doctors.Count == 1 ? "" : "s")} I think could be a great fit. Here's who I found — and here's WHY I think each one could be the one."
-            : $"{displayName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
+        if (doctors.Count == 0)
+        {
+            var noMatchText = $"{displayName}, I couldn't find an exact match in your area right now, but I'm still here to help refine your search.";
+            await SaveAssistantMessageAsync(session, noMatchText, cancellationToken);
+            return BuildResponse(session, context, noMatchText, stage: NuviConversationStage.RecommendationReveal,
+                doctorCards: doctors);
+        }
 
-        await SaveAssistantMessageAsync(session, revealText, cancellationToken);
-        return BuildResponse(session, context, revealText, stage: NuviConversationStage.RecommendationReveal,
-            doctorCards: doctors);
+        context.Stage = NuviConversationStage.CallingConsent;
+        context.CallingStep = CallingConsentStep.AskCallPermission;
+        context.CallScope = CallOfficeScope.None;
+        context.CallPreference = CallOfficePreference.None;
+
+        var afterListText = NuviFlowContent.MatchRevealAfterListMessage;
+        await SaveAssistantMessageAsync(session, afterListText, cancellationToken);
+        return BuildResponse(session, context, afterListText, stage: NuviConversationStage.CallingConsent,
+            doctorCards: doctors,
+            options: NuviFlowContent.CallOfficesPermissionOptions,
+            optionsOnly: true);
     }
 
     private async Task PersistPatientPreferenceProfileAsync(
@@ -1396,6 +1410,264 @@ public class AnthropicChatService : IAnthropicChatService
 
         return BuildResponse(session, context, text, stage: NuviConversationStage.RecommendationReveal,
             selectedDoctor: doctorDetail);
+    }
+
+    private async Task<ChatMessageResponse> HandleCallingConsentAsync(
+        SearchSession session,
+        SearchContextData context,
+        ChatMessageRequest request,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (IsDoctorCardOnlyRequest(request) && request.SelectedDoctorId.HasValue)
+        {
+            var explore = await HandleDoctorExploreAsync(session, context, request, cancellationToken);
+            context.Stage = NuviConversationStage.CallingConsent;
+            var (_, options) = GetCallingConsentPrompt(context);
+            return BuildResponse(session, context, explore.Text ?? string.Empty,
+                stage: NuviConversationStage.CallingConsent,
+                selectedDoctor: explore.SelectedDoctor,
+                options: options,
+                optionsOnly: true);
+        }
+
+        if (context.CallingStep == CallingConsentStep.None)
+            context.CallingStep = CallingConsentStep.AskCallPermission;
+
+        switch (context.CallingStep)
+        {
+            case CallingConsentStep.AskCallPermission:
+                if (IsNegativeAnswer(message) || IsCallDecline(message))
+                {
+                    context.Stage = NuviConversationStage.Confirmation;
+                    context.CallingStep = CallingConsentStep.None;
+                    var endText = NuviFlowContent.CallOfficesDeclineEndMessage;
+                    await SaveAssistantMessageAsync(session, endText, cancellationToken);
+                    return BuildResponse(session, context, endText,
+                        stage: NuviConversationStage.Confirmation, flowComplete: true);
+                }
+
+                if (!IsAffirmativeAnswer(message) && !IsCallAccept(message))
+                {
+                    var reprompt = NuviFlowContent.CallOfficesPermissionQuestion;
+                    await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+                    return BuildResponse(session, context, reprompt,
+                        stage: NuviConversationStage.CallingConsent,
+                        options: NuviFlowContent.CallOfficesPermissionOptions,
+                        optionsOnly: true);
+                }
+
+                context.CallingStep = CallingConsentStep.AskMoreQuestions;
+                var askMore = NuviFlowContent.CallOfficesAskQuestionsPrompt;
+                await SaveAssistantMessageAsync(session, askMore, cancellationToken);
+                return BuildResponse(session, context, askMore,
+                    stage: NuviConversationStage.CallingConsent,
+                    options: NuviFlowContent.CallOfficesAskQuestionsOptions,
+                    optionsOnly: true);
+
+            case CallingConsentStep.AskMoreQuestions:
+                if (IsNegativeAnswer(message) || IsCallDecline(message))
+                {
+                    context.CallScope = CallOfficeScope.TopOne;
+                    return await StartCallingOfficesAsync(session, context, cancellationToken);
+                }
+
+                if (!IsAffirmativeAnswer(message) && !IsCallAccept(message))
+                {
+                    var reprompt = NuviFlowContent.CallOfficesAskQuestionsPrompt;
+                    await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+                    return BuildResponse(session, context, reprompt,
+                        stage: NuviConversationStage.CallingConsent,
+                        options: NuviFlowContent.CallOfficesAskQuestionsOptions,
+                        optionsOnly: true);
+                }
+
+                context.CallingStep = CallingConsentStep.AskAllOrTop;
+                var allOrTop = NuviFlowContent.CallOfficesAllOrTopQuestion;
+                await SaveAssistantMessageAsync(session, allOrTop, cancellationToken);
+                return BuildResponse(session, context, allOrTop,
+                    stage: NuviConversationStage.CallingConsent,
+                    options: NuviFlowContent.CallOfficesAllOrTopOptions,
+                    optionsOnly: true);
+
+            case CallingConsentStep.AskAllOrTop:
+                if (IsTopOneScope(message))
+                {
+                    context.CallScope = CallOfficeScope.TopOne;
+                    return await StartCallingOfficesAsync(session, context, cancellationToken);
+                }
+
+                if (IsAllScope(message))
+                {
+                    context.CallScope = CallOfficeScope.All;
+                    context.CallingStep = CallingConsentStep.AskPreference;
+                    var preferenceQ = NuviFlowContent.CallOfficesPreferenceQuestion;
+                    await SaveAssistantMessageAsync(session, preferenceQ, cancellationToken);
+                    return BuildResponse(session, context, preferenceQ,
+                        stage: NuviConversationStage.CallingConsent,
+                        options: NuviFlowContent.CallOfficesPreferenceOptions,
+                        optionsOnly: true);
+                }
+
+                {
+                    var reprompt = NuviFlowContent.CallOfficesAllOrTopQuestion;
+                    await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+                    return BuildResponse(session, context, reprompt,
+                        stage: NuviConversationStage.CallingConsent,
+                        options: NuviFlowContent.CallOfficesAllOrTopOptions,
+                        optionsOnly: true);
+                }
+
+            case CallingConsentStep.AskPreference:
+                if (IsDentistPreference(message))
+                {
+                    context.CallPreference = CallOfficePreference.Dentist;
+                    return await StartCallingOfficesAsync(session, context, cancellationToken);
+                }
+
+                if (IsDateTimePreference(message))
+                {
+                    context.CallPreference = CallOfficePreference.DateAndTime;
+                    return await StartCallingOfficesAsync(session, context, cancellationToken);
+                }
+
+                {
+                    var reprompt = NuviFlowContent.CallOfficesPreferenceQuestion;
+                    await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+                    return BuildResponse(session, context, reprompt,
+                        stage: NuviConversationStage.CallingConsent,
+                        options: NuviFlowContent.CallOfficesPreferenceOptions,
+                        optionsOnly: true);
+                }
+
+            default:
+                context.CallingStep = CallingConsentStep.AskCallPermission;
+                var restart = NuviFlowContent.CallOfficesPermissionQuestion;
+                await SaveAssistantMessageAsync(session, restart, cancellationToken);
+                return BuildResponse(session, context, restart,
+                    stage: NuviConversationStage.CallingConsent,
+                    options: NuviFlowContent.CallOfficesPermissionOptions,
+                    optionsOnly: true);
+        }
+    }
+
+    private async Task<ChatMessageResponse> HandleCallingOfficesAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        return await StartCallingOfficesAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> StartCallingOfficesAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.CallingOffices;
+        var doctors = await LoadMatchedDoctorsInRankOrderAsync(session, context, cancellationToken);
+        var topDoctor = doctors.FirstOrDefault();
+        var topName = topDoctor?.Name ?? "your top match";
+        var urgencyWindow = FormatUrgencyBookingWindow(context.UrgencyPreference);
+
+        string text;
+        if (context.CallScope == CallOfficeScope.TopOne || doctors.Count <= 1)
+        {
+            context.SelectedDoctorId = topDoctor?.Id;
+            text = doctors.Count == 0
+                ? "I don't have a matched office to call yet. Tap refresh to start a new search whenever you're ready."
+                : $"Great — I'll call {topName} now to help book your appointment. I'll update you here as soon as I hear back.";
+        }
+        else if (context.CallPreference == CallOfficePreference.DateAndTime)
+        {
+            text = $"Perfect — I'll call your matched doctors one by one from the top until we find a booking available {urgencyWindow}. Starting with {topName}. I'll keep you posted here.";
+        }
+        else
+        {
+            // Dentist preference or default for ALL
+            text = $"Perfect — I'll call your matched doctors one by one from the top until a booking is available any time. Starting with {topName}. I'll keep you posted here.";
+        }
+
+        context.Stage = NuviConversationStage.Confirmation;
+        context.BookingConfirmed = true;
+        context.CallingStep = CallingConsentStep.None;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.Confirmation, flowComplete: true);
+    }
+
+    private async Task<IReadOnlyList<DoctorDto>> LoadMatchedDoctorsInRankOrderAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        var doctors = await LoadMatchedDoctorsAsync(session, context, cancellationToken);
+        if (context.MatchedDoctorIds == null || context.MatchedDoctorIds.Count == 0)
+            return doctors;
+
+        var order = context.MatchedDoctorIds
+            .Select((id, index) => (id, index))
+            .ToDictionary(x => x.id, x => x.index);
+
+        return doctors
+            .OrderBy(d => order.TryGetValue(d.Id, out var idx) ? idx : int.MaxValue)
+            .ToList();
+    }
+
+    private static (string Prompt, IReadOnlyList<string> Options) GetCallingConsentPrompt(SearchContextData context) =>
+        context.CallingStep switch
+        {
+            CallingConsentStep.AskMoreQuestions =>
+                (NuviFlowContent.CallOfficesAskQuestionsPrompt, NuviFlowContent.CallOfficesAskQuestionsOptions),
+            CallingConsentStep.AskAllOrTop =>
+                (NuviFlowContent.CallOfficesAllOrTopQuestion, NuviFlowContent.CallOfficesAllOrTopOptions),
+            CallingConsentStep.AskPreference =>
+                (NuviFlowContent.CallOfficesPreferenceQuestion, NuviFlowContent.CallOfficesPreferenceOptions),
+            _ =>
+                (NuviFlowContent.CallOfficesPermissionQuestion, NuviFlowContent.CallOfficesPermissionOptions)
+        };
+
+    private static string FormatUrgencyBookingWindow(string? urgencyPreference)
+    {
+        var u = (urgencyPreference ?? string.Empty).Trim().ToLowerInvariant();
+        if (u.Contains("asap") || u.Contains("this week") || u.Contains("week"))
+            return "ASAP / this week";
+        if (u.Contains("month"))
+            return "within a month";
+        if (u.Contains("rush") || u.Contains("explor"))
+            return "on a flexible timeline";
+        return string.IsNullOrWhiteSpace(urgencyPreference)
+            ? "in your preferred timeframe"
+            : $"for {urgencyPreference.Trim()}";
+    }
+
+    private static bool IsCallAccept(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "yes" or "y" or "yeah" or "yep" or "yup" or "sure" or "ok" or "okay";
+    }
+
+    private static bool IsCallDecline(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "no" or "n" or "nope" or "nah" or "no thanks" or "no thank you";
+    }
+
+    private static bool IsTopOneScope(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "top one" or "top" or "one" or "just top one" or "top 1";
+    }
+
+    private static bool IsAllScope(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "all" or "all doctors" or "everyone" or "every doctor";
+    }
+
+    private static bool IsDentistPreference(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "dentist" or "doctor" or "doctors" or "dentists";
+    }
+
+    private static bool IsDateTimePreference(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "date and time" or "date" or "time" or "datetime" or "date & time";
     }
 
     private async Task<ChatMessageResponse> HandleBookingInitiationAsync(
@@ -1989,7 +2261,8 @@ public class AnthropicChatService : IAnthropicChatService
         bool awaitingLanguageSelection = false,
         bool awaitingWildcardConcern = false,
         string? pollingQuestionKind = null,
-        string? inputPlaceholder = null)
+        string? inputPlaceholder = null,
+        bool? optionsOnly = null)
     {
         return new ChatMessageResponse
         {
@@ -1997,7 +2270,7 @@ public class AnthropicChatService : IAnthropicChatService
             Text = text,
             Stage = (stage ?? context.Stage).ToString(),
             Options = options,
-            OptionsOnly = IsYesNoOptionSet(options),
+            OptionsOnly = optionsOnly ?? IsYesNoOptionSet(options),
             ShowLoading = showLoading,
             AwaitingMatchSearch = awaitingMatchSearch,
             FollowUpText = followUpText,
@@ -2453,6 +2726,8 @@ public class AnthropicChatService : IAnthropicChatService
 
         return context.Stage is NuviConversationStage.RecommendationReveal
             or NuviConversationStage.DoctorExplore
+            or NuviConversationStage.CallingConsent
+            or NuviConversationStage.CallingOffices
             or NuviConversationStage.BookingInitiation
             or NuviConversationStage.Confirmation
             or NuviConversationStage.Complete;

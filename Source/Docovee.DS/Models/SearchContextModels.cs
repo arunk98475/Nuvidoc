@@ -11,9 +11,34 @@ public enum NuviConversationStage
     DeepDive,
     RecommendationReveal,
     DoctorExplore,
+    CallingConsent,
+    CallingOffices,
     BookingInitiation,
     Confirmation,
     Complete
+}
+
+public enum CallingConsentStep
+{
+    None,
+    AskCallPermission,
+    AskMoreQuestions,
+    AskAllOrTop,
+    AskPreference
+}
+
+public enum CallOfficeScope
+{
+    None,
+    TopOne,
+    All
+}
+
+public enum CallOfficePreference
+{
+    None,
+    Dentist,
+    DateAndTime
 }
 
 public enum AccountCreationStep
@@ -73,6 +98,9 @@ public class SearchContextData
     public bool BookingConfirmed { get; set; }
     public string? PendingNormalizedAnswer { get; set; }
     public bool AwaitingMatchSearch { get; set; }
+    public CallingConsentStep CallingStep { get; set; } = CallingConsentStep.None;
+    public CallOfficeScope CallScope { get; set; } = CallOfficeScope.None;
+    public CallOfficePreference CallPreference { get; set; } = CallOfficePreference.None;
 }
 
 public class PollingAnswerEntry
