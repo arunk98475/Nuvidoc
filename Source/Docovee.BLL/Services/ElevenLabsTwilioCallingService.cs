@@ -101,6 +101,8 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             ["to_number"] = toNumber,
             ["conversation_initiation_client_data"] = new Dictionary<string, object?>
             {
+                // Do NOT override first_message unless the agent Security → Overrides
+                // toggle for First message is enabled (otherwise call fails instantly).
                 ["dynamic_variables"] = BuildDynamicVariables(request)
             }
         };
@@ -181,16 +183,44 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
     private static Dictionary<string, string> BuildDynamicVariables(NuviOutboundCallRequest request)
     {
         var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        AddVar(vars, "patient_name", request.PatientName);
+
+        var dateTime = FirstNonEmpty(
+            request.PreferredDate,
+            request.PreferredTimeWindow,
+            request.AvailabilityWindow,
+            "within the next 30 days");
+
+        // Required by the agent first message / prompt — always send (never omit).
+        vars["patient_name"] = FirstNonEmpty(request.PatientName, "a patient");
+        vars["date_time"] = dateTime;
+        vars["preferred_date"] = dateTime;
+        vars["preferred_time_window"] = dateTime;
+        vars["availability_window"] = dateTime;
+        vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+        vars["practice_name"] = FirstNonEmpty(request.PracticeName, request.DoctorName, "your office");
+        vars["external_call_id"] = FirstNonEmpty(request.SessionKey, Guid.NewGuid().ToString("N"));
+
         AddVar(vars, "patient_phone", request.PatientPhone);
         AddVar(vars, "patient_email", request.PatientEmail);
+        AddVar(vars, "insurance_name", request.InsuranceName);
+        AddVar(vars, "practice_phone", request.PracticePhone);
+        AddVar(vars, "call_context", request.CallContext);
         AddVar(vars, "doctor_name", request.DoctorName);
-        AddVar(vars, "practice_name", request.PracticeName);
         AddVar(vars, "call_preference", request.CallPreference);
-        AddVar(vars, "availability_window", request.AvailabilityWindow);
         AddVar(vars, "chief_complaint", request.ChiefComplaint);
         AddVar(vars, "session_key", request.SessionKey);
         return vars;
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+                return value.Trim();
+        }
+
+        return string.Empty;
     }
 
     private static void AddVar(IDictionary<string, string> vars, string key, string? value)

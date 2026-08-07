@@ -1569,6 +1569,7 @@ public class AnthropicChatService : IAnthropicChatService
         context.Stage = NuviConversationStage.CallingOffices;
         var doctors = await LoadMatchedDoctorsInRankOrderAsync(session, context, cancellationToken);
         var urgencyWindow = FormatUrgencyBookingWindow(context.UrgencyPreference);
+        var agentDateTime = FormatAgentDateTimePhrase(context.UrgencyPreference);
         var callPreferenceLabel = context.CallPreference == CallOfficePreference.DateAndTime
             ? "date_and_time"
             : context.CallPreference == CallOfficePreference.Dentist
@@ -1629,17 +1630,29 @@ public class AnthropicChatService : IAnthropicChatService
         }
 
         var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+        var callContext = context.CallScope == CallOfficeScope.All
+            ? (context.CallPreference == CallOfficePreference.DateAndTime
+                ? $"Call offices in rank order until a booking is available {urgencyWindow}."
+                : "Call offices in rank order until any booking is available.")
+            : "Call the top matched doctor only.";
+
         var callResult = await _voiceCalling.PlaceOfficeCallAsync(new NuviOutboundCallRequest
         {
             ToNumber = dialNumber,
             DoctorName = target.Value.Doctor.Name,
             PracticeName = target.Value.Doctor.PracticeName,
+            PracticePhone = target.Value.PhoneE164,
             PatientName = GetDisplayName(context),
             PatientPhone = context.PendingPhone,
             PatientEmail = context.PendingEmail,
             CallPreference = callPreferenceLabel,
             AvailabilityWindow = urgencyWindow,
+            PreferredDate = agentDateTime,
+            PreferredTimeWindow = agentDateTime,
+            AppointmentType = string.IsNullOrWhiteSpace(chiefComplaint) ? "dental appointment" : chiefComplaint,
+            InsuranceName = context.InsurancePreference ?? context.InsuranceCategory,
             ChiefComplaint = chiefComplaint,
+            CallContext = callContext,
             SessionKey = session.SessionKey.ToString()
         }, cancellationToken);
 
@@ -1723,18 +1736,30 @@ public class AnthropicChatService : IAnthropicChatService
                 (NuviFlowContent.CallOfficesPermissionQuestion, NuviFlowContent.CallOfficesPermissionOptions)
         };
 
-    private static string FormatUrgencyBookingWindow(string? urgencyPreference)
+    private static string FormatUrgencyBookingWindow(string? urgencyPreference) =>
+        FormatAgentDateTimePhrase(urgencyPreference);
+
+    /// <summary>
+    /// Phrase injected into ElevenLabs {{date_time}} / preferred_date for the office call.
+    /// ASAP → this week; Within a month → next 30 days; No rush → 120 days; Just exploring → 180 days.
+    /// </summary>
+    private static string FormatAgentDateTimePhrase(string? urgencyPreference)
     {
         var u = (urgencyPreference ?? string.Empty).Trim().ToLowerInvariant();
-        if (u.Contains("asap") || u.Contains("this week") || u.Contains("week"))
-            return "ASAP / this week";
+
+        if (u.Contains("asap") || u.Contains("this week"))
+            return "this week";
+
         if (u.Contains("month"))
-            return "within a month";
-        if (u.Contains("rush") || u.Contains("explor"))
-            return "on a flexible timeline";
-        return string.IsNullOrWhiteSpace(urgencyPreference)
-            ? "in your preferred timeframe"
-            : $"for {urgencyPreference.Trim()}";
+            return "within the next 30 days";
+
+        if (u.Contains("no rush"))
+            return "within the next 120 days";
+
+        if (u.Contains("explor"))
+            return "within the next 180 days";
+
+        return "within the next 30 days";
     }
 
     private static bool IsCallAccept(string message)
