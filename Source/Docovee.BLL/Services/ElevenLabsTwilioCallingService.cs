@@ -190,6 +190,14 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             request.AvailabilityWindow,
             "within the next 30 days");
 
+        // Practices / ElevenLabs are US Pacific — give the agent an explicit "today" so past-date rules work.
+        // App timing is always PST/PDT regardless of the server's local timezone (e.g. IST).
+        var nowPacific = GetClinicNow();
+        vars["current_date"] = nowPacific.ToString("dddd, MMMM d, yyyy");
+        vars["current_datetime"] = nowPacific.ToString("yyyy-MM-dd HH:mm");
+        vars["current_timezone"] = "America/Los_Angeles (US Pacific Time)";
+        vars["today"] = nowPacific.ToString("yyyy-MM-dd");
+
         // Required by the agent first message / prompt — always send (never omit).
         vars["patient_name"] = FirstNonEmpty(request.PatientName, "a patient");
         vars["date_time"] = dateTime;
@@ -210,6 +218,21 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         AddVar(vars, "chief_complaint", request.ChiefComplaint);
         AddVar(vars, "session_key", request.SessionKey);
         return vars;
+    }
+
+    /// <summary>Clinic-local "now" in US Pacific (PST/PDT). Server local time (e.g. IST) is ignored.</summary>
+    internal static DateTime GetClinicNow()
+    {
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(
+                OperatingSystem.IsWindows() ? "Pacific Standard Time" : "America/Los_Angeles");
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+        }
+        catch
+        {
+            return DateTime.UtcNow.AddHours(-8); // PST fallback approx
+        }
     }
 
     private static string FirstNonEmpty(params string?[] values)

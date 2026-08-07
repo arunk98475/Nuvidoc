@@ -288,6 +288,27 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return false;
 
         var outcome = ExtractBookingOutcome(data);
+
+        // Reject past appointment times even if the agent marked the call as booked.
+        // Compare in US Pacific (clinic) time — server may run in another timezone (e.g. IST).
+        var clinicNow = ElevenLabsTwilioCallingService.GetClinicNow();
+        if (outcome.IsBooked && outcome.StartsAt is DateTime proposed
+            && NormalizeToClinicLocal(proposed) < clinicNow.AddMinutes(-1))
+        {
+            var pastNote =
+                $"Office gave a past appointment time ({proposed:ddd, MMM d yyyy h:mm tt}). Booking was not saved — need a future date/time.";
+            outcome = new BookingOutcome(
+                false,
+                proposed,
+                VoiceOutboundCallStatuses.NoSlot,
+                string.IsNullOrWhiteSpace(outcome.Notes)
+                    ? pastNote
+                    : $"{outcome.Notes} | {pastNote}");
+            _logger.LogInformation(
+                "Rejected past booking datetime {StartsAt} for conversation {ConversationId} (clinicNow={ClinicNow})",
+                proposed, conversationId, clinicNow);
+        }
+
         call.UpdatedAt = DateTime.UtcNow;
         call.CompletedAt = DateTime.UtcNow;
         call.OutcomeNotes = Truncate(outcome.Notes, 2000);
@@ -310,7 +331,28 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
         }
 
-        var startsAt = outcome.StartsAt ?? DateTime.Now.Date.AddDays(1).AddHours(10);
+        var startsAt = outcome.StartsAt ?? clinicNow.Date.AddDays(1).AddHours(10);
+        startsAt = NormalizeToClinicLocal(startsAt);
+        if (startsAt < clinicNow.AddMinutes(-1))
+        {
+            call.Status = VoiceOutboundCallStatuses.NoSlot;
+            call.OutcomeNotes = Truncate(
+                $"Rejected past appointment time ({startsAt:g}).", 2000);
+            await _db.SaveChangesAsync(cancellationToken);
+            if (call.PatientId is > 0)
+            {
+                await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.VoiceCallUpdate,
+                    "Nuvi call update",
+                    $"The office offered a past time ({startsAt:ddd, MMM d yyyy h:mm tt}). No appointment was saved.",
+                    doctorId: call.DoctorId,
+                    cancellationToken: cancellationToken);
+            }
+
+            return true;
+        }
+
         var doctor = await _db.Doctors.AsNoTracking().FirstOrDefaultAsync(d => d.Id == call.DoctorId, cancellationToken);
         DateOnly? dob = null;
         if (call.PatientId is > 0)
@@ -596,6 +638,31 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
 
         return false;
+    }
+
+    /// <summary>
+    /// Treat unspecified DateTimeKind values as clinic-local (Pacific), not server-local.
+    /// </summary>
+    private static DateTime NormalizeToClinicLocal(DateTime value)
+    {
+        if (value.Kind == DateTimeKind.Utc)
+            return TimeZoneInfo.ConvertTimeFromUtc(value, GetClinicTimeZone());
+
+        // Unspecified / Local: keep wall-clock as clinic local (agent speaks in practice time).
+        return DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
+    }
+
+    private static TimeZoneInfo GetClinicTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(
+                OperatingSystem.IsWindows() ? "Pacific Standard Time" : "America/Los_Angeles");
+        }
+        catch
+        {
+            return TimeZoneInfo.Utc;
+        }
     }
 
     private static bool TryExtractJsonDate(string json, out DateTime startsAt)
