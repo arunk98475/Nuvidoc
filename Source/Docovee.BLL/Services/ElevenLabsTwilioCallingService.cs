@@ -1,0 +1,313 @@
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Docovee.BLL.Configuration;
+using Docovee.logging;
+using Microsoft.Extensions.Options;
+
+namespace Docovee.BLL.Services;
+
+/// <summary>
+/// Places outbound PSTN calls via ElevenLabs Conversational AI + Twilio integration
+/// (POST /v1/convai/twilio/outbound-call).
+/// </summary>
+public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    private readonly HttpClient _httpClient;
+    private readonly ElevenLabsOptions _elevenLabs;
+    private readonly TwilioOptions _twilio;
+    private readonly IDocoveeLogger _logger;
+    private string? _resolvedPhoneNumberId;
+
+    public ElevenLabsTwilioCallingService(
+        HttpClient httpClient,
+        IOptions<ElevenLabsOptions> elevenLabs,
+        IOptions<TwilioOptions> twilio,
+        IDocoveeLogger logger)
+    {
+        _httpClient = httpClient;
+        _elevenLabs = elevenLabs.Value;
+        _twilio = twilio.Value;
+        _logger = logger;
+
+        var baseUrl = string.IsNullOrWhiteSpace(_elevenLabs.BaseUrl)
+            ? "https://api.elevenlabs.io"
+            : _elevenLabs.BaseUrl.TrimEnd('/');
+        _httpClient.BaseAddress = new Uri(baseUrl + "/");
+        _httpClient.DefaultRequestHeaders.Remove("xi-api-key");
+        if (!string.IsNullOrWhiteSpace(_elevenLabs.ApiKey))
+            _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("xi-api-key", _elevenLabs.ApiKey.Trim());
+        _httpClient.DefaultRequestHeaders.Accept.Clear();
+        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+    }
+
+    public bool IsConfigured =>
+        !string.IsNullOrWhiteSpace(_elevenLabs.ApiKey)
+        && !string.IsNullOrWhiteSpace(_elevenLabs.AgentId)
+        && (!string.IsNullOrWhiteSpace(_elevenLabs.AgentPhoneNumberId)
+            || !string.IsNullOrWhiteSpace(_twilio.FromNumber));
+
+    public async Task<NuviOutboundCallResult> PlaceOfficeCallAsync(
+        NuviOutboundCallRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsConfigured)
+        {
+            return new NuviOutboundCallResult
+            {
+                Success = false,
+                Message = "Voice calling is not configured. Add ElevenLabs ApiKey, AgentId, and AgentPhoneNumberId (or Twilio FromNumber).",
+                ToNumber = request.ToNumber
+            };
+        }
+
+        var toNumber = ToE164(request.ToNumber);
+        if (string.IsNullOrWhiteSpace(toNumber))
+        {
+            return new NuviOutboundCallResult
+            {
+                Success = false,
+                Message = "The office phone number is missing or invalid.",
+                ToNumber = request.ToNumber
+            };
+        }
+
+        string phoneNumberId;
+        try
+        {
+            phoneNumberId = await ResolveAgentPhoneNumberIdAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to resolve ElevenLabs agent phone number id.");
+            return new NuviOutboundCallResult
+            {
+                Success = false,
+                Message = "Could not resolve the ElevenLabs Twilio phone number. Import the Twilio number in ElevenLabs and set AgentPhoneNumberId.",
+                ToNumber = toNumber
+            };
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["agent_id"] = _elevenLabs.AgentId.Trim(),
+            ["agent_phone_number_id"] = phoneNumberId,
+            ["to_number"] = toNumber,
+            ["conversation_initiation_client_data"] = new Dictionary<string, object?>
+            {
+                ["dynamic_variables"] = BuildDynamicVariables(request)
+            }
+        };
+
+        try
+        {
+            using var content = new StringContent(JsonSerializer.Serialize(payload, JsonOptions), Encoding.UTF8, "application/json");
+            using var response = await _httpClient.PostAsync("v1/convai/twilio/outbound-call", content, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation(
+                    "ElevenLabs outbound call failed. Status={Status} Body={Body}",
+                    (int)response.StatusCode,
+                    Truncate(body, 500));
+
+                return new NuviOutboundCallResult
+                {
+                    Success = false,
+                    Message = $"ElevenLabs call failed ({(int)response.StatusCode}): {ExtractErrorMessage(body)}",
+                    ToNumber = toNumber
+                };
+            }
+
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
+            var root = doc.RootElement;
+            var success = !root.TryGetProperty("success", out var successEl) || successEl.ValueKind != JsonValueKind.False;
+            var message = root.TryGetProperty("message", out var msgEl) && msgEl.ValueKind == JsonValueKind.String
+                ? msgEl.GetString() ?? "Call initiated."
+                : "Call initiated.";
+            var conversationId = root.TryGetProperty("conversation_id", out var convEl) && convEl.ValueKind == JsonValueKind.String
+                ? convEl.GetString()
+                : null;
+            var callSid = root.TryGetProperty("callSid", out var sidEl) && sidEl.ValueKind == JsonValueKind.String
+                ? sidEl.GetString()
+                : root.TryGetProperty("call_sid", out var sidEl2) && sidEl2.ValueKind == JsonValueKind.String
+                    ? sidEl2.GetString()
+                    : null;
+
+            if (!success)
+            {
+                return new NuviOutboundCallResult
+                {
+                    Success = false,
+                    Message = message,
+                    ConversationId = conversationId,
+                    CallSid = callSid,
+                    ToNumber = toNumber
+                };
+            }
+
+            _logger.LogInformation(
+                "ElevenLabs outbound call started. To={To} ConversationId={ConversationId} CallSid={CallSid}",
+                toNumber, conversationId ?? "", callSid ?? "");
+
+            return new NuviOutboundCallResult
+            {
+                Success = true,
+                Message = message,
+                ConversationId = conversationId,
+                CallSid = callSid,
+                ToNumber = toNumber
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ElevenLabs outbound call request failed for {ToNumber}", toNumber);
+            return new NuviOutboundCallResult
+            {
+                Success = false,
+                Message = "Unable to reach ElevenLabs to place the call. Please try again shortly.",
+                ToNumber = toNumber
+            };
+        }
+    }
+
+    private static Dictionary<string, string> BuildDynamicVariables(NuviOutboundCallRequest request)
+    {
+        var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        AddVar(vars, "patient_name", request.PatientName);
+        AddVar(vars, "patient_phone", request.PatientPhone);
+        AddVar(vars, "patient_email", request.PatientEmail);
+        AddVar(vars, "doctor_name", request.DoctorName);
+        AddVar(vars, "practice_name", request.PracticeName);
+        AddVar(vars, "call_preference", request.CallPreference);
+        AddVar(vars, "availability_window", request.AvailabilityWindow);
+        AddVar(vars, "chief_complaint", request.ChiefComplaint);
+        AddVar(vars, "session_key", request.SessionKey);
+        return vars;
+    }
+
+    private static void AddVar(IDictionary<string, string> vars, string key, string? value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            vars[key] = value.Trim();
+    }
+
+    private async Task<string> ResolveAgentPhoneNumberIdAsync(CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(_resolvedPhoneNumberId))
+            return _resolvedPhoneNumberId;
+
+        var configured = _elevenLabs.AgentPhoneNumberId?.Trim();
+        if (!string.IsNullOrWhiteSpace(configured) && !LooksLikePhoneNumber(configured))
+        {
+            _resolvedPhoneNumberId = configured;
+            return configured;
+        }
+
+        var matchPhone = LooksLikePhoneNumber(configured)
+            ? configured
+            : _twilio.FromNumber;
+
+        using var response = await _httpClient.GetAsync("v1/convai/phone-numbers?provider=twilio", cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"List phone numbers failed ({(int)response.StatusCode}): {Truncate(body, 300)}");
+
+        using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "[]" : body);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+            throw new InvalidOperationException("No Twilio phone numbers are imported in ElevenLabs yet.");
+
+        string? resolved = null;
+        foreach (var item in doc.RootElement.EnumerateArray())
+        {
+            var id = item.TryGetProperty("phone_number_id", out var idEl) ? idEl.GetString() : null;
+            var number = item.TryGetProperty("phone_number", out var numEl) ? numEl.GetString() : null;
+            if (string.IsNullOrWhiteSpace(id))
+                continue;
+
+            if (string.IsNullOrWhiteSpace(matchPhone) || PhoneNumberHelper.Matches(matchPhone, number))
+            {
+                resolved = id;
+                if (!string.IsNullOrWhiteSpace(matchPhone) && PhoneNumberHelper.Matches(matchPhone, number))
+                    break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(resolved))
+            throw new InvalidOperationException(
+                $"Could not find ElevenLabs phone_number_id for {matchPhone}. Import that Twilio number in ElevenLabs Agents → Phone Numbers.");
+
+        _resolvedPhoneNumberId = resolved;
+        return resolved;
+    }
+
+    private static bool LooksLikePhoneNumber(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith('+'))
+            return true;
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+        return digits.Length >= 10 && digits.Length == trimmed.Count(c => char.IsDigit(c) || char.IsWhiteSpace(c) || c is '-' or '(' or ')');
+    }
+
+    public static string? ToE164(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return null;
+
+        var trimmed = phone.Trim();
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+        if (digits.Length < 10)
+            return null;
+
+        if (trimmed.StartsWith('+'))
+            return "+" + digits;
+
+        if (digits.Length == 10)
+            return "+1" + digits;
+
+        if (digits.Length == 11 && digits.StartsWith('1'))
+            return "+" + digits;
+
+        return "+" + digits;
+    }
+
+    private static string ExtractErrorMessage(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("detail", out var detail))
+            {
+                if (detail.ValueKind == JsonValueKind.String)
+                    return detail.GetString() ?? body;
+                return Truncate(detail.ToString(), 300);
+            }
+
+            if (doc.RootElement.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+                return message.GetString() ?? body;
+        }
+        catch
+        {
+            // fall through
+        }
+
+        return Truncate(body, 300);
+    }
+
+    private static string Truncate(string? value, int max)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        return value.Length <= max ? value : value[..max] + "…";
+    }
+}

@@ -45,6 +45,8 @@ public static class DependencyInjection
         services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));
         services.Configure<SiteOptions>(configuration.GetSection(SiteOptions.SectionName));
         services.Configure<ChatBotOptions>(configuration.GetSection(ChatBotOptions.SectionName));
+        services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.SectionName));
+        services.Configure<ElevenLabsOptions>(configuration.GetSection(ElevenLabsOptions.SectionName));
         services.AddSingleton<IBrandingService, BrandingService>();
 
         services.AddDocoveeLogging();
@@ -61,6 +63,10 @@ public static class DependencyInjection
         services.AddHttpClient<IClaudeGoogleReviewService, ClaudeGoogleReviewService>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(90);
+        });
+        services.AddHttpClient<INuviVoiceCallingService, ElevenLabsTwilioCallingService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
         });
 
         services.AddScoped<IDoctorSearchService, DoctorSearchService>();

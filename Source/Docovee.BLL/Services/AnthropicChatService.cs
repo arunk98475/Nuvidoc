@@ -47,6 +47,8 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IDoctorLanguageService _doctorLanguages;
     private readonly IPatientDoctorContactService _patientDoctorContacts;
     private readonly IClaudeGoogleReviewService _googleReviews;
+    private readonly INuviVoiceCallingService _voiceCalling;
+    private readonly TwilioOptions _twilioOptions;
 
     public AnthropicChatService(
         HttpClient httpClient,
@@ -61,7 +63,9 @@ public class AnthropicChatService : IAnthropicChatService
         IBrandingService branding,
         IDoctorLanguageService doctorLanguages,
         IPatientDoctorContactService patientDoctorContacts,
-        IClaudeGoogleReviewService googleReviews)
+        IClaudeGoogleReviewService googleReviews,
+        INuviVoiceCallingService voiceCalling,
+        IOptions<TwilioOptions> twilioOptions)
     {
         _httpClient = httpClient;
         _db = db;
@@ -76,6 +80,8 @@ public class AnthropicChatService : IAnthropicChatService
         _doctorLanguages = doctorLanguages;
         _patientDoctorContacts = patientDoctorContacts;
         _googleReviews = googleReviews;
+        _voiceCalling = voiceCalling;
+        _twilioOptions = twilioOptions.Value;
     }
 
     private string TriageSystemPrompt => $"""
@@ -1562,33 +1568,130 @@ public class AnthropicChatService : IAnthropicChatService
     {
         context.Stage = NuviConversationStage.CallingOffices;
         var doctors = await LoadMatchedDoctorsInRankOrderAsync(session, context, cancellationToken);
-        var topDoctor = doctors.FirstOrDefault();
-        var topName = topDoctor?.Name ?? "your top match";
         var urgencyWindow = FormatUrgencyBookingWindow(context.UrgencyPreference);
+        var callPreferenceLabel = context.CallPreference == CallOfficePreference.DateAndTime
+            ? "date_and_time"
+            : context.CallPreference == CallOfficePreference.Dentist
+                ? "dentist"
+                : context.CallScope == CallOfficeScope.TopOne ? "top_one" : "any_time";
 
-        string text;
+        if (doctors.Count == 0)
+        {
+            var emptyText = "I don't have a matched office to call yet. Tap refresh to start a new search whenever you're ready.";
+            context.Stage = NuviConversationStage.Confirmation;
+            context.CallingStep = CallingConsentStep.None;
+            await SaveAssistantMessageAsync(session, emptyText, cancellationToken);
+            return BuildResponse(session, context, emptyText, stage: NuviConversationStage.Confirmation, flowComplete: true);
+        }
+
+        var overrideTo = ElevenLabsTwilioCallingService.ToE164(_twilioOptions.OutboundOverrideToNumber);
+        var target = await FindFirstCallableDoctorAsync(doctors, allowMissingPhone: !string.IsNullOrWhiteSpace(overrideTo), cancellationToken);
+        if (target == null)
+        {
+            var noPhoneText = string.IsNullOrWhiteSpace(overrideTo)
+                ? "I found your matches, but none of them have an office phone number on file yet — so I can't place the call automatically. You can tap a doctor card to view their profile, or try again after numbers are updated."
+                : "I found your matches, but I couldn't load a doctor to call. Please try again.";
+            context.Stage = NuviConversationStage.Confirmation;
+            context.CallingStep = CallingConsentStep.None;
+            await SaveAssistantMessageAsync(session, noPhoneText, cancellationToken);
+            return BuildResponse(session, context, noPhoneText, stage: NuviConversationStage.Confirmation, flowComplete: true);
+        }
+
+        context.SelectedDoctorId = target.Value.Doctor.Id;
+        var topName = string.IsNullOrWhiteSpace(target.Value.Doctor.Name) ? "your top match" : target.Value.Doctor.Name;
+        var dialNumber = !string.IsNullOrWhiteSpace(overrideTo) ? overrideTo! : target.Value.PhoneE164;
+
+        string planText;
         if (context.CallScope == CallOfficeScope.TopOne || doctors.Count <= 1)
         {
-            context.SelectedDoctorId = topDoctor?.Id;
-            text = doctors.Count == 0
-                ? "I don't have a matched office to call yet. Tap refresh to start a new search whenever you're ready."
-                : $"Great — I'll call {topName} now to help book your appointment. I'll update you here as soon as I hear back.";
+            planText = $"Great — I'll call {topName} now to help book your appointment.";
         }
         else if (context.CallPreference == CallOfficePreference.DateAndTime)
         {
-            text = $"Perfect — I'll call your matched doctors one by one from the top until we find a booking available {urgencyWindow}. Starting with {topName}. I'll keep you posted here.";
+            planText = $"Perfect — I'll call your matched doctors one by one from the top until we find a booking available {urgencyWindow}. Starting with {topName}.";
         }
         else
         {
-            // Dentist preference or default for ALL
-            text = $"Perfect — I'll call your matched doctors one by one from the top until a booking is available any time. Starting with {topName}. I'll keep you posted here.";
+            planText = $"Perfect — I'll call your matched doctors one by one from the top until a booking is available any time. Starting with {topName}.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(overrideTo))
+            planText += $"\n\n(Dev override: dialing {overrideTo} instead of the office number.)";
+
+        if (!_voiceCalling.IsConfigured)
+        {
+            var notConfigured = $"{planText}\n\nVoice calling isn't fully configured on the server yet (ElevenLabs + Twilio). Your preference is saved — once keys/phone IDs are set, I'll place these calls automatically.";
+            context.Stage = NuviConversationStage.Confirmation;
+            context.BookingConfirmed = true;
+            context.CallingStep = CallingConsentStep.None;
+            await SaveAssistantMessageAsync(session, notConfigured, cancellationToken);
+            return BuildResponse(session, context, notConfigured, stage: NuviConversationStage.Confirmation, flowComplete: true);
+        }
+
+        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+        var callResult = await _voiceCalling.PlaceOfficeCallAsync(new NuviOutboundCallRequest
+        {
+            ToNumber = dialNumber,
+            DoctorName = target.Value.Doctor.Name,
+            PracticeName = target.Value.Doctor.PracticeName,
+            PatientName = GetDisplayName(context),
+            PatientPhone = context.PendingPhone,
+            PatientEmail = context.PendingEmail,
+            CallPreference = callPreferenceLabel,
+            AvailabilityWindow = urgencyWindow,
+            ChiefComplaint = chiefComplaint,
+            SessionKey = session.SessionKey.ToString()
+        }, cancellationToken);
+
+        string text;
+        if (callResult.Success)
+        {
+            text = $"{planText}\n\nI've started the call to {topName}'s office now. I'll update you here as soon as I hear back.";
+            if (!string.IsNullOrWhiteSpace(callResult.ConversationId))
+                text += $" (ref: {callResult.ConversationId})";
+        }
+        else
+        {
+            text = $"{planText}\n\nI wasn't able to complete the dial just now: {callResult.Message}";
         }
 
         context.Stage = NuviConversationStage.Confirmation;
-        context.BookingConfirmed = true;
+        context.BookingConfirmed = callResult.Success;
         context.CallingStep = CallingConsentStep.None;
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(session, context, text, stage: NuviConversationStage.Confirmation, flowComplete: true);
+    }
+
+    private async Task<(Doctor Doctor, string PhoneE164)?> FindFirstCallableDoctorAsync(
+        IReadOnlyList<DoctorDto> rankedDoctors,
+        bool allowMissingPhone,
+        CancellationToken cancellationToken)
+    {
+        foreach (var dto in rankedDoctors)
+        {
+            var doctor = await _db.Doctors.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == dto.Id, cancellationToken);
+            if (doctor == null)
+                continue;
+
+            var phone = ElevenLabsTwilioCallingService.ToE164(doctor.OfficePhoneNumber);
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                var locationPhone = await _db.DoctorLocations.AsNoTracking()
+                    .Where(l => l.DoctorId == doctor.Id && l.PhoneNumber != null && l.PhoneNumber != "")
+                    .Select(l => l.PhoneNumber)
+                    .FirstOrDefaultAsync(cancellationToken);
+                phone = ElevenLabsTwilioCallingService.ToE164(locationPhone);
+            }
+
+            if (!string.IsNullOrWhiteSpace(phone))
+                return (doctor, phone);
+
+            if (allowMissingPhone)
+                return (doctor, string.Empty);
+        }
+
+        return null;
     }
 
     private async Task<IReadOnlyList<DoctorDto>> LoadMatchedDoctorsInRankOrderAsync(
