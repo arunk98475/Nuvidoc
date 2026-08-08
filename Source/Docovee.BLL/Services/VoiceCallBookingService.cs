@@ -59,6 +59,8 @@ public sealed class PatientNotificationDto
     public int? DoctorId { get; init; }
     public bool IsRead { get; init; }
     public DateTime CreatedAt { get; init; }
+    /// <summary>Linked appointment start (when Type is appointment booked).</summary>
+    public DateTime? AppointmentStartsAt { get; init; }
 }
 
 public sealed class PatientNotificationService : IPatientNotificationService
@@ -83,7 +85,10 @@ public sealed class PatientNotificationService : IPatientNotificationService
                 AppointmentId = n.AppointmentId,
                 DoctorId = n.DoctorId,
                 IsRead = n.IsRead,
-                CreatedAt = n.CreatedAt
+                CreatedAt = n.CreatedAt,
+                AppointmentStartsAt = n.AppointmentId == null
+                    ? null
+                    : _db.Appointments.Where(a => a.Id == n.AppointmentId).Select(a => (DateTime?)a.StartsAt).FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
     }
@@ -331,8 +336,42 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
         }
 
-        var startsAt = outcome.StartsAt ?? clinicNow.Date.AddDays(1).AddHours(10);
-        startsAt = NormalizeToClinicLocal(startsAt);
+        var startsAt = outcome.StartsAt;
+        if (outcome.IsBooked && startsAt == null)
+        {
+            // Do not invent "today" / "tomorrow" — missing datetime means we cannot save a real booking.
+            call.Status = VoiceOutboundCallStatuses.Completed;
+            call.OutcomeNotes = Truncate(
+                string.IsNullOrWhiteSpace(outcome.Notes)
+                    ? "Booked on the call, but no appointment_datetime was returned."
+                    : $"{outcome.Notes} | Missing appointment_datetime — appointment not saved.",
+                2000);
+            await _db.SaveChangesAsync(cancellationToken);
+            if (call.PatientId is > 0)
+            {
+                await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.VoiceCallUpdate,
+                    "Nuvi call update",
+                    "The office confirmed a booking, but Nuvi could not capture the appointment date/time. Please confirm the slot with the office.",
+                    doctorId: call.DoctorId,
+                    cancellationToken: cancellationToken);
+            }
+
+            _logger.LogInformation(
+                "Booked without parseable datetime for conversation {ConversationId}",
+                conversationId);
+            return true;
+        }
+
+        if (startsAt == null)
+        {
+            call.Status = outcome.StatusHint ?? VoiceOutboundCallStatuses.Completed;
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        startsAt = NormalizeToClinicLocal(startsAt.Value);
         if (startsAt < clinicNow.AddMinutes(-1))
         {
             call.Status = VoiceOutboundCallStatuses.NoSlot;
@@ -363,6 +402,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        var appointmentStartsAt = startsAt.Value;
         var appointment = new Appointment
         {
             DoctorId = call.DoctorId,
@@ -372,7 +412,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             PatientEmail = call.PatientEmail,
             PatientDateOfBirth = dob is DateOnly d && d.Year > 1900 ? d : new DateOnly(1990, 1, 1),
             VisitReason = string.IsNullOrWhiteSpace(call.VisitReason) ? "Dental appointment (Nuvi booked)" : call.VisitReason!,
-            StartsAt = startsAt,
+            StartsAt = appointmentStartsAt,
             Status = AppointmentStatuses.Confirmed,
             Source = AppointmentSources.NuviChat,
             SearchSessionId = call.SearchSessionId,
@@ -389,7 +429,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (call.PatientId is > 0)
         {
             var doctorName = doctor?.Name ?? "your dentist";
-            var when = startsAt.ToString("ddd, MMM d 'at' h:mm tt", CultureInfo.InvariantCulture);
+            var when = appointmentStartsAt.ToString("ddd, MMM d 'at' h:mm tt", CultureInfo.InvariantCulture);
             await AddNotificationAsync(
                 call.PatientId.Value,
                 PatientNotificationTypes.AppointmentBooked,
@@ -518,23 +558,18 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         DateTime? startsAt = null;
         var booked = false;
 
-        // data_collection_results can be object or array depending on API version
+        // ElevenLabs format: { "appointment_datetime": { "value": "..." }, "status": { "value": "booked" } }
         if (data.TryGetProperty("analysis", out var analysis2)
             && analysis2.TryGetProperty("data_collection_results", out var dcr))
         {
-            foreach (var item in EnumerateDataCollection(dcr))
+            foreach (var (id, value) in EnumerateDataCollectionEntries(dcr))
             {
-                var id = item.TryGetProperty("data_collection_id", out var idEl)
-                    ? idEl.GetString()
-                    : item.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
-                var value = item.TryGetProperty("value", out var valEl)
-                    ? valEl.ToString()
-                    : null;
                 if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(value) || value == "null")
                     continue;
 
                 var idLower = id.ToLowerInvariant();
-                var valueLower = value.Trim().Trim('"').ToLowerInvariant();
+                var valueClean = value.Trim().Trim('"');
+                var valueLower = valueClean.ToLowerInvariant();
 
                 if (idLower is "status" or "outcome" or "booking_status")
                 {
@@ -543,9 +578,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                         booked = true;
                 }
 
-                if (idLower is "appointment_datetime" or "appointment_time" or "booked_datetime" or "starts_at")
+                if (idLower is "appointment_datetime" or "appointment_time" or "booked_datetime"
+                    or "starts_at" or "appointment_date" or "scheduled_at" or "booking_time")
                 {
-                    if (TryParseAppointmentDateTime(value.Trim().Trim('"'), out var dt))
+                    if (TryParseAppointmentDateTime(valueClean, out var dt))
                     {
                         startsAt = dt;
                         booked = true;
@@ -554,34 +590,35 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             }
         }
 
-        // Tool results / transcript may include end_call status
+        // Tool results / tool_calls may include end_call status + appointment_datetime
         if (data.TryGetProperty("transcript", out var transcript) && transcript.ValueKind == JsonValueKind.Array)
         {
             foreach (var turn in transcript.EnumerateArray())
             {
+                if (turn.TryGetProperty("tool_calls", out var calls) && calls.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var call in calls.EnumerateArray())
+                    {
+                        var toolName = call.TryGetProperty("tool_name", out var tn) ? tn.GetString()
+                            : call.TryGetProperty("name", out var n) ? n.GetString() : null;
+                        var paramsJson = call.TryGetProperty("params_as_json", out var p) ? p.GetString()
+                            : call.TryGetProperty("arguments", out var a)
+                                ? (a.ValueKind == JsonValueKind.String ? a.GetString() : a.ToString())
+                                : null;
+                        ApplyEndCallPayload(toolName, paramsJson, ref booked, ref statusHint, ref startsAt);
+                    }
+                }
+
                 if (!turn.TryGetProperty("tool_results", out var tools) || tools.ValueKind != JsonValueKind.Array)
                     continue;
                 foreach (var tool in tools.EnumerateArray())
                 {
                     var toolName = tool.TryGetProperty("tool_name", out var tn) ? tn.GetString() : null;
-                    var resultValue = tool.TryGetProperty("result_value", out var rv) ? rv.GetString() : null;
-                    if (string.IsNullOrWhiteSpace(resultValue))
-                        continue;
-
-                    if (toolName?.Contains("end_call", StringComparison.OrdinalIgnoreCase) == true
-                        || resultValue.Contains("booked", StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (resultValue.Contains("\"status\":\"booked\"", StringComparison.OrdinalIgnoreCase)
-                            || resultValue.Contains("\"status\": \"booked\"", StringComparison.OrdinalIgnoreCase)
-                            || resultValue.Contains("booked", StringComparison.OrdinalIgnoreCase))
-                        {
-                            booked = true;
-                            statusHint ??= VoiceOutboundCallStatuses.Booked;
-                        }
-
-                        if (TryExtractJsonDate(resultValue, out var dt))
-                            startsAt = dt;
-                    }
+                    var resultValue = tool.TryGetProperty("result_value", out var rv) ? rv.GetString()
+                        : tool.TryGetProperty("result", out var r)
+                            ? (r.ValueKind == JsonValueKind.String ? r.GetString() : r.ToString())
+                            : null;
+                    ApplyEndCallPayload(toolName, resultValue, ref booked, ref statusHint, ref startsAt);
                 }
             }
         }
@@ -594,26 +631,93 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 booked = true;
         }
 
+        // Last resort: pull a concrete date from the summary text (never invent today).
+        if (booked && startsAt == null && !string.IsNullOrWhiteSpace(joinedNotes)
+            && TryParseAppointmentDateTime(joinedNotes, out var fromNotes))
+            startsAt = fromNotes;
+
         return new BookingOutcome(booked, startsAt, statusHint, joinedNotes);
     }
 
-    private static IEnumerable<JsonElement> EnumerateDataCollection(JsonElement dcr)
+    private static void ApplyEndCallPayload(
+        string? toolName,
+        string? payload,
+        ref bool booked,
+        ref string? statusHint,
+        ref DateTime? startsAt)
+    {
+        if (string.IsNullOrWhiteSpace(payload))
+            return;
+
+        var looksLikeEndCall = toolName?.Contains("end_call", StringComparison.OrdinalIgnoreCase) == true
+            || payload.Contains("appointment_datetime", StringComparison.OrdinalIgnoreCase)
+            || payload.Contains("\"status\"", StringComparison.OrdinalIgnoreCase);
+
+        if (!looksLikeEndCall && !payload.Contains("booked", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (payload.Contains("\"status\":\"booked\"", StringComparison.OrdinalIgnoreCase)
+            || payload.Contains("\"status\": \"booked\"", StringComparison.OrdinalIgnoreCase)
+            || payload.Contains("booked", StringComparison.OrdinalIgnoreCase))
+        {
+            booked = true;
+            statusHint ??= VoiceOutboundCallStatuses.Booked;
+        }
+
+        if (TryExtractJsonDate(payload, out var dt))
+            startsAt = dt;
+        else if (startsAt == null && TryParseAppointmentDateTime(payload, out var loose))
+            startsAt = loose;
+    }
+
+    /// <summary>
+    /// Yields (fieldId, value) pairs. Object-map keys are the field ids (ElevenLabs format).
+    /// </summary>
+    private static IEnumerable<(string Id, string Value)> EnumerateDataCollectionEntries(JsonElement dcr)
     {
         if (dcr.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in dcr.EnumerateArray())
-                yield return item;
+            {
+                var id = item.TryGetProperty("data_collection_id", out var idEl) ? idEl.GetString()
+                    : item.TryGetProperty("id", out var idEl2) ? idEl2.GetString() : null;
+                var value = ExtractDataCollectionValue(item);
+                if (!string.IsNullOrWhiteSpace(id) && value != null)
+                    yield return (id, value);
+            }
+
             yield break;
         }
 
-        if (dcr.ValueKind == JsonValueKind.Object)
+        if (dcr.ValueKind != JsonValueKind.Object)
+            yield break;
+
+        foreach (var prop in dcr.EnumerateObject())
         {
-            foreach (var prop in dcr.EnumerateObject())
-            {
-                if (prop.Value.ValueKind == JsonValueKind.Object)
-                    yield return prop.Value;
-            }
+            var value = prop.Value.ValueKind == JsonValueKind.Object
+                ? ExtractDataCollectionValue(prop.Value)
+                : prop.Value.ValueKind == JsonValueKind.String
+                    ? prop.Value.GetString()
+                    : prop.Value.ToString();
+            if (value != null)
+                yield return (prop.Name, value);
         }
+    }
+
+    private static string? ExtractDataCollectionValue(JsonElement item)
+    {
+        if (item.TryGetProperty("value", out var valEl))
+        {
+            if (valEl.ValueKind == JsonValueKind.String)
+                return valEl.GetString();
+            if (valEl.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+                return valEl.ToString();
+            if (valEl.ValueKind == JsonValueKind.Null)
+                return null;
+            return valEl.ToString();
+        }
+
+        return null;
     }
 
     private static string? MapStatusHint(string valueLower) => valueLower switch
@@ -632,9 +736,100 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (string.IsNullOrWhiteSpace(raw))
             return false;
 
-        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out startsAt))
+        var text = raw.Trim().Trim('"');
+
+        // Reject bare times like "2:00 PM" — DateTime.TryParse would silently use *today*.
+        if (IsTimeOnly(text))
+            return false;
+
+        var formats = new[]
+        {
+            "yyyy-MM-dd HH:mm",
+            "yyyy-MM-dd H:mm",
+            "yyyy-MM-ddHH:mm",
+            "yyyy-MM-dd h:mm tt",
+            "yyyy-MM-dd",
+            "yyyy/MM/dd HH:mm",
+            "yyyy/MM/dd",
+            "MM/dd/yyyy HH:mm",
+            "MM/dd/yyyy h:mm tt",
+            "MM/dd/yyyy",
+            "M/d/yyyy h:mm tt",
+            "M/d/yyyy",
+            "dd/MM/yyyy HH:mm",
+            "dd/MM/yyyy h:mm tt",
+            "dd/MM/yyyy",
+            "d/M/yyyy h:mm tt",
+            "d/M/yyyy",
+            "d/MMM/yyyy HH:mm",
+            "d/MMM/yyyy h:mm tt",
+            "d/MMM/yyyy",
+            "dd/MMM/yyyy HH:mm",
+            "dd/MMM/yyyy h:mm tt",
+            "dd/MMM/yyyy",
+            "MMMM d, yyyy h:mm tt",
+            "MMMM d, yyyy H:mm",
+            "MMMM d, yyyy",
+            "MMM d, yyyy h:mm tt",
+            "MMM d, yyyy",
+            "d MMMM yyyy h:mm tt",
+            "d MMMM yyyy",
+            "d MMM yyyy h:mm tt",
+            "d MMM yyyy"
+        };
+
+        foreach (var culture in new[] { CultureInfo.InvariantCulture, new CultureInfo("en-US") })
+        {
+            if (DateTime.TryParseExact(
+                    text, formats, culture,
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
+                    out startsAt))
+                return HasExplicitCalendarDate(startsAt, text);
+
+            if (DateTime.TryParse(
+                    text, culture,
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
+                    out startsAt)
+                && HasExplicitCalendarDate(startsAt, text)
+                && !IsTimeOnly(text))
+                return true;
+        }
+
+        // Pull first date-like substring from longer notes/summaries.
+        var match = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"(\d{4}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)|(\d{1,2}/\d{1,2}/\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)|(\d{1,2}/[A-Za-z]{3,9}/\d{4})|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (match.Success)
+            return TryParseAppointmentDateTime(match.Value, out startsAt);
+
+        return false;
+    }
+
+    private static bool IsTimeOnly(string text)
+    {
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            text.Trim(),
+            @"^(?:[01]?\d|2[0-3]):[0-5]\d(?:\s*[AaPp][Mm])?$|^(?:[1-9]|1[0-2])\s*[AaPp][Mm]$");
+    }
+
+    /// <summary>
+    /// Heuristic: require year/month/day tokens in the raw string so we don't accept "today + time".
+    /// </summary>
+    private static bool HasExplicitCalendarDate(DateTime parsed, string raw)
+    {
+        if (parsed.Year < 2000)
+            return false;
+
+        // Must mention a year or a month name / numeric date pattern.
+        if (System.Text.RegularExpressions.Regex.IsMatch(raw, @"\b20\d{2}\b"))
             return true;
-        if (DateTime.TryParse(raw, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out startsAt))
+        if (System.Text.RegularExpressions.Regex.IsMatch(
+                raw,
+                @"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return true;
+        if (System.Text.RegularExpressions.Regex.IsMatch(raw, @"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"))
             return true;
 
         return false;
@@ -671,17 +866,23 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         try
         {
             using var doc = JsonDocument.Parse(json);
-            foreach (var name in new[] { "appointment_datetime", "appointment_time", "starts_at", "datetime" })
+            foreach (var name in new[]
+                     {
+                         "appointment_datetime", "appointment_time", "booked_datetime",
+                         "starts_at", "datetime", "appointment_date", "scheduled_at"
+                     })
             {
-                if (doc.RootElement.TryGetProperty(name, out var el)
-                    && el.ValueKind == JsonValueKind.String
-                    && TryParseAppointmentDateTime(el.GetString() ?? "", out startsAt))
+                if (!doc.RootElement.TryGetProperty(name, out var el))
+                    continue;
+
+                var raw = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
+                if (!string.IsNullOrWhiteSpace(raw) && TryParseAppointmentDateTime(raw, out startsAt))
                     return true;
             }
         }
         catch
         {
-            // ignore
+            // ignore non-JSON payloads
         }
 
         return false;

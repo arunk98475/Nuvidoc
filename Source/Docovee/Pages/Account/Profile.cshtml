@@ -566,11 +566,16 @@
                     <div class="pi-list">
                         @foreach (var n in Model.Notifications)
                         {
+                            var displayWhen = n.AppointmentStartsAt ?? n.CreatedAt.ToLocalTime();
                             <div class="pi-row @(n.IsRead ? "" : "pi-row-unread")">
                                 <div class="pi-row-body">
-                                    <div class="pi-label">@n.CreatedAt.ToLocalTime().ToString("ddd, MMM d · h:mm tt")</div>
+                                    <div class="pi-label">@displayWhen.ToString("ddd, MMM d · h:mm tt")</div>
                                     <div class="pi-value">@n.Title</div>
                                     <p class="pi-hint">@n.Body</p>
+                                    @if (n.AppointmentStartsAt == null)
+                                    {
+                                        <p class="pi-hint">Received @n.CreatedAt.ToLocalTime().ToString("MMM d · h:mm tt")</p>
+                                    }
                                 </div>
                                 @if (n.DoctorId is > 0)
                                 {
