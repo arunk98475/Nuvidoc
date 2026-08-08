@@ -186,9 +186,12 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
 
         var dateTime = FirstNonEmpty(
             request.PreferredDate,
-            request.PreferredTimeWindow,
             request.AvailabilityWindow,
             "within the next 30 days");
+
+        var timeWindow = FirstNonEmpty(
+            request.PreferredTimeWindow,
+            "any available time during office hours (Pacific Time)");
 
         // Practices / ElevenLabs are US Pacific — give the agent an explicit "today" so past-date rules work.
         // App timing is always PST/PDT regardless of the server's local timezone (e.g. IST).
@@ -202,11 +205,17 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         vars["patient_name"] = FirstNonEmpty(request.PatientName, "a patient");
         vars["date_time"] = dateTime;
         vars["preferred_date"] = dateTime;
-        vars["preferred_time_window"] = dateTime;
+        vars["preferred_time_window"] = timeWindow;
         vars["availability_window"] = dateTime;
         vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
         vars["practice_name"] = FirstNonEmpty(request.PracticeName, request.DoctorName, "your office");
         vars["external_call_id"] = FirstNonEmpty(request.SessionKey, Guid.NewGuid().ToString("N"));
+
+        AddVar(vars, "booking_window_start", request.BookingWindowStart);
+        AddVar(vars, "booking_window_end", request.BookingWindowEnd);
+        // Capture instruction for post-call analysis / agent behavior.
+        vars["appointment_datetime_format"] =
+            "When booked, report the exact confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). If a range like 9-10 AM was confirmed, use the start time and mention the end in confirmation_notes.";
 
         AddVar(vars, "patient_phone", request.PatientPhone);
         AddVar(vars, "patient_email", request.PatientEmail);

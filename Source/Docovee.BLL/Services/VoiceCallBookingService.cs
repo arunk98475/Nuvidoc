@@ -59,8 +59,10 @@ public sealed class PatientNotificationDto
     public int? DoctorId { get; init; }
     public bool IsRead { get; init; }
     public DateTime CreatedAt { get; init; }
-    /// <summary>Linked appointment start (when Type is appointment booked).</summary>
+    /// <summary>Linked appointment start (Pacific wall-clock).</summary>
     public DateTime? AppointmentStartsAt { get; init; }
+    /// <summary>Display end of slot (start + 1 hour when not captured).</summary>
+    public DateTime? AppointmentEndsAt { get; set; }
 }
 
 public sealed class PatientNotificationService : IPatientNotificationService
@@ -72,7 +74,7 @@ public sealed class PatientNotificationService : IPatientNotificationService
     public async Task<IReadOnlyList<PatientNotificationDto>> GetForPatientAsync(
         int patientId, CancellationToken cancellationToken = default)
     {
-        return await _db.PatientNotifications.AsNoTracking()
+        var rows = await _db.PatientNotifications.AsNoTracking()
             .Where(n => n.PatientId == patientId)
             .OrderByDescending(n => n.CreatedAt)
             .Take(50)
@@ -91,6 +93,14 @@ public sealed class PatientNotificationService : IPatientNotificationService
                     : _db.Appointments.Where(a => a.Id == n.AppointmentId).Select(a => (DateTime?)a.StartsAt).FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
+
+        foreach (var n in rows)
+        {
+            if (n.AppointmentStartsAt is DateTime start)
+                n.AppointmentEndsAt = start.AddHours(1);
+        }
+
+        return rows;
     }
 
     public Task<int> CountUnreadAsync(int patientId, CancellationToken cancellationToken = default) =>
@@ -305,6 +315,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             outcome = new BookingOutcome(
                 false,
                 proposed,
+                null,
                 VoiceOutboundCallStatuses.NoSlot,
                 string.IsNullOrWhiteSpace(outcome.Notes)
                     ? pastNote
@@ -359,8 +370,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             }
 
             _logger.LogInformation(
-                "Booked without parseable datetime for conversation {ConversationId}",
-                conversationId);
+                "Booked without parseable datetime for conversation {ConversationId}. Notes={Notes}",
+                conversationId, Truncate(outcome.Notes, 500));
             return true;
         }
 
@@ -403,6 +414,12 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
 
         var appointmentStartsAt = startsAt.Value;
+        var appointmentEndsAt = outcome.EndsAt is DateTime end
+            ? NormalizeToClinicLocal(end)
+            : appointmentStartsAt.AddHours(1);
+        if (appointmentEndsAt <= appointmentStartsAt)
+            appointmentEndsAt = appointmentStartsAt.AddHours(1);
+
         var appointment = new Appointment
         {
             DoctorId = call.DoctorId,
@@ -429,7 +446,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (call.PatientId is > 0)
         {
             var doctorName = doctor?.Name ?? "your dentist";
-            var when = appointmentStartsAt.ToString("ddd, MMM d 'at' h:mm tt", CultureInfo.InvariantCulture);
+            var when = FormatPstSlot(appointmentStartsAt, appointmentEndsAt);
             await AddNotificationAsync(
                 call.PatientId.Value,
                 PatientNotificationTypes.AppointmentBooked,
@@ -542,12 +559,19 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private static BookingOutcome ExtractBookingOutcome(JsonElement data)
     {
         var notes = new List<string>();
+        var searchable = new List<string>();
+        string? dateOnlyRaw = null;
+        string? timeOnlyRaw = null;
+
         if (data.TryGetProperty("analysis", out var analysis))
         {
             if (analysis.TryGetProperty("transcript_summary", out var summary)
                 && summary.ValueKind == JsonValueKind.String
                 && !string.IsNullOrWhiteSpace(summary.GetString()))
+            {
                 notes.Add(summary.GetString()!);
+                searchable.Add(summary.GetString()!);
+            }
 
             if (analysis.TryGetProperty("call_successful", out var ok)
                 && ok.ValueKind == JsonValueKind.String)
@@ -556,9 +580,11 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
         string? statusHint = null;
         DateTime? startsAt = null;
+        DateTime? endsAt = null;
         var booked = false;
 
         // ElevenLabs format: { "appointment_datetime": { "value": "..." }, "status": { "value": "booked" } }
+        // All Nuvi times are Pacific (PST/PDT) wall-clock.
         if (data.TryGetProperty("analysis", out var analysis2)
             && analysis2.TryGetProperty("data_collection_results", out var dcr))
         {
@@ -570,6 +596,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 var idLower = id.ToLowerInvariant();
                 var valueClean = value.Trim().Trim('"');
                 var valueLower = valueClean.ToLowerInvariant();
+                searchable.Add($"{id}={valueClean}");
+                notes.Add($"{id}={valueClean}");
 
                 if (idLower is "status" or "outcome" or "booking_status")
                 {
@@ -579,46 +607,70 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 }
 
                 if (idLower is "appointment_datetime" or "appointment_time" or "booked_datetime"
-                    or "starts_at" or "appointment_date" or "scheduled_at" or "booking_time")
+                    or "starts_at" or "appointment_date" or "scheduled_at" or "booking_time"
+                    or "time_slot" or "appointment_slot" or "confirmed_datetime" or "slot")
                 {
-                    if (TryParseAppointmentDateTime(valueClean, out var dt))
+                    if (TryParseAppointmentSlot(valueClean, out var dt, out var slotEnd))
                     {
                         startsAt = dt;
+                        endsAt = slotEnd ?? endsAt;
+                        booked = true;
+                    }
+                    else if (IsTimeOnly(valueClean))
+                    {
+                        timeOnlyRaw ??= valueClean;
+                        booked = true;
+                    }
+                    else if (LooksLikeDateWithoutTime(valueClean))
+                    {
+                        dateOnlyRaw ??= valueClean;
                         booked = true;
                     }
                 }
+
+                if (idLower is "date" or "day" or "appointment_day")
+                    dateOnlyRaw ??= valueClean;
+                if (idLower is "time" or "start_time" or "slot_time")
+                    timeOnlyRaw ??= valueClean;
             }
         }
 
-        // Tool results / tool_calls may include end_call status + appointment_datetime
+        // Tool results / tool_calls — end_call usually only has reason/message (custom fields may be inside those strings).
         if (data.TryGetProperty("transcript", out var transcript) && transcript.ValueKind == JsonValueKind.Array)
         {
             foreach (var turn in transcript.EnumerateArray())
             {
+                if (turn.TryGetProperty("message", out var msg)
+                    && msg.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(msg.GetString()))
+                    searchable.Add(msg.GetString()!);
+
                 if (turn.TryGetProperty("tool_calls", out var calls) && calls.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var call in calls.EnumerateArray())
                     {
                         var toolName = call.TryGetProperty("tool_name", out var tn) ? tn.GetString()
                             : call.TryGetProperty("name", out var n) ? n.GetString() : null;
-                        var paramsJson = call.TryGetProperty("params_as_json", out var p) ? p.GetString()
+                        var paramsJson = call.TryGetProperty("params_as_json", out var p)
+                            ? (p.ValueKind == JsonValueKind.String ? p.GetString() : p.ToString())
                             : call.TryGetProperty("arguments", out var a)
                                 ? (a.ValueKind == JsonValueKind.String ? a.GetString() : a.ToString())
                                 : null;
-                        ApplyEndCallPayload(toolName, paramsJson, ref booked, ref statusHint, ref startsAt);
+                        ApplyEndCallPayload(toolName, paramsJson, ref booked, ref statusHint, ref startsAt, ref endsAt, searchable);
                     }
                 }
 
-                if (!turn.TryGetProperty("tool_results", out var tools) || tools.ValueKind != JsonValueKind.Array)
-                    continue;
-                foreach (var tool in tools.EnumerateArray())
+                if (turn.TryGetProperty("tool_results", out var tools) && tools.ValueKind == JsonValueKind.Array)
                 {
-                    var toolName = tool.TryGetProperty("tool_name", out var tn) ? tn.GetString() : null;
-                    var resultValue = tool.TryGetProperty("result_value", out var rv) ? rv.GetString()
-                        : tool.TryGetProperty("result", out var r)
-                            ? (r.ValueKind == JsonValueKind.String ? r.GetString() : r.ToString())
-                            : null;
-                    ApplyEndCallPayload(toolName, resultValue, ref booked, ref statusHint, ref startsAt);
+                    foreach (var tool in tools.EnumerateArray())
+                    {
+                        var toolName = tool.TryGetProperty("tool_name", out var tn) ? tn.GetString() : null;
+                        var resultValue = tool.TryGetProperty("result_value", out var rv) ? rv.GetString()
+                            : tool.TryGetProperty("result", out var r)
+                                ? (r.ValueKind == JsonValueKind.String ? r.GetString() : r.ToString())
+                                : null;
+                        ApplyEndCallPayload(toolName, resultValue, ref booked, ref statusHint, ref startsAt, ref endsAt, searchable);
+                    }
                 }
             }
         }
@@ -627,48 +679,315 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (!booked && !string.IsNullOrWhiteSpace(joinedNotes))
         {
             var n = joinedNotes.ToLowerInvariant();
-            if (n.Contains("booked") || n.Contains("scheduled") || n.Contains("confirmed an appointment"))
+            if (n.Contains("booked") || n.Contains("scheduled") || n.Contains("confirmed an appointment")
+                || n.Contains("appointment is confirmed") || n.Contains("you're all set"))
                 booked = true;
         }
 
-        // Last resort: pull a concrete date from the summary text (never invent today).
-        if (booked && startsAt == null && !string.IsNullOrWhiteSpace(joinedNotes)
-            && TryParseAppointmentDateTime(joinedNotes, out var fromNotes))
-            startsAt = fromNotes;
+        // Combine separate date + time collection fields.
+        if (startsAt == null && dateOnlyRaw != null && timeOnlyRaw != null
+            && TryParseAppointmentSlot($"{dateOnlyRaw} {timeOnlyRaw}", out var combined, out var combinedEnd))
+        {
+            startsAt = combined;
+            endsAt = combinedEnd ?? endsAt;
+        }
 
-        return new BookingOutcome(booked, startsAt, statusHint, joinedNotes);
+        // Scan spoken transcript / end_call reason for confirmations.
+        // Prefer the best slot (real clock time), not the first weak/midnight match.
+        if (startsAt == null || IsLikelyMidnightPlaceholder(startsAt.Value))
+        {
+            DateTime? bestStart = null;
+            DateTime? bestEnd = null;
+            var bestScore = -1;
+            for (var i = 0; i < searchable.Count; i++)
+            {
+                var blob = searchable[i];
+                if (!(TryParseAppointmentSlot(blob, out var fromText, out var fromTextEnd)
+                      || TryExtractSpokenSlot(blob, out fromText, out fromTextEnd)))
+                    continue;
+
+                var score = ScoreSlotCandidate(blob, fromText, i);
+                if (score <= bestScore)
+                    continue;
+                bestScore = score;
+                bestStart = fromText;
+                bestEnd = fromTextEnd;
+                if (blob.Contains("book", StringComparison.OrdinalIgnoreCase)
+                    || blob.Contains("confirm", StringComparison.OrdinalIgnoreCase)
+                    || blob.Contains("schedul", StringComparison.OrdinalIgnoreCase))
+                    booked = true;
+            }
+
+            if (bestStart != null && !IsLikelyMidnightPlaceholder(bestStart.Value))
+            {
+                startsAt = bestStart;
+                endsAt = bestEnd ?? endsAt;
+            }
+            else if (startsAt == null && bestStart != null)
+            {
+                startsAt = bestStart;
+                endsAt = bestEnd ?? endsAt;
+            }
+        }
+
+        if (booked && (startsAt == null || IsLikelyMidnightPlaceholder(startsAt.Value))
+            && !string.IsNullOrWhiteSpace(joinedNotes)
+            && (TryParseAppointmentSlot(joinedNotes, out var fromNotes, out var fromNotesEnd)
+                || TryExtractSpokenSlot(joinedNotes, out fromNotes, out fromNotesEnd))
+            && !IsLikelyMidnightPlaceholder(fromNotes))
+        {
+            startsAt = fromNotes;
+            endsAt = fromNotesEnd ?? endsAt;
+        }
+
+        // Never save a midnight "placeholder" as a real dental booking time.
+        if (startsAt != null && IsLikelyMidnightPlaceholder(startsAt.Value))
+            startsAt = null;
+
+        return new BookingOutcome(booked, startsAt, endsAt, statusHint, joinedNotes);
     }
+
+    private static int ScoreSlotCandidate(string blob, DateTime startsAt, int index)
+    {
+        var score = index; // later transcript lines win ties
+        if (!IsLikelyMidnightPlaceholder(startsAt))
+            score += 100;
+        if (startsAt.Hour is >= 7 and <= 20)
+            score += 50;
+        var b = blob.ToLowerInvariant();
+        if (b.Contains("confirm") || b.Contains("booked") || b.Contains("perfect") || b.Contains("all set"))
+            score += 40;
+        if (b.Contains("p.m") || b.Contains("pm") || b.Contains("a.m") || b.Contains("am")
+            || b.Contains("o'clock") || System.Text.RegularExpressions.Regex.IsMatch(b, @"\d{1,2}:\d{2}"))
+            score += 30;
+        return score;
+    }
+
+    private static bool IsLikelyMidnightPlaceholder(DateTime value) =>
+        value.TimeOfDay == TimeSpan.Zero;
 
     private static void ApplyEndCallPayload(
         string? toolName,
         string? payload,
         ref bool booked,
         ref string? statusHint,
-        ref DateTime? startsAt)
+        ref DateTime? startsAt,
+        ref DateTime? endsAt,
+        List<string>? searchable = null)
     {
         if (string.IsNullOrWhiteSpace(payload))
             return;
 
+        searchable?.Add(payload);
+
         var looksLikeEndCall = toolName?.Contains("end_call", StringComparison.OrdinalIgnoreCase) == true
             || payload.Contains("appointment_datetime", StringComparison.OrdinalIgnoreCase)
-            || payload.Contains("\"status\"", StringComparison.OrdinalIgnoreCase);
+            || payload.Contains("\"status\"", StringComparison.OrdinalIgnoreCase)
+            || payload.Contains("\"reason\"", StringComparison.OrdinalIgnoreCase);
 
         if (!looksLikeEndCall && !payload.Contains("booked", StringComparison.OrdinalIgnoreCase))
             return;
 
         if (payload.Contains("\"status\":\"booked\"", StringComparison.OrdinalIgnoreCase)
             || payload.Contains("\"status\": \"booked\"", StringComparison.OrdinalIgnoreCase)
-            || payload.Contains("booked", StringComparison.OrdinalIgnoreCase))
+            || payload.Contains("booked", StringComparison.OrdinalIgnoreCase)
+            || payload.Contains("appointment confirmed", StringComparison.OrdinalIgnoreCase)
+            || payload.Contains("successfully booked", StringComparison.OrdinalIgnoreCase))
         {
             booked = true;
             statusHint ??= VoiceOutboundCallStatuses.Booked;
         }
 
-        if (TryExtractJsonDate(payload, out var dt))
+        // Pull free-text reason/message from standard end_call JSON.
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            foreach (var name in new[] { "reason", "message", "rationale", "summary" })
+            {
+                if (doc.RootElement.TryGetProperty(name, out var el)
+                    && el.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(el.GetString()))
+                    searchable?.Add(el.GetString()!);
+            }
+        }
+        catch
+        {
+            // not JSON
+        }
+
+        if (TryExtractJsonSlot(payload, out var dt, out var slotEnd))
+        {
             startsAt = dt;
-        else if (startsAt == null && TryParseAppointmentDateTime(payload, out var loose))
+            endsAt = slotEnd ?? endsAt;
+        }
+        else if (startsAt == null && TryParseAppointmentSlot(payload, out var loose, out var looseEnd))
+        {
             startsAt = loose;
+            endsAt = looseEnd ?? endsAt;
+        }
+        else if (startsAt == null && TryExtractSpokenSlot(payload, out var spoken, out var spokenEnd))
+        {
+            startsAt = spoken;
+            endsAt = spokenEnd ?? endsAt;
+        }
     }
+
+    /// <summary>
+    /// Pull slots from spoken confirmations, e.g. "August 10th at 9 AM" / "10th August between 1:00 p.m. to 2:00 p.m.".
+    /// </summary>
+    private static bool TryExtractSpokenSlot(string text, out DateTime startsAt, out DateTime? endsAt)
+    {
+        startsAt = default;
+        endsAt = null;
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var normalized = NormalizeSpokenDateTimeText(text);
+
+        // "August 10, 2026 at 1:00 PM" / "Aug 10th at 1 PM" / "10 August 2026 between 1:00 PM to 2:00 PM"
+        var m = System.Text.RegularExpressions.Regex.Match(
+            normalized,
+            @"(?:on\s+|for\s+|confirmed\s+(?:for\s+)?)?(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,?\s+)?((?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:,?\s*\d{4})?|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{4})\s*(?:at|@|from|between)?\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?)(?:\s*(?:[-–—]|to|and|until)\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp]\.?[Mm]\.?)?))?",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!m.Success)
+            return false;
+
+        var datePart = System.Text.RegularExpressions.Regex.Replace(
+            m.Groups[1].Value, @"(st|nd|rd|th)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!System.Text.RegularExpressions.Regex.IsMatch(datePart, @"\b20\d{2}\b"))
+            datePart = $"{datePart}, {ElevenLabsTwilioCallingService.GetClinicNow().Year}";
+
+        // Day-first "10 August 2026" → "August 10, 2026"
+        var dayFirst = System.Text.RegularExpressions.Regex.Match(
+            datePart,
+            @"^(\d{1,2})\s+(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:,?\s*(\d{4}))?",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (dayFirst.Success)
+        {
+            var year = dayFirst.Groups[3].Success
+                ? dayFirst.Groups[3].Value
+                : ElevenLabsTwilioCallingService.GetClinicNow().Year.ToString();
+            datePart = $"{dayFirst.Groups[2].Value} {dayFirst.Groups[1].Value}, {year}";
+        }
+
+        var startTok = NormalizeAmPm(m.Groups[2].Value);
+        var endTok = m.Groups[3].Success ? NormalizeAmPm(m.Groups[3].Value) : null;
+
+        // If end has AM/PM but start doesn't, copy meridiem (e.g. "1 to 2 PM").
+        if (endTok != null
+            && !System.Text.RegularExpressions.Regex.IsMatch(startTok, @"[AaPp]\.?[Mm]")
+            && System.Text.RegularExpressions.Regex.IsMatch(endTok, @"[AaPp]\.?[Mm]"))
+        {
+            var mer = System.Text.RegularExpressions.Regex.Match(endTok, @"[AaPp]\.?[Mm]\.?", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Value;
+            startTok = $"{startTok} {mer}";
+        }
+
+        if (!TryParseAppointmentDateTimeCore($"{datePart} {startTok}", out startsAt))
+            return false;
+        if (IsLikelyMidnightPlaceholder(startsAt))
+            return false;
+
+        if (endTok != null && TryParseAppointmentDateTimeCore($"{datePart} {endTok}", out var endDt))
+            endsAt = endDt;
+        else
+            endsAt = startsAt.AddHours(1);
+
+        return true;
+    }
+
+    private static string NormalizeSpokenDateTimeText(string text)
+    {
+        var s = text;
+        // a.m. / p.m. → AM / PM
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"\b([AaPp])\s*\.\s*[Mm]\s*\.?", "$1M", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(s, @"\b([AaPp])[Mm]\b", "$1M", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // Ordinal day words → numbers
+        s = ReplaceWord(s, "first", "1st");
+        s = ReplaceWord(s, "second", "2nd");
+        s = ReplaceWord(s, "third", "3rd");
+        s = ReplaceWord(s, "fourth", "4th");
+        s = ReplaceWord(s, "fifth", "5th");
+        s = ReplaceWord(s, "sixth", "6th");
+        s = ReplaceWord(s, "seventh", "7th");
+        s = ReplaceWord(s, "eighth", "8th");
+        s = ReplaceWord(s, "ninth", "9th");
+        s = ReplaceWord(s, "tenth", "10th");
+        s = ReplaceWord(s, "eleventh", "11th");
+        s = ReplaceWord(s, "twelfth", "12th");
+        s = ReplaceWord(s, "thirteenth", "13th");
+        s = ReplaceWord(s, "fourteenth", "14th");
+        s = ReplaceWord(s, "fifteenth", "15th");
+        s = ReplaceWord(s, "sixteenth", "16th");
+        s = ReplaceWord(s, "seventeenth", "17th");
+        s = ReplaceWord(s, "eighteenth", "18th");
+        s = ReplaceWord(s, "nineteenth", "19th");
+        s = ReplaceWord(s, "twentieth", "20th");
+        s = ReplaceWord(s, "twenty first", "21st");
+        s = ReplaceWord(s, "twenty-first", "21st");
+        s = ReplaceWord(s, "twenty second", "22nd");
+        s = ReplaceWord(s, "twenty-second", "22nd");
+        s = ReplaceWord(s, "twenty third", "23rd");
+        s = ReplaceWord(s, "twenty-third", "23rd");
+        s = ReplaceWord(s, "twenty fourth", "24th");
+        s = ReplaceWord(s, "twenty-fourth", "24th");
+        s = ReplaceWord(s, "twenty fifth", "25th");
+        s = ReplaceWord(s, "twenty-fifth", "25th");
+        s = ReplaceWord(s, "twenty sixth", "26th");
+        s = ReplaceWord(s, "twenty-sixth", "26th");
+        s = ReplaceWord(s, "twenty seventh", "27th");
+        s = ReplaceWord(s, "twenty-seventh", "27th");
+        s = ReplaceWord(s, "twenty eighth", "28th");
+        s = ReplaceWord(s, "twenty-eighth", "28th");
+        s = ReplaceWord(s, "twenty ninth", "29th");
+        s = ReplaceWord(s, "twenty-ninth", "29th");
+        s = ReplaceWord(s, "thirtieth", "30th");
+        s = ReplaceWord(s, "thirty first", "31st");
+        s = ReplaceWord(s, "thirty-first", "31st");
+
+        // Clock words → numeric
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|noon|midnight)\b(?:\s*o'?clock)?",
+            m => m.Groups[1].Value.ToLowerInvariant() switch
+            {
+                "one" => "1",
+                "two" => "2",
+                "three" => "3",
+                "four" => "4",
+                "five" => "5",
+                "six" => "6",
+                "seven" => "7",
+                "eight" => "8",
+                "nine" => "9",
+                "ten" => "10",
+                "eleven" => "11",
+                "twelve" => "12",
+                "noon" => "12:00 PM",
+                "midnight" => "12:00 AM",
+                _ => m.Value
+            },
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        return s;
+    }
+
+    private static string ReplaceWord(string input, string word, string replacement) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            input, $@"\b{word}\b", replacement, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static string NormalizeAmPm(string token) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            token.Trim(),
+            @"([AaPp])\s*\.?\s*[Mm]\.?",
+            "$1M",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static bool LooksLikeDateWithoutTime(string text) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            text.Trim(),
+            @"^(?:\d{4}-\d{1,2}-\d{1,2}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?|\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*(?:,?\s*\d{4})?|\d{1,2}/\d{1,2}/\d{4}|\d{1,2}/[A-Za-z]{3,9}/\d{4})$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     /// <summary>
     /// Yields (fieldId, value) pairs. Object-map keys are the field ids (ElevenLabs format).
@@ -709,13 +1028,20 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (item.TryGetProperty("value", out var valEl))
         {
             if (valEl.ValueKind == JsonValueKind.String)
-                return valEl.GetString();
-            if (valEl.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
+            {
+                var s = valEl.GetString();
+                if (!string.IsNullOrWhiteSpace(s) && !string.Equals(s, "null", StringComparison.OrdinalIgnoreCase))
+                    return s;
+            }
+            else if (valEl.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)
                 return valEl.ToString();
-            if (valEl.ValueKind == JsonValueKind.Null)
-                return null;
-            return valEl.ToString();
         }
+
+        // Sometimes the model puts the useful text in rationale instead of value.
+        if (item.TryGetProperty("rationale", out var rationale)
+            && rationale.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(rationale.GetString()))
+            return rationale.GetString();
 
         return null;
     }
@@ -730,23 +1056,112 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _ => VoiceOutboundCallStatuses.Completed
     };
 
-    private static bool TryParseAppointmentDateTime(string raw, out DateTime startsAt)
+    private static bool TryParseAppointmentSlot(string raw, out DateTime startsAt, out DateTime? endsAt)
     {
         startsAt = default;
+        endsAt = null;
         if (string.IsNullOrWhiteSpace(raw))
             return false;
 
-        var text = raw.Trim().Trim('"');
+        var original = NormalizeSpokenDateTimeText(raw.Trim().Trim('"'));
+        // Nuvi speaks PST only — keep range end when present ("9AM-10AM").
+        TryExtractTimeRange(original, out var rangeStartToken, out var rangeEndToken);
+        var text = rangeStartToken != null
+            ? System.Text.RegularExpressions.Regex.Replace(
+                original,
+                @"(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)",
+                rangeStartToken,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+            : original;
 
-        // Reject bare times like "2:00 PM" — DateTime.TryParse would silently use *today*.
         if (IsTimeOnly(text))
             return false;
+
+        if (!TryParseAppointmentDateTimeCore(text, out startsAt))
+        {
+            if (TryParseDateAndTimeRange(original, out startsAt, out endsAt))
+                return true;
+            return false;
+        }
+
+        // Date-only / midnight ISO strings are not a real booking slot.
+        if (startsAt.TimeOfDay == TimeSpan.Zero && !HasExplicitClockTime(original))
+            return false;
+
+        if (rangeEndToken != null)
+        {
+            var endText = System.Text.RegularExpressions.Regex.Replace(
+                original,
+                @"(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)",
+                rangeEndToken,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (TryParseAppointmentDateTimeCore(endText, out var endDt) ||
+                TryParseAppointmentDateTimeCore($"{startsAt:yyyy-MM-dd} {rangeEndToken}", out endDt))
+            {
+                endsAt = endDt;
+            }
+        }
+
+        endsAt ??= startsAt.AddHours(1);
+        return true;
+    }
+
+    private static bool HasTimeToken(string text) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            NormalizeSpokenDateTimeText(text),
+            @"\d{1,2}:\d{2}\s*(?:[AaPp]M)?|\d{1,2}\s*[AaPp]M",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// True only for explicit clock times — not ISO "T00:00:00" midnight placeholders.
+    /// </summary>
+    private static bool HasExplicitClockTime(string text)
+    {
+        var n = NormalizeSpokenDateTimeText(text);
+        if (System.Text.RegularExpressions.Regex.IsMatch(n, @"\b([1-9]|1[0-2])\s*[AaPp]M\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return true;
+        if (System.Text.RegularExpressions.Regex.IsMatch(n, @"\b([01]?\d|2[0-3]):[0-5]\d\s*[AaPp]M\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            return true;
+        // 24h time that isn't midnight
+        if (System.Text.RegularExpressions.Regex.IsMatch(n, @"\b([01]?\d|2[0-3]):[0-5]\d\b")
+            && !System.Text.RegularExpressions.Regex.IsMatch(n, @"\b00:00\b|\b0:00\b"))
+            return true;
+        return false;
+    }
+
+    private static bool TryParseAppointmentDateTime(string raw, out DateTime startsAt) =>
+        TryParseAppointmentSlot(raw, out startsAt, out _);
+
+    private static bool TryParseAppointmentDateTimeCore(string text, out DateTime startsAt)
+    {
+        startsAt = default;
+        text = text.Trim();
+        if (string.IsNullOrWhiteSpace(text) || IsTimeOnly(text))
+            return false;
+
+        // Offset/Z → convert instant to Pacific wall-clock. No-offset → treat as PST already.
+        foreach (var culture in new[] { CultureInfo.InvariantCulture, new CultureInfo("en-US") })
+        {
+            if (DateTimeOffset.TryParse(
+                    text, culture,
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.RoundtripKind,
+                    out var dto)
+                && HasExplicitCalendarDate(dto.DateTime, text)
+                && HasExplicitOffset(text))
+            {
+                startsAt = DateTime.SpecifyKind(
+                    TimeZoneInfo.ConvertTime(dto, GetClinicTimeZone()).DateTime,
+                    DateTimeKind.Unspecified);
+                return true;
+            }
+        }
 
         var formats = new[]
         {
             "yyyy-MM-dd HH:mm",
             "yyyy-MM-dd H:mm",
-            "yyyy-MM-ddHH:mm",
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd'T'HH:mm:ss",
             "yyyy-MM-dd h:mm tt",
             "yyyy-MM-dd",
             "yyyy/MM/dd HH:mm",
@@ -782,28 +1197,80 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             if (DateTime.TryParseExact(
                     text, formats, culture,
-                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
-                    out startsAt))
-                return HasExplicitCalendarDate(startsAt, text);
-
-            if (DateTime.TryParse(
-                    text, culture,
-                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.AssumeLocal,
-                    out startsAt)
-                && HasExplicitCalendarDate(startsAt, text)
-                && !IsTimeOnly(text))
+                    DateTimeStyles.AllowWhiteSpaces | DateTimeStyles.NoCurrentDateDefault,
+                    out var parsed)
+                && parsed.Year >= 2000
+                && HasExplicitCalendarDate(parsed, text))
+            {
+                startsAt = DateTime.SpecifyKind(parsed, DateTimeKind.Unspecified);
                 return true;
+            }
         }
 
-        // Pull first date-like substring from longer notes/summaries.
         var match = System.Text.RegularExpressions.Regex.Match(
             text,
-            @"(\d{4}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?)|(\d{1,2}/\d{1,2}/\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)|(\d{1,2}/[A-Za-z]{3,9}/\d{4})|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)",
+            @"(\d{4}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?)|(\d{1,2}/\d{1,2}/\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)|(\d{1,2}/[A-Za-z]{3,9}/\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}(?:\s+\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)?)",
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-        if (match.Success)
-            return TryParseAppointmentDateTime(match.Value, out startsAt);
+        if (match.Success && !string.Equals(match.Value, text, StringComparison.OrdinalIgnoreCase))
+            return TryParseAppointmentDateTimeCore(match.Value, out startsAt);
 
         return false;
+    }
+
+    private static bool HasExplicitOffset(string text) =>
+        System.Text.RegularExpressions.Regex.IsMatch(
+            text,
+            @"Z\s*$|[+-]\d{2}:?\d{2}\s*$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private static void TryExtractTimeRange(string text, out string? startToken, out string? endToken)
+    {
+        startToken = null;
+        endToken = null;
+        var m = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!m.Success)
+            return;
+        startToken = m.Groups[1].Value.Trim();
+        endToken = m.Groups[2].Value.Trim();
+    }
+
+    private static bool TryParseDateAndTimeRange(string text, out DateTime startsAt, out DateTime? endsAt)
+    {
+        startsAt = default;
+        endsAt = null;
+        var dateMatch = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"(\d{4}-\d{1,2}-\d{1,2})|((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4})|(\d{1,2}/\d{1,2}/\d{4})|(\d{1,2}/[A-Za-z]{3,9}/\d{4})",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        TryExtractTimeRange(text, out var startTok, out var endTok);
+        if (!dateMatch.Success)
+            return false;
+
+        if (startTok != null)
+        {
+            if (!TryParseAppointmentDateTimeCore($"{dateMatch.Value} {startTok}", out startsAt))
+                return false;
+            if (endTok != null
+                && TryParseAppointmentDateTimeCore($"{dateMatch.Value} {endTok}", out var endDt))
+                endsAt = endDt;
+            else
+                endsAt = startsAt.AddHours(1);
+            return true;
+        }
+
+        var timeMatch = System.Text.RegularExpressions.Regex.Match(
+            text,
+            @"\b(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!timeMatch.Success)
+            return false;
+        if (!TryParseAppointmentDateTimeCore($"{dateMatch.Value} {timeMatch.Value}", out startsAt))
+            return false;
+        endsAt = startsAt.AddHours(1);
+        return true;
     }
 
     private static bool IsTimeOnly(string text)
@@ -821,7 +1288,6 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (parsed.Year < 2000)
             return false;
 
-        // Must mention a year or a month name / numeric date pattern.
         if (System.Text.RegularExpressions.Regex.IsMatch(raw, @"\b20\d{2}\b"))
             return true;
         if (System.Text.RegularExpressions.Regex.IsMatch(
@@ -836,14 +1302,25 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     }
 
     /// <summary>
-    /// Treat unspecified DateTimeKind values as clinic-local (Pacific), not server-local.
+    /// Store appointments as Pacific wall-clock (Unspecified). Nuvi replies are PST-only.
     /// </summary>
     private static DateTime NormalizeToClinicLocal(DateTime value)
     {
+        var tz = GetClinicTimeZone();
         if (value.Kind == DateTimeKind.Utc)
-            return TimeZoneInfo.ConvertTimeFromUtc(value, GetClinicTimeZone());
+        {
+            return DateTime.SpecifyKind(
+                TimeZoneInfo.ConvertTimeFromUtc(value, tz),
+                DateTimeKind.Unspecified);
+        }
 
-        // Unspecified / Local: keep wall-clock as clinic local (agent speaks in practice time).
+        if (value.Kind == DateTimeKind.Local)
+        {
+            return DateTime.SpecifyKind(
+                TimeZoneInfo.ConvertTime(value, tz),
+                DateTimeKind.Unspecified);
+        }
+
         return DateTime.SpecifyKind(value, DateTimeKind.Unspecified);
     }
 
@@ -860,24 +1337,35 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
     }
 
-    private static bool TryExtractJsonDate(string json, out DateTime startsAt)
+    private static bool TryExtractJsonSlot(string json, out DateTime startsAt, out DateTime? endsAt)
     {
         startsAt = default;
+        endsAt = null;
         try
         {
             using var doc = JsonDocument.Parse(json);
             foreach (var name in new[]
                      {
                          "appointment_datetime", "appointment_time", "booked_datetime",
-                         "starts_at", "datetime", "appointment_date", "scheduled_at"
+                         "starts_at", "datetime", "appointment_date", "scheduled_at",
+                         "time_slot", "appointment_slot"
                      })
             {
                 if (!doc.RootElement.TryGetProperty(name, out var el))
                     continue;
 
                 var raw = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
-                if (!string.IsNullOrWhiteSpace(raw) && TryParseAppointmentDateTime(raw, out startsAt))
+                if (!string.IsNullOrWhiteSpace(raw) && TryParseAppointmentSlot(raw, out startsAt, out endsAt))
                     return true;
+            }
+
+            if (doc.RootElement.TryGetProperty("appointment_end", out var endEl)
+                || doc.RootElement.TryGetProperty("ends_at", out endEl)
+                || doc.RootElement.TryGetProperty("end_time", out endEl))
+            {
+                var endRaw = endEl.ValueKind == JsonValueKind.String ? endEl.GetString() : endEl.ToString();
+                if (!string.IsNullOrWhiteSpace(endRaw) && TryParseAppointmentDateTimeCore(endRaw, out var endDt))
+                    endsAt = endDt;
             }
         }
         catch
@@ -886,6 +1374,15 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
 
         return false;
+    }
+
+    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM – 10:00 AM (PST)"</summary>
+    public static string FormatPstSlot(DateTime startsAt, DateTime endsAt)
+    {
+        var date = startsAt.ToString("ddd, MMM d", CultureInfo.InvariantCulture);
+        var start = startsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        var end = endsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        return $"{date} · {start} – {end} (PST)";
     }
 
     private static Dictionary<string, string> ExtractDynamicVariables(JsonElement data)
@@ -949,5 +1446,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return value.Length <= max ? value : value[..max] + "…";
     }
 
-    private sealed record BookingOutcome(bool IsBooked, DateTime? StartsAt, string? StatusHint, string? Notes);
+    private sealed record BookingOutcome(
+        bool IsBooked,
+        DateTime? StartsAt,
+        DateTime? EndsAt,
+        string? StatusHint,
+        string? Notes);
 }

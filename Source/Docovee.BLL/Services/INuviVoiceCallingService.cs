@@ -22,6 +22,10 @@ public sealed class NuviOutboundCallRequest
     public string? AvailabilityWindow { get; init; }
     public string? PreferredDate { get; init; }
     public string? PreferredTimeWindow { get; init; }
+    /// <summary>Inclusive window start (yyyy-MM-dd, Pacific).</summary>
+    public string? BookingWindowStart { get; init; }
+    /// <summary>Inclusive window end (yyyy-MM-dd, Pacific).</summary>
+    public string? BookingWindowEnd { get; init; }
     public string? AppointmentType { get; init; }
     public string? InsuranceName { get; init; }
     public string? ChiefComplaint { get; init; }
