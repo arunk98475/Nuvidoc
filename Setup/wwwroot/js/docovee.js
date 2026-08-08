@@ -264,7 +264,20 @@ function addMessage(text, role, extras = {}) {
     openDoctorSidePanel(extras.selectedDoctor.id);
   }
 
-  msgs.scrollTop = msgs.scrollHeight;
+  scrollChatToBottom();
+}
+
+function scrollChatToBottom() {
+  const msgs = document.getElementById("chat-messages");
+  if (!msgs) return;
+  const stick = () => {
+    msgs.scrollTop = msgs.scrollHeight;
+  };
+  stick();
+  requestAnimationFrame(() => {
+    stick();
+    requestAnimationFrame(stick);
+  });
 }
 
 function buildPanelAiCommentHtml(aiComment = "", aiLoading = false) {
@@ -368,7 +381,7 @@ function addDoctorCards(doctors) {
   });
 
   msgs.appendChild(wrap);
-  msgs.scrollTop = msgs.scrollHeight;
+  scrollChatToBottom();
 }
 
 function toVideoEmbedUrl(url) {
@@ -920,12 +933,20 @@ async function sendMessage(action = null, selectedDoctorId = null) {
         await delay(minWait - elapsed);
       }
 
-      addMessage(searchData.text || "Here are your matches.", "ai", {
-        doctorCards: searchData.doctorCards,
-        selectedDoctor: searchData.selectedDoctor
-      });
-      if (searchData.doctorCards?.length) clearRecommendedDoctors();
+      // Show doctor cards first, then Nuvi's follow-up question below the list.
+      if (searchData.doctorCards?.length) {
+        closeDoctorSidePanel();
+        addDoctorCards(searchData.doctorCards);
+        clearRecommendedDoctors();
+      }
+
+      addMessage(
+        searchData.text ||
+          "Above is the list of doctors I found that match your requirements.",
+        "ai"
+      );
       applyChatResponseState(searchData);
+      scrollChatToBottom();
       document.getElementById("send-btn").disabled = false;
       return;
     }
