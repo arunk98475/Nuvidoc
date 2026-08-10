@@ -40,6 +40,13 @@ public class ChatMessageResponse
     public bool SignedIn { get; set; }
     public IReadOnlyList<DoctorDto>? DoctorCards { get; set; }
     public DoctorDetailDto? SelectedDoctor { get; set; }
+
+    /// <summary>ElevenLabs conversation id when a voice call was placed.</summary>
+    public string? ConversationId { get; set; }
+    public string? CallSid { get; set; }
+    public int? CallingDoctorId { get; set; }
+    public string? CallingDoctorName { get; set; }
+    public string? VoiceCallStatus { get; set; }
 }
 
 public class DoctorDetailDto

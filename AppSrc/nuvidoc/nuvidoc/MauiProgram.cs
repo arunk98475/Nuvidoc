@@ -1,6 +1,8 @@
-﻿using System.Net;
+using System.Net;
 using Microsoft.Extensions.Logging;
 using nuvidoc.Services;
+using Plugin.LocalNotification;
+using Plugin.LocalNotification.AndroidOption;
 
 namespace nuvidoc;
 
@@ -11,6 +13,21 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            .UseLocalNotification(config =>
+            {
+                config.AddAndroid(android =>
+                {
+                    android.AddChannel(new NotificationChannelRequest
+                    {
+                        Id = BookingLocalNotifier.BookingChannelId,
+                        Name = "Booking updates",
+                        Description = "Appointment and call status updates",
+                        Importance = AndroidImportance.High,
+                        EnableVibration = true,
+                        ShowBadge = true
+                    });
+                });
+            })
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -19,6 +36,10 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<ApiCookieContainer>();
         builder.Services.AddSingleton<MatchNavState>();
+        builder.Services.AddSingleton<BookingLocalNotifier>();
+        builder.Services.AddSingleton<BookingAlertHub>();
+        builder.Services.AddSingleton<IBookingAlertHandler>(sp => sp.GetRequiredService<BookingAlertHub>());
+        builder.Services.AddSingleton<SignalRBookingPushClient>();
 
         builder.Services.AddHttpClient<NuvidocApiClient>((sp, client) =>
         {
@@ -40,7 +61,7 @@ public static class MauiProgram
         builder.Services.AddTransient<RegistrationPage>();
         builder.Services.AddTransient<SearchResultPage>();
         builder.Services.AddTransient<DoctorProfilePage>();
-        // Singletons: held by FlyoutItems for the app lifetime.
+        builder.Services.AddSingleton<NotificationsPage>();
         builder.Services.AddSingleton<LoginPage>();
         builder.Services.AddSingleton<LogoutPage>();
         builder.Services.AddSingleton<AppShell>();

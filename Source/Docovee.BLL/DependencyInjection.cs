@@ -1,6 +1,7 @@
 using Docovee.BLL.Audit;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Services;
+using Docovee.BLL.Services.PatientPush;
 using Docovee.DS;
 using Docovee.Integrations;
 using Docovee.logging;
@@ -47,7 +48,10 @@ public static class DependencyInjection
         services.Configure<ChatBotOptions>(configuration.GetSection(ChatBotOptions.SectionName));
         services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.SectionName));
         services.Configure<ElevenLabsOptions>(configuration.GetSection(ElevenLabsOptions.SectionName));
+        services.Configure<MobileJwtOptions>(configuration.GetSection(MobileJwtOptions.SectionName));
         services.AddSingleton<IBrandingService, BrandingService>();
+        services.AddSingleton<IMobileJwtTokenService, MobileJwtTokenService>();
+        services.AddScoped<IPatientPushDispatcher, PatientPushDispatcher>();
 
         services.AddDocoveeLogging();
         services.AddHttpClient("DoctorPhotoDownload", (sp, client) =>

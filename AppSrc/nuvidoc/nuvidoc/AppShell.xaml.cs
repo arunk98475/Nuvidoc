@@ -1,11 +1,13 @@
-﻿namespace nuvidoc;
+using nuvidoc.Services;
+
+namespace nuvidoc;
 
 public partial class AppShell : Shell
 {
     private readonly FlyoutItem _loginFlyout;
     private readonly FlyoutItem _logoutFlyout;
 
-    public AppShell(MainPage homePage, LoginPage loginPage, LogoutPage logoutPage)
+    public AppShell(MainPage homePage, NotificationsPage notificationsPage, LoginPage loginPage, LogoutPage logoutPage)
     {
         InitializeComponent();
 
@@ -21,6 +23,24 @@ public partial class AppShell : Shell
                     Title = "Home",
                     Content = homePage,
                     Route = "home",
+                    Icon = "home.png",
+                    FlyoutIcon = "home.png"
+                }
+            }
+        });
+
+        Items.Add(new FlyoutItem
+        {
+            Title = "Notifications",
+            Route = "Notifications",
+            FlyoutIcon = "home.png",
+            Items =
+            {
+                new ShellContent
+                {
+                    Title = "Notifications",
+                    Content = notificationsPage,
+                    Route = "notifications",
                     Icon = "home.png",
                     FlyoutIcon = "home.png"
                 }
@@ -86,7 +106,7 @@ public partial class AppShell : Shell
     /// <summary>Show Login when signed out, Logout when signed in.</summary>
     public void RefreshAuthMenu()
     {
-        var signedIn = Preferences.Default.Get("patient_signed_in", false);
+        var signedIn = AuthSession.IsSignedIn;
 
         _loginFlyout.FlyoutItemIsVisible = !signedIn;
         _logoutFlyout.FlyoutItemIsVisible = signedIn;

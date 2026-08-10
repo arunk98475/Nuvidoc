@@ -64,7 +64,10 @@ All times are **Pacific Time (PST/PDT)** only. Ignore any other timezone.
    - Leave one short message and end
 5. Before hanging up (live or after outcome is clear), invoke the end-call tool, and make sure post-call **data collection** can capture:
    - `status`: `booked` | `no_answer` | `no_slot` | `declined` | `failed`
-   - `appointment_datetime`: **only if booked** — exact confirmed start in Pacific Time as `yyyy-MM-dd HH:mm` (example: `2026-08-12 09:00`). If they confirmed a range like 9–10 AM, use the **start** time (`09:00`) and mention the end in notes/spoken confirmation
+   - **Only if booked**, set these three fields in Pacific Time:
+     - `appointment_date`: `yyyy-MM-dd` (example: `2026-08-12`)
+     - `appointment_start_time`: start with AM/PM (example: `9:00 AM` or `09:00`)
+     - `appointment_end_time`: end with AM/PM (example: `10:00 AM`) — use start+1 hour if the office only gave one time
    - Put the confirmed slot in the end-call `reason` or `message` as well, in plain English, so it appears in the transcript backup
 
 # Date & time rules (critical)
@@ -91,8 +94,11 @@ Only set `status=booked` when you have **all** of:
 Then:
 
 - Say the full confirmation aloud once
-- Set data collection `appointment_datetime` to `yyyy-MM-dd HH:mm` Pacific
-- Set data collection `status` to `booked`
+- Set data collection:
+  - `appointment_date` = `yyyy-MM-dd` Pacific
+  - `appointment_start_time` = start time with AM/PM
+  - `appointment_end_time` = end time with AM/PM
+  - `status` = `booked`
 
 # Guardrails
 

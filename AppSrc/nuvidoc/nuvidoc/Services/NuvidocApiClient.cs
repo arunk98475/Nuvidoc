@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Docovee.DS.Models;
@@ -17,6 +18,18 @@ public sealed class NuvidocApiClient
     public NuvidocApiClient(HttpClient http)
     {
         _http = http;
+    }
+
+    private void ApplyAuth()
+    {
+        var token = AuthSession.AccessToken;
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            _http.DefaultRequestHeaders.Authorization = null;
+            return;
+        }
+
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
     public async Task<MobileBootstrapDto?> GetBootstrapAsync(CancellationToken cancellationToken = default)
@@ -71,18 +84,67 @@ public sealed class NuvidocApiClient
             };
         }
 
+        if (payload.Success && !string.IsNullOrWhiteSpace(payload.AccessToken))
+        {
+            AuthSession.SaveLogin(
+                payload.Email ?? request.Email,
+                payload.FullName,
+                payload.PatientId,
+                payload.AccessToken,
+                payload.ExpiresAt);
+        }
+
         return payload;
     }
 
-    /// <summary>Same endpoint / contract as the web Nuvi chat (docovee.js).</summary>
+    /// <summary>Mobile chat endpoint (same contract as web /api/chat/message).</summary>
     public async Task<(bool Ok, int Status, ChatMessageResponse Data)> SendChatMessageAsync(
         ChatMessageRequest request,
         CancellationToken cancellationToken = default)
     {
-        using var response = await _http.PostAsJsonAsync("api/chat/message", request, cancellationToken);
+        ApplyAuth();
+        using var response = await _http.PostAsJsonAsync("api/mobile/chat/message", request, cancellationToken);
         var data = await response.Content.ReadFromJsonAsync<ChatMessageResponse>(JsonOptions, cancellationToken)
                    ?? new ChatMessageResponse();
         return (response.IsSuccessStatusCode, (int)response.StatusCode, data);
+    }
+
+    public async Task<MobileNotificationsResponse?> GetNotificationsAsync(CancellationToken cancellationToken = default)
+    {
+        ApplyAuth();
+        using var response = await _http.GetAsync("api/mobile/notifications", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<MobileNotificationsResponse>(JsonOptions, cancellationToken);
+    }
+
+    public async Task MarkNotificationsReadAsync(CancellationToken cancellationToken = default)
+    {
+        ApplyAuth();
+        using var response = await _http.PostAsync("api/mobile/notifications/mark-read", null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<MobileAppointmentsResponse?> GetAppointmentsAsync(CancellationToken cancellationToken = default)
+    {
+        ApplyAuth();
+        using var response = await _http.GetAsync("api/mobile/appointments", cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<MobileAppointmentsResponse>(JsonOptions, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<MobileVoiceCallDto>> GetSessionCallsAsync(
+        Guid sessionKey,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyAuth();
+        using var response = await _http.GetAsync($"api/mobile/sessions/{sessionKey:D}/calls", cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<List<MobileVoiceCallDto>>(JsonOptions, cancellationToken)
+               ?? new List<MobileVoiceCallDto>();
     }
 
     public async Task<PublicDoctorProfileDto?> GetDoctorProfileAsync(
@@ -123,7 +185,7 @@ public sealed class NuvidocApiClient
     }
 }
 
-/// <summary>Shared cookie jar so mobile login auth is sent on chat API calls.</summary>
+/// <summary>Shared cookie jar so mobile login auth is sent on chat API calls (legacy fallback).</summary>
 public sealed class ApiCookieContainer
 {
     public CookieContainer Cookies { get; } = new();

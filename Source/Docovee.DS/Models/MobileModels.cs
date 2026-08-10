@@ -40,4 +40,8 @@ public class MobilePatientLoginResponse
     public string? Message { get; set; }
     public string? FullName { get; set; }
     public string? Email { get; set; }
+    public int? PatientId { get; set; }
+    public string? AccessToken { get; set; }
+    public string TokenType { get; set; } = "Bearer";
+    public DateTime? ExpiresAt { get; set; }
 }

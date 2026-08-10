@@ -1666,11 +1666,18 @@ public class AnthropicChatService : IAnthropicChatService
         }, cancellationToken);
 
         string text;
+        string? conversationId = null;
+        string? callSid = null;
+        string? voiceStatus = null;
         if (callResult.Success)
         {
             text = $"{planText}\n\nI've started the call to {topName}'s office now. I'll update you here as soon as I hear back.";
             if (!string.IsNullOrWhiteSpace(callResult.ConversationId))
                 text += $" (ref: {callResult.ConversationId})";
+
+            conversationId = callResult.ConversationId;
+            callSid = callResult.CallSid;
+            voiceStatus = VoiceOutboundCallStatuses.Initiated;
 
             if (!string.IsNullOrWhiteSpace(callResult.ConversationId))
             {
@@ -1694,13 +1701,24 @@ public class AnthropicChatService : IAnthropicChatService
         else
         {
             text = $"{planText}\n\nI wasn't able to complete the dial just now: {callResult.Message}";
+            voiceStatus = VoiceOutboundCallStatuses.Failed;
         }
 
         context.Stage = NuviConversationStage.Confirmation;
         context.BookingConfirmed = callResult.Success;
         context.CallingStep = CallingConsentStep.None;
         await SaveAssistantMessageAsync(session, text, cancellationToken);
-        return BuildResponse(session, context, text, stage: NuviConversationStage.Confirmation, flowComplete: true);
+        return BuildResponse(
+            session,
+            context,
+            text,
+            stage: NuviConversationStage.Confirmation,
+            flowComplete: true,
+            conversationId: conversationId,
+            callSid: callSid,
+            callingDoctorId: target.Value.Doctor.Id,
+            callingDoctorName: topName,
+            voiceCallStatus: voiceStatus);
     }
 
     private async Task<(Doctor Doctor, string PhoneE164)?> FindFirstCallableDoctorAsync(
@@ -2442,7 +2460,12 @@ public class AnthropicChatService : IAnthropicChatService
         bool awaitingWildcardConcern = false,
         string? pollingQuestionKind = null,
         string? inputPlaceholder = null,
-        bool? optionsOnly = null)
+        bool? optionsOnly = null,
+        string? conversationId = null,
+        string? callSid = null,
+        int? callingDoctorId = null,
+        string? callingDoctorName = null,
+        string? voiceCallStatus = null)
     {
         return new ChatMessageResponse
         {
@@ -2469,7 +2492,12 @@ public class AnthropicChatService : IAnthropicChatService
             Urgency = session.Urgency.ToString(),
             Notes = session.SearchNotes,
             Done = flowComplete || context.Stage == NuviConversationStage.Confirmation,
-            FlowComplete = flowComplete
+            FlowComplete = flowComplete,
+            ConversationId = conversationId,
+            CallSid = callSid,
+            CallingDoctorId = callingDoctorId,
+            CallingDoctorName = callingDoctorName,
+            VoiceCallStatus = voiceCallStatus
         };
     }
 

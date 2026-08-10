@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="nuvidoc.NotificationsPage"
+             Title="Notifications"
+             BackgroundColor="#F5F7F6">
+    <Grid RowDefinitions="Auto,*" Padding="16">
+        <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
+            <Label Text="Notifications"
+                   FontFamily="OpenSansSemibold"
+                   FontSize="22"
+                   TextColor="#1A2B22"
+                   VerticalOptions="Center" />
+            <Label x:Name="UnreadLabel"
+                   FontSize="13"
+                   TextColor="#6B8078"
+                   VerticalOptions="Center" />
+        </HorizontalStackLayout>
+
+        <RefreshView Grid.Row="1" x:Name="Refresh" Refreshing="OnRefreshing">
+            <CollectionView x:Name="List"
+                            SelectionMode="None"
+                            EmptyView="No notifications yet. Nuvi will post booking updates here.">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Border Stroke="#D4DDD9"
+                                StrokeThickness="1"
+                                BackgroundColor="White"
+                                Padding="14"
+                                Margin="0,6"
+                                StrokeShape="RoundRectangle 12">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding Title}"
+                                       FontFamily="OpenSansSemibold"
+                                       FontSize="15"
+                                       TextColor="#1A2B22" />
+                                <Label Text="{Binding Body}"
+                                       FontSize="13"
+                                       TextColor="#3D4F47"
+                                       LineBreakMode="WordWrap" />
+                                <Label Text="{Binding AppointmentSlot}"
+                                       FontSize="12"
+                                       TextColor="#3D6B5A"
+                                       IsVisible="{Binding HasAppointmentSlot}" />
+                                <Label Text="{Binding Timestamp}"
+                                       FontSize="11"
+                                       TextColor="#6B8078"
+                                       HorizontalOptions="End"
+                                       Margin="0,4,0,0" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+</ContentPage>

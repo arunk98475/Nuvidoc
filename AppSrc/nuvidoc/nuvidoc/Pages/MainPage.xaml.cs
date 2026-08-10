@@ -1,4 +1,4 @@
-﻿using Docovee.DS.Models;
+using Docovee.DS.Models;
 using Microsoft.Maui.Controls.Shapes;
 using nuvidoc.Services;
 
@@ -17,6 +17,8 @@ public partial class MainPage : ContentPage
 
     private readonly NuvidocApiClient _api;
     private readonly MatchNavState _matchNav;
+    private readonly SignalRBookingPushClient _push;
+    private readonly BookingAlertHub _alerts;
     private Guid? _sessionKey;
     private string _currentStage = "Greeting";
     private bool _usePasswordInput;
@@ -32,16 +34,21 @@ public partial class MainPage : ContentPage
     private readonly HashSet<int> _recommendedDoctorIds = new();
     private MobileBootstrapDto? _bootstrap;
 
-    public MainPage(NuvidocApiClient api, MatchNavState matchNav)
+    public MainPage(NuvidocApiClient api, MatchNavState matchNav, SignalRBookingPushClient push, BookingAlertHub alerts)
     {
         InitializeComponent();
         _api = api;
         _matchNav = matchNav;
+        _push = push;
+        _alerts = alerts;
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // Subscribe once for the app lifetime — MainPage is a singleton Shell content.
+        _alerts.Received -= OnBookingAlertAsync;
+        _alerts.Received += OnBookingAlertAsync;
         RefreshStatus();
 
         if (_started)
@@ -51,9 +58,22 @@ public partial class MainPage : ContentPage
         await PlayWelcomeIntroAsync();
     }
 
+    private async Task OnBookingAlertAsync(PatientPushMessage message)
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            var line = string.IsNullOrWhiteSpace(message.Body)
+                ? message.Title
+                : $"{message.Title}: {message.Body}";
+            AddAi($"🔔 {line}");
+            StageLabel.Text = message.Status;
+            await ChatScroll.ScrollToAsync(MessagesLayout, ScrollToPosition.End, true);
+        });
+    }
+
     private void RefreshStatus()
     {
-        var signedIn = Preferences.Default.Get("patient_signed_in", false);
+        var signedIn = AuthSession.IsSignedIn;
         StatusLabel.Text = signedIn
             ? $"Signed in · {Preferences.Default.Get("patient_email", "patient")}"
             : "Here to help you find the right dentist";
@@ -82,7 +102,7 @@ public partial class MainPage : ContentPage
             {
                 botName = _bootstrap.ChatBotName;
                 BrandLabel.Text = botName;
-                welcome = Preferences.Default.Get("patient_signed_in", false)
+                welcome = AuthSession.IsSignedIn
                     ? $"Hi {Preferences.Default.Get("patient_full_name", Preferences.Default.Get("patient_email", "there"))}! 👋 I'm {botName} — your personal dentist-matching concierge. Welcome back! What's going on with your teeth or smile?"
                     : _bootstrap.WelcomeMessage;
                 if (_bootstrap.QuickConcerns?.Count > 0)
@@ -228,6 +248,14 @@ public partial class MainPage : ContentPage
                 _recommendedDoctorIds.Add(sid);
 
             ApplyChatResponseState(data);
+
+            // Join session group as soon as we have a chat session so booking pushes arrive
+            // even before Nuvi starts dialing (signed-in users also join patient group on connect).
+            if (_sessionKey is Guid sk && sk != Guid.Empty)
+            {
+                try { await _push.JoinSessionAsync(sk); }
+                catch { /* Hub may be unreachable; REST notifications still work. */ }
+            }
         }
         catch (Exception ex)
         {
@@ -288,10 +316,17 @@ public partial class MainPage : ContentPage
             RefreshStatus();
         }
 
-        if (data.FlowComplete)
+        if (data.FlowComplete && string.IsNullOrWhiteSpace(data.ConversationId))
         {
             SetChips(null);
             ChatEntry.Placeholder = "Conversation complete — reopen app to start over";
+            ChatEntry.IsEnabled = false;
+            SendBtn.IsEnabled = false;
+        }
+        else if (data.FlowComplete && !string.IsNullOrWhiteSpace(data.ConversationId))
+        {
+            SetChips(null);
+            ChatEntry.Placeholder = "Waiting for Nuvi to finish the office call…";
             ChatEntry.IsEnabled = false;
             SendBtn.IsEnabled = false;
         }

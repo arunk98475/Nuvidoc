@@ -4,8 +4,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Services.PatientPush;
 using Docovee.DS;
 using Docovee.DS.Entities;
+using Docovee.DS.Models;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +27,10 @@ public interface IVoiceCallBookingService
     Task<bool> ProcessConversationAsync(string conversationId, CancellationToken cancellationToken = default);
 
     void ScheduleConversationPolling(string conversationId);
+
+    Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
+        Guid sessionKey,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class VoiceOutboundCallRecordRequest
@@ -129,20 +135,87 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly ElevenLabsOptions _elevenLabs;
     private readonly IDocoveeLogger _logger;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IPatientPushDispatcher _push;
 
     public VoiceCallBookingService(
         DocoveeDbContext db,
         IHttpClientFactory httpClientFactory,
         IOptions<ElevenLabsOptions> elevenLabs,
         IDocoveeLogger logger,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IPatientPushDispatcher push)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
         _elevenLabs = elevenLabs.Value;
         _logger = logger;
         _scopeFactory = scopeFactory;
+        _push = push;
     }
+
+    public async Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
+        Guid sessionKey,
+        CancellationToken cancellationToken = default)
+    {
+        if (sessionKey == Guid.Empty)
+            return Array.Empty<MobileVoiceCallDto>();
+
+        var rows = await (
+            from c in _db.VoiceOutboundCalls.AsNoTracking()
+            join d in _db.Doctors.AsNoTracking() on c.DoctorId equals d.Id into dj
+            from d in dj.DefaultIfEmpty()
+            where c.SessionKey == sessionKey
+            orderby c.CreatedAt descending
+            select new
+            {
+                c.Id,
+                c.ConversationId,
+                c.SessionKey,
+                c.DoctorId,
+                DoctorName = d != null ? d.Name : "",
+                c.Status,
+                c.AppointmentId,
+                c.OutcomeNotes,
+                c.CreatedAt,
+                c.UpdatedAt,
+                StartsAt = c.AppointmentId == null
+                    ? (DateTime?)null
+                    : _db.Appointments.Where(a => a.Id == c.AppointmentId).Select(a => (DateTime?)a.StartsAt).FirstOrDefault()
+            }).ToListAsync(cancellationToken);
+
+        return rows.Select(r =>
+        {
+            var terminal = IsTerminalStatus(r.Status);
+            string? slot = null;
+            if (r.StartsAt is DateTime start)
+                slot = FormatPstSlot(start, start.AddHours(1));
+
+            return new MobileVoiceCallDto
+            {
+                Id = r.Id,
+                ConversationId = r.ConversationId,
+                SessionKey = r.SessionKey,
+                DoctorId = r.DoctorId,
+                DoctorName = r.DoctorName ?? "",
+                Status = r.Status,
+                IsTerminal = terminal,
+                AppointmentId = r.AppointmentId,
+                AppointmentStartsAt = r.StartsAt,
+                AppointmentSlotLabel = slot,
+                OutcomeNotes = r.OutcomeNotes,
+                CreatedAt = r.CreatedAt,
+                UpdatedAt = r.UpdatedAt
+            };
+        }).ToList();
+    }
+
+    private static bool IsTerminalStatus(string status) =>
+        status is VoiceOutboundCallStatuses.Booked
+            or VoiceOutboundCallStatuses.Failed
+            or VoiceOutboundCallStatuses.NoSlot
+            or VoiceOutboundCallStatuses.Declined
+            or VoiceOutboundCallStatuses.NoAnswer
+            or VoiceOutboundCallStatuses.Completed;
 
     public async Task RecordInitiatedCallAsync(
         VoiceOutboundCallRecordRequest request,
@@ -334,17 +407,23 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             call.Status = outcome.StatusHint ?? VoiceOutboundCallStatuses.Completed;
             await _db.SaveChangesAsync(cancellationToken);
-            if (call.PatientId is > 0 && !string.IsNullOrWhiteSpace(outcome.Notes))
+            int? notificationId = null;
+            var title = "Nuvi call update";
+            var body = string.IsNullOrWhiteSpace(outcome.Notes)
+                ? $"Call finished with status {call.Status}."
+                : outcome.Notes!;
+            if (call.PatientId is > 0)
             {
-                await AddNotificationAsync(
+                notificationId = await AddNotificationAsync(
                     call.PatientId.Value,
                     PatientNotificationTypes.VoiceCallUpdate,
-                    "Nuvi call update",
-                    outcome.Notes!,
+                    title,
+                    body,
                     doctorId: call.DoctorId,
                     cancellationToken: cancellationToken);
             }
 
+            await DispatchTerminalPushAsync(call, call.Status, title, body, notificationId, cancellationToken: cancellationToken);
             return true;
         }
 
@@ -359,17 +438,22 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     : $"{outcome.Notes} | Missing appointment_datetime — appointment not saved.",
                 2000);
             await _db.SaveChangesAsync(cancellationToken);
+            const string missingTitle = "Nuvi call update";
+            const string missingBody =
+                "The office confirmed a booking, but Nuvi could not capture the appointment date/time. Please confirm the slot with the office.";
+            int? notificationId = null;
             if (call.PatientId is > 0)
             {
-                await AddNotificationAsync(
+                notificationId = await AddNotificationAsync(
                     call.PatientId.Value,
                     PatientNotificationTypes.VoiceCallUpdate,
-                    "Nuvi call update",
-                    "The office confirmed a booking, but Nuvi could not capture the appointment date/time. Please confirm the slot with the office.",
+                    missingTitle,
+                    missingBody,
                     doctorId: call.DoctorId,
                     cancellationToken: cancellationToken);
             }
 
+            await DispatchTerminalPushAsync(call, call.Status, missingTitle, missingBody, notificationId, cancellationToken: cancellationToken);
             _logger.LogInformation(
                 "Booked without parseable datetime for conversation {ConversationId}. Notes={Notes}",
                 conversationId, Truncate(outcome.Notes, 500));
@@ -380,6 +464,12 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             call.Status = outcome.StatusHint ?? VoiceOutboundCallStatuses.Completed;
             await _db.SaveChangesAsync(cancellationToken);
+            await DispatchTerminalPushAsync(
+                call,
+                call.Status,
+                "Nuvi call update",
+                $"Call finished with status {call.Status}.",
+                cancellationToken: cancellationToken);
             return true;
         }
 
@@ -390,17 +480,22 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             call.OutcomeNotes = Truncate(
                 $"Rejected past appointment time ({startsAt:g}).", 2000);
             await _db.SaveChangesAsync(cancellationToken);
+            var pastTitle = "Nuvi call update";
+            var pastBody =
+                $"The office offered a past time ({startsAt:ddd, MMM d yyyy h:mm tt}). No appointment was saved.";
+            int? notificationId = null;
             if (call.PatientId is > 0)
             {
-                await AddNotificationAsync(
+                notificationId = await AddNotificationAsync(
                     call.PatientId.Value,
                     PatientNotificationTypes.VoiceCallUpdate,
-                    "Nuvi call update",
-                    $"The office offered a past time ({startsAt:ddd, MMM d yyyy h:mm tt}). No appointment was saved.",
+                    pastTitle,
+                    pastBody,
                     doctorId: call.DoctorId,
                     cancellationToken: cancellationToken);
             }
 
+            await DispatchTerminalPushAsync(call, call.Status, pastTitle, pastBody, notificationId, cancellationToken: cancellationToken);
             return true;
         }
 
@@ -444,19 +539,33 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         call.Status = VoiceOutboundCallStatuses.Booked;
         await _db.SaveChangesAsync(cancellationToken);
 
+        var doctorName = doctor?.Name ?? "your dentist";
+        var when = FormatPstSlot(appointmentStartsAt, appointmentEndsAt);
+        var bookedTitle = "Appointment booked";
+        var bookedBody = $"Nuvi booked your visit with {doctorName} on {when}.";
+        int? bookedNotificationId = null;
         if (call.PatientId is > 0)
         {
-            var doctorName = doctor?.Name ?? "your dentist";
-            var when = FormatPstSlot(appointmentStartsAt, appointmentEndsAt);
-            await AddNotificationAsync(
+            bookedNotificationId = await AddNotificationAsync(
                 call.PatientId.Value,
                 PatientNotificationTypes.AppointmentBooked,
-                "Appointment booked",
-                $"Nuvi booked your visit with {doctorName} on {when}.",
+                bookedTitle,
+                bookedBody,
                 appointment.Id,
                 call.DoctorId,
                 cancellationToken);
         }
+
+        await DispatchTerminalPushAsync(
+            call,
+            VoiceOutboundCallStatuses.Booked,
+            bookedTitle,
+            bookedBody,
+            bookedNotificationId,
+            appointmentStartsAt,
+            appointmentEndsAt,
+            doctorName,
+            cancellationToken);
 
         _logger.LogInformation(
             "Voice booking saved. Conversation={ConversationId} Appointment={AppointmentId}",
@@ -534,7 +643,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return call;
     }
 
-    private async Task AddNotificationAsync(
+    private async Task<int> AddNotificationAsync(
         int patientId,
         string type,
         string title,
@@ -543,7 +652,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         int? doctorId = null,
         CancellationToken cancellationToken = default)
     {
-        _db.PatientNotifications.Add(new PatientNotification
+        var row = new PatientNotification
         {
             PatientId = patientId,
             Type = type,
@@ -553,8 +662,58 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             DoctorId = doctorId,
             IsRead = false,
             CreatedAt = DateTime.UtcNow
-        });
+        };
+        _db.PatientNotifications.Add(row);
         await _db.SaveChangesAsync(cancellationToken);
+        return row.Id;
+    }
+
+    private async Task DispatchTerminalPushAsync(
+        VoiceOutboundCall call,
+        string status,
+        string title,
+        string body,
+        int? notificationId = null,
+        DateTime? startsAt = null,
+        DateTime? endsAt = null,
+        string? doctorName = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? resolvedDoctorName = doctorName;
+        if (string.IsNullOrWhiteSpace(resolvedDoctorName) && call.DoctorId > 0)
+        {
+            resolvedDoctorName = await _db.Doctors.AsNoTracking()
+                .Where(d => d.Id == call.DoctorId)
+                .Select(d => d.Name)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        string? slotLabel = null;
+        if (startsAt is DateTime start)
+        {
+            var end = endsAt ?? start.AddHours(1);
+            slotLabel = FormatPstSlot(start, end);
+        }
+
+        await _push.DispatchAsync(new PatientPushMessage
+        {
+            Type = status == VoiceOutboundCallStatuses.Booked
+                ? PatientNotificationTypes.AppointmentBooked
+                : PatientNotificationTypes.VoiceCallUpdate,
+            PatientId = call.PatientId,
+            SessionKey = call.SessionKey,
+            ConversationId = call.ConversationId,
+            Status = status,
+            Title = title,
+            Body = body,
+            DoctorId = call.DoctorId,
+            DoctorName = resolvedDoctorName,
+            AppointmentId = call.AppointmentId,
+            StartsAt = startsAt,
+            EndsAt = endsAt ?? (startsAt?.AddHours(1)),
+            SlotLabel = slotLabel,
+            NotificationId = notificationId
+        }, cancellationToken);
     }
 
     private static BookingOutcome ExtractBookingOutcome(JsonElement data)
@@ -583,8 +742,11 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         DateTime? startsAt = null;
         DateTime? endsAt = null;
         var booked = false;
+        string? endTimeRaw = null;
 
-        // ElevenLabs format: { "appointment_datetime": { "value": "..." }, "status": { "value": "booked" } }
+        // ElevenLabs format examples:
+        //   appointment_datetime: { "value": "2026-08-15 10:00 AM" }
+        //   or split: appointment_date + appointment_start_time + appointment_end_time
         // All Nuvi times are Pacific (PST/PDT) wall-clock.
         if (data.TryGetProperty("analysis", out var analysis2)
             && analysis2.TryGetProperty("data_collection_results", out var dcr))
@@ -607,8 +769,31 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                         booked = true;
                 }
 
+                // Split fields (preferred for ElevenLabs data collection).
+                if (idLower is "appointment_date" or "date" or "day" or "appointment_day")
+                {
+                    dateOnlyRaw ??= valueClean;
+                    if (LooksLikeDateWithoutTime(valueClean) || TryParseAppointmentSlot(valueClean, out _, out _))
+                        booked = true;
+                    continue;
+                }
+
+                if (idLower is "appointment_start_time" or "start_time" or "slot_time" or "appointment_start")
+                {
+                    timeOnlyRaw ??= valueClean;
+                    booked = true;
+                    continue;
+                }
+
+                if (idLower is "appointment_end_time" or "end_time" or "appointment_end")
+                {
+                    endTimeRaw ??= valueClean;
+                    continue;
+                }
+
+                // Combined datetime (legacy / fallback).
                 if (idLower is "appointment_datetime" or "appointment_time" or "booked_datetime"
-                    or "starts_at" or "appointment_date" or "scheduled_at" or "booking_time"
+                    or "starts_at" or "scheduled_at" or "booking_time"
                     or "time_slot" or "appointment_slot" or "confirmed_datetime" or "slot")
                 {
                     if (TryParseAppointmentSlot(valueClean, out var dt, out var slotEnd))
@@ -629,9 +814,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     }
                 }
 
-                if (idLower is "date" or "day" or "appointment_day")
-                    dateOnlyRaw ??= valueClean;
-                if (idLower is "time" or "start_time" or "slot_time")
+                if (idLower is "time")
                     timeOnlyRaw ??= valueClean;
             }
         }
@@ -685,17 +868,40 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 booked = true;
         }
 
-        // Combine separate date + time collection fields.
+        // Combine separate date + start (+ optional end) collection fields.
+        // Prefer these over spoken transcript when both are present.
+        var fromDataCollection = false;
         if (startsAt == null && dateOnlyRaw != null && timeOnlyRaw != null
             && TryParseAppointmentSlot($"{dateOnlyRaw} {timeOnlyRaw}", out var combined, out var combinedEnd))
         {
             startsAt = combined;
             endsAt = combinedEnd ?? endsAt;
+            fromDataCollection = true;
+        }
+        else if (startsAt == null && dateOnlyRaw != null && timeOnlyRaw != null
+                 && TryParseAppointmentDateTimeCore(
+                     NormalizeSpokenDateTimeText($"{dateOnlyRaw} {NormalizeAmPm(timeOnlyRaw)}"),
+                     out var looseCombined))
+        {
+            startsAt = looseCombined;
+            fromDataCollection = true;
+        }
+
+        if (startsAt != null && endTimeRaw != null
+            && TryParseAppointmentDateTimeCore($"{startsAt:yyyy-MM-dd} {NormalizeAmPm(endTimeRaw)}", out var parsedEnd))
+        {
+            endsAt = parsedEnd;
+        }
+        else if (startsAt != null && endTimeRaw != null
+                 && TryParseAppointmentSlot($"{dateOnlyRaw ?? startsAt.Value.ToString("yyyy-MM-dd")} {endTimeRaw}", out var endSlot, out _))
+        {
+            endsAt = endSlot;
         }
 
         // Scan spoken transcript / end_call reason for confirmations.
         // Prefer the best slot (real clock time), not the first weak/midnight match.
-        if (startsAt == null || IsLikelyMidnightPlaceholder(startsAt.Value))
+        // Skip when ElevenLabs data-collection already provided a concrete slot.
+        if (!fromDataCollection && (startsAt == null || IsLikelyMidnightPlaceholder(startsAt.Value)))
         {
             DateTime? bestStart = null;
             DateTime? bestEnd = null;
@@ -1057,6 +1263,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _ => VoiceOutboundCallStatuses.Completed
     };
 
+    private const string TimeRangePattern =
+        @"(\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?|\d{1,2}\s*[AaPp][Mm])\s*(?:[-–—]|to)\s*(\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?|\d{1,2}\s*[AaPp][Mm])";
+
     private static bool TryParseAppointmentSlot(string raw, out DateTime startsAt, out DateTime? endsAt)
     {
         startsAt = default;
@@ -1070,7 +1279,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         var text = rangeStartToken != null
             ? System.Text.RegularExpressions.Regex.Replace(
                 original,
-                @"(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)",
+                TimeRangePattern,
                 rangeStartToken,
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase)
             : original;
@@ -1093,7 +1302,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             var endText = System.Text.RegularExpressions.Regex.Replace(
                 original,
-                @"(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)",
+                TimeRangePattern,
                 rangeEndToken,
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (TryParseAppointmentDateTimeCore(endText, out var endDt) ||
@@ -1164,6 +1373,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             "yyyy-MM-dd'T'HH:mm",
             "yyyy-MM-dd'T'HH:mm:ss",
             "yyyy-MM-dd h:mm tt",
+            "yyyy-MM-dd hh:mm tt",
+            "yyyy-MM-dd H:mm",
             "yyyy-MM-dd",
             "yyyy/MM/dd HH:mm",
             "yyyy/MM/dd",
@@ -1171,6 +1382,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             "MM/dd/yyyy h:mm tt",
             "MM/dd/yyyy",
             "M/d/yyyy h:mm tt",
+            "M/d/yyyy h:mm:ss tt",
             "M/d/yyyy",
             "dd/MM/yyyy HH:mm",
             "dd/MM/yyyy h:mm tt",
@@ -1194,7 +1406,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             "d MMM yyyy"
         };
 
-        foreach (var culture in new[] { CultureInfo.InvariantCulture, new CultureInfo("en-US") })
+        foreach (var culture in new[] { new CultureInfo("en-US"), CultureInfo.InvariantCulture })
         {
             if (DateTime.TryParseExact(
                     text, formats, culture,
@@ -1206,6 +1418,16 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 startsAt = DateTime.SpecifyKind(parsed, DateTimeKind.Unspecified);
                 return true;
             }
+        }
+
+        // Last resort for "2026-08-15 10:00 AM" style strings (culture-aware).
+        if (DateTime.TryParse(text, new CultureInfo("en-US"), DateTimeStyles.AllowWhiteSpaces, out var soft)
+            && soft.Year >= 2000
+            && HasExplicitCalendarDate(soft, text)
+            && HasExplicitClockTime(text))
+        {
+            startsAt = DateTime.SpecifyKind(soft, DateTimeKind.Unspecified);
+            return true;
         }
 
         var match = System.Text.RegularExpressions.Regex.Match(
@@ -1228,9 +1450,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     {
         startToken = null;
         endToken = null;
+        // Require real clock tokens (":mm" and/or AM/PM) so ISO dates like 2026-08-15 are not treated as ranges.
         var m = System.Text.RegularExpressions.Regex.Match(
             text,
-            @"(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:[AaPp][Mm])?)",
+            TimeRangePattern,
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         if (!m.Success)
             return;

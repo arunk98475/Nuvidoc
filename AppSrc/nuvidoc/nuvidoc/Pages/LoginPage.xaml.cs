@@ -6,11 +6,15 @@ namespace nuvidoc;
 public partial class LoginPage : ContentPage
 {
     private readonly NuvidocApiClient _api;
+    private readonly SignalRBookingPushClient _push;
+    private readonly BookingLocalNotifier _notifier;
 
-    public LoginPage(NuvidocApiClient api)
+    public LoginPage(NuvidocApiClient api, SignalRBookingPushClient push, BookingLocalNotifier notifier)
     {
         InitializeComponent();
         _api = api;
+        _push = push;
+        _notifier = notifier;
     }
 
     private async void OnLoginClicked(object? sender, EventArgs e)
@@ -38,10 +42,15 @@ public partial class LoginPage : ContentPage
                 return;
             }
 
-            Preferences.Default.Set("patient_signed_in", true);
-            Preferences.Default.Set("patient_email", email);
-            if (!string.IsNullOrWhiteSpace(result.FullName))
-                Preferences.Default.Set("patient_full_name", result.FullName);
+            try
+            {
+                await _notifier.EnsurePermissionAsync();
+                await _push.EnsureConnectedAsync();
+            }
+            catch { /* hub / permission optional at login */ }
+
+            if (Shell.Current is AppShell shell)
+                shell.RefreshAuthMenu();
 
             StatusLabel.Text = "Signed in. Opening Nuvi…";
             await Shell.Current.GoToAsync("//MainPage");

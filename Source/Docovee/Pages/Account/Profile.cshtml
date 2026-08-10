@@ -587,25 +587,22 @@
                     <div class="pi-list">
                         @foreach (var n in Model.Notifications)
                         {
-                            string timeLabel;
+                            string? appointmentLabel = null;
                             if (n.AppointmentStartsAt is DateTime slotStart)
                             {
                                 var slotEnd = n.AppointmentEndsAt ?? slotStart.AddHours(1);
-                                timeLabel = ProfileModel.FormatPstSlot(slotStart, slotEnd);
+                                appointmentLabel = ProfileModel.FormatPstSlot(slotStart, slotEnd);
                             }
-                            else
-                            {
-                                timeLabel = n.CreatedAt.ToLocalTime().ToString("ddd, MMM d · h:mm tt");
-                            }
-                            <div class="pi-row @(n.IsRead ? "" : "pi-row-unread")">
+                            var notifTime = n.CreatedAt.ToLocalTime().ToString("MMM d · h:mm tt");
+                            <div class="pi-row pi-notif-row @(n.IsRead ? "" : "pi-row-unread")">
                                 <div class="pi-row-body">
-                                    <div class="pi-label">@timeLabel</div>
-                                    <div class="pi-value">@n.Title</div>
+                                    <div class="pi-value pi-notif-title">@n.Title</div>
                                     <p class="pi-hint">@n.Body</p>
-                                    @if (n.AppointmentStartsAt == null)
+                                    @if (!string.IsNullOrWhiteSpace(appointmentLabel))
                                     {
-                                        <p class="pi-hint">Received @n.CreatedAt.ToLocalTime().ToString("MMM d · h:mm tt")</p>
+                                        <p class="pi-notif-slot">@appointmentLabel</p>
                                     }
+                                    <div class="pi-notif-time">@notifTime</div>
                                 </div>
                                 @if (n.DoctorId is > 0)
                                 {

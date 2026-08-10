@@ -28,29 +28,13 @@ public partial class ChatPage : ContentPage, IQueryAttributable
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        // Legacy local PatientFlowEngine chat is retired — use MainPage (server Nuvi + SignalR).
+        await Shell.Current.GoToAsync("//MainPage");
+    }
 
-        if (_started)
-        {
-            if (_engine?.State.Stage == PatientFlowStage.AccountPermission &&
-                Preferences.Default.Get("patient_account_created", false))
-            {
-                Preferences.Default.Remove("patient_account_created");
-                _engine.MarkAccountCreated();
-                await PresentAsync(_engine.CurrentPrompt());
-            }
-            return;
-        }
-
-        _started = true;
-        var signedIn = Preferences.Default.Get("patient_signed_in", false);
-        _engine = new PatientFlowEngine(new PatientFlowState
-        {
-            IsSignedIn = signedIn,
-            HasPriorTriage = Preferences.Default.Get("patient_has_prior_triage", false),
-            NeedsAccount = !signedIn,
-            AccountCreated = signedIn
-        });
-        await PresentAsync(_engine.Start(_initialConcern));
+    private async void OnSendClicked_Unused(object? sender, EventArgs e)
+    {
+        await Task.CompletedTask;
     }
 
     private async void OnSendClicked(object? sender, EventArgs e)

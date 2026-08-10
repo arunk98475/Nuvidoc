@@ -1,3 +1,5 @@
+using nuvidoc.Services;
+
 namespace nuvidoc;
 
 /// <summary>
@@ -6,10 +8,12 @@ namespace nuvidoc;
 /// </summary>
 public class LogoutPage : ContentPage
 {
+    private readonly SignalRBookingPushClient _push;
     private bool _busy;
 
-    public LogoutPage()
+    public LogoutPage(SignalRBookingPushClient push)
     {
+        _push = push;
         BackgroundColor = Color.FromArgb("#F5F7F6");
         Content = new VerticalStackLayout
         {
@@ -38,10 +42,8 @@ public class LogoutPage : ContentPage
 
         try
         {
-            Preferences.Default.Remove("patient_signed_in");
-            Preferences.Default.Remove("patient_email");
-            Preferences.Default.Remove("patient_full_name");
-            Preferences.Default.Remove("patient_account_created");
+            await _push.DisconnectAsync();
+            AuthSession.Clear();
 
             if (Shell.Current is AppShell shell)
                 shell.RefreshAuthMenu();
