@@ -77,6 +77,7 @@ public sealed class PatientNotificationService : IPatientNotificationService
         var rows = await _db.PatientNotifications.AsNoTracking()
             .Where(n => n.PatientId == patientId)
             .OrderByDescending(n => n.CreatedAt)
+            .ThenByDescending(n => n.Id)
             .Take(50)
             .Select(n => new PatientNotificationDto
             {
