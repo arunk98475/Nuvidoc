@@ -543,11 +543,32 @@
         }
         else if (section == "notifications")
         {
+                @if (Model.UpcomingAppointments.Count > 0)
+                {
+                    <div class="pat-panel-head">
+                        <h1>Upcoming appointments</h1>
+                        <p>Below are the upcoming appointments</p>
+                    </div>
+                    <div class="pi-list" style="margin-bottom: 24px">
+                        @foreach (var a in Model.UpcomingAppointments)
+                        {
+                            <div class="pi-row">
+                                <div class="pi-row-body">
+                                    <div class="pi-label">@ProfileModel.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1))</div>
+                                    <div class="pi-value">@a.DoctorName</div>
+                                    <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
+                                    <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
+                                </div>
+                                <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
+                            </div>
+                        }
+                    </div>
+                }
+
             <div class="pat-panel-head">
                 <h1>Notifications</h1>
                 <p>Booking confirmations and call updates from Nuvi.</p>
             </div>
-
             @if (Model.Notifications.Count == 0 && Model.UpcomingAppointments.Count == 0)
             {
                 <div class="pi-list">
@@ -595,26 +616,6 @@
                     </div>
                 }
 
-                @if (Model.UpcomingAppointments.Count > 0)
-                {
-                    <div class="pat-panel-head" style="margin-top:1.5rem;">
-                        <h2 style="font-size:1.1rem;margin:0;">Upcoming appointments</h2>
-                    </div>
-                    <div class="pi-list">
-                        @foreach (var a in Model.UpcomingAppointments)
-                        {
-                            <div class="pi-row">
-                                <div class="pi-row-body">
-                                    <div class="pi-label">@ProfileModel.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1))</div>
-                                    <div class="pi-value">@a.DoctorName</div>
-                                    <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
-                                    <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
-                                </div>
-                                <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
-                            </div>
-                        }
-                    </div>
-                }
             }
         }
     </main>
