@@ -824,6 +824,11 @@ function applyChatResponseState(data) {
 
   if (data.signedIn) {
     updateNavForSignedInPatient();
+    window.NuvidocPatientPush?.start({ joinPatient: true }).catch(() => {});
+  }
+
+  if (sessionKey && window.NuvidocPatientPush) {
+    window.NuvidocPatientPush.joinSession(sessionKey).catch(() => {});
   }
 
   const input = document.getElementById("chat-input");

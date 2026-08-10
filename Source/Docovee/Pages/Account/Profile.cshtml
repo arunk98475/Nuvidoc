@@ -44,9 +44,11 @@
                 <span>Notifications</span>
                 @if (Model.UnreadNotificationCount > 0)
                 {
-                    <span class="pat-nav-badge">@Model.UnreadNotificationCount</span>
+                    <span class="pat-nav-badge" data-notify-badge="1">@Model.UnreadNotificationCount</span>
                 }
             </a>
+            <a class="pat-nav-item @(section == "appointments" ? "active" : "")" href="/Account/Profile?section=appointments">Appointments</a>
+            <a class="pat-nav-item @(section == "appointment-history" ? "active" : "")" href="/Account/Profile?section=appointment-history">Appointment History</a>
             <a class="pat-nav-item @(section == "permissions" ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
             <a class="pat-nav-item @(section == "insurance" ? "active" : "")" href="/Account/Profile?section=insurance">Insurance &amp; ID Cards</a>
             <a class="pat-nav-item @(section == "privacy" ? "active" : "")" href="/Account/Profile?section=privacy">Privacy</a>
@@ -541,35 +543,48 @@
                 </div>
             </div>
         }
+        else if (section == "appointments")
+        {
+            <div class="pat-panel-head">
+                <h1>Appointments</h1>
+                <p>Your upcoming visits.</p>
+            </div>
+            @if (Model.UpcomingAppointments.Count == 0)
+            {
+                <div class="pi-list">
+                    <div class="pi-row">
+                        <div class="pi-row-body">
+                            <div class="pi-value">No upcoming appointments.</div>
+                            <p class="pi-hint"><a class="pi-link" href="/?chat=1">Find a doctor</a> with @Branding.ChatBotName and Nuvi will book for you.</p>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="pi-list">
+                    @foreach (var a in Model.UpcomingAppointments)
+                    {
+                        <div class="pi-row">
+                            <div class="pi-row-body">
+                                <div class="pi-label">@ProfileModel.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1))</div>
+                                <div class="pi-value">@a.DoctorName</div>
+                                <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
+                                <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
+                            </div>
+                            <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
+                        </div>
+                    }
+                </div>
+            }
+        }
         else if (section == "notifications")
         {
-                @if (Model.UpcomingAppointments.Count > 0)
-                {
-                    <div class="pat-panel-head">
-                        <h1>Upcoming appointments</h1>
-                        <p>Below are the upcoming appointments</p>
-                    </div>
-                    <div class="pi-list" style="margin-bottom: 24px">
-                        @foreach (var a in Model.UpcomingAppointments)
-                        {
-                            <div class="pi-row">
-                                <div class="pi-row-body">
-                                    <div class="pi-label">@ProfileModel.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1))</div>
-                                    <div class="pi-value">@a.DoctorName</div>
-                                    <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
-                                    <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
-                                </div>
-                                <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
-                            </div>
-                        }
-                    </div>
-                }
-
             <div class="pat-panel-head">
                 <h1>Notifications</h1>
                 <p>Booking confirmations and call updates from Nuvi.</p>
             </div>
-            @if (Model.Notifications.Count == 0 && Model.UpcomingAppointments.Count == 0)
+            @if (Model.Notifications.Count == 0)
             {
                 <div class="pi-list">
                     <div class="pi-row">
@@ -582,19 +597,18 @@
             }
             else
             {
-                @if (Model.Notifications.Count > 0)
-                {
-                    <div class="pi-list">
-                        @foreach (var n in Model.Notifications)
+                <div class="pi-list">
+                    @foreach (var n in Model.Notifications)
+                    {
+                        string? appointmentLabel = null;
+                        if (n.AppointmentStartsAt is DateTime slotStart)
                         {
-                            string? appointmentLabel = null;
-                            if (n.AppointmentStartsAt is DateTime slotStart)
-                            {
-                                var slotEnd = n.AppointmentEndsAt ?? slotStart.AddHours(1);
-                                appointmentLabel = ProfileModel.FormatPstSlot(slotStart, slotEnd);
-                            }
-                            var notifTime = n.CreatedAt.ToLocalTime().ToString("MMM d · h:mm tt");
-                            <div class="pi-row pi-notif-row @(n.IsRead ? "" : "pi-row-unread")">
+                            var slotEnd = n.AppointmentEndsAt ?? slotStart.AddHours(1);
+                            appointmentLabel = ProfileModel.FormatPstSlot(slotStart, slotEnd);
+                        }
+                        var notifTime = n.CreatedAt.ToLocalTime().ToString("MMM d · h:mm tt");
+                        <div class="pi-row pi-row-stack pi-notif-row @(n.IsRead ? "" : "pi-row-unread")">
+                            <div class="pi-row-top">
                                 <div class="pi-row-body">
                                     <div class="pi-value pi-notif-title">@n.Title</div>
                                     <p class="pi-hint">@n.Body</p>
@@ -602,17 +616,16 @@
                                     {
                                         <p class="pi-notif-slot">@appointmentLabel</p>
                                     }
-                                    <div class="pi-notif-time">@notifTime</div>
                                 </div>
                                 @if (n.DoctorId is > 0)
                                 {
                                     <a class="pi-action" href="/doctors/@n.DoctorId">View</a>
                                 }
                             </div>
-                        }
-                    </div>
-                }
-
+                            <div class="pi-notif-time">@notifTime</div>
+                        </div>
+                    }
+                </div>
             }
         }
     </main>

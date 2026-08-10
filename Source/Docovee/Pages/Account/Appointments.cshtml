@@ -25,7 +25,28 @@
     </div>
 </nav>
 
-<main class="pat-main pat-main-solo">
+<div class="pat-shell">
+    <aside class="pat-sidebar" aria-label="Settings menu">
+        <div class="pat-nav" role="navigation" aria-label="Settings sections">
+            <a class="pat-nav-item" href="/Account/Profile?section=personal">Personal information</a>
+            <a class="pat-nav-item" href="/Account/Profile?section=family">Family members</a>
+            <a class="pat-nav-item" href="/Account/Profile?section=security">Login and security</a>
+            <a class="pat-nav-item" href="/Account/Profile?section=notifications">
+                <span>Notifications</span>
+                @if (Model.UnreadNotificationCount > 0)
+                {
+                    <span class="pat-nav-badge" data-notify-badge="1">@Model.UnreadNotificationCount</span>
+                }
+            </a>
+            <a class="pat-nav-item" href="/Account/Profile?section=appointments">Appointments</a>
+            <a class="pat-nav-item active" href="/Account/Appointments">Appointment History</a>
+            <a class="pat-nav-item" href="/Account/Profile?section=permissions">Permissions</a>
+            <a class="pat-nav-item" href="/Account/Profile?section=insurance">Insurance &amp; ID Cards</a>
+            <a class="pat-nav-item" href="/Account/Profile?section=privacy">Privacy</a>
+        </div>
+    </aside>
+
+    <main class="pat-main">
     @if (Model.ReviewSubmitted)
     {
         <div class="alert-success">Thank you — your review has been submitted.</div>
@@ -36,7 +57,7 @@
     }
 
     <div class="pat-panel-head">
-        <h1>Appointment history</h1>
+        <h1>Appointment History</h1>
         <p>Past visits — leave a review after your doctor confirms the appointment and @Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") have passed.</p>
     </div>
 
@@ -172,5 +193,6 @@
         </div>
     }
 </main>
+</div>
 </body>
 </html>

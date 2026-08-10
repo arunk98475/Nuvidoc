@@ -2,7 +2,7 @@
   Zocdoc-style patient account controls: notifications + name dropdown.
   Expects ViewData:
     PatientDisplayName (string) — full name
-    PatientNotifyCount (int, optional) — upcoming appointment count
+    PatientNotifyCount (int, optional) — unread notification count
 *@
 @{
     var fullName = (ViewData["PatientDisplayName"] as string)?.Trim();
@@ -18,7 +18,7 @@
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
-        <span class="pac-notify-count"@if (notifyCount <= 0) { <text> hidden</text> }>@notifyCount</span>
+        <span class="pac-notify-count" data-notify-badge="1"@if (notifyCount <= 0) { <text> hidden</text> }>@notifyCount</span>
     </a>
 
     <div class="pac-dropdown" id="pac-dropdown">
@@ -35,8 +35,12 @@
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
                 <span>Well Guide</span>
             </a>
-            <a class="pac-menu-item" role="menuitem" href="/Account/Appointments">
+            <a class="pac-menu-item" role="menuitem" href="/Account/Profile?section=appointments">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <span>Appointments</span>
+            </a>
+            <a class="pac-menu-item" role="menuitem" href="/Account/Appointments">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 3h18v4H3z"/><path d="M3 10h18v11H3z"/><path d="M8 14h8"/><path d="M8 18h5"/></svg>
                 <span>Appointment history</span>
             </a>
             <div class="pac-menu-divider"></div>
@@ -51,34 +55,40 @@
         </div>
     </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+<script src="~/js/patient-notifications.js" asp-append-version="true"></script>
 <script>
 (function () {
   var root = document.getElementById("pac-dropdown");
   var btn = document.getElementById("pac-user-btn");
   var menu = document.getElementById("pac-menu");
-  if (!root || !btn || !menu) return;
+  if (root && btn && menu) {
+    function closeMenu() {
+      menu.hidden = true;
+      btn.setAttribute("aria-expanded", "false");
+      root.classList.remove("is-open");
+    }
+    function openMenu() {
+      menu.hidden = false;
+      btn.setAttribute("aria-expanded", "true");
+      root.classList.add("is-open");
+    }
 
-  function closeMenu() {
-    menu.hidden = true;
-    btn.setAttribute("aria-expanded", "false");
-    root.classList.remove("is-open");
-  }
-  function openMenu() {
-    menu.hidden = false;
-    btn.setAttribute("aria-expanded", "true");
-    root.classList.add("is-open");
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (menu.hidden) openMenu();
+      else closeMenu();
+    });
+    document.addEventListener("click", function (e) {
+      if (!root.contains(e.target)) closeMenu();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") closeMenu();
+    });
   }
 
-  btn.addEventListener("click", function (e) {
-    e.stopPropagation();
-    if (menu.hidden) openMenu();
-    else closeMenu();
-  });
-  document.addEventListener("click", function (e) {
-    if (!root.contains(e.target)) closeMenu();
-  });
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeMenu();
-  });
+  if (window.NuvidocPatientPush) {
+    window.NuvidocPatientPush.start({ joinPatient: true }).catch(function () { /* hub optional */ });
+  }
 })();
 </script>

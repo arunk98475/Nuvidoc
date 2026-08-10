@@ -81,7 +81,7 @@ public class ProfileModel : PageModel
         bool permissionsSaved = false)
     {
         var normalized = NormalizeSection(section);
-        if (normalized == "history")
+        if (normalized is "appointment-history" or "history")
             return RedirectToPage("/Account/Appointments");
 
         Section = normalized;
@@ -394,10 +394,11 @@ public class ProfileModel : PageModel
             "family" or "family-members" => "family",
             "security" => "security",
             "notifications" or "notification" => "notifications",
+            "appointments" or "appointment" or "upcoming" => "appointments",
+            "appointment-history" or "history" or "past-appointments" => "appointment-history",
             "permissions" or "permission" => "permissions",
             "insurance" or "insurance-id" or "insurance-id-cards" => "insurance",
             "privacy" => "privacy",
-            "history" or "appointments" => "history",
             _ => "personal"
         };
 

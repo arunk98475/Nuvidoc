@@ -3044,8 +3044,7 @@ footer.site-footer {
 }
 
 .pi-notif-row .pi-row-body {
-  display: flex;
-  flex-direction: column;
+  display: block;
 }
 
 .pi-notif-title {
