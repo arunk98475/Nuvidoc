@@ -17,6 +17,8 @@ public class VoiceOutboundCall
     public string? PatientEmail { get; set; }
     public string? VisitReason { get; set; }
     public string? ToNumber { get; set; }
+    /// <summary>Book (default) or Cancel.</summary>
+    public string CallIntent { get; set; } = VoiceOutboundCallIntents.Book;
     public string Status { get; set; } = VoiceOutboundCallStatuses.Initiated;
     public string? OutcomeNotes { get; set; }
     public int? AppointmentId { get; set; }
@@ -31,10 +33,17 @@ public static class VoiceOutboundCallStatuses
     public const string Initiated = "Initiated";
     public const string Completed = "Completed";
     public const string Booked = "Booked";
+    public const string Canceled = "Canceled";
     public const string Failed = "Failed";
     public const string NoSlot = "NoSlot";
     public const string Declined = "Declined";
     public const string NoAnswer = "NoAnswer";
+}
+
+public static class VoiceOutboundCallIntents
+{
+    public const string Book = "Book";
+    public const string Cancel = "Cancel";
 }
 
 public class PatientNotification
@@ -55,6 +64,7 @@ public class PatientNotification
 public static class PatientNotificationTypes
 {
     public const string AppointmentBooked = "AppointmentBooked";
+    public const string AppointmentCanceled = "AppointmentCanceled";
     public const string AppointmentUpdate = "AppointmentUpdate";
     public const string VoiceCallUpdate = "VoiceCallUpdate";
 }

@@ -136,6 +136,21 @@ public sealed class NuvidocApiClient
         return await response.Content.ReadFromJsonAsync<MobileAppointmentsResponse>(JsonOptions, cancellationToken);
     }
 
+    public async Task<MobileAppointmentCancelResponse?> CancelAppointmentAsync(
+        int appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyAuth();
+        using var response = await _http.PostAsync(
+            $"api/mobile/appointments/{appointmentId}/cancel",
+            null,
+            cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<MobileAppointmentCancelResponse>(JsonOptions, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<MobileVoiceCallDto>> GetSessionCallsAsync(
         Guid sessionKey,
         CancellationToken cancellationToken = default)

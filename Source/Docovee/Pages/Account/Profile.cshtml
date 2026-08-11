@@ -571,6 +571,10 @@
                                 <div class="pi-value">@a.DoctorName</div>
                                 <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
                                 <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>
+                                <form method="post" asp-page-handler="CancelAppointment" asp-route-appointmentId="@a.Id" class="pi-inline-form"
+                                      onsubmit="return confirm('Cancel this appointment? Nuvi will call the office to confirm.');">
+                                    <button type="submit" class="pi-link-btn" style="color:#b71c1c">Cancel appointment</button>
+                                </form>
                             </div>
                             <a class="pi-action" href="/doctors/@a.DoctorId">View</a>
                         </div>

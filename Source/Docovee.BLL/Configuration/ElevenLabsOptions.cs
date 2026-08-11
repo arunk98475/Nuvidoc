@@ -12,7 +12,7 @@ public class ElevenLabsOptions
     /// <summary>API key (xi-api-key header).</summary>
     public string ApiKey { get; set; } = string.Empty;
 
-    /// <summary>Conversational agent ID for branded Nuvi voice agent.</summary>
+    /// <summary>Conversational agent ID for Nuvi voice (booking and cancellation).</summary>
     public string AgentId { get; set; } = string.Empty;
 
     /// <summary>

@@ -295,6 +295,7 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.PatientEmail).HasMaxLength(200);
             entity.Property(e => e.VisitReason).HasMaxLength(500);
             entity.Property(e => e.ToNumber).HasMaxLength(30);
+            entity.Property(e => e.CallIntent).HasMaxLength(20).IsRequired();
             entity.Property(e => e.Status).HasMaxLength(40).IsRequired();
             entity.Property(e => e.OutcomeNotes).HasMaxLength(2000);
             entity.HasIndex(e => e.ConversationId).IsUnique();

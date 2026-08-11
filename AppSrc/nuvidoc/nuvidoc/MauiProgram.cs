@@ -62,6 +62,7 @@ public static class MauiProgram
         builder.Services.AddTransient<SearchResultPage>();
         builder.Services.AddTransient<DoctorProfilePage>();
         builder.Services.AddSingleton<NotificationsPage>();
+        builder.Services.AddSingleton<AppointmentsPage>();
         builder.Services.AddSingleton<LoginPage>();
         builder.Services.AddSingleton<LogoutPage>();
         builder.Services.AddSingleton<AppShell>();

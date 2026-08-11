@@ -24,6 +24,7 @@ public class MobileController : ControllerBase
     private readonly IPatientNotificationService _notifications;
     private readonly IAppointmentService _appointments;
     private readonly IVoiceCallBookingService _voiceCalls;
+    private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IProfileService _profile;
 
     public MobileController(
@@ -37,6 +38,7 @@ public class MobileController : ControllerBase
         IPatientNotificationService notifications,
         IAppointmentService appointments,
         IVoiceCallBookingService voiceCalls,
+        IAppointmentCancelService appointmentCancel,
         IProfileService profile)
     {
         _branding = branding;
@@ -49,6 +51,7 @@ public class MobileController : ControllerBase
         _notifications = notifications;
         _appointments = appointments;
         _voiceCalls = voiceCalls;
+        _appointmentCancel = appointmentCancel;
         _profile = profile;
     }
 
@@ -343,6 +346,26 @@ public class MobileController : ControllerBase
         {
             Upcoming = upcoming,
             Past = past
+        });
+    }
+
+    [HttpPost("appointments/{appointmentId:int}/cancel")]
+    [Authorize(Roles = AuthRoles.Patient)]
+    [ProducesResponseType(typeof(MobileAppointmentCancelResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MobileAppointmentCancelResponse>> CancelAppointment(
+        int appointmentId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetPatientId(out var patientId))
+            return Unauthorized();
+
+        var result = await _appointmentCancel.RequestCancelAsync(patientId, appointmentId, cancellationToken);
+        return Ok(new MobileAppointmentCancelResponse
+        {
+            Success = result.Success,
+            Message = result.Message,
+            VoiceCallStarted = result.VoiceCallStarted,
+            CanceledImmediately = result.CanceledImmediately
         });
     }
 

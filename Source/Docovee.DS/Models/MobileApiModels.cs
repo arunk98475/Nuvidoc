@@ -45,6 +45,14 @@ public class MobileAppointmentsResponse
     public IReadOnlyList<PatientAppointmentDto> Past { get; set; } = Array.Empty<PatientAppointmentDto>();
 }
 
+public class MobileAppointmentCancelResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public bool VoiceCallStarted { get; set; }
+    public bool CanceledImmediately { get; set; }
+}
+
 public class MobileMeResponse
 {
     public int PatientId { get; set; }

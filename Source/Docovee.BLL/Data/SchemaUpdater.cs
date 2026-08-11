@@ -481,6 +481,7 @@ public static class SchemaUpdater
                 `PatientEmail` varchar(200) CHARACTER SET utf8mb4 NULL,
                 `VisitReason` varchar(500) CHARACTER SET utf8mb4 NULL,
                 `ToNumber` varchar(30) CHARACTER SET utf8mb4 NULL,
+                `CallIntent` varchar(20) CHARACTER SET utf8mb4 NOT NULL DEFAULT 'Book',
                 `Status` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
                 `OutcomeNotes` varchar(2000) CHARACTER SET utf8mb4 NULL,
                 `AppointmentId` int NULL,
@@ -498,6 +499,8 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """,
             cancellationToken);
+
+        await EnsureColumnAsync(db, "voice_outbound_calls", "CallIntent", "varchar(20) NOT NULL DEFAULT 'Book'", cancellationToken);
 
         await db.Database.ExecuteSqlRawAsync(
             """

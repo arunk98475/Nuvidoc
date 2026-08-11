@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Docovee.BLL.Configuration;
+using Docovee.DS.Entities;
 using Docovee.logging;
 using Microsoft.Extensions.Options;
 
@@ -102,15 +103,17 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             };
         }
 
+        var agentId = _elevenLabs.AgentId.Trim();
+
         var payload = new Dictionary<string, object?>
         {
-            ["agent_id"] = _elevenLabs.AgentId.Trim(),
+            ["agent_id"] = agentId,
             ["agent_phone_number_id"] = phoneNumberId,
             ["to_number"] = toNumber,
             ["conversation_initiation_client_data"] = new Dictionary<string, object?>
             {
-                // Do NOT override first_message unless the agent Security → Overrides
-                // toggle for First message is enabled (otherwise call fails instantly).
+                // Agent first message in ElevenLabs dashboard should be {{first_message}} only.
+                // Do NOT pass conversation_config_override.first_message unless Security → Overrides allows it.
                 ["dynamic_variables"] = BuildDynamicVariables(request)
             }
         };
@@ -191,50 +194,97 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
     private static Dictionary<string, string> BuildDynamicVariables(NuviOutboundCallRequest request)
     {
         var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var isCancel = string.Equals(request.Intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
 
-        var dateTime = FirstNonEmpty(
-            request.PreferredDate,
-            request.AvailabilityWindow,
-            "within the next 30 days");
-
-        var timeWindow = FirstNonEmpty(
-            request.PreferredTimeWindow,
-            "any available time during office hours (Pacific Time)");
-
-        // Practices / ElevenLabs are US Pacific — give the agent an explicit "today" so past-date rules work.
-        // App timing is always PST/PDT regardless of the server's local timezone (e.g. IST).
         var nowPacific = GetClinicNow();
         vars["current_date"] = nowPacific.ToString("dddd, MMMM d, yyyy");
         vars["current_datetime"] = nowPacific.ToString("yyyy-MM-dd HH:mm");
         vars["current_timezone"] = "America/Los_Angeles (US Pacific Time)";
         vars["today"] = nowPacific.ToString("yyyy-MM-dd");
 
-        // Required by the agent first message / prompt — always send (never omit).
         vars["patient_name"] = FirstNonEmpty(request.PatientName, "a patient");
-        vars["date_time"] = dateTime;
-        vars["preferred_date"] = dateTime;
-        vars["preferred_time_window"] = timeWindow;
-        vars["availability_window"] = dateTime;
-        vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
         vars["practice_name"] = FirstNonEmpty(request.PracticeName, request.DoctorName, "your office");
         vars["external_call_id"] = FirstNonEmpty(request.SessionKey, Guid.NewGuid().ToString("N"));
-
-        AddVar(vars, "booking_window_start", request.BookingWindowStart);
-        AddVar(vars, "booking_window_end", request.BookingWindowEnd);
-        // Capture instruction for post-call analysis / agent behavior.
-        vars["appointment_datetime_format"] =
-            "When booked, report the exact confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). If a range like 9-10 AM was confirmed, use the start time and mention the end in confirmation_notes.";
+        vars["call_intent"] = isCancel ? VoiceOutboundCallIntents.Cancel : VoiceOutboundCallIntents.Book;
 
         AddVar(vars, "patient_phone", request.PatientPhone);
         AddVar(vars, "patient_email", request.PatientEmail);
-        AddVar(vars, "insurance_name", request.InsuranceName);
         AddVar(vars, "practice_phone", request.PracticePhone);
         AddVar(vars, "call_context", request.CallContext);
         AddVar(vars, "doctor_name", request.DoctorName);
-        AddVar(vars, "call_preference", request.CallPreference);
-        AddVar(vars, "chief_complaint", request.ChiefComplaint);
         AddVar(vars, "session_key", request.SessionKey);
+        AddVar(vars, "chief_complaint", request.ChiefComplaint);
+        AddVar(vars, "insurance_name", request.InsuranceName);
+
+        if (isCancel)
+        {
+            AddVar(vars, "appointment_date", request.AppointmentDate);
+            AddVar(vars, "appointment_time", request.AppointmentTime);
+            var cancelSlot = FirstNonEmpty(
+                request.AppointmentDateTime,
+                !string.IsNullOrWhiteSpace(request.AppointmentDate) && !string.IsNullOrWhiteSpace(request.AppointmentTime)
+                    ? $"{request.AppointmentDate} at {request.AppointmentTime} Pacific"
+                    : null);
+            vars["appointment_datetime"] = cancelSlot;
+            vars["date_time"] = cancelSlot;
+            vars["preferred_date"] = cancelSlot;
+            vars["availability_window"] = cancelSlot;
+            if (!string.IsNullOrWhiteSpace(request.AppointmentTime))
+                vars["preferred_time_window"] = request.AppointmentTime.Trim();
+            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+            vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
+        }
+        else
+        {
+            var dateTime = FirstNonEmpty(
+                request.PreferredDate,
+                request.AvailabilityWindow,
+                "within the next 30 days");
+
+            var timeWindow = FirstNonEmpty(
+                request.PreferredTimeWindow,
+                "any available time during office hours (Pacific Time)");
+
+            vars["date_time"] = dateTime;
+            vars["preferred_date"] = dateTime;
+            vars["preferred_time_window"] = timeWindow;
+            vars["availability_window"] = dateTime;
+            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+
+            AddVar(vars, "booking_window_start", request.BookingWindowStart);
+            AddVar(vars, "booking_window_end", request.BookingWindowEnd);
+            vars["appointment_datetime_format"] =
+                "When booked, report the exact confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). If a range like 9-10 AM was confirmed, use the start time and mention the end in confirmation_notes.";
+
+            AddVar(vars, "call_preference", request.CallPreference);
+        }
+
+        vars["first_message"] = BuildFirstMessage(isCancel, vars);
         return vars;
+    }
+
+    /// <summary>
+    /// Full opener sent as {{first_message}} — set the ElevenLabs agent first message to that variable only.
+    /// </summary>
+    private static string BuildFirstMessage(bool isCancel, IReadOnlyDictionary<string, string> vars)
+    {
+        var patientName = vars.TryGetValue("patient_name", out var pn) ? pn : "a patient";
+
+        if (isCancel)
+        {
+            var slot = vars.TryGetValue("appointment_datetime", out var dt) ? dt : string.Empty;
+            return string.IsNullOrWhiteSpace(slot)
+                ? $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to cancel their dental appointment. Do you have a moment?"
+                : $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to cancel their dental appointment on {slot}. Do you have a moment?";
+        }
+
+        var window = FirstNonEmpty(
+            vars.TryGetValue("preferred_date", out var pd) ? pd : null,
+            vars.TryGetValue("date_time", out var dtm) ? dtm : null,
+            "within the next 30 days");
+
+        return
+            $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request a dental appointment at your office {window}. Do you have a moment to check availability?";
     }
 
     /// <summary>Clinic-local "now" in US Pacific (PST/PDT). Server local time (e.g. IST) is ignored.</summary>

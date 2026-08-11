@@ -17,19 +17,22 @@ public class ProfileModel : PageModel
     private readonly IInsuranceService _insuranceService;
     private readonly IPatientInsuranceProfileService _insuranceProfile;
     private readonly IPatientNotificationService _notifications;
+    private readonly IAppointmentCancelService _appointmentCancel;
 
     public ProfileModel(
         IProfileService profileService,
         IAppointmentService appointments,
         IInsuranceService insuranceService,
         IPatientInsuranceProfileService insuranceProfile,
-        IPatientNotificationService notifications)
+        IPatientNotificationService notifications,
+        IAppointmentCancelService appointmentCancel)
     {
         _profileService = profileService;
         _appointments = appointments;
         _insuranceService = insuranceService;
         _insuranceProfile = insuranceProfile;
         _notifications = notifications;
+        _appointmentCancel = appointmentCancel;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -308,6 +311,25 @@ public class ProfileModel : PageModel
 
         await LoadAsync(patientId);
         FormSuccess = "Account deletion requests will be available once identity verification (SMS PIN) is connected. Deletion is permanent and cannot be reversed.";
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostCancelAppointmentAsync(int appointmentId)
+    {
+        Section = "appointments";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var result = await _appointmentCancel.RequestCancelAsync(patientId, appointmentId);
+        await LoadAsync(patientId);
+        if (Profile == null)
+            return NotFound();
+
+        if (result.Success)
+            FormSuccess = result.Message;
+        else
+            FormError = result.Message;
+
         return Page();
     }
 

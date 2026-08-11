@@ -46,6 +46,8 @@ public sealed class VoiceOutboundCallRecordRequest
     public string? PatientEmail { get; init; }
     public string? VisitReason { get; init; }
     public string? ToNumber { get; init; }
+    public string CallIntent { get; init; } = VoiceOutboundCallIntents.Book;
+    public int? AppointmentId { get; init; }
 }
 
 public interface IPatientNotificationService
@@ -132,6 +134,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 {
     private readonly DocoveeDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IAppointmentService _appointments;
     private readonly ElevenLabsOptions _elevenLabs;
     private readonly AnthropicOptions _anthropic;
     private readonly IDocoveeLogger _logger;
@@ -141,6 +144,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     public VoiceCallBookingService(
         DocoveeDbContext db,
         IHttpClientFactory httpClientFactory,
+        IAppointmentService appointments,
         IOptions<ElevenLabsOptions> elevenLabs,
         IOptions<AnthropicOptions> anthropic,
         IDocoveeLogger logger,
@@ -149,6 +153,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
+        _appointments = appointments;
         _elevenLabs = elevenLabs.Value;
         _anthropic = anthropic.Value;
         _logger = logger;
@@ -214,6 +219,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
     private static bool IsTerminalStatus(string status) =>
         status is VoiceOutboundCallStatuses.Booked
+            or VoiceOutboundCallStatuses.Canceled
             or VoiceOutboundCallStatuses.Failed
             or VoiceOutboundCallStatuses.NoSlot
             or VoiceOutboundCallStatuses.Declined
@@ -246,6 +252,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             PatientEmail = request.PatientEmail,
             VisitReason = request.VisitReason,
             ToNumber = request.ToNumber,
+            CallIntent = string.IsNullOrWhiteSpace(request.CallIntent)
+                ? VoiceOutboundCallIntents.Book
+                : request.CallIntent.Trim(),
+            AppointmentId = request.AppointmentId,
             Status = VoiceOutboundCallStatuses.Initiated,
             CreatedAt = now,
             UpdatedAt = now
@@ -375,14 +385,17 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             }
         }
 
-        if (call.AppointmentId.HasValue
-            || call.Status is VoiceOutboundCallStatuses.Booked
+        if (IsCancelIntent(call.CallIntent))
+            return await ProcessCancelConversationPayloadAsync(call, conversationId, data, cancellationToken);
+
+        if (call.AppointmentId.HasValue && call.Status == VoiceOutboundCallStatuses.Booked)
+            return true;
+
+        if (call.Status is VoiceOutboundCallStatuses.Booked
                 or VoiceOutboundCallStatuses.NoSlot
                 or VoiceOutboundCallStatuses.Declined
                 or VoiceOutboundCallStatuses.NoAnswer)
-        {
             return true;
-        }
 
         var status = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
         var stillInProgress = string.Equals(status, "processing", StringComparison.OrdinalIgnoreCase)
@@ -602,6 +615,237 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return true;
     }
 
+    private static bool IsCancelIntent(string? intent) =>
+        string.Equals(intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> ProcessCancelConversationPayloadAsync(
+        VoiceOutboundCall call,
+        string conversationId,
+        JsonElement data,
+        CancellationToken cancellationToken)
+    {
+        if (call.Status is VoiceOutboundCallStatuses.Canceled
+            or VoiceOutboundCallStatuses.Declined
+            or VoiceOutboundCallStatuses.Failed
+            or VoiceOutboundCallStatuses.NoAnswer
+            or VoiceOutboundCallStatuses.Completed)
+            return true;
+
+        var convStatus = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+        var stillInProgress = string.Equals(convStatus, "processing", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(convStatus, "initiated", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(convStatus, "in-progress", StringComparison.OrdinalIgnoreCase);
+        if (stillInProgress)
+            return false;
+
+        var outcome = ExtractCancelOutcome(data);
+        call.UpdatedAt = DateTime.UtcNow;
+        call.CompletedAt = DateTime.UtcNow;
+        call.OutcomeNotes = Truncate(outcome.Notes, 2000);
+
+        var doctorName = await _db.Doctors.AsNoTracking()
+            .Where(d => d.Id == call.DoctorId)
+            .Select(d => d.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "your dentist";
+
+        DateTime? appointmentStartsAt = null;
+        if (call.AppointmentId is int apptId)
+        {
+            appointmentStartsAt = await _db.Appointments.AsNoTracking()
+                .Where(a => a.Id == apptId)
+                .Select(a => (DateTime?)a.StartsAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (outcome.IsCanceled)
+        {
+            if (call.PatientId is > 0 && call.AppointmentId is > 0)
+            {
+                var update = await _appointments.UpdateStatusAsPatientAsync(
+                    call.PatientId.Value,
+                    call.AppointmentId.Value,
+                    AppointmentStatuses.PatientCanceled,
+                    cancellationToken);
+                if (!update.Success)
+                {
+                    _logger.LogInformation(
+                        "Cancel call succeeded but status update failed for appointment {AppointmentId}: {Error}",
+                        call.AppointmentId, update.Error);
+                }
+            }
+
+            call.Status = VoiceOutboundCallStatuses.Canceled;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            var slotLabel = appointmentStartsAt is DateTime start
+                ? FormatPstSlot(start, start.AddHours(1))
+                : null;
+            const string title = "Appointment canceled";
+            var body = slotLabel != null
+                ? $"Nuvi canceled your visit with {doctorName} on {slotLabel}."
+                : $"Nuvi canceled your visit with {doctorName}.";
+
+            int? notificationId = null;
+            if (call.PatientId is > 0)
+            {
+                notificationId = await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.AppointmentCanceled,
+                    title,
+                    body,
+                    call.AppointmentId,
+                    call.DoctorId,
+                    cancellationToken);
+            }
+
+            await DispatchTerminalPushAsync(
+                call,
+                VoiceOutboundCallStatuses.Canceled,
+                title,
+                body,
+                notificationId,
+                appointmentStartsAt,
+                appointmentStartsAt?.AddHours(1),
+                doctorName,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Voice cancel confirmed. Conversation={ConversationId} Appointment={AppointmentId}",
+                conversationId, call.AppointmentId);
+            return true;
+        }
+
+        call.Status = outcome.StatusHint ?? VoiceOutboundCallStatuses.Completed;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        const string failTitle = "Cancellation update";
+        var failBody = outcome.StatusHint switch
+        {
+            VoiceOutboundCallStatuses.Declined =>
+                "The office could not cancel the appointment on the call. Please contact the office directly.",
+            VoiceOutboundCallStatuses.NoAnswer =>
+                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.",
+            _ => string.IsNullOrWhiteSpace(outcome.Notes)
+                ? "Nuvi couldn't confirm the cancellation with the office. Please contact them directly."
+                : outcome.Notes!
+        };
+
+        int? failNotificationId = null;
+        if (call.PatientId is > 0)
+        {
+            failNotificationId = await AddNotificationAsync(
+                call.PatientId.Value,
+                PatientNotificationTypes.VoiceCallUpdate,
+                failTitle,
+                failBody,
+                call.AppointmentId,
+                call.DoctorId,
+                cancellationToken);
+        }
+
+        await DispatchTerminalPushAsync(
+            call,
+            call.Status,
+            failTitle,
+            failBody,
+            failNotificationId,
+            appointmentStartsAt,
+            appointmentStartsAt?.AddHours(1),
+            doctorName,
+            cancellationToken);
+        return true;
+    }
+
+    private static CancelOutcome ExtractCancelOutcome(JsonElement data)
+    {
+        var notes = new List<string>();
+        var searchable = new List<string>();
+        string? statusHint = null;
+        var canceled = false;
+
+        if (data.TryGetProperty("analysis", out var analysis))
+        {
+            if (analysis.TryGetProperty("transcript_summary", out var summary)
+                && summary.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(summary.GetString()))
+            {
+                notes.Add(summary.GetString()!);
+                searchable.Add(summary.GetString()!);
+            }
+        }
+
+        if (data.TryGetProperty("analysis", out var analysis2)
+            && analysis2.TryGetProperty("data_collection_results", out var dcr))
+        {
+            foreach (var (id, value) in EnumerateDataCollectionEntries(dcr))
+            {
+                if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(value) || value == "null")
+                    continue;
+
+                var idLower = id.ToLowerInvariant();
+                var valueClean = value.Trim().Trim('"');
+                var valueLower = valueClean.ToLowerInvariant();
+                searchable.Add($"{id}={valueClean}");
+                notes.Add($"{id}={valueClean}");
+
+                if (idLower is "status" or "outcome" or "booking_status" or "cancel_status")
+                {
+                    statusHint = MapCancelStatusHint(valueLower);
+                    if (valueLower is "canceled" or "cancelled" or "cancel" or "success")
+                        canceled = true;
+                }
+            }
+        }
+
+        if (data.TryGetProperty("transcript", out var transcript) && transcript.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var turn in transcript.EnumerateArray())
+            {
+                if (turn.TryGetProperty("message", out var msg)
+                    && msg.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(msg.GetString()))
+                    searchable.Add(msg.GetString()!);
+            }
+        }
+
+        var joinedNotes = notes.Count > 0 ? string.Join(" | ", notes) : null;
+        if (!canceled && !string.IsNullOrWhiteSpace(joinedNotes))
+        {
+            var n = joinedNotes.ToLowerInvariant();
+            if (n.Contains("cancel") && (n.Contains("confirm") || n.Contains("all set") || n.Contains("done")))
+                canceled = true;
+        }
+
+        if (!canceled && searchable.Count > 0)
+        {
+            foreach (var blob in searchable)
+            {
+                var b = blob.ToLowerInvariant();
+                if (b.Contains("appointment canceled") || b.Contains("appointment cancelled")
+                    || b.Contains("cancellation confirmed") || b.Contains("has been canceled")
+                    || b.Contains("has been cancelled"))
+                {
+                    canceled = true;
+                    statusHint ??= VoiceOutboundCallStatuses.Canceled;
+                    break;
+                }
+            }
+        }
+
+        return new CancelOutcome(canceled, statusHint, joinedNotes);
+    }
+
+    private static string? MapCancelStatusHint(string valueLower) => valueLower switch
+    {
+        "canceled" or "cancelled" or "cancel" or "success" => VoiceOutboundCallStatuses.Canceled,
+        "declined" or "dnc" => VoiceOutboundCallStatuses.Declined,
+        "no_answer" or "voicemail" or "noanswer" => VoiceOutboundCallStatuses.NoAnswer,
+        "failed" => VoiceOutboundCallStatuses.Failed,
+        _ => VoiceOutboundCallStatuses.Completed
+    };
+
+    private sealed record CancelOutcome(bool IsCanceled, string? StatusHint, string? Notes);
+
     private async Task<VoiceOutboundCall?> TryCreateCallFromPayloadAsync(
         string conversationId,
         JsonElement data,
@@ -726,9 +970,12 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
         await _push.DispatchAsync(new PatientPushMessage
         {
-            Type = status == VoiceOutboundCallStatuses.Booked
-                ? PatientNotificationTypes.AppointmentBooked
-                : PatientNotificationTypes.VoiceCallUpdate,
+            Type = status switch
+            {
+                VoiceOutboundCallStatuses.Booked => PatientNotificationTypes.AppointmentBooked,
+                VoiceOutboundCallStatuses.Canceled => PatientNotificationTypes.AppointmentCanceled,
+                _ => PatientNotificationTypes.VoiceCallUpdate
+            },
             PatientId = call.PatientId,
             SessionKey = call.SessionKey,
             ConversationId = call.ConversationId,
@@ -1328,6 +1575,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private static string? MapStatusHint(string valueLower) => valueLower switch
     {
         "booked" or "confirmed" or "scheduled" or "success" => VoiceOutboundCallStatuses.Booked,
+        "canceled" or "cancelled" or "cancel" => VoiceOutboundCallStatuses.Canceled,
         "no_slot" or "no slot" or "unavailable" => VoiceOutboundCallStatuses.NoSlot,
         "declined" or "dnc" => VoiceOutboundCallStatuses.Declined,
         "no_answer" or "voicemail" or "noanswer" => VoiceOutboundCallStatuses.NoAnswer,

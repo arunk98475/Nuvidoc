@@ -7,7 +7,7 @@ public partial class AppShell : Shell
     private readonly FlyoutItem _loginFlyout;
     private readonly FlyoutItem _logoutFlyout;
 
-    public AppShell(MainPage homePage, NotificationsPage notificationsPage, LoginPage loginPage, LogoutPage logoutPage)
+    public AppShell(MainPage homePage, NotificationsPage notificationsPage, AppointmentsPage appointmentsPage, LoginPage loginPage, LogoutPage logoutPage)
     {
         InitializeComponent();
 
@@ -23,6 +23,24 @@ public partial class AppShell : Shell
                     Title = "Home",
                     Content = homePage,
                     Route = "home",
+                    Icon = "home.png",
+                    FlyoutIcon = "home.png"
+                }
+            }
+        });
+
+        Items.Add(new FlyoutItem
+        {
+            Title = "Appointments",
+            Route = "Appointments",
+            FlyoutIcon = "home.png",
+            Items =
+            {
+                new ShellContent
+                {
+                    Title = "Appointments",
+                    Content = appointmentsPage,
+                    Route = "appointments",
                     Icon = "home.png",
                     FlyoutIcon = "home.png"
                 }
