@@ -379,13 +379,13 @@ public class ProfileModel : PageModel
         InsuranceProfile.Coverages.FirstOrDefault(c =>
             string.Equals(c.Type, type, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM – 10:00 AM (PST)"</summary>
+    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM (PST)" — start time only (no end).</summary>
     public static string FormatPstSlot(DateTime startsAt, DateTime endsAt)
     {
+        _ = endsAt;
         var date = startsAt.ToString("ddd, MMM d", System.Globalization.CultureInfo.InvariantCulture);
         var start = startsAt.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
-        var end = endsAt.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
-        return $"{date} · {start} – {end} (PST)";
+        return $"{date} · {start} (PST)";
     }
 
     private static string NormalizeSection(string? section) =>

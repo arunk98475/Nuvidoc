@@ -133,6 +133,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly DocoveeDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ElevenLabsOptions _elevenLabs;
+    private readonly AnthropicOptions _anthropic;
     private readonly IDocoveeLogger _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPatientPushDispatcher _push;
@@ -141,6 +142,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         DocoveeDbContext db,
         IHttpClientFactory httpClientFactory,
         IOptions<ElevenLabsOptions> elevenLabs,
+        IOptions<AnthropicOptions> anthropic,
         IDocoveeLogger logger,
         IServiceScopeFactory scopeFactory,
         IPatientPushDispatcher push)
@@ -148,6 +150,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _db = db;
         _httpClientFactory = httpClientFactory;
         _elevenLabs = elevenLabs.Value;
+        _anthropic = anthropic.Value;
         _logger = logger;
         _scopeFactory = scopeFactory;
         _push = push;
@@ -311,7 +314,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
         }
 
-        return await ProcessConversationPayloadAsync(conversationId, data, cancellationToken);
+        return await ProcessConversationPayloadAsync(
+            conversationId, data, cancellationToken, allowClaudeSlotExtraction: false);
     }
 
     public async Task<bool> ProcessConversationAsync(string conversationId, CancellationToken cancellationToken = default)
@@ -338,13 +342,24 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
 
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "{}" : body);
-        return await ProcessConversationPayloadAsync(conversationId, doc.RootElement, cancellationToken);
+        var root = doc.RootElement;
+        // Some GET responses wrap the conversation under "data".
+        var data = root.TryGetProperty("data", out var dataEl)
+                   && dataEl.ValueKind == JsonValueKind.Object
+                   && (dataEl.TryGetProperty("conversation_id", out _)
+                       || dataEl.TryGetProperty("analysis", out _)
+                       || dataEl.TryGetProperty("transcript", out _))
+            ? dataEl
+            : root;
+        return await ProcessConversationPayloadAsync(
+            conversationId, data, cancellationToken, allowClaudeSlotExtraction: true);
     }
 
     private async Task<bool> ProcessConversationPayloadAsync(
         string conversationId,
         JsonElement data,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowClaudeSlotExtraction)
     {
         var call = await _db.VoiceOutboundCalls
             .FirstOrDefaultAsync(c => c.ConversationId == conversationId, cancellationToken);
@@ -377,6 +392,20 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return false;
 
         var outcome = ExtractBookingOutcome(data);
+
+        // Polling path: if ElevenLabs marked booked but date/time didn't parse, ask Claude.
+        if (allowClaudeSlotExtraction && outcome.IsBooked && outcome.StartsAt == null)
+        {
+            if (!ConversationContentReadyForExtraction(data))
+            {
+                _logger.LogInformation(
+                    "Waiting for ElevenLabs transcript/analysis before Claude extract for {ConversationId}",
+                    conversationId);
+                return false;
+            }
+
+            outcome = await EnrichBookingOutcomeWithClaudeAsync(data, outcome, cancellationToken);
+        }
 
         // Reject past appointment times even if the agent marked the call as booked.
         // Compare in US Pacific (clinic) time — server may run in another timezone (e.g. IST).
@@ -744,9 +773,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         var booked = false;
         string? endTimeRaw = null;
 
-        // ElevenLabs format examples:
-        //   appointment_datetime: { "value": "2026-08-15 10:00 AM" }
-        //   or split: appointment_date + appointment_start_time + appointment_end_time
+        // ElevenLabs format examples (preferred):
+        //   status + appointment_date + appointment_time
+        // Legacy still accepted: appointment_start_time / appointment_end_time / appointment_datetime
         // All Nuvi times are Pacific (PST/PDT) wall-clock.
         if (data.TryGetProperty("analysis", out var analysis2)
             && analysis2.TryGetProperty("data_collection_results", out var dcr))
@@ -769,7 +798,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                         booked = true;
                 }
 
-                // Split fields (preferred for ElevenLabs data collection).
+                // Preferred split fields: appointment_date + appointment_time.
                 if (idLower is "appointment_date" or "date" or "day" or "appointment_day")
                 {
                     dateOnlyRaw ??= valueClean;
@@ -778,10 +807,24 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     continue;
                 }
 
-                if (idLower is "appointment_start_time" or "start_time" or "slot_time" or "appointment_start")
+                if (idLower is "appointment_time" or "appointment_start_time" or "start_time"
+                    or "slot_time" or "appointment_start" or "time")
                 {
-                    timeOnlyRaw ??= valueClean;
-                    booked = true;
+                    // Clock time only (e.g. "10:00 AM"). Combined with appointment_date below.
+                    if (IsTimeOnly(valueClean) || !TryParseAppointmentSlot(valueClean, out _, out _))
+                    {
+                        timeOnlyRaw ??= valueClean;
+                        booked = true;
+                        continue;
+                    }
+
+                    // Rare: field contains a full date+time — accept it.
+                    if (TryParseAppointmentSlot(valueClean, out var fullFromTime, out var fullEnd))
+                    {
+                        startsAt ??= fullFromTime;
+                        endsAt ??= fullEnd;
+                        booked = true;
+                    }
                     continue;
                 }
 
@@ -791,8 +834,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     continue;
                 }
 
-                // Combined datetime (legacy / fallback).
-                if (idLower is "appointment_datetime" or "appointment_time" or "booked_datetime"
+                // Combined datetime (legacy / fallback) — not appointment_time (that is clock-only).
+                if (idLower is "appointment_datetime" or "booked_datetime"
                     or "starts_at" or "scheduled_at" or "booking_time"
                     or "time_slot" or "appointment_slot" or "confirmed_datetime" or "slot")
                 {
@@ -813,9 +856,6 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                         booked = true;
                     }
                 }
-
-                if (idLower is "time")
-                    timeOnlyRaw ??= valueClean;
             }
         }
 
@@ -1176,6 +1216,33 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             },
             System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
+        // Spoken minutes after an hour: "11 thirty" → "11:30", "11 forty five" → "11:45"
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\b(\d{1,2})\s+(o'?\s*clock|oh\s*clock)\b",
+            "$1:00",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\b(\d{1,2})\s+(zero|oh)\s+(zero|oh)?\b",
+            "$1:00",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\b(\d{1,2})\s+fifteen\b",
+            "$1:15",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\b(\d{1,2})\s+thirty\b",
+            "$1:30",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\b(\d{1,2})\s+forty[- ]?five\b",
+            "$1:45",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
         return s;
     }
 
@@ -1245,10 +1312,15 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
 
         // Sometimes the model puts the useful text in rationale instead of value.
+        // Only accept short rationales — long prose is analysis text, not the field value.
         if (item.TryGetProperty("rationale", out var rationale)
             && rationale.ValueKind == JsonValueKind.String
             && !string.IsNullOrWhiteSpace(rationale.GetString()))
-            return rationale.GetString();
+        {
+            var r = rationale.GetString()!.Trim();
+            if (r.Length <= 64)
+                return r;
+        }
 
         return null;
     }
@@ -1568,29 +1640,42 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         try
         {
             using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            string? ReadString(string name)
+            {
+                if (!root.TryGetProperty(name, out var el))
+                    return null;
+                var raw = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
+                return string.IsNullOrWhiteSpace(raw) ? null : raw.Trim().Trim('"');
+            }
+
+            var datePart = ReadString("appointment_date");
+            var timePart = ReadString("appointment_time")
+                           ?? ReadString("appointment_start_time")
+                           ?? ReadString("start_time");
+            if (datePart != null && timePart != null
+                && TryParseAppointmentSlot($"{datePart} {timePart}", out startsAt, out endsAt))
+                return true;
+
             foreach (var name in new[]
                      {
-                         "appointment_datetime", "appointment_time", "booked_datetime",
-                         "starts_at", "datetime", "appointment_date", "scheduled_at",
+                         "appointment_datetime", "booked_datetime",
+                         "starts_at", "datetime", "scheduled_at",
                          "time_slot", "appointment_slot"
                      })
             {
-                if (!doc.RootElement.TryGetProperty(name, out var el))
-                    continue;
-
-                var raw = el.ValueKind == JsonValueKind.String ? el.GetString() : el.ToString();
+                var raw = ReadString(name);
                 if (!string.IsNullOrWhiteSpace(raw) && TryParseAppointmentSlot(raw, out startsAt, out endsAt))
                     return true;
             }
 
-            if (doc.RootElement.TryGetProperty("appointment_end", out var endEl)
-                || doc.RootElement.TryGetProperty("ends_at", out endEl)
-                || doc.RootElement.TryGetProperty("end_time", out endEl))
-            {
-                var endRaw = endEl.ValueKind == JsonValueKind.String ? endEl.GetString() : endEl.ToString();
-                if (!string.IsNullOrWhiteSpace(endRaw) && TryParseAppointmentDateTimeCore(endRaw, out var endDt))
-                    endsAt = endDt;
-            }
+            var endRaw = ReadString("appointment_end")
+                         ?? ReadString("ends_at")
+                         ?? ReadString("end_time")
+                         ?? ReadString("appointment_end_time");
+            if (!string.IsNullOrWhiteSpace(endRaw) && TryParseAppointmentDateTimeCore(endRaw, out var endDt))
+                endsAt = endDt;
         }
         catch
         {
@@ -1600,13 +1685,13 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return false;
     }
 
-    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM – 10:00 AM (PST)"</summary>
+    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM (PST)" — start time only (no end).</summary>
     public static string FormatPstSlot(DateTime startsAt, DateTime endsAt)
     {
+        _ = endsAt;
         var date = startsAt.ToString("ddd, MMM d", CultureInfo.InvariantCulture);
         var start = startsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
-        var end = endsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
-        return $"{date} · {start} – {end} (PST)";
+        return $"{date} · {start} (PST)";
     }
 
     private static Dictionary<string, string> ExtractDynamicVariables(JsonElement data)
@@ -1668,6 +1753,220 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (string.IsNullOrEmpty(value))
             return string.Empty;
         return value.Length <= max ? value : value[..max] + "…";
+    }
+
+    /// <summary>
+    /// True when the GET conversation payload has enough transcript/analysis text for Claude.
+    /// </summary>
+    private static bool ConversationContentReadyForExtraction(JsonElement data)
+    {
+        if (data.TryGetProperty("transcript", out var transcript) && transcript.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var turn in transcript.EnumerateArray())
+            {
+                if (turn.TryGetProperty("message", out var msg)
+                    && msg.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(msg.GetString()))
+                    return true;
+            }
+        }
+
+        if (data.TryGetProperty("analysis", out var analysis) && analysis.ValueKind == JsonValueKind.Object)
+        {
+            if (analysis.TryGetProperty("transcript_summary", out var summary)
+                && summary.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(summary.GetString()))
+                return true;
+
+            if (analysis.TryGetProperty("data_collection_results", out var dcr)
+                && dcr.ValueKind is JsonValueKind.Object or JsonValueKind.Array)
+                return true;
+        }
+
+        return false;
+    }
+
+    private async Task<BookingOutcome> EnrichBookingOutcomeWithClaudeAsync(
+        JsonElement data,
+        BookingOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_anthropic.ApiKey) || string.IsNullOrWhiteSpace(_anthropic.Model))
+        {
+            _logger.LogInformation("Claude slot extraction skipped — Anthropic ApiKey/Model not configured.");
+            return outcome;
+        }
+
+        var context = BuildConversationExtractionContext(data);
+        if (string.IsNullOrWhiteSpace(context))
+            return outcome;
+
+        try
+        {
+            const string system = """
+                You extract dental appointment booking results from phone-call transcripts and analysis.
+                All times are US Pacific wall-clock (no timezone conversion).
+                Reply with ONLY compact JSON (no markdown):
+                {"status":"booked"|"no_slot"|"declined"|"unknown","appointment_date":"yyyy-MM-dd"|null,"appointment_time":"h:mm AM/PM"|null}
+                Rules:
+                - If the receptionist confirmed a specific slot and the agent accepted it, status must be "booked" with both date and time.
+                - Prefer the final confirmed slot spoken on the call (e.g. "13th at 11:30 AM" → 2026-08-13 and 11:30 AM).
+                - Never invent a slot that was not discussed. Use nulls when unknown.
+                """;
+
+            var payload = AnthropicApiHelper.BuildPayload(
+                _anthropic,
+                maxTokens: 250,
+                system: system,
+                messages: new object[] { new { role = "user", content = context } });
+
+            var client = _httpClientFactory.CreateClient();
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_anthropic, payload);
+            using var response = await client.SendAsync(httpRequest, cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation(
+                    "Claude slot extraction HTTP {Status}: {Body}",
+                    (int)response.StatusCode, Truncate(body, 400));
+                return outcome;
+            }
+
+            var text = AnthropicApiHelper.ExtractTextContent(body);
+            var json = ExtractJsonObject(text);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogInformation("Claude slot extraction returned no JSON: {Text}", Truncate(text, 300));
+                return outcome;
+            }
+
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var date = root.TryGetProperty("appointment_date", out var dEl) && dEl.ValueKind == JsonValueKind.String
+                ? dEl.GetString()
+                : null;
+            var time = root.TryGetProperty("appointment_time", out var tEl) && tEl.ValueKind == JsonValueKind.String
+                ? tEl.GetString()
+                : null;
+            var status = root.TryGetProperty("status", out var sEl) && sEl.ValueKind == JsonValueKind.String
+                ? sEl.GetString()
+                : null;
+
+            var booked = outcome.IsBooked;
+            var startsAt = outcome.StartsAt;
+            var endsAt = outcome.EndsAt;
+            var statusHint = outcome.StatusHint;
+
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                var mapped = MapStatusHint(status.Trim().ToLowerInvariant());
+                if (mapped == VoiceOutboundCallStatuses.Booked)
+                    booked = true;
+                statusHint ??= mapped;
+            }
+
+            if (!string.IsNullOrWhiteSpace(date) && !string.IsNullOrWhiteSpace(time)
+                && TryParseAppointmentSlot($"{date.Trim()} {time.Trim()}", out var combined, out var combinedEnd))
+            {
+                startsAt = combined;
+                endsAt = combinedEnd ?? endsAt;
+                booked = true;
+                statusHint ??= VoiceOutboundCallStatuses.Booked;
+                _logger.LogInformation(
+                    "Claude extracted booking slot {StartsAt} (date={Date} time={Time})",
+                    startsAt, date, time);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Claude slot extraction could not parse date/time. date={Date} time={Time} raw={Raw}",
+                    date, time, Truncate(json, 200));
+            }
+
+            var notes = string.IsNullOrWhiteSpace(outcome.Notes)
+                ? "claude_slot_extract"
+                : $"{outcome.Notes} | claude_slot_extract";
+            return new BookingOutcome(booked, startsAt, endsAt, statusHint, notes);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Claude slot extraction failed.");
+            return outcome;
+        }
+    }
+
+    private static string BuildConversationExtractionContext(JsonElement data)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Extract the confirmed appointment date and time from this ElevenLabs conversation payload.");
+        sb.AppendLine();
+
+        if (data.TryGetProperty("analysis", out var analysis) && analysis.ValueKind == JsonValueKind.Object)
+        {
+            if (analysis.TryGetProperty("transcript_summary", out var summary)
+                && summary.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(summary.GetString()))
+            {
+                sb.AppendLine("Transcript summary:");
+                sb.AppendLine(summary.GetString());
+                sb.AppendLine();
+            }
+
+            if (analysis.TryGetProperty("data_collection_results", out var dcr))
+            {
+                sb.AppendLine("Data collection results:");
+                foreach (var (id, value) in EnumerateDataCollectionEntries(dcr))
+                    sb.AppendLine($"- {id}: {value}");
+                sb.AppendLine();
+            }
+        }
+
+        if (data.TryGetProperty("transcript", out var transcript) && transcript.ValueKind == JsonValueKind.Array)
+        {
+            sb.AppendLine("Transcript:");
+            var count = 0;
+            foreach (var turn in transcript.EnumerateArray())
+            {
+                var role = turn.TryGetProperty("role", out var roleEl) ? roleEl.GetString() : "unknown";
+                var message = turn.TryGetProperty("message", out var msgEl) && msgEl.ValueKind == JsonValueKind.String
+                    ? msgEl.GetString()
+                    : null;
+                if (string.IsNullOrWhiteSpace(message))
+                    continue;
+                sb.AppendLine($"{role}: {message}");
+                count++;
+                if (count >= 40)
+                    break;
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private static string? ExtractJsonObject(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        var trimmed = text.Trim();
+        var fenceStart = trimmed.IndexOf("```", StringComparison.Ordinal);
+        if (fenceStart >= 0)
+        {
+            var afterFence = trimmed[(fenceStart + 3)..];
+            if (afterFence.StartsWith("json", StringComparison.OrdinalIgnoreCase))
+                afterFence = afterFence[4..];
+            var fenceEnd = afterFence.IndexOf("```", StringComparison.Ordinal);
+            if (fenceEnd >= 0)
+                trimmed = afterFence[..fenceEnd].Trim();
+            else
+                trimmed = afterFence.Trim();
+        }
+
+        var start = trimmed.IndexOf('{');
+        var end = trimmed.LastIndexOf('}');
+        if (start < 0 || end <= start)
+            return null;
+        return trimmed[start..(end + 1)];
     }
 
     private sealed record BookingOutcome(

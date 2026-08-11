@@ -89,8 +89,16 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             return new NuviOutboundCallResult
             {
                 Success = false,
-                Message = "Could not resolve the ElevenLabs Twilio phone number. Import the Twilio number in ElevenLabs and set AgentPhoneNumberId.",
+#if DEBUG
+                Message =
+                    "Could not resolve the ElevenLabs Twilio phone number. "
+                    + ex.Message
+                    + " In the new ElevenLabs workspace: Agents → Phone Numbers → Import Twilio number, "
+                    + "then set ElevenLabs:AgentPhoneNumberId to that phone_number_id (and restart the API).",
                 ToNumber = toNumber
+#else
+                Message = "Error in calling : "+toNumber,
+#endif
             };
         }
 
@@ -267,6 +275,14 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             return _resolvedPhoneNumberId;
 
         var configured = _elevenLabs.AgentPhoneNumberId?.Trim();
+
+        // Explicit ElevenLabs phone_number_id (e.g. phnum_...) — use as-is, never treat as E.164.
+        if (!string.IsNullOrWhiteSpace(configured) && IsElevenLabsPhoneNumberId(configured))
+        {
+            _resolvedPhoneNumberId = configured;
+            return configured;
+        }
+
         if (!string.IsNullOrWhiteSpace(configured) && !LooksLikePhoneNumber(configured))
         {
             _resolvedPhoneNumberId = configured;
@@ -283,14 +299,26 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             throw new InvalidOperationException($"List phone numbers failed ({(int)response.StatusCode}): {Truncate(body, 300)}");
 
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "[]" : body);
-        if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
-            throw new InvalidOperationException("No Twilio phone numbers are imported in ElevenLabs yet.");
+        var root = doc.RootElement;
+        // API may return a bare array or { "phone_numbers": [ ... ] }.
+        var list = root.ValueKind == JsonValueKind.Array
+            ? root
+            : root.ValueKind == JsonValueKind.Object && root.TryGetProperty("phone_numbers", out var nested)
+                ? nested
+                : default;
+        if (list.ValueKind != JsonValueKind.Array || list.GetArrayLength() == 0)
+            throw new InvalidOperationException(
+                "No Twilio phone numbers are imported in this ElevenLabs workspace yet.");
 
         string? resolved = null;
-        foreach (var item in doc.RootElement.EnumerateArray())
+        foreach (var item in list.EnumerateArray())
         {
-            var id = item.TryGetProperty("phone_number_id", out var idEl) ? idEl.GetString() : null;
-            var number = item.TryGetProperty("phone_number", out var numEl) ? numEl.GetString() : null;
+            var id = item.TryGetProperty("phone_number_id", out var idEl) ? idEl.GetString()
+                : item.TryGetProperty("id", out var idEl2) ? idEl2.GetString()
+                : null;
+            var number = item.TryGetProperty("phone_number", out var numEl) ? numEl.GetString()
+                : item.TryGetProperty("number", out var numEl2) ? numEl2.GetString()
+                : null;
             if (string.IsNullOrWhiteSpace(id))
                 continue;
 
@@ -304,10 +332,20 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
 
         if (string.IsNullOrWhiteSpace(resolved))
             throw new InvalidOperationException(
-                $"Could not find ElevenLabs phone_number_id for {matchPhone}. Import that Twilio number in ElevenLabs Agents → Phone Numbers.");
+                $"No imported ElevenLabs Twilio number matched '{matchPhone}'. "
+                + "Import that FromNumber in Agents → Phone Numbers, or set AgentPhoneNumberId explicitly.");
 
         _resolvedPhoneNumberId = resolved;
         return resolved;
+    }
+
+    private static bool IsElevenLabsPhoneNumberId(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+        var trimmed = value.Trim();
+        return trimmed.StartsWith("phnum_", StringComparison.OrdinalIgnoreCase)
+               || trimmed.StartsWith("phone_", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool LooksLikePhoneNumber(string? value)
@@ -315,10 +353,16 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         if (string.IsNullOrWhiteSpace(value))
             return false;
         var trimmed = value.Trim();
+        if (IsElevenLabsPhoneNumberId(trimmed))
+            return false;
+        // Real phone numbers should not contain letters (IDs like phnum_… do).
+        if (trimmed.Any(char.IsLetter))
+            return false;
         if (trimmed.StartsWith('+'))
             return true;
         var digits = new string(trimmed.Where(char.IsDigit).ToArray());
-        return digits.Length >= 10 && digits.Length == trimmed.Count(c => char.IsDigit(c) || char.IsWhiteSpace(c) || c is '-' or '(' or ')');
+        return digits.Length >= 10
+               && digits.Length == trimmed.Count(c => char.IsDigit(c) || char.IsWhiteSpace(c) || c is '-' or '(' or ')');
     }
 
     public static string? ToE164(string? phone)

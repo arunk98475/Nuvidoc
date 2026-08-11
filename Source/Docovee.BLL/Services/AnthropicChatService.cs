@@ -1672,8 +1672,6 @@ public class AnthropicChatService : IAnthropicChatService
         if (callResult.Success)
         {
             text = $"{planText}\n\nI've started the call to {topName}'s office now. I'll update you here as soon as I hear back.";
-            if (!string.IsNullOrWhiteSpace(callResult.ConversationId))
-                text += $" (ref: {callResult.ConversationId})";
 
             conversationId = callResult.ConversationId;
             callSid = callResult.CallSid;

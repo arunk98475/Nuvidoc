@@ -83,9 +83,8 @@ public partial class NotificationsPage : ContentPage
                 AppointmentSlot = $"Appointment · {n.SlotLabel}";
             else if (n.AppointmentStartsAt is DateTime start)
             {
-                var end = n.AppointmentEndsAt ?? start.AddHours(1);
                 AppointmentSlot =
-                    $"Appointment · {start.ToLocalTime():ddd, MMM d · h:mm tt} – {end.ToLocalTime():h:mm tt}";
+                    $"Appointment · {start.ToLocalTime():ddd, MMM d · h:mm tt}";
             }
             else
                 AppointmentSlot = string.Empty;
