@@ -15,7 +15,9 @@ public enum NuviConversationStage
     CallingOffices,
     BookingInitiation,
     Confirmation,
-    Complete
+    Complete,
+    /// <summary>Registered patient selecting an appointment to cancel via chat.</summary>
+    CancelBooking
 }
 
 public enum CallingConsentStep
@@ -101,6 +103,14 @@ public class SearchContextData
     public CallingConsentStep CallingStep { get; set; } = CallingConsentStep.None;
     public CallOfficeScope CallScope { get; set; } = CallOfficeScope.None;
     public CallOfficePreference CallPreference { get; set; } = CallOfficePreference.None;
+    /// <summary>Chip labels → appointment ids while Stage is CancelBooking.</summary>
+    public List<CancelAppointmentChoice>? CancelAppointmentChoices { get; set; }
+}
+
+public class CancelAppointmentChoice
+{
+    public int AppointmentId { get; set; }
+    public string Label { get; set; } = string.Empty;
 }
 
 public class PollingAnswerEntry

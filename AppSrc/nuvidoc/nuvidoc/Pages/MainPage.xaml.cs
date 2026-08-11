@@ -129,6 +129,15 @@ public partial class MainPage : ContentPage
 
         RemoveTyping();
         AddAi(welcome);
+        if (AuthSession.IsSignedIn)
+        {
+            chips =
+            [
+                ..chips,
+                "Cancel Booking",
+                "Reschedule Booking"
+            ];
+        }
         SetChips(chips);
         ChatEntry.Placeholder = $"Tell {botName} what's going on…";
         ChatEntry.IsEnabled = true;

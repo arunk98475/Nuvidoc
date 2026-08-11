@@ -320,6 +320,21 @@ public static class NuviFlowContent
 
     ];
 
+    public const string CancelBookingChip = "Cancel Booking";
+
+    public const string RescheduleBookingChip = "Reschedule Booking";
+
+    public const string CancelBookingNeverMindOption = "Never mind";
+
+    public const string CancelBookingPrompt =
+        "Which appointment would you like me to cancel? Pick one below — I'll call the office to confirm.";
+
+    public const string CancelBookingNoneMessage =
+        "You don't have any upcoming appointments to cancel right now. I can help you find a dentist whenever you're ready.";
+
+    public const string RescheduleComingSoonMessage =
+        "Rescheduling from chat is coming soon. For now, you can cancel a booking and book a new one, or contact the office directly.";
+
 }
 
 

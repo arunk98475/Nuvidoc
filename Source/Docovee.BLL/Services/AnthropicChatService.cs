@@ -49,6 +49,8 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IClaudeGoogleReviewService _googleReviews;
     private readonly INuviVoiceCallingService _voiceCalling;
     private readonly IVoiceCallBookingService _voiceBookings;
+    private readonly IAppointmentService _appointments;
+    private readonly IAppointmentCancelService _appointmentCancel;
     private readonly TwilioOptions _twilioOptions;
 
     public AnthropicChatService(
@@ -67,6 +69,8 @@ public class AnthropicChatService : IAnthropicChatService
         IClaudeGoogleReviewService googleReviews,
         INuviVoiceCallingService voiceCalling,
         IVoiceCallBookingService voiceBookings,
+        IAppointmentService appointments,
+        IAppointmentCancelService appointmentCancel,
         IOptions<TwilioOptions> twilioOptions)
     {
         _httpClient = httpClient;
@@ -84,6 +88,8 @@ public class AnthropicChatService : IAnthropicChatService
         _googleReviews = googleReviews;
         _voiceCalling = voiceCalling;
         _voiceBookings = voiceBookings;
+        _appointments = appointments;
+        _appointmentCancel = appointmentCancel;
         _twilioOptions = twilioOptions.Value;
     }
 
@@ -173,7 +179,25 @@ public class AnthropicChatService : IAnthropicChatService
 
         var isDoctorCardOnly = IsDoctorCardOnlyRequest(request);
         var effectiveMessage = request.Message ?? string.Empty;
-        if (!string.IsNullOrWhiteSpace(request.Message) && !isDoctorCardOnly && !IsPasswordSubmission(context))
+        var skipIncomingValidation =
+            isDoctorCardOnly
+            || IsPasswordSubmission(context)
+            || context.Stage == NuviConversationStage.CancelBooking
+            || IsCancelBookingChip(request.Message)
+            || IsRescheduleBookingChip(request.Message);
+
+        // Free-text cancel intent (Claude) must run before triage validation, which would reject it.
+        if (!skipIncomingValidation
+            && context.SkipAccountCreation
+            && CanEnterCancelFromStage(context.Stage)
+            && !string.IsNullOrWhiteSpace(request.Message)
+            && await DetectCancelBookingIntentAsync(request.Message, cancellationToken))
+        {
+            skipIncomingValidation = true;
+            context.PendingNormalizedAnswer = NuviFlowContent.CancelBookingChip;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Message) && !skipIncomingValidation)
         {
             var validationBlock = await TryValidateIncomingMessageAsync(
                 session, context, request.Message, cancellationToken);
@@ -185,6 +209,15 @@ public class AnthropicChatService : IAnthropicChatService
 
             effectiveMessage = context.PendingNormalizedAnswer ?? request.Message.Trim();
             context.PendingNormalizedAnswer = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(context.PendingNormalizedAnswer))
+        {
+            effectiveMessage = context.PendingNormalizedAnswer;
+            context.PendingNormalizedAnswer = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Message))
+        {
+            effectiveMessage = request.Message.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(request.Message) && !isDoctorCardOnly)
@@ -206,6 +239,29 @@ public class AnthropicChatService : IAnthropicChatService
         if (request.Action == "book" && context.SelectedDoctorId.HasValue)
             context.BookingConfirmed = true;
 
+        // Registered-user cancel / reschedule shortcuts (chip or free-text intent).
+        if (context.SkipAccountCreation
+            && context.Stage != NuviConversationStage.CancelBooking
+            && !string.IsNullOrWhiteSpace(effectiveMessage))
+        {
+            if (IsRescheduleBookingChip(effectiveMessage))
+            {
+                var rescheduleResponse = await HandleRescheduleStubAsync(session, context, cancellationToken);
+                SearchContextHelper.Save(session, context);
+                await _db.SaveChangesAsync(cancellationToken);
+                return rescheduleResponse;
+            }
+
+            if (IsCancelBookingChip(effectiveMessage)
+                || string.Equals(effectiveMessage, NuviFlowContent.CancelBookingChip, StringComparison.OrdinalIgnoreCase))
+            {
+                var cancelStart = await BeginCancelBookingAsync(session, context, cancellationToken);
+                SearchContextHelper.Save(session, context);
+                await _db.SaveChangesAsync(cancellationToken);
+                return cancelStart;
+            }
+        }
+
         var response = context.Stage switch
         {
             NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, effectiveMessage, httpContext, cancellationToken),
@@ -220,8 +276,16 @@ public class AnthropicChatService : IAnthropicChatService
             NuviConversationStage.CallingConsent => await HandleCallingConsentAsync(session, context, request, effectiveMessage, cancellationToken),
             NuviConversationStage.CallingOffices => await HandleCallingOfficesAsync(session, context, cancellationToken),
             NuviConversationStage.BookingInitiation => await HandleBookingInitiationAsync(session, context, request, cancellationToken),
-            NuviConversationStage.Confirmation or NuviConversationStage.Complete => BuildResponse(session, context,
-                "You're all set! I'm here whenever you need to find another doctor.", flowComplete: true),
+            NuviConversationStage.CancelBooking => await HandleCancelBookingAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.Confirmation or NuviConversationStage.Complete =>
+                context.SkipAccountCreation
+                    ? BuildResponse(session, context,
+                        "You're all set! I'm here whenever you need to find another doctor, cancel a booking, or ask something else.",
+                        options: RegisteredQuickConcernChips(),
+                        optionsOnly: false,
+                        flowComplete: true)
+                    : BuildResponse(session, context,
+                        "You're all set! I'm here whenever you need to find another doctor.", flowComplete: true),
             _ => await HandleGreetingAsync(session, context, effectiveMessage, httpContext, cancellationToken)
         };
 
@@ -2436,6 +2500,283 @@ public class AnthropicChatService : IAnthropicChatService
         return lower is "yes" or "y" or "yeah" or "yep" or "yup" or "sure" or "ok" or "okay"
             or "no" or "n" or "nope" or "nah";
     }
+
+    private static bool IsCancelBookingChip(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && string.Equals(message.Trim(), NuviFlowContent.CancelBookingChip, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRescheduleBookingChip(string? message) =>
+        !string.IsNullOrWhiteSpace(message)
+        && string.Equals(message.Trim(), NuviFlowContent.RescheduleBookingChip, StringComparison.OrdinalIgnoreCase);
+
+    private static bool CanEnterCancelFromStage(NuviConversationStage stage) =>
+        stage is NuviConversationStage.Greeting
+            or NuviConversationStage.Triage
+            or NuviConversationStage.Logistics
+            or NuviConversationStage.MomentumBridge
+            or NuviConversationStage.DeepDivePermission
+            or NuviConversationStage.DeepDive
+            or NuviConversationStage.RecommendationReveal
+            or NuviConversationStage.DoctorExplore
+            or NuviConversationStage.Confirmation
+            or NuviConversationStage.Complete;
+
+    private static IReadOnlyList<string> RegisteredQuickConcernChips() =>
+    [
+        "I need a dentist",
+        "Tooth pain",
+        "Dental implants",
+        "Teeth cleaning",
+        "Invisalign",
+        "Emergency dental",
+        NuviFlowContent.CancelBookingChip,
+        NuviFlowContent.RescheduleBookingChip
+    ];
+
+    private async Task<ChatMessageResponse> HandleRescheduleStubAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        var text = NuviFlowContent.RescheduleComingSoonMessage;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            text,
+            stage: context.Stage == NuviConversationStage.Greeting ? NuviConversationStage.Triage : context.Stage,
+            options: RegisteredQuickConcernChips(),
+            optionsOnly: false);
+    }
+
+    private async Task<ChatMessageResponse> BeginCancelBookingAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        if (session.PatientId is not int patientId || patientId <= 0)
+        {
+            var needSignIn = "Please sign in to cancel a booking.";
+            await SaveAssistantMessageAsync(session, needSignIn, cancellationToken);
+            return BuildResponse(session, context, needSignIn, stage: context.Stage);
+        }
+
+        var all = await _appointments.GetForPatientAsync(patientId, cancellationToken);
+        var startOfToday = DateTime.Today;
+        var upcoming = all
+            .Where(a => a.StartsAt >= startOfToday
+                        && AppointmentStatuses.IsActive(a.Status)
+                        && a.Status != AppointmentStatuses.Completed)
+            .OrderBy(a => a.StartsAt)
+            .ToList();
+
+        if (upcoming.Count == 0)
+        {
+            context.CancelAppointmentChoices = null;
+            context.Stage = NuviConversationStage.Triage;
+            var none = NuviFlowContent.CancelBookingNoneMessage;
+            await SaveAssistantMessageAsync(session, none, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                none,
+                stage: NuviConversationStage.Triage,
+                options: RegisteredQuickConcernChips(),
+                optionsOnly: false);
+        }
+
+        var choices = upcoming.Select(a =>
+        {
+            var slot = VoiceCallBookingService.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1));
+            var doctor = string.IsNullOrWhiteSpace(a.DoctorName) ? "your dentist" : a.DoctorName.Trim();
+            return new CancelAppointmentChoice
+            {
+                AppointmentId = a.Id,
+                Label = $"{doctor} · {slot}"
+            };
+        }).ToList();
+
+        // Disambiguate identical labels.
+        var dupes = choices.GroupBy(c => c.Label, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var choice in choices)
+        {
+            if (dupes.Contains(choice.Label))
+                choice.Label = $"#{choice.AppointmentId} · {choice.Label}";
+        }
+
+        context.CancelAppointmentChoices = choices;
+        context.Stage = NuviConversationStage.CancelBooking;
+
+        var options = choices.Select(c => c.Label)
+            .Append(NuviFlowContent.CancelBookingNeverMindOption)
+            .ToList();
+        var prompt = NuviFlowContent.CancelBookingPrompt;
+        await SaveAssistantMessageAsync(session, prompt, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            prompt,
+            stage: NuviConversationStage.CancelBooking,
+            options: options,
+            optionsOnly: false);
+    }
+
+    private async Task<ChatMessageResponse> HandleCancelBookingAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var answer = message.Trim();
+        if (string.Equals(answer, NuviFlowContent.CancelBookingNeverMindOption, StringComparison.OrdinalIgnoreCase)
+            || IsNoAnswer(answer))
+        {
+            context.CancelAppointmentChoices = null;
+            context.Stage = NuviConversationStage.Triage;
+            var cancelled = "No problem — I won't cancel anything. What else can I help with?";
+            await SaveAssistantMessageAsync(session, cancelled, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                cancelled,
+                stage: NuviConversationStage.Triage,
+                options: RegisteredQuickConcernChips(),
+                optionsOnly: false);
+        }
+
+        var choices = context.CancelAppointmentChoices ?? new List<CancelAppointmentChoice>();
+        var selected = choices.FirstOrDefault(c =>
+            string.Equals(c.Label, answer, StringComparison.OrdinalIgnoreCase));
+
+        if (selected == null
+            && int.TryParse(answer.TrimStart('#'), out var typedId)
+            && choices.Any(c => c.AppointmentId == typedId))
+        {
+            selected = choices.First(c => c.AppointmentId == typedId);
+        }
+
+        if (selected == null)
+        {
+            var options = choices.Select(c => c.Label)
+                .Append(NuviFlowContent.CancelBookingNeverMindOption)
+                .ToList();
+            var reprompt = "Please pick one of the appointments below, or choose Never mind.";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                reprompt,
+                stage: NuviConversationStage.CancelBooking,
+                options: options,
+                optionsOnly: false);
+        }
+
+        if (session.PatientId is not int patientId || patientId <= 0)
+        {
+            context.CancelAppointmentChoices = null;
+            context.Stage = NuviConversationStage.Triage;
+            var needSignIn = "Please sign in to cancel a booking.";
+            await SaveAssistantMessageAsync(session, needSignIn, cancellationToken);
+            return BuildResponse(session, context, needSignIn, stage: NuviConversationStage.Triage);
+        }
+
+        var result = await _appointmentCancel.RequestCancelAsync(patientId, selected.AppointmentId, cancellationToken);
+        context.CancelAppointmentChoices = null;
+        context.Stage = NuviConversationStage.Triage;
+
+        var text = string.IsNullOrWhiteSpace(result.Message)
+            ? (result.Success
+                ? "I've started the cancellation for that appointment."
+                : "I couldn't cancel that appointment. Please try again.")
+            : result.Message;
+
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            text,
+            stage: NuviConversationStage.Triage,
+            options: RegisteredQuickConcernChips(),
+            optionsOnly: false);
+    }
+
+    private async Task<bool> DetectCancelBookingIntentAsync(string message, CancellationToken cancellationToken)
+    {
+        var trimmed = message.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+            return false;
+
+        if (IsCancelBookingChip(trimmed))
+            return true;
+
+        var lower = trimmed.ToLowerInvariant();
+        var mentionsCancel = lower.Contains("cancel") || lower.Contains("cancelled") || lower.Contains("canceled")
+            || lower.Contains("call off") || lower.Contains("don't need the appointment")
+            || lower.Contains("dont need the appointment");
+        if (!mentionsCancel)
+            return false;
+
+        // Clear cancel+appointment wording — no Claude needed.
+        if (lower.Contains("appointment") || lower.Contains("booking") || lower.Contains("visit")
+            || lower.Contains("reservation") || lower.Contains("my dentist"))
+            return true;
+
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
+            return false;
+
+        var systemPrompt = """
+            Classify the patient's message for a dental booking assistant.
+            Return ONLY JSON: {"intent":"cancel_booking"} if they want to cancel an existing appointment/booking/visit.
+            Return {"intent":"other"} for finding a dentist, symptoms, booking a NEW appointment, rescheduling, or anything else.
+            Do not invent other intents.
+            """;
+
+        try
+        {
+            var payload = AnthropicApiHelper.BuildPayload(
+                _options,
+                maxTokens: 40,
+                system: systemPrompt,
+                messages: new[] { new { role = "user", content = trimmed } });
+
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Cancel-intent classify failed: {Body}", TruncateForLog(responseBody, 300));
+                return false;
+            }
+
+            var text = AnthropicApiHelper.ExtractTextContent(responseBody);
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            var jsonStart = text.IndexOf('{');
+            var jsonEnd = text.LastIndexOf('}');
+            if (jsonStart < 0 || jsonEnd <= jsonStart)
+                return text.Contains("cancel_booking", StringComparison.OrdinalIgnoreCase);
+
+            using var doc = JsonDocument.Parse(text[jsonStart..(jsonEnd + 1)]);
+            if (doc.RootElement.TryGetProperty("intent", out var intentEl)
+                && intentEl.ValueKind == JsonValueKind.String)
+            {
+                return string.Equals(intentEl.GetString(), "cancel_booking", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error classifying cancel booking intent");
+        }
+
+        return false;
+    }
+
+    private static string TruncateForLog(string value, int max)
+        => value.Length <= max ? value : value[..max] + "…";
 
     private static ChatMessageResponse BuildResponse(
         SearchSession session,
