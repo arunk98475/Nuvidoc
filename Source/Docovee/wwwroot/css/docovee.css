@@ -618,7 +618,7 @@ body.pl-open {
 .hero-chat-split-wrap.is-split {
   max-width: 1120px;
   flex-direction: row;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 20px;
   padding: 0 24px 32px;
 }
@@ -638,7 +638,11 @@ body.pl-open {
 .hero-doctor-panel {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   padding-top: 24px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
 }
 
 .hero-doctor-panel-inner {
@@ -647,15 +651,18 @@ body.pl-open {
   border: none;
   border-radius: 0;
   overflow: hidden;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 140px);
+  height: calc(100vh - 140px);
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  flex: 1;
 }
 
 .hero-doctor-panel-close {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: 30px;
   z-index: 3;
   width: 32px;
   height: 32px;
@@ -679,11 +686,23 @@ body.pl-open {
 
 .hero-doctor-panel-body {
   overflow-y: auto;
-  flex: 1;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 2px;
+  padding: 2px 4px 20px 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.hero-doctor-panel-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: min-content;
 }
 
 .hero-doctor-panel-loading {
@@ -1182,6 +1201,21 @@ body.pl-open {
   line-height: 1.5;
   color: var(--ink);
   margin: 0;
+}
+.nuvi-profile-insurance-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.nuvi-profile-insurance-list li + li {
+  margin-top: 0.4rem;
+}
+.nuvi-profile-insurance-plans {
+  margin-top: 0.12rem;
+  font-size: 12px;
+  color: var(--muted, #667);
 }
 .nuvi-profile-review {
   padding: 10px 0;
@@ -2630,9 +2664,11 @@ footer.site-footer {
   .hero-doctor-panel {
     width: 100%;
     padding-top: 0;
+    max-height: none;
   }
   .hero-doctor-panel-inner {
-    max-height: none;
+    height: auto;
+    max-height: min(70vh, 560px);
   }
   .hero-chat-split-wrap.is-split .chat-messages {
     max-height: 360px;
