@@ -99,6 +99,20 @@ public class PublicDoctorService : IPublicDoctorService
                 profile.GoogleReviewsLive = !live.FromCache && (live.Reviews.Count > 0 || live.GoogleRating > 0);
             }
         }
+        else
+        {
+            // Public profile: show last saved Google review file without calling Claude.
+            var cached = await _googleReviews.GetCachedAsync(doctor, cancellationToken);
+            if (cached != null && cached.Found && cached.Reviews.Count > 0)
+            {
+                profile.GoogleReviews = cached.Reviews;
+                profile.GoogleReviewsLive = false;
+                if (cached.GoogleRating > 0 && profile.GoogleRating <= 0)
+                    profile.GoogleRating = cached.GoogleRating;
+                if (cached.GoogleReviewCount > 0 && profile.GoogleReviewCount <= 0)
+                    profile.GoogleReviewCount = cached.GoogleReviewCount;
+            }
+        }
 
         return profile;
     }

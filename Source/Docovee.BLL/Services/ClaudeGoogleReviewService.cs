@@ -32,6 +32,13 @@ public interface IClaudeGoogleReviewService
     Task<GoogleReviewLookupResult?> LookupAsync(int doctorId, CancellationToken cancellationToken = default);
 
     Task<GoogleReviewLookupResult?> LookupAsync(Doctor doctor, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Loads the last saved on-disk Google review file only (no Claude call), even if the cache is stale.
+    /// </summary>
+    Task<GoogleReviewLookupResult?> GetCachedAsync(int doctorId, CancellationToken cancellationToken = default);
+
+    Task<GoogleReviewLookupResult?> GetCachedAsync(Doctor doctor, CancellationToken cancellationToken = default);
 }
 
 public class ClaudeGoogleReviewService : IClaudeGoogleReviewService
@@ -82,6 +89,26 @@ public class ClaudeGoogleReviewService : IClaudeGoogleReviewService
             return null;
 
         return await LookupAsync(doctor, cancellationToken);
+    }
+
+    public async Task<GoogleReviewLookupResult?> GetCachedAsync(int doctorId, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive, cancellationToken);
+
+        if (doctor == null)
+            return null;
+
+        return await GetCachedAsync(doctor, cancellationToken);
+    }
+
+    public Task<GoogleReviewLookupResult?> GetCachedAsync(Doctor doctor, CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        if (TryLoadFile(doctor, out var cached) && cached.Found && cached.Reviews.Count > 0)
+            return Task.FromResult<GoogleReviewLookupResult?>(cached);
+
+        return Task.FromResult<GoogleReviewLookupResult?>(null);
     }
 
     public async Task<GoogleReviewLookupResult?> LookupAsync(Doctor doctor, CancellationToken cancellationToken = default)

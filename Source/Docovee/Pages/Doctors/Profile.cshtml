@@ -14,7 +14,12 @@
         : (reviewCount > 0 ? (decimal)doctor.Reviews.Average(r => r.Rating) : 0m);
     var totalReviews = doctor.GoogleReviewCount > 0 ? doctor.GoogleReviewCount : reviewCount;
     var isNewPatient = !string.Equals(Request.Query["isNewPatient"], "false", StringComparison.OrdinalIgnoreCase);
-    var featuredReview = doctor.Reviews.OrderByDescending(r => r.Rating).FirstOrDefault();
+    var lastGoogleReview = doctor.GoogleReviews.FirstOrDefault(r => !string.IsNullOrWhiteSpace(r.ReviewText));
+    var googleReviews = doctor.GoogleReviews
+        .Where(r => !string.IsNullOrWhiteSpace(r.ReviewText))
+        .ToList();
+    var featuredReview = doctor.Reviews.OrderByDescending(r => r.Rating).FirstOrDefault()
+        ?? lastGoogleReview;
     var planCount = doctor.AcceptedInsurances.Sum(i => Math.Max(1, i.Plans.Count));
     var morePlans = Math.Max(0, planCount - Math.Min(5, doctor.AcceptedInsurances.Count));
     var visibleDays = Model.VisibleBookingDays;
@@ -534,16 +539,49 @@
                     <div class="zd-reviews-score">
                         <strong>@avgRating.ToString("0.00")</strong>
                         <span class="zd-stars">@RenderStars(avgRating)</span>
-                        <span class="zd-muted">@totalReviews patient ratings</span>
+                        <span class="zd-muted">@totalReviews @(doctor.GoogleReviewCount > 0 ? "Google" : "patient") ratings</span>
                     </div>
                 }
                 <p class="zd-muted zd-trust">Providers can’t pay to alter or remove reviews.</p>
+
+                @if (googleReviews.Count > 0)
+                {
+                    <div class="zd-google-review-block">
+                        <div class="zd-review-source">Google reviews (@googleReviews.Count saved)</div>
+                        @foreach (var gReview in googleReviews)
+                        {
+                            <article class="zd-review zd-review-google">
+                                <div class="zd-review-top">
+                                    <div class="zd-review-avatar">@(string.IsNullOrWhiteSpace(gReview.ReviewerName) ? "G" : char.ToUpperInvariant(gReview.ReviewerName.Trim()[0]))</div>
+                                    <div>
+                                        <strong>@gReview.ReviewerName</strong>
+                                        <div class="zd-stars">@RenderStars(gReview.Rating)</div>
+                                    </div>
+                                </div>
+                                <p>“@gReview.ReviewText”</p>
+                                @if (!string.IsNullOrWhiteSpace(gReview.Recommendation)
+                                     && !string.Equals(gReview.Recommendation, "Google review", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <p class="zd-muted zd-google-meta">@gReview.Recommendation</p>
+                                }
+                            </article>
+                        }
+                    </div>
+                }
+
                 @if (doctor.Reviews.Count == 0)
                 {
-                    <p class="zd-muted">No patient reviews yet.</p>
+                    @if (googleReviews.Count == 0)
+                    {
+                        <p class="zd-muted">No patient reviews yet.</p>
+                    }
                 }
                 else
                 {
+                    @if (googleReviews.Count > 0)
+                    {
+                        <div class="zd-review-source">Reviews on @Branding.SiteName</div>
+                    }
                     @foreach (var review in doctor.Reviews)
                     {
                         <article class="zd-review">
