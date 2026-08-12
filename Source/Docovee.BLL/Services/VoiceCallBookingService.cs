@@ -28,6 +28,8 @@ public interface IVoiceCallBookingService
 
     void ScheduleConversationPolling(string conversationId);
 
+    Task FinalizeStaleConversationAsync(string conversationId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
         Guid sessionKey,
         CancellationToken cancellationToken = default);
@@ -140,6 +142,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly IDocoveeLogger _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPatientPushDispatcher _push;
+    private readonly IVoiceCallCascadeService _cascade;
 
     public VoiceCallBookingService(
         DocoveeDbContext db,
@@ -149,7 +152,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         IOptions<AnthropicOptions> anthropic,
         IDocoveeLogger logger,
         IServiceScopeFactory scopeFactory,
-        IPatientPushDispatcher push)
+        IPatientPushDispatcher push,
+        IVoiceCallCascadeService cascade)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
@@ -159,6 +163,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _logger = logger;
         _scopeFactory = scopeFactory;
         _push = push;
+        _cascade = cascade;
     }
 
     public async Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
@@ -283,6 +288,12 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                         return;
                     await Task.Delay(TimeSpan.FromSeconds(30));
                 }
+
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var service = scope.ServiceProvider.GetRequiredService<IVoiceCallBookingService>();
+                    await service.FinalizeStaleConversationAsync(conversationId);
+                }
             }
             catch (Exception ex)
             {
@@ -306,11 +317,29 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(rawBody) ? "{}" : rawBody);
         var root = doc.RootElement;
         var type = root.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
+
+        if (string.Equals(type, "call_initiation_failure", StringComparison.OrdinalIgnoreCase))
+        {
+            var failureData = root.TryGetProperty("data", out var failureDataEl) ? failureDataEl : root;
+            var failureConversationId = failureData.TryGetProperty("conversation_id", out var failureIdEl)
+                ? failureIdEl.GetString()
+                : root.TryGetProperty("conversation_id", out var failureIdEl2) ? failureIdEl2.GetString() : null;
+
+            if (string.IsNullOrWhiteSpace(failureConversationId))
+            {
+                _logger.LogInformation("ElevenLabs call_initiation_failure webhook missing conversation_id.");
+                return true;
+            }
+
+            return await ProcessCallInitiationFailureAsync(failureConversationId, failureData, cancellationToken);
+        }
+
         if (!string.IsNullOrWhiteSpace(type)
             && !type.Contains("transcription", StringComparison.OrdinalIgnoreCase)
             && !type.Contains("post_call", StringComparison.OrdinalIgnoreCase))
         {
-            return true; // ignore audio-only / initiation failure for booking
+            _logger.LogInformation("ElevenLabs webhook ignored (type={Type}).", type);
+            return true; // ignore audio-only webhooks without analysis
         }
 
         var data = root.TryGetProperty("data", out var dataEl) ? dataEl : root;
@@ -326,6 +355,124 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
         return await ProcessConversationPayloadAsync(
             conversationId, data, cancellationToken, allowClaudeSlotExtraction: false);
+    }
+
+    private async Task<bool> ProcessCallInitiationFailureAsync(
+        string conversationId,
+        JsonElement data,
+        CancellationToken cancellationToken)
+    {
+        var call = await _db.VoiceOutboundCalls
+            .FirstOrDefaultAsync(c => c.ConversationId == conversationId, cancellationToken);
+        if (call == null)
+        {
+            call = await TryCreateCallFromPayloadAsync(conversationId, data, cancellationToken);
+            if (call == null)
+            {
+                _logger.LogInformation(
+                    "call_initiation_failure for unknown conversation {ConversationId}", conversationId);
+                return false;
+            }
+        }
+
+        if (IsCancelIntent(call.CallIntent))
+            return await ProcessCancelInitiationFailureAsync(call, data, cancellationToken);
+
+        if (IsRescheduleIntent(call.CallIntent))
+            return await ProcessRescheduleInitiationFailureAsync(call, data, cancellationToken);
+
+        if (call.AppointmentId.HasValue && call.Status == VoiceOutboundCallStatuses.Booked)
+            return true;
+
+        if (call.Status is VoiceOutboundCallStatuses.Booked
+                or VoiceOutboundCallStatuses.NoSlot
+                or VoiceOutboundCallStatuses.Declined
+                or VoiceOutboundCallStatuses.NoAnswer
+                or VoiceOutboundCallStatuses.Failed)
+            return true;
+
+        var failureReason = data.TryGetProperty("failure_reason", out var frEl)
+            ? frEl.GetString()
+            : null;
+        var status = MapTelephonyFailureReason(failureReason);
+        var detail = BuildTelephonyFailureDetail(data, failureReason);
+
+        call.Status = status;
+        call.OutcomeNotes = Truncate(detail, 2000);
+        call.UpdatedAt = DateTime.UtcNow;
+        call.CompletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Call initiation failure. Conversation={ConversationId} Status={Status} Reason={Reason}",
+            conversationId, status, failureReason ?? "(none)");
+
+        await NotifyBookFailureAsync(
+            call,
+            "Nuvi call update",
+            DescribeCallOutcome(status, detail),
+            cancellationToken);
+        return true;
+    }
+
+    private Task<bool> ProcessCancelInitiationFailureAsync(
+        VoiceOutboundCall call, JsonElement data, CancellationToken cancellationToken) =>
+        ProcessIntentInitiationFailureAsync(
+            call,
+            data,
+            "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.",
+            cancellationToken);
+
+    private Task<bool> ProcessRescheduleInitiationFailureAsync(
+        VoiceOutboundCall call, JsonElement data, CancellationToken cancellationToken) =>
+        ProcessIntentInitiationFailureAsync(
+            call,
+            data,
+            "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.",
+            cancellationToken);
+
+    private async Task<bool> ProcessIntentInitiationFailureAsync(
+        VoiceOutboundCall call,
+        JsonElement data,
+        string patientMessage,
+        CancellationToken cancellationToken)
+    {
+        if (call.Status is VoiceOutboundCallStatuses.Canceled
+            or VoiceOutboundCallStatuses.Booked
+            or VoiceOutboundCallStatuses.Declined
+            or VoiceOutboundCallStatuses.NoAnswer
+            or VoiceOutboundCallStatuses.Failed
+            or VoiceOutboundCallStatuses.Completed)
+            return true;
+
+        var failureReason = data.TryGetProperty("failure_reason", out var frEl)
+            ? frEl.GetString()
+            : null;
+        var status = MapTelephonyFailureReason(failureReason);
+        var detail = BuildTelephonyFailureDetail(data, failureReason);
+
+        call.Status = status;
+        call.OutcomeNotes = Truncate(detail, 2000);
+        call.UpdatedAt = DateTime.UtcNow;
+        call.CompletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        int? notificationId = null;
+        if (call.PatientId is > 0)
+        {
+            notificationId = await AddNotificationAsync(
+                call.PatientId.Value,
+                PatientNotificationTypes.VoiceCallUpdate,
+                "Reschedule update",
+                patientMessage,
+                call.AppointmentId,
+                call.DoctorId,
+                cancellationToken);
+        }
+
+        await DispatchTerminalPushAsync(
+            call, status, "Reschedule update", patientMessage, notificationId, cancellationToken: cancellationToken);
+        return true;
     }
 
     public async Task<bool> ProcessConversationAsync(string conversationId, CancellationToken cancellationToken = default)
@@ -365,6 +512,78 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             conversationId, data, cancellationToken, allowClaudeSlotExtraction: true);
     }
 
+    public async Task FinalizeStaleConversationAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        var call = await _db.VoiceOutboundCalls
+            .FirstOrDefaultAsync(c => c.ConversationId == conversationId, cancellationToken);
+        if (call == null || call.Status != VoiceOutboundCallStatuses.Initiated)
+            return;
+
+        _logger.LogInformation(
+            "Finalizing stale initiated conversation {ConversationId} after polling exhausted",
+            conversationId);
+
+        call.Status = VoiceOutboundCallStatuses.NoAnswer;
+        call.OutcomeNotes = Truncate(
+            "Timed out waiting for ElevenLabs to finalize the call (status stayed initiated).",
+            2000);
+        call.UpdatedAt = DateTime.UtcNow;
+        call.CompletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (IsCancelIntent(call.CallIntent))
+        {
+            const string cancelBody =
+                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.";
+            int? notificationId = null;
+            if (call.PatientId is > 0)
+            {
+                notificationId = await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.VoiceCallUpdate,
+                    "Cancel update",
+                    cancelBody,
+                    call.AppointmentId,
+                    call.DoctorId,
+                    cancellationToken);
+            }
+
+            await DispatchTerminalPushAsync(
+                call, call.Status, "Cancel update", cancelBody, notificationId, cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (IsRescheduleIntent(call.CallIntent))
+        {
+            const string rescheduleBody =
+                "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.";
+            int? notificationId = null;
+            if (call.PatientId is > 0)
+            {
+                notificationId = await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.VoiceCallUpdate,
+                    "Reschedule update",
+                    rescheduleBody,
+                    call.AppointmentId,
+                    call.DoctorId,
+                    cancellationToken);
+            }
+
+            await DispatchTerminalPushAsync(
+                call, call.Status, "Reschedule update", rescheduleBody, notificationId, cancellationToken: cancellationToken);
+            return;
+        }
+
+        await NotifyBookFailureAsync(
+            call,
+            "Nuvi call update",
+            DescribeCallOutcome(VoiceOutboundCallStatuses.NoAnswer, call.OutcomeNotes),
+            cancellationToken);
+    }
+
     private async Task<bool> ProcessConversationPayloadAsync(
         string conversationId,
         JsonElement data,
@@ -402,13 +621,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
 
         var status = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
-        var stillInProgress = string.Equals(status, "processing", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(status, "initiated", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(status, "in-progress", StringComparison.OrdinalIgnoreCase);
-        if (stillInProgress)
+        if (ShouldContinuePollingConversation(data, call, status, out var staleOutcome))
             return false;
 
-        var outcome = ExtractBookingOutcome(data);
+        var outcome = staleOutcome ?? ExtractBookingOutcome(data);
 
         // Polling path: if ElevenLabs marked booked but date/time didn't parse, ask Claude.
         if (allowClaudeSlotExtraction && outcome.IsBooked && outcome.StartsAt == null)
@@ -453,23 +669,13 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             call.Status = outcome.StatusHint ?? VoiceOutboundCallStatuses.Completed;
             await _db.SaveChangesAsync(cancellationToken);
-            int? notificationId = null;
-            var title = "Nuvi call update";
-            var body = string.IsNullOrWhiteSpace(outcome.Notes)
-                ? $"Call finished with status {call.Status}."
-                : outcome.Notes!;
-            if (call.PatientId is > 0)
-            {
-                notificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.VoiceCallUpdate,
-                    title,
-                    body,
-                    doctorId: call.DoctorId,
-                    cancellationToken: cancellationToken);
-            }
-
-            await DispatchTerminalPushAsync(call, call.Status, title, body, notificationId, cancellationToken: cancellationToken);
+            await NotifyBookFailureAsync(
+                call,
+                "Nuvi call update",
+                string.IsNullOrWhiteSpace(outcome.Notes)
+                    ? DescribeCallOutcome(call.Status)
+                    : outcome.Notes!,
+                cancellationToken);
             return true;
         }
 
@@ -526,22 +732,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             call.OutcomeNotes = Truncate(
                 $"Rejected past appointment time ({startsAt:g}).", 2000);
             await _db.SaveChangesAsync(cancellationToken);
-            var pastTitle = "Nuvi call update";
+            const string pastTitle = "Nuvi call update";
             var pastBody =
                 $"The office offered a past time ({startsAt:ddd, MMM d yyyy h:mm tt}). No appointment was saved.";
-            int? notificationId = null;
-            if (call.PatientId is > 0)
-            {
-                notificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.VoiceCallUpdate,
-                    pastTitle,
-                    pastBody,
-                    doctorId: call.DoctorId,
-                    cancellationToken: cancellationToken);
-            }
-
-            await DispatchTerminalPushAsync(call, call.Status, pastTitle, pastBody, notificationId, cancellationToken: cancellationToken);
+            await NotifyBookFailureAsync(call, pastTitle, pastBody, cancellationToken);
             return true;
         }
 
@@ -642,13 +836,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
 
         var convStatus = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
-        var stillInProgress = string.Equals(convStatus, "processing", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(convStatus, "initiated", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(convStatus, "in-progress", StringComparison.OrdinalIgnoreCase);
-        if (stillInProgress)
+        if (ShouldContinuePollingConversation(data, call, convStatus, out var staleOutcome))
             return false;
 
-        var outcome = ExtractBookingOutcome(data);
+        var outcome = staleOutcome ?? ExtractBookingOutcome(data);
         if (allowClaudeSlotExtraction && outcome.IsBooked && outcome.StartsAt == null)
         {
             if (!ConversationContentReadyForExtraction(data))
@@ -817,11 +1008,36 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
 
         var convStatus = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
-        var stillInProgress = string.Equals(convStatus, "processing", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(convStatus, "initiated", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(convStatus, "in-progress", StringComparison.OrdinalIgnoreCase);
-        if (stillInProgress)
+        if (ShouldContinuePollingConversation(data, call, convStatus, out var staleBooking))
             return false;
+
+        if (staleBooking != null)
+        {
+            call.Status = VoiceOutboundCallStatuses.NoAnswer;
+            call.OutcomeNotes = Truncate(staleBooking.Notes ?? "The office did not answer the cancellation call.", 2000);
+            call.UpdatedAt = DateTime.UtcNow;
+            call.CompletedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            const string noAnswerBody =
+                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.";
+            int? notificationId = null;
+            if (call.PatientId is > 0)
+            {
+                notificationId = await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.VoiceCallUpdate,
+                    "Cancel update",
+                    noAnswerBody,
+                    call.AppointmentId,
+                    call.DoctorId,
+                    cancellationToken);
+            }
+
+            await DispatchTerminalPushAsync(
+                call, call.Status, "Cancel update", noAnswerBody, notificationId, cancellationToken: cancellationToken);
+            return true;
+        }
 
         var outcome = ExtractCancelOutcome(data);
         call.UpdatedAt = DateTime.UtcNow;
@@ -1101,6 +1317,70 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return call;
     }
 
+    private static bool ShouldAttemptBookCascade(string status) =>
+        status is VoiceOutboundCallStatuses.NoAnswer
+            or VoiceOutboundCallStatuses.Failed
+            or VoiceOutboundCallStatuses.NoSlot
+            or VoiceOutboundCallStatuses.Declined
+            or VoiceOutboundCallStatuses.Completed;
+
+    private async Task NotifyBookFailureAsync(
+        VoiceOutboundCall call,
+        string defaultTitle,
+        string defaultBody,
+        CancellationToken cancellationToken)
+    {
+        if (ShouldAttemptBookCascade(call.Status))
+        {
+            var cascade = await _cascade.TryCallNextDoctorAsync(call, cancellationToken);
+            if (cascade.NextCallStarted || cascade.AllDoctorsExhausted)
+            {
+                var title = cascade.NotificationTitle ?? defaultTitle;
+                var body = cascade.NotificationBody ?? defaultBody;
+                int? notificationId = null;
+                if (call.PatientId is > 0)
+                {
+                    notificationId = await AddNotificationAsync(
+                        call.PatientId.Value,
+                        PatientNotificationTypes.VoiceCallUpdate,
+                        title,
+                        body,
+                        doctorId: cascade.NextDoctorId ?? call.DoctorId,
+                        cancellationToken: cancellationToken);
+                }
+
+                await DispatchTerminalPushAsync(
+                    call,
+                    call.Status,
+                    title,
+                    body,
+                    notificationId,
+                    cancellationToken: cancellationToken);
+                return;
+            }
+        }
+
+        int? fallbackNotificationId = null;
+        if (call.PatientId is > 0)
+        {
+            fallbackNotificationId = await AddNotificationAsync(
+                call.PatientId.Value,
+                PatientNotificationTypes.VoiceCallUpdate,
+                defaultTitle,
+                defaultBody,
+                doctorId: call.DoctorId,
+                cancellationToken: cancellationToken);
+        }
+
+        await DispatchTerminalPushAsync(
+            call,
+            call.Status,
+            defaultTitle,
+            defaultBody,
+            fallbackNotificationId,
+            cancellationToken: cancellationToken);
+    }
+
     private async Task<int> AddNotificationAsync(
         int patientId,
         string type,
@@ -1331,6 +1611,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             }
         }
 
+        ApplyTelephonySignals(data, notes, ref statusHint);
+
         var joinedNotes = notes.Count > 0 ? string.Join(" | ", notes) : null;
         if (!booked && !string.IsNullOrWhiteSpace(joinedNotes))
         {
@@ -1424,7 +1706,273 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (startsAt != null && IsLikelyMidnightPlaceholder(startsAt.Value))
             startsAt = null;
 
+        if (!booked && statusHint != null && string.IsNullOrWhiteSpace(joinedNotes))
+            joinedNotes = DescribeCallOutcome(statusHint);
+
         return new BookingOutcome(booked, startsAt, endsAt, statusHint, joinedNotes);
+    }
+
+    /// <summary>
+    /// When ElevenLabs sends no post-call analysis (declined / no-answer / very short calls),
+    /// infer outcome from telephony metadata and failure_reason fields.
+    /// </summary>
+    private static void ApplyTelephonySignals(JsonElement data, List<string> notes, ref string? statusHint)
+    {
+        if (data.TryGetProperty("failure_reason", out var failureReasonEl)
+            && failureReasonEl.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(failureReasonEl.GetString()))
+        {
+            var failureReason = failureReasonEl.GetString()!;
+            notes.Add($"failure_reason={failureReason}");
+            statusHint ??= MapTelephonyFailureReason(failureReason);
+        }
+
+        if (data.TryGetProperty("metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object)
+        {
+            if (metadata.TryGetProperty("call_duration_secs", out var durationEl)
+                && durationEl.TryGetInt32(out var durationSecs))
+            {
+                notes.Add($"call_duration_secs={durationSecs}");
+                if (statusHint == null && durationSecs <= 8 && HasMinimalConversation(data))
+                    statusHint = VoiceOutboundCallStatuses.NoAnswer;
+            }
+
+            if (metadata.TryGetProperty("termination_reason", out var termEl)
+                && termEl.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(termEl.GetString()))
+            {
+                var term = termEl.GetString()!;
+                notes.Add($"termination_reason={term}");
+                statusHint ??= InferStatusFromTerminationReason(term);
+            }
+
+            if (metadata.TryGetProperty("error", out var errorEl)
+                && errorEl.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(errorEl.GetString()))
+            {
+                notes.Add($"error={errorEl.GetString()}");
+                statusHint ??= VoiceOutboundCallStatuses.Failed;
+            }
+
+            if (metadata.TryGetProperty("body", out var twilioBody)
+                && twilioBody.ValueKind == JsonValueKind.Object
+                && twilioBody.TryGetProperty("CallStatus", out var callStatusEl)
+                && callStatusEl.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(callStatusEl.GetString()))
+            {
+                var callStatus = callStatusEl.GetString()!;
+                notes.Add($"twilio_call_status={callStatus}");
+                statusHint ??= MapTelephonyFailureReason(callStatus);
+            }
+            else if (metadata.TryGetProperty("phone_call", out var phoneCall)
+                     && phoneCall.ValueKind == JsonValueKind.Object
+                     && phoneCall.TryGetProperty("status", out var phoneStatusEl)
+                     && phoneStatusEl.ValueKind == JsonValueKind.String
+                     && !string.IsNullOrWhiteSpace(phoneStatusEl.GetString()))
+            {
+                var phoneStatus = phoneStatusEl.GetString()!;
+                notes.Add($"phone_call_status={phoneStatus}");
+                statusHint ??= MapTelephonyFailureReason(phoneStatus);
+            }
+        }
+
+        if (data.TryGetProperty("analysis", out var analysis)
+            && analysis.TryGetProperty("call_successful", out var callOk)
+            && callOk.ValueKind == JsonValueKind.String)
+        {
+            var ok = callOk.GetString()?.Trim().ToLowerInvariant();
+            notes.Add($"call_successful={ok}");
+            if (statusHint == null && ok is "failure" or "false" or "no" or "unsuccessful")
+                statusHint = VoiceOutboundCallStatuses.Failed;
+        }
+    }
+
+    private static string? InferStatusFromTelephonySignals(JsonElement data)
+    {
+        string? hint = null;
+        var notes = new List<string>();
+        ApplyTelephonySignals(data, notes, ref hint);
+        return hint;
+    }
+
+    /// <summary>
+    /// ElevenLabs sometimes leaves declined/no-answer calls stuck at status=initiated with no analysis.
+    /// Returns true when polling should continue waiting.
+    /// </summary>
+    private static bool ShouldContinuePollingConversation(
+        JsonElement data,
+        VoiceOutboundCall call,
+        string? conversationStatus,
+        out BookingOutcome? staleOutcome)
+    {
+        staleOutcome = null;
+        var inProgress = string.Equals(conversationStatus, "processing", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(conversationStatus, "initiated", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(conversationStatus, "in-progress", StringComparison.OrdinalIgnoreCase);
+        if (!inProgress)
+            return false;
+
+        if (TryBuildStaleUnconnectedOutcome(data, call, out var stale))
+        {
+            staleOutcome = stale;
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryBuildStaleUnconnectedOutcome(
+        JsonElement data,
+        VoiceOutboundCall call,
+        out BookingOutcome outcome)
+    {
+        outcome = default!;
+
+        var status = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+        if (!string.Equals(status, "initiated", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(status, "in-progress", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (DateTime.UtcNow - call.CreatedAt < TimeSpan.FromSeconds(45))
+            return false;
+
+        if (!HasMinimalConversation(data))
+            return false;
+
+        if (data.TryGetProperty("has_user_audio", out var hasUserAudio)
+            && hasUserAudio.ValueKind == JsonValueKind.True)
+            return false;
+
+        var durationSecs = 0;
+        var neverAccepted = true;
+        if (data.TryGetProperty("metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object)
+        {
+            if (metadata.TryGetProperty("call_duration_secs", out var durEl) && durEl.TryGetInt32(out var d))
+                durationSecs = d;
+
+            if (metadata.TryGetProperty("accepted_time_unix_secs", out var acceptedEl)
+                && acceptedEl.ValueKind == JsonValueKind.Number
+                && acceptedEl.TryGetInt64(out var accepted)
+                && accepted > 0)
+                neverAccepted = false;
+        }
+
+        if (!neverAccepted && durationSecs > 8)
+            return false;
+
+        outcome = new BookingOutcome(
+            false,
+            null,
+            null,
+            VoiceOutboundCallStatuses.NoAnswer,
+            neverAccepted
+                ? "The call was not answered (never connected)."
+                : "The call ended without a booking.");
+
+        return true;
+    }
+
+    private static bool HasMinimalConversation(JsonElement data)
+    {
+        if (!data.TryGetProperty("transcript", out var transcript) || transcript.ValueKind != JsonValueKind.Array)
+            return true;
+
+        var spokenTurns = 0;
+        foreach (var turn in transcript.EnumerateArray())
+        {
+            if (turn.TryGetProperty("message", out var msg)
+                && msg.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(msg.GetString()))
+                spokenTurns++;
+        }
+
+        return spokenTurns <= 1;
+    }
+
+    private static string InferStatusFromTerminationReason(string terminationReason)
+    {
+        var lower = terminationReason.ToLowerInvariant();
+        if (lower.Contains("no answer", StringComparison.Ordinal)
+            || lower.Contains("no_answer", StringComparison.Ordinal)
+            || lower.Contains("not answer", StringComparison.Ordinal)
+            || lower.Contains("voicemail", StringComparison.Ordinal))
+            return VoiceOutboundCallStatuses.NoAnswer;
+
+        if (lower.Contains("declin", StringComparison.Ordinal)
+            || lower.Contains("busy", StringComparison.Ordinal)
+            || lower.Contains("reject", StringComparison.Ordinal)
+            || lower.Contains("dnc", StringComparison.Ordinal))
+            return VoiceOutboundCallStatuses.Declined;
+
+        if (lower.Contains("fail", StringComparison.Ordinal) || lower.Contains("error", StringComparison.Ordinal))
+            return VoiceOutboundCallStatuses.Failed;
+
+        return VoiceOutboundCallStatuses.Completed;
+    }
+
+    private static string MapTelephonyFailureReason(string? reason)
+    {
+        var r = (reason ?? string.Empty).Trim().ToLowerInvariant();
+        return r switch
+        {
+            "busy" => VoiceOutboundCallStatuses.Declined,
+            "no-answer" or "no_answer" or "noanswer" => VoiceOutboundCallStatuses.NoAnswer,
+            "declined" or "reject" or "rejected" => VoiceOutboundCallStatuses.Declined,
+            "failed" or "error" or "canceled" or "cancelled" => VoiceOutboundCallStatuses.Failed,
+            _ => VoiceOutboundCallStatuses.NoAnswer
+        };
+    }
+
+    private static string BuildTelephonyFailureDetail(JsonElement data, string? failureReason)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(failureReason))
+            parts.Add($"failure_reason={failureReason.Trim()}");
+
+        if (data.TryGetProperty("metadata", out var metadata) && metadata.ValueKind == JsonValueKind.Object)
+        {
+            if (metadata.TryGetProperty("body", out var body) && body.ValueKind == JsonValueKind.Object)
+            {
+                if (body.TryGetProperty("CallStatus", out var callStatus)
+                    && callStatus.ValueKind == JsonValueKind.String
+                    && !string.IsNullOrWhiteSpace(callStatus.GetString()))
+                    parts.Add($"twilio_call_status={callStatus.GetString()}");
+
+                if (body.TryGetProperty("SipResponseCode", out var sip)
+                    && sip.ValueKind is JsonValueKind.String or JsonValueKind.Number)
+                    parts.Add($"sip_response={sip}");
+            }
+
+            if (metadata.TryGetProperty("error", out var error)
+                && error.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(error.GetString()))
+                parts.Add($"error={error.GetString()}");
+        }
+
+        return parts.Count > 0 ? string.Join(" | ", parts) : "Call could not be connected.";
+    }
+
+    private static string DescribeCallOutcome(string status, string? detail = null)
+    {
+        var summary = status switch
+        {
+            VoiceOutboundCallStatuses.NoAnswer =>
+                "The office did not answer the call.",
+            VoiceOutboundCallStatuses.Declined =>
+                "The call was declined or the line was busy.",
+            VoiceOutboundCallStatuses.Failed =>
+                "The call could not be completed.",
+            VoiceOutboundCallStatuses.NoSlot =>
+                "The office did not have an available appointment in your window.",
+            VoiceOutboundCallStatuses.Completed =>
+                "The call ended without a booking.",
+            _ => $"Call finished with status {status}."
+        };
+
+        if (string.IsNullOrWhiteSpace(detail) || detail == summary)
+            return summary;
+
+        return $"{summary} ({detail})";
     }
 
     private static int ScoreSlotCandidate(string blob, DateTime startsAt, int index)

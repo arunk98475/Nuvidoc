@@ -49,6 +49,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IClaudeGoogleReviewService _googleReviews;
     private readonly INuviVoiceCallingService _voiceCalling;
     private readonly IVoiceCallBookingService _voiceBookings;
+    private readonly IVoiceCallCascadeService _voiceCascade;
     private readonly IAppointmentService _appointments;
     private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IAppointmentRescheduleService _appointmentReschedule;
@@ -70,6 +71,7 @@ public class AnthropicChatService : IAnthropicChatService
         IClaudeGoogleReviewService googleReviews,
         INuviVoiceCallingService voiceCalling,
         IVoiceCallBookingService voiceBookings,
+        IVoiceCallCascadeService voiceCascade,
         IAppointmentService appointments,
         IAppointmentCancelService appointmentCancel,
         IAppointmentRescheduleService appointmentReschedule,
@@ -90,6 +92,7 @@ public class AnthropicChatService : IAnthropicChatService
         _googleReviews = googleReviews;
         _voiceCalling = voiceCalling;
         _voiceBookings = voiceBookings;
+        _voiceCascade = voiceCascade;
         _appointments = appointments;
         _appointmentCancel = appointmentCancel;
         _appointmentReschedule = appointmentReschedule;
@@ -1771,8 +1774,50 @@ public class AnthropicChatService : IAnthropicChatService
         }
         else
         {
-            text = $"{planText}\n\nI wasn't able to complete the dial just now: {callResult.Message}";
-            voiceStatus = VoiceOutboundCallStatuses.Failed;
+            if (context.CallScope == CallOfficeScope.All)
+            {
+                var chiefComplaintForCascade = string.IsNullOrWhiteSpace(chiefComplaint)
+                    ? "dental appointment"
+                    : chiefComplaint;
+                var cascade = await _voiceCascade.TryCallNextDoctorAsync(
+                    session,
+                    context,
+                    new VoiceOutboundCallRecordRequest
+                    {
+                        ConversationId = string.Empty,
+                        SessionKey = session.SessionKey,
+                        SearchSessionId = session.Id,
+                        PatientId = session.PatientId,
+                        DoctorId = target.Value.Doctor.Id,
+                        PatientName = GetDisplayName(context),
+                        PatientPhone = context.PendingPhone,
+                        PatientEmail = context.PendingEmail,
+                        VisitReason = chiefComplaintForCascade
+                    },
+                    [target.Value.Doctor.Id],
+                    topName,
+                    cancellationToken);
+
+                if (cascade.NextCallStarted)
+                {
+                    text = cascade.ChatMessage ?? $"{planText}\n\nI'm calling the next matched doctor now.";
+                    conversationId = cascade.ConversationId;
+                    callSid = cascade.CallSid;
+                    voiceStatus = VoiceOutboundCallStatuses.Initiated;
+                }
+                else
+                {
+                    text = cascade.AllDoctorsExhausted
+                        ? cascade.ChatMessage ?? $"{planText}\n\nI wasn't able to reach any offices to book."
+                        : $"{planText}\n\nI wasn't able to complete the dial just now: {callResult.Message}";
+                    voiceStatus = VoiceOutboundCallStatuses.Failed;
+                }
+            }
+            else
+            {
+                text = $"{planText}\n\nI wasn't able to complete the dial just now: {callResult.Message}";
+                voiceStatus = VoiceOutboundCallStatuses.Failed;
+            }
         }
 
         context.Stage = NuviConversationStage.Confirmation;
