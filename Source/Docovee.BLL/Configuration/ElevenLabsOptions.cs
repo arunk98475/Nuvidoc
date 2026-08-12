@@ -29,4 +29,17 @@ public class ElevenLabsOptions
     /// When empty, webhook signature verification is skipped (dev only).
     /// </summary>
     public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// How many times to retry calling the same doctor before moving on.
+    /// 0 = dial once (no retries), 1 = dial up to 2 times, etc.
+    /// Default: 1.
+    /// </summary>
+    public int MaxCallRetriesPerDoctor { get; set; } = 1;
+
+    /// <summary>
+    /// Seconds to wait between retry attempts for the same doctor.
+    /// Default: 60 seconds.
+    /// </summary>
+    public int CallRetryDelaySeconds { get; set; } = 60;
 }
