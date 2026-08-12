@@ -17,7 +17,7 @@ public class VoiceOutboundCall
     public string? PatientEmail { get; set; }
     public string? VisitReason { get; set; }
     public string? ToNumber { get; set; }
-    /// <summary>Book (default) or Cancel.</summary>
+    /// <summary>Book (default), Cancel, or Reschedule.</summary>
     public string CallIntent { get; set; } = VoiceOutboundCallIntents.Book;
     public string Status { get; set; } = VoiceOutboundCallStatuses.Initiated;
     public string? OutcomeNotes { get; set; }
@@ -44,6 +44,7 @@ public static class VoiceOutboundCallIntents
 {
     public const string Book = "Book";
     public const string Cancel = "Cancel";
+    public const string Reschedule = "Reschedule";
 }
 
 public class PatientNotification

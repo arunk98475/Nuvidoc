@@ -13,7 +13,7 @@ public interface INuviVoiceCallingService
 
 public sealed class NuviOutboundCallRequest
 {
-    /// <summary>Book (default) or Cancel.</summary>
+    /// <summary>Book (default), Cancel, or Reschedule.</summary>
     public string Intent { get; init; } = VoiceOutboundCallIntents.Book;
     public required string ToNumber { get; init; }
     public string? DoctorName { get; init; }

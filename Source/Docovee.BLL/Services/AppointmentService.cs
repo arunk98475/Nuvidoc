@@ -38,6 +38,13 @@ public interface IAppointmentService
         string status,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Patient-confirmed reschedule: move StartsAt and set status to Confirmed.</summary>
+    Task<(bool Success, string? Error)> RescheduleAsPatientAsync(
+        int patientId,
+        int appointmentId,
+        DateTime newStartsAt,
+        CancellationToken cancellationToken = default);
+
     Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default);
 
     Task<HashSet<DateTime>> GetBookedStartsAsync(
@@ -377,6 +384,52 @@ public class AppointmentService : IAppointmentService
         }
 
         return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status));
+    }
+
+    public async Task<(bool Success, string? Error)> RescheduleAsPatientAsync(
+        int patientId,
+        int appointmentId,
+        DateTime newStartsAt,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null)
+            return (false, "Patient not found.");
+
+        var appointment = await _db.Appointments
+            .FirstOrDefaultAsync(a =>
+                a.Id == appointmentId
+                && (a.PatientId == patientId
+                    || (a.PatientId == null && !string.IsNullOrWhiteSpace(patient.Username)
+                        && a.PatientEmail == patient.Username)),
+                cancellationToken);
+
+        if (appointment == null)
+            return (false, "Appointment not found.");
+
+        if (!AppointmentStatuses.IsActive(appointment.Status))
+            return (false, "This appointment can no longer be rescheduled.");
+
+        appointment.StartsAt = newStartsAt;
+        appointment.Status = AppointmentStatuses.Confirmed;
+        appointment.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Appointment {Id} rescheduled to {StartsAt} by patient {PatientId}",
+            appointment.Id, appointment.StartsAt, patientId);
+
+        try
+        {
+            await _pms.PushAppointmentStatusAsync(appointment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS outbound status push failed for appointment {Id}", appointment.Id);
+        }
+
+        return (true, null);
     }
 
     public async Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default)

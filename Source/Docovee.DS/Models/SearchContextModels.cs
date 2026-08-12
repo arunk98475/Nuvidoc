@@ -17,7 +17,17 @@ public enum NuviConversationStage
     Confirmation,
     Complete,
     /// <summary>Registered patient selecting an appointment to cancel via chat.</summary>
-    CancelBooking
+    CancelBooking,
+    /// <summary>Registered patient rescheduling an appointment via chat.</summary>
+    RescheduleBooking
+}
+
+public enum RescheduleBookingStep
+{
+    None,
+    SelectAppointment,
+    SelectWindow,
+    ConfirmCall
 }
 
 public enum CallingConsentStep
@@ -105,6 +115,10 @@ public class SearchContextData
     public CallOfficePreference CallPreference { get; set; } = CallOfficePreference.None;
     /// <summary>Chip labels → appointment ids while Stage is CancelBooking.</summary>
     public List<CancelAppointmentChoice>? CancelAppointmentChoices { get; set; }
+    public RescheduleBookingStep RescheduleStep { get; set; } = RescheduleBookingStep.None;
+    public List<CancelAppointmentChoice>? RescheduleAppointmentChoices { get; set; }
+    public int? RescheduleSelectedAppointmentId { get; set; }
+    public string? RescheduleUrgencyPreference { get; set; }
 }
 
 public class CancelAppointmentChoice

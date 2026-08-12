@@ -388,6 +388,10 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (IsCancelIntent(call.CallIntent))
             return await ProcessCancelConversationPayloadAsync(call, conversationId, data, cancellationToken);
 
+        if (IsRescheduleIntent(call.CallIntent))
+            return await ProcessRescheduleConversationPayloadAsync(
+                call, conversationId, data, cancellationToken, allowClaudeSlotExtraction);
+
         if (call.AppointmentId.HasValue && call.Status == VoiceOutboundCallStatuses.Booked)
             return true;
 
@@ -617,6 +621,187 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
     private static bool IsCancelIntent(string? intent) =>
         string.Equals(intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRescheduleIntent(string? intent) =>
+        string.Equals(intent, VoiceOutboundCallIntents.Reschedule, StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> ProcessRescheduleConversationPayloadAsync(
+        VoiceOutboundCall call,
+        string conversationId,
+        JsonElement data,
+        CancellationToken cancellationToken,
+        bool allowClaudeSlotExtraction)
+    {
+        if (call.Status is VoiceOutboundCallStatuses.Booked
+            or VoiceOutboundCallStatuses.Canceled
+            or VoiceOutboundCallStatuses.Declined
+            or VoiceOutboundCallStatuses.Failed
+            or VoiceOutboundCallStatuses.NoAnswer
+            or VoiceOutboundCallStatuses.NoSlot
+            or VoiceOutboundCallStatuses.Completed)
+            return true;
+
+        var convStatus = data.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+        var stillInProgress = string.Equals(convStatus, "processing", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(convStatus, "initiated", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(convStatus, "in-progress", StringComparison.OrdinalIgnoreCase);
+        if (stillInProgress)
+            return false;
+
+        var outcome = ExtractBookingOutcome(data);
+        if (allowClaudeSlotExtraction && outcome.IsBooked && outcome.StartsAt == null)
+        {
+            if (!ConversationContentReadyForExtraction(data))
+            {
+                _logger.LogInformation(
+                    "Waiting for ElevenLabs transcript/analysis before Claude extract (reschedule) for {ConversationId}",
+                    conversationId);
+                return false;
+            }
+
+            outcome = await EnrichBookingOutcomeWithClaudeAsync(data, outcome, cancellationToken);
+        }
+
+        var clinicNow = ElevenLabsTwilioCallingService.GetClinicNow();
+        if (outcome.IsBooked && outcome.StartsAt is DateTime proposed
+            && NormalizeToClinicLocal(proposed) < clinicNow.AddMinutes(-1))
+        {
+            outcome = new BookingOutcome(
+                false,
+                proposed,
+                null,
+                VoiceOutboundCallStatuses.NoSlot,
+                string.IsNullOrWhiteSpace(outcome.Notes)
+                    ? $"Office gave a past appointment time ({proposed:ddd, MMM d yyyy h:mm tt}). Reschedule was not saved."
+                    : $"{outcome.Notes} | Past time rejected.");
+        }
+
+        call.UpdatedAt = DateTime.UtcNow;
+        call.CompletedAt = DateTime.UtcNow;
+        call.OutcomeNotes = Truncate(outcome.Notes, 2000);
+
+        var doctorName = await _db.Doctors.AsNoTracking()
+            .Where(d => d.Id == call.DoctorId)
+            .Select(d => d.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "your dentist";
+
+        DateTime? oldStartsAt = null;
+        if (call.AppointmentId is int existingId)
+        {
+            oldStartsAt = await _db.Appointments.AsNoTracking()
+                .Where(a => a.Id == existingId)
+                .Select(a => (DateTime?)a.StartsAt)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        if (!outcome.IsBooked || outcome.StartsAt == null)
+        {
+            call.Status = outcome.StatusHint ?? VoiceOutboundCallStatuses.Completed;
+            await _db.SaveChangesAsync(cancellationToken);
+
+            const string failTitle = "Reschedule update";
+            var failBody = outcome.StatusHint switch
+            {
+                VoiceOutboundCallStatuses.Declined =>
+                    "The office could not reschedule the appointment on the call. Please contact them directly.",
+                VoiceOutboundCallStatuses.NoAnswer =>
+                    "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.",
+                VoiceOutboundCallStatuses.NoSlot =>
+                    "The office didn't have a new time available in your window. Please try again or call them directly.",
+                _ => string.IsNullOrWhiteSpace(outcome.Notes)
+                    ? "Nuvi couldn't confirm a new appointment time. Please contact the office directly."
+                    : outcome.Notes!
+            };
+
+            int? failNotificationId = null;
+            if (call.PatientId is > 0)
+            {
+                failNotificationId = await AddNotificationAsync(
+                    call.PatientId.Value,
+                    PatientNotificationTypes.VoiceCallUpdate,
+                    failTitle,
+                    failBody,
+                    call.AppointmentId,
+                    call.DoctorId,
+                    cancellationToken);
+            }
+
+            await DispatchTerminalPushAsync(
+                call,
+                call.Status,
+                failTitle,
+                failBody,
+                failNotificationId,
+                oldStartsAt,
+                oldStartsAt?.AddHours(1),
+                doctorName,
+                cancellationToken);
+            return true;
+        }
+
+        var newStartsAt = NormalizeToClinicLocal(outcome.StartsAt.Value);
+        if (call.PatientId is not > 0 || call.AppointmentId is not > 0)
+        {
+            call.Status = VoiceOutboundCallStatuses.Failed;
+            call.OutcomeNotes = Truncate(
+                "Reschedule call succeeded but appointment/patient link was missing.", 2000);
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        var update = await _appointments.RescheduleAsPatientAsync(
+            call.PatientId.Value,
+            call.AppointmentId.Value,
+            newStartsAt,
+            cancellationToken);
+        if (!update.Success)
+        {
+            call.Status = VoiceOutboundCallStatuses.Failed;
+            call.OutcomeNotes = Truncate(
+                $"Reschedule confirmed on call but DB update failed: {update.Error}", 2000);
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation(
+                "Reschedule call succeeded but status update failed for appointment {AppointmentId}: {Error}",
+                call.AppointmentId, update.Error);
+        }
+        else
+        {
+            call.Status = VoiceOutboundCallStatuses.Booked;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        var when = FormatPstSlot(newStartsAt, newStartsAt.AddHours(1));
+        const string title = "Appointment rescheduled";
+        var body = $"Nuvi rescheduled your visit with {doctorName} to {when}.";
+        int? notificationId = null;
+        if (call.PatientId is > 0)
+        {
+            notificationId = await AddNotificationAsync(
+                call.PatientId.Value,
+                PatientNotificationTypes.AppointmentUpdate,
+                title,
+                body,
+                call.AppointmentId,
+                call.DoctorId,
+                cancellationToken);
+        }
+
+        await DispatchTerminalPushAsync(
+            call,
+            VoiceOutboundCallStatuses.Booked,
+            title,
+            body,
+            notificationId,
+            newStartsAt,
+            newStartsAt.AddHours(1),
+            doctorName,
+            cancellationToken);
+
+        _logger.LogInformation(
+            "Voice reschedule saved. Conversation={ConversationId} Appointment={AppointmentId} NewStartsAt={StartsAt}",
+            conversationId, call.AppointmentId, newStartsAt);
+        return true;
+    }
 
     private async Task<bool> ProcessCancelConversationPayloadAsync(
         VoiceOutboundCall call,
@@ -1041,7 +1226,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 if (idLower is "status" or "outcome" or "booking_status")
                 {
                     statusHint = MapStatusHint(valueLower);
-                    if (valueLower is "booked" or "confirmed" or "success" or "scheduled")
+                    if (valueLower is "booked" or "confirmed" or "success" or "scheduled" or "rescheduled")
                         booked = true;
                 }
 
@@ -1150,7 +1335,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (!booked && !string.IsNullOrWhiteSpace(joinedNotes))
         {
             var n = joinedNotes.ToLowerInvariant();
-            if (n.Contains("booked") || n.Contains("scheduled") || n.Contains("confirmed an appointment")
+            if (n.Contains("booked") || n.Contains("scheduled") || n.Contains("rescheduled")
+                || n.Contains("confirmed an appointment")
                 || n.Contains("appointment is confirmed") || n.Contains("you're all set"))
                 booked = true;
         }

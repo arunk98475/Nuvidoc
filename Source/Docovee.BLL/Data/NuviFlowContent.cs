@@ -335,6 +335,21 @@ public static class NuviFlowContent
     public const string RescheduleComingSoonMessage =
         "Rescheduling from chat is coming soon. For now, you can cancel a booking and book a new one, or contact the office directly.";
 
+    public const string RescheduleSelectPrompt =
+        "Please select the appointment you need to reschedule";
+
+    public const string RescheduleNoneMessage =
+        "You don't have any upcoming appointments to reschedule right now. I can help you find a dentist whenever you're ready.";
+
+    public const string RescheduleWindowPrompt =
+        "When would you like the new appointment?";
+
+    public const string RescheduleCallPermissionPrompt =
+        "Can I call the same practice now to reschedule this appointment for you?";
+
+    public static readonly string[] RescheduleCallPermissionOptions =
+        ["Yes", "No"];
+
 }
 
 

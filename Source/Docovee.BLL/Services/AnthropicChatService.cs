@@ -51,6 +51,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IVoiceCallBookingService _voiceBookings;
     private readonly IAppointmentService _appointments;
     private readonly IAppointmentCancelService _appointmentCancel;
+    private readonly IAppointmentRescheduleService _appointmentReschedule;
     private readonly TwilioOptions _twilioOptions;
 
     public AnthropicChatService(
@@ -71,6 +72,7 @@ public class AnthropicChatService : IAnthropicChatService
         IVoiceCallBookingService voiceBookings,
         IAppointmentService appointments,
         IAppointmentCancelService appointmentCancel,
+        IAppointmentRescheduleService appointmentReschedule,
         IOptions<TwilioOptions> twilioOptions)
     {
         _httpClient = httpClient;
@@ -90,6 +92,7 @@ public class AnthropicChatService : IAnthropicChatService
         _voiceBookings = voiceBookings;
         _appointments = appointments;
         _appointmentCancel = appointmentCancel;
+        _appointmentReschedule = appointmentReschedule;
         _twilioOptions = twilioOptions.Value;
     }
 
@@ -183,6 +186,7 @@ public class AnthropicChatService : IAnthropicChatService
             isDoctorCardOnly
             || IsPasswordSubmission(context)
             || context.Stage == NuviConversationStage.CancelBooking
+            || context.Stage == NuviConversationStage.RescheduleBooking
             || IsCancelBookingChip(request.Message)
             || IsRescheduleBookingChip(request.Message);
 
@@ -242,14 +246,15 @@ public class AnthropicChatService : IAnthropicChatService
         // Registered-user cancel / reschedule shortcuts (chip or free-text intent).
         if (context.SkipAccountCreation
             && context.Stage != NuviConversationStage.CancelBooking
+            && context.Stage != NuviConversationStage.RescheduleBooking
             && !string.IsNullOrWhiteSpace(effectiveMessage))
         {
             if (IsRescheduleBookingChip(effectiveMessage))
             {
-                var rescheduleResponse = await HandleRescheduleStubAsync(session, context, cancellationToken);
+                var rescheduleStart = await BeginRescheduleBookingAsync(session, context, cancellationToken);
                 SearchContextHelper.Save(session, context);
                 await _db.SaveChangesAsync(cancellationToken);
-                return rescheduleResponse;
+                return rescheduleStart;
             }
 
             if (IsCancelBookingChip(effectiveMessage)
@@ -277,6 +282,7 @@ public class AnthropicChatService : IAnthropicChatService
             NuviConversationStage.CallingOffices => await HandleCallingOfficesAsync(session, context, cancellationToken),
             NuviConversationStage.BookingInitiation => await HandleBookingInitiationAsync(session, context, request, cancellationToken),
             NuviConversationStage.CancelBooking => await HandleCancelBookingAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.RescheduleBooking => await HandleRescheduleBookingAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.Confirmation or NuviConversationStage.Complete =>
                 context.SkipAccountCreation
                     ? BuildResponse(session, context,
@@ -2533,20 +2539,307 @@ public class AnthropicChatService : IAnthropicChatService
         NuviFlowContent.RescheduleBookingChip
     ];
 
-    private async Task<ChatMessageResponse> HandleRescheduleStubAsync(
+    private async Task<ChatMessageResponse> BeginRescheduleBookingAsync(
         SearchSession session,
         SearchContextData context,
         CancellationToken cancellationToken)
     {
-        var text = NuviFlowContent.RescheduleComingSoonMessage;
+        ClearRescheduleContext(context);
+
+        if (session.PatientId is not int patientId || patientId <= 0)
+        {
+            var needSignIn = "Please sign in to reschedule a booking.";
+            await SaveAssistantMessageAsync(session, needSignIn, cancellationToken);
+            return BuildResponse(session, context, needSignIn, stage: context.Stage);
+        }
+
+        var all = await _appointments.GetForPatientAsync(patientId, cancellationToken);
+        var startOfToday = DateTime.Today;
+        var upcoming = all
+            .Where(a => a.StartsAt >= startOfToday
+                        && AppointmentStatuses.IsActive(a.Status)
+                        && a.Status != AppointmentStatuses.Completed)
+            .OrderBy(a => a.StartsAt)
+            .ToList();
+
+        if (upcoming.Count == 0)
+        {
+            context.Stage = NuviConversationStage.Triage;
+            var none = NuviFlowContent.RescheduleNoneMessage;
+            await SaveAssistantMessageAsync(session, none, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                none,
+                stage: NuviConversationStage.Triage,
+                options: RegisteredQuickConcernChips(),
+                optionsOnly: false);
+        }
+
+        var choices = BuildAppointmentChoices(upcoming);
+        context.RescheduleAppointmentChoices = choices;
+        context.RescheduleStep = RescheduleBookingStep.SelectAppointment;
+        context.Stage = NuviConversationStage.RescheduleBooking;
+
+        var options = choices.Select(c => c.Label)
+            .Append(NuviFlowContent.CancelBookingNeverMindOption)
+            .ToList();
+        var prompt = NuviFlowContent.RescheduleSelectPrompt;
+        await SaveAssistantMessageAsync(session, prompt, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            prompt,
+            stage: NuviConversationStage.RescheduleBooking,
+            options: options,
+            optionsOnly: true);
+    }
+
+    private async Task<ChatMessageResponse> HandleRescheduleBookingAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        return context.RescheduleStep switch
+        {
+            RescheduleBookingStep.SelectWindow =>
+                await HandleRescheduleWindowAsync(session, context, message, cancellationToken),
+            RescheduleBookingStep.ConfirmCall =>
+                await HandleRescheduleConfirmCallAsync(session, context, message, cancellationToken),
+            _ => await HandleRescheduleSelectAppointmentAsync(session, context, message, cancellationToken)
+        };
+    }
+
+    private async Task<ChatMessageResponse> HandleRescheduleSelectAppointmentAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var answer = message.Trim();
+        if (string.Equals(answer, NuviFlowContent.CancelBookingNeverMindOption, StringComparison.OrdinalIgnoreCase)
+            || IsNoAnswer(answer))
+        {
+            ClearRescheduleContext(context);
+            context.Stage = NuviConversationStage.Triage;
+            var cancelled = "No problem — I won't reschedule anything. What else can I help with?";
+            await SaveAssistantMessageAsync(session, cancelled, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                cancelled,
+                stage: NuviConversationStage.Triage,
+                options: RegisteredQuickConcernChips(),
+                optionsOnly: false);
+        }
+
+        var choices = context.RescheduleAppointmentChoices ?? new List<CancelAppointmentChoice>();
+        var selected = MatchAppointmentChoice(choices, answer);
+        if (selected == null)
+        {
+            var options = choices.Select(c => c.Label)
+                .Append(NuviFlowContent.CancelBookingNeverMindOption)
+                .ToList();
+            var reprompt = "Please select one of the appointments below, or choose Never mind.";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                reprompt,
+                stage: NuviConversationStage.RescheduleBooking,
+                options: options,
+                optionsOnly: true);
+        }
+
+        context.RescheduleSelectedAppointmentId = selected.AppointmentId;
+        context.RescheduleStep = RescheduleBookingStep.SelectWindow;
+        var windowPrompt = NuviFlowContent.RescheduleWindowPrompt;
+        await SaveAssistantMessageAsync(session, windowPrompt, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            windowPrompt,
+            stage: NuviConversationStage.RescheduleBooking,
+            options: NuviFlowContent.LogisticsUrgencyOptions,
+            optionsOnly: true);
+    }
+
+    private async Task<ChatMessageResponse> HandleRescheduleWindowAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var answer = message.Trim();
+        var matchedWindow = NuviFlowContent.LogisticsUrgencyOptions
+            .FirstOrDefault(o => string.Equals(o, answer, StringComparison.OrdinalIgnoreCase));
+
+        if (matchedWindow == null)
+        {
+            var reprompt = "Please choose one of the timing options below.";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                reprompt,
+                stage: NuviConversationStage.RescheduleBooking,
+                options: NuviFlowContent.LogisticsUrgencyOptions,
+                optionsOnly: true);
+        }
+
+        context.RescheduleUrgencyPreference = matchedWindow;
+        context.RescheduleStep = RescheduleBookingStep.ConfirmCall;
+
+        var doctorLabel = "the same practice";
+        if (context.RescheduleSelectedAppointmentId is int apptId)
+        {
+            var choice = context.RescheduleAppointmentChoices?
+                .FirstOrDefault(c => c.AppointmentId == apptId);
+            if (choice != null)
+            {
+                var doctorPart = choice.Label.Split('·')[0].Trim();
+                if (!string.IsNullOrWhiteSpace(doctorPart) && !doctorPart.StartsWith('#'))
+                    doctorLabel = doctorPart;
+            }
+        }
+
+        var prompt =
+            $"{NuviFlowContent.RescheduleCallPermissionPrompt} ({doctorLabel})";
+        await SaveAssistantMessageAsync(session, prompt, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            prompt,
+            stage: NuviConversationStage.RescheduleBooking,
+            options: NuviFlowContent.RescheduleCallPermissionOptions,
+            optionsOnly: true);
+    }
+
+    private async Task<ChatMessageResponse> HandleRescheduleConfirmCallAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var answer = message.Trim();
+        if (IsNoAnswer(answer) || string.Equals(answer, "No", StringComparison.OrdinalIgnoreCase))
+        {
+            ClearRescheduleContext(context);
+            context.Stage = NuviConversationStage.Triage;
+            var declined = "Okay — I won't call the office. You can tap Reschedule Booking anytime when you're ready.";
+            await SaveAssistantMessageAsync(session, declined, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                declined,
+                stage: NuviConversationStage.Triage,
+                options: RegisteredQuickConcernChips(),
+                optionsOnly: false);
+        }
+
+        if (!IsYesAnswer(answer) && !string.Equals(answer, "Yes", StringComparison.OrdinalIgnoreCase))
+        {
+            var reprompt = "Please choose Yes or No.";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                reprompt,
+                stage: NuviConversationStage.RescheduleBooking,
+                options: NuviFlowContent.RescheduleCallPermissionOptions,
+                optionsOnly: true);
+        }
+
+        if (session.PatientId is not int patientId || patientId <= 0
+            || context.RescheduleSelectedAppointmentId is not int appointmentId)
+        {
+            ClearRescheduleContext(context);
+            context.Stage = NuviConversationStage.Triage;
+            var err = "I couldn't start the reschedule call. Please try again.";
+            await SaveAssistantMessageAsync(session, err, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                err,
+                stage: NuviConversationStage.Triage,
+                options: RegisteredQuickConcernChips(),
+                optionsOnly: false);
+        }
+
+        var urgency = context.RescheduleUrgencyPreference ?? NuviFlowContent.LogisticsUrgencyOptions[1];
+        var result = await _appointmentReschedule.RequestRescheduleAsync(
+            patientId, appointmentId, urgency, cancellationToken);
+
+        ClearRescheduleContext(context);
+        context.Stage = NuviConversationStage.Triage;
+
+        var text = string.IsNullOrWhiteSpace(result.Message)
+            ? (result.Success
+                ? "I've started calling the office to reschedule your appointment."
+                : "I couldn't start the reschedule call. Please try again.")
+            : result.Message;
+
         await SaveAssistantMessageAsync(session, text, cancellationToken);
         return BuildResponse(
             session,
             context,
             text,
-            stage: context.Stage == NuviConversationStage.Greeting ? NuviConversationStage.Triage : context.Stage,
+            stage: NuviConversationStage.Triage,
             options: RegisteredQuickConcernChips(),
-            optionsOnly: false);
+            optionsOnly: false,
+            conversationId: result.ConversationId,
+            voiceCallStatus: result.VoiceCallStarted ? VoiceOutboundCallStatuses.Initiated : null);
+    }
+
+    private static void ClearRescheduleContext(SearchContextData context)
+    {
+        context.RescheduleStep = RescheduleBookingStep.None;
+        context.RescheduleAppointmentChoices = null;
+        context.RescheduleSelectedAppointmentId = null;
+        context.RescheduleUrgencyPreference = null;
+    }
+
+    private static List<CancelAppointmentChoice> BuildAppointmentChoices(
+        IReadOnlyList<PatientAppointmentDto> upcoming)
+    {
+        var choices = upcoming.Select(a =>
+        {
+            var slot = VoiceCallBookingService.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1));
+            var doctor = string.IsNullOrWhiteSpace(a.DoctorName) ? "your dentist" : a.DoctorName.Trim();
+            return new CancelAppointmentChoice
+            {
+                AppointmentId = a.Id,
+                Label = $"{doctor} · {slot}"
+            };
+        }).ToList();
+
+        var dupes = choices.GroupBy(c => c.Label, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var choice in choices)
+        {
+            if (dupes.Contains(choice.Label))
+                choice.Label = $"#{choice.AppointmentId} · {choice.Label}";
+        }
+
+        return choices;
+    }
+
+    private static CancelAppointmentChoice? MatchAppointmentChoice(
+        IReadOnlyList<CancelAppointmentChoice> choices,
+        string answer)
+    {
+        var selected = choices.FirstOrDefault(c =>
+            string.Equals(c.Label, answer, StringComparison.OrdinalIgnoreCase));
+        if (selected != null)
+            return selected;
+
+        if (int.TryParse(answer.TrimStart('#'), out var typedId))
+            return choices.FirstOrDefault(c => c.AppointmentId == typedId);
+
+        return null;
     }
 
     private async Task<ChatMessageResponse> BeginCancelBookingAsync(

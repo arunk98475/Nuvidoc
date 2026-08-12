@@ -194,7 +194,11 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
     private static Dictionary<string, string> BuildDynamicVariables(NuviOutboundCallRequest request)
     {
         var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var isCancel = string.Equals(request.Intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
+        var intent = string.IsNullOrWhiteSpace(request.Intent)
+            ? VoiceOutboundCallIntents.Book
+            : request.Intent.Trim();
+        var isCancel = string.Equals(intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
+        var isReschedule = string.Equals(intent, VoiceOutboundCallIntents.Reschedule, StringComparison.OrdinalIgnoreCase);
 
         var nowPacific = GetClinicNow();
         vars["current_date"] = nowPacific.ToString("dddd, MMMM d, yyyy");
@@ -205,7 +209,11 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         vars["patient_name"] = FirstNonEmpty(request.PatientName, "a patient");
         vars["practice_name"] = FirstNonEmpty(request.PracticeName, request.DoctorName, "your office");
         vars["external_call_id"] = FirstNonEmpty(request.SessionKey, Guid.NewGuid().ToString("N"));
-        vars["call_intent"] = isCancel ? VoiceOutboundCallIntents.Cancel : VoiceOutboundCallIntents.Book;
+        vars["call_intent"] = isCancel
+            ? VoiceOutboundCallIntents.Cancel
+            : isReschedule
+                ? VoiceOutboundCallIntents.Reschedule
+                : VoiceOutboundCallIntents.Book;
 
         AddVar(vars, "patient_phone", request.PatientPhone);
         AddVar(vars, "patient_email", request.PatientEmail);
@@ -234,6 +242,34 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
             vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
         }
+        else if (isReschedule)
+        {
+            AddVar(vars, "appointment_date", request.AppointmentDate);
+            AddVar(vars, "appointment_time", request.AppointmentTime);
+            var currentSlot = FirstNonEmpty(
+                request.AppointmentDateTime,
+                !string.IsNullOrWhiteSpace(request.AppointmentDate) && !string.IsNullOrWhiteSpace(request.AppointmentTime)
+                    ? $"{request.AppointmentDate} at {request.AppointmentTime} Pacific"
+                    : null);
+            vars["appointment_datetime"] = currentSlot;
+
+            var window = FirstNonEmpty(
+                request.PreferredDate,
+                request.AvailabilityWindow,
+                "within the next 30 days");
+            vars["date_time"] = window;
+            vars["preferred_date"] = window;
+            vars["availability_window"] = window;
+            vars["preferred_time_window"] = FirstNonEmpty(
+                request.PreferredTimeWindow,
+                "any available time during office hours (Pacific Time)");
+            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+            vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
+            AddVar(vars, "booking_window_start", request.BookingWindowStart);
+            AddVar(vars, "booking_window_end", request.BookingWindowEnd);
+            vars["appointment_datetime_format"] =
+                "When rescheduled, report the exact new confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00).";
+        }
         else
         {
             var dateTime = FirstNonEmpty(
@@ -259,16 +295,18 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             AddVar(vars, "call_preference", request.CallPreference);
         }
 
-        vars["first_message"] = BuildFirstMessage(isCancel, vars);
+        vars["first_message"] = BuildFirstMessage(intent, vars);
         return vars;
     }
 
     /// <summary>
     /// Full opener sent as {{first_message}} — set the ElevenLabs agent first message to that variable only.
     /// </summary>
-    private static string BuildFirstMessage(bool isCancel, IReadOnlyDictionary<string, string> vars)
+    private static string BuildFirstMessage(string intent, IReadOnlyDictionary<string, string> vars)
     {
         var patientName = vars.TryGetValue("patient_name", out var pn) ? pn : "a patient";
+        var isCancel = string.Equals(intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
+        var isReschedule = string.Equals(intent, VoiceOutboundCallIntents.Reschedule, StringComparison.OrdinalIgnoreCase);
 
         if (isCancel)
         {
@@ -278,13 +316,25 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
                 : $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to cancel their dental appointment on {slot}. Do you have a moment?";
         }
 
-        var window = FirstNonEmpty(
-            vars.TryGetValue("preferred_date", out var pd) ? pd : null,
-            vars.TryGetValue("date_time", out var dtm) ? dtm : null,
+        if (isReschedule)
+        {
+            var currentSlot = vars.TryGetValue("appointment_datetime", out var cur) ? cur : string.Empty;
+            var window = FirstNonEmpty(
+                vars.TryGetValue("preferred_date", out var pd) ? pd : null,
+                vars.TryGetValue("date_time", out var dtm) ? dtm : null,
+                "within the next 30 days");
+            return string.IsNullOrWhiteSpace(currentSlot)
+                ? $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to reschedule their dental appointment. We're looking for a new time {window}. Do you have a moment?"
+                : $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to reschedule their appointment currently on {currentSlot}. We're looking for a new time {window}. Do you have a moment?";
+        }
+
+        var bookWindow = FirstNonEmpty(
+            vars.TryGetValue("preferred_date", out var pd2) ? pd2 : null,
+            vars.TryGetValue("date_time", out var dtm2) ? dtm2 : null,
             "within the next 30 days");
 
         return
-            $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request a dental appointment at your office {window}. Do you have a moment to check availability?";
+            $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request a dental appointment at your office {bookWindow}. Do you have a moment to check availability?";
     }
 
     /// <summary>Clinic-local "now" in US Pacific (PST/PDT). Server local time (e.g. IST) is ignored.</summary>
