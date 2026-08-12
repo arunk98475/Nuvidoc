@@ -78,14 +78,41 @@ public static class NuviFlowContent
 
 
 
+    /// <summary>
+    /// Chip label for a saved ZIP/location — show the value only (no "last used" wording).
+    /// </summary>
     public static string FormatUseLastZipOption(string lastLocation) =>
+        NormalizeSavedLocationChip(lastLocation);
 
-        $"Use last used ({lastLocation.Trim()})";
+    /// <summary>
+    /// Unwraps legacy chip text like "Use last used (77006)" and strips helper phrases
+    /// such as "(use last saved ZIP)" so the chip stays a clean location value.
+    /// </summary>
+    public static string NormalizeSavedLocationChip(string lastLocation)
+    {
+        if (string.IsNullOrWhiteSpace(lastLocation))
+            return string.Empty;
 
+        var s = lastLocation.Trim();
 
+        const string legacyPrefix = "Use last used (";
+        if (s.StartsWith(legacyPrefix, StringComparison.OrdinalIgnoreCase) && s.EndsWith(')'))
+        {
+            var inner = s[legacyPrefix.Length..^1].Trim();
+            if (!string.IsNullOrWhiteSpace(inner))
+                s = inner;
+        }
+
+        s = System.Text.RegularExpressions.Regex.Replace(
+            s,
+            @"\s*\(\s*use last saved zip(?:\s*code)?\s*\)\s*$",
+            string.Empty,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+
+        return s;
+    }
 
     public static string[] FormatLogisticsLocationOptionsWithSaved(string lastLocation) =>
-
         [FormatUseLastZipOption(lastLocation), LogisticsLocationSkipOption];
 
 

@@ -905,8 +905,9 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> ApplySavedLocationAndContinueAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
-        context.LocationPreference = context.LastKnownLocation;
-        session.Location = context.LastKnownLocation;
+        var saved = NuviFlowContent.NormalizeSavedLocationChip(context.LastKnownLocation ?? string.Empty);
+        context.LocationPreference = saved;
+        session.Location = saved;
         return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
     }
 
@@ -914,12 +915,13 @@ public class AnthropicChatService : IAnthropicChatService
     {
         if (IsUseLastLocationAnswer(answer) && !string.IsNullOrWhiteSpace(context.LastKnownLocation))
         {
-            context.LocationPreference = context.LastKnownLocation;
-            session.Location = context.LastKnownLocation;
+            var saved = NuviFlowContent.NormalizeSavedLocationChip(context.LastKnownLocation);
+            context.LocationPreference = saved;
+            session.Location = saved;
             return;
         }
 
-        // Chip text like "Use last used (77006)" without saved location — pull ZIP from parentheses.
+        // Legacy chip text like "Use last used (77006)" — pull ZIP from parentheses.
         var parenZip = System.Text.RegularExpressions.Regex.Match(answer ?? string.Empty, @"\((\d{5})(?:-\d{4})?\)");
         if (IsUseLastLocationAnswer(answer ?? string.Empty) && parenZip.Success)
         {
@@ -935,8 +937,9 @@ public class AnthropicChatService : IAnthropicChatService
             return;
         }
 
-        context.LocationPreference = answer;
-        session.Location = answer;
+        var cleaned = NuviFlowContent.NormalizeSavedLocationChip(answer ?? string.Empty);
+        context.LocationPreference = string.IsNullOrWhiteSpace(cleaned) ? answer : cleaned;
+        session.Location = context.LocationPreference;
     }
 
     private static bool IsUseLastLocationAnswer(string answer)
@@ -3464,7 +3467,10 @@ public class AnthropicChatService : IAnthropicChatService
 
                 if (profile != null)
                 {
-                    context.LastKnownLocation = profile.LocationPreference;
+                    context.LastKnownLocation = NuviFlowContent.NormalizeSavedLocationChip(
+                        profile.LocationPreference ?? string.Empty);
+                    if (string.IsNullOrWhiteSpace(context.LastKnownLocation))
+                        context.LastKnownLocation = null;
                     context.InsuranceCategory ??= profile.InsuranceCategory;
                     context.InsurancePreference ??= profile.InsurancePreference;
                     context.VisitPreference ??= profile.VisitPreference;
@@ -3496,7 +3502,10 @@ public class AnthropicChatService : IAnthropicChatService
 
             if (lastSession != null)
             {
-                context.LastKnownLocation = lastSession.Location;
+                context.LastKnownLocation = NuviFlowContent.NormalizeSavedLocationChip(
+                    lastSession.Location ?? string.Empty);
+                if (string.IsNullOrWhiteSpace(context.LastKnownLocation))
+                    context.LastKnownLocation = null;
                 context.InsurancePreference ??= lastSession.InsurancePlanText;
             }
         }
@@ -3732,7 +3741,7 @@ public class AnthropicChatService : IAnthropicChatService
         {
             0 when IsReturningWithSavedLocation(context) => (
                 NuviFlowContent.LogisticsLocationQuestion,
-                "their ZIP code in Houston, use their last saved ZIP, or skip",
+                "their ZIP code in Houston (including the suggested previous ZIP chip), or skip",
                 NuviFlowContent.FormatLogisticsLocationOptionsWithSaved(context.LastKnownLocation!)),
             0 => (
                 NuviFlowContent.LogisticsLocationQuestion,
