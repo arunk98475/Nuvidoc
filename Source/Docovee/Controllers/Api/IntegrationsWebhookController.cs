@@ -51,9 +51,15 @@ public class IntegrationsWebhookController : ControllerBase
     public async Task<IActionResult> ElevenLabsWebhook(CancellationToken cancellationToken)
     {
         using var reader = new StreamReader(Request.Body, Encoding.UTF8);
-        var rawBody = await reader.ReadToEndAsync(cancellationToken);
+        var rawBody = await reader.ReadToEndAsync(cancellationToken) ?? string.Empty;
         var signature = Request.Headers["ElevenLabs-Signature"].FirstOrDefault()
             ?? Request.Headers["elevenlabs-signature"].FirstOrDefault();
+
+        _logger.LogInformation(
+            "ElevenLabs webhook received. HasSignature={HasSignature}, BodyLength={BodyLength}, Body={Body}",
+            !string.IsNullOrWhiteSpace(signature),
+            rawBody.Length,
+            rawBody);
 
         try
         {
