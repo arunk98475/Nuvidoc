@@ -304,7 +304,7 @@ function composeDoctorPanelBody(aiHtml, profileHtml) {
   const profile = profileHtml
     ? `<div class="nuvi-panel-profile-card">${profileHtml}</div>`
     : "";
-  return `${aiHtml || ""}${profile}`;
+  return `<div class="hero-doctor-panel-scroll">${aiHtml || ""}${profile}</div>`;
 }
 
 function setDoctorPanelAiState(doctorId, { aiComment = "", aiLoading = false } = {}) {
@@ -327,7 +327,8 @@ function setDoctorPanelAiState(doctorId, { aiComment = "", aiLoading = false } =
   }
 
   const html = buildPanelAiCommentHtml(comment || doctorAiComments.get(id) || "", !comment && !!aiLoading);
-  const existing = body.querySelector(".nuvi-panel-ai-card");
+  const scroll = body.querySelector(".hero-doctor-panel-scroll") || body;
+  const existing = scroll.querySelector(".nuvi-panel-ai-card");
   if (!html) {
     existing?.remove();
     return;
@@ -336,9 +337,9 @@ function setDoctorPanelAiState(doctorId, { aiComment = "", aiLoading = false } =
   if (existing) {
     existing.outerHTML = html;
   } else {
-    const profileCard = body.querySelector(".nuvi-panel-profile-card");
+    const profileCard = scroll.querySelector(".nuvi-panel-profile-card");
     if (profileCard) profileCard.insertAdjacentHTML("beforebegin", html);
-    else body.insertAdjacentHTML("afterbegin", html);
+    else scroll.insertAdjacentHTML("afterbegin", html);
   }
   body.scrollTop = 0;
 }
@@ -450,6 +451,24 @@ function buildDoctorProfileHtml(data, { modal = false, panel = false } = {}) {
     ? `<a class="${phoneClass}" href="tel:${data.officePhoneNumber.replace(/\D/g, "")}" onclick="event.stopPropagation()">📞 Call ${escapeHtml(data.name)} — ${escapeHtml(data.officePhoneNumber)}</a>`
     : "<p>Contact number not available</p>";
 
+  const acceptedInsurances = Array.isArray(data.acceptedInsurances) ? data.acceptedInsurances : [];
+  const insuranceCarriers = Array.isArray(data.insuranceCarriers) ? data.insuranceCarriers : [];
+  let insuranceHtml = "";
+  if (acceptedInsurances.length > 0) {
+    insuranceHtml = `<ul class="nuvi-profile-insurance-list">${acceptedInsurances.map((ins) => {
+      const name = escapeHtml(ins.carrierName || "Insurance");
+      const plans = Array.isArray(ins.plans) ? ins.plans.filter(Boolean) : [];
+      const plansHtml = plans.length
+        ? `<div class="nuvi-profile-insurance-plans">${plans.map((p) => escapeHtml(p)).join(" · ")}</div>`
+        : "";
+      return `<li><strong>${name}</strong>${plansHtml}</li>`;
+    }).join("")}</ul>`;
+  } else if (insuranceCarriers.length > 0) {
+    insuranceHtml = `<p>${insuranceCarriers.map((c) => escapeHtml(c)).join(", ")}</p>`;
+  } else {
+    insuranceHtml = `<p>Insurance information not listed yet.</p>`;
+  }
+
   const patientReviewsHtml = (data.reviews || []).length
     ? data.reviews.map((r) => {
         const metaParts = [];
@@ -517,6 +536,10 @@ function buildDoctorProfileHtml(data, { modal = false, panel = false } = {}) {
     <div class="${sectionClass}">
       <h4>Contact</h4>
       ${phoneHtml}
+    </div>
+    <div class="${sectionClass}">
+      <h4>Accepted insurance</h4>
+      ${insuranceHtml}
     </div>
     ${data.niche ? `<div class="${sectionClass}"><h4>Focus</h4><p>${escapeHtml(data.niche)}</p></div>` : ""}
     ${data.yearsOfPractice ? `<div class="${sectionClass}"><h4>Experience</h4><p>${data.yearsOfPractice} years in practice</p></div>` : ""}

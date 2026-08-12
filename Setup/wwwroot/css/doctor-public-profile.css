@@ -396,6 +396,33 @@
 
 .zd-trust { margin-bottom: 16px !important; }
 
+.zd-review-source {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin: 18px 0 4px;
+}
+
+.zd-google-review-block {
+  margin-bottom: 8px;
+}
+
+.zd-review-google {
+  background: #f8faf9;
+  border: 1px solid #e6ece8;
+  border-radius: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid #e6ece8;
+  margin-bottom: 10px;
+}
+
+.zd-google-meta {
+  margin-top: 6px !important;
+  font-size: 0.9rem;
+}
+
 .zd-review {
   padding: 16px 0;
   border-top: 1px solid #eee;
