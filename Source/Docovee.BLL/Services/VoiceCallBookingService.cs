@@ -31,6 +31,12 @@ public interface IVoiceCallBookingService
 
     Task FinalizeStaleConversationAsync(string conversationId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Places a delayed cancel/reschedule redial after CallRetryDelaySeconds.
+    /// Invoked from a background task so the ElevenLabs webhook is not held open.
+    /// </summary>
+    Task ExecuteScheduledIntentRetryAsync(int completedCallId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
         Guid sessionKey,
         CancellationToken cancellationToken = default);
@@ -146,6 +152,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly IVoiceCallCascadeService _cascade;
     private readonly INuviVoiceCallingService _voiceCalling;
     private readonly TwilioOptions _twilio;
+    private readonly IVoiceCallRetryQueue _retryQueue;
 
     public VoiceCallBookingService(
         DocoveeDbContext db,
@@ -158,7 +165,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         IPatientPushDispatcher push,
         IVoiceCallCascadeService cascade,
         INuviVoiceCallingService voiceCalling,
-        IOptions<TwilioOptions> twilio)
+        IOptions<TwilioOptions> twilio,
+        IVoiceCallRetryQueue retryQueue)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
@@ -171,6 +179,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _cascade = cascade;
         _voiceCalling = voiceCalling;
         _twilio = twilio.Value;
+        _retryQueue = retryQueue;
     }
 
     public async Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
@@ -555,6 +564,27 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             "Nuvi call update",
             DescribeCallOutcome(VoiceOutboundCallStatuses.NoAnswer, call.OutcomeNotes),
             cancellationToken);
+    }
+
+    public async Task ExecuteScheduledIntentRetryAsync(
+        int completedCallId,
+        CancellationToken cancellationToken = default)
+    {
+        var call = await _db.VoiceOutboundCalls
+            .FirstOrDefaultAsync(c => c.Id == completedCallId, cancellationToken);
+        if (call == null)
+        {
+            _logger.LogInformation("Scheduled intent retry skipped — call {CallId} not found", completedCallId);
+            return;
+        }
+
+        var result = await TryRetryIntentCallAsync(call, cancellationToken, skipRetryDelay: true);
+        if (result.Started && !string.IsNullOrWhiteSpace(result.ChatMessage))
+            await PushCallChatUpdateAsync(call, result.ChatMessage, cancellationToken);
+
+        _logger.LogInformation(
+            "Scheduled intent retry for call {CallId} started={Started} conversation={ConversationId}",
+            completedCallId, result.Started, result.ConversationId);
     }
 
     private async Task<bool> ProcessConversationPayloadAsync(
@@ -1282,7 +1312,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (ShouldAttemptBookCascade(call.Status))
         {
             var cascade = await _cascade.TryCallNextDoctorAsync(call, cancellationToken);
-            if (cascade.NextCallStarted || cascade.AllDoctorsExhausted)
+            if (cascade.NextCallStarted || cascade.RetryScheduled || cascade.AllDoctorsExhausted)
             {
                 var title = cascade.NotificationTitle ?? defaultTitle;
                 var body = cascade.NotificationBody ?? defaultBody;
@@ -2019,6 +2049,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private sealed class IntentCallRetryResult
     {
         public bool Started { get; init; }
+        public bool Scheduled { get; init; }
         public string? ChatMessage { get; init; }
         public string? NotificationBody { get; init; }
         public string? ConversationId { get; init; }
@@ -2088,7 +2119,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             await PushCallChatUpdateAsync(call, failureChat, cancellationToken);
 
             var retry = await TryRetryIntentCallAsync(call, cancellationToken);
-            if (retry.Started)
+            if (retry.Started || retry.Scheduled)
             {
                 var body = retry.NotificationBody ?? failureChat;
                 int? notificationId = null;
@@ -2158,19 +2189,57 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (maxRetries == 0)
             return false;
 
-        var dialCount = await _db.VoiceOutboundCalls.AsNoTracking()
+        var dialCount = await CountIntentDialsInRetryWindowAsync(call, cancellationToken);
+        var willRetry = dialCount <= maxRetries;
+        if (!willRetry)
+        {
+            _logger.LogInformation(
+                "No auto-retry for {Intent} appointment {AppointmentId} — {Count} dial(s) in current window, limit {Max}",
+                call.CallIntent, call.AppointmentId, dialCount, maxRetries);
+        }
+
+        return willRetry;
+    }
+
+    private Task<int> CountIntentDialsInRetryWindowAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        var windowStart = IntentRetryWindowStart(call.CreatedAt);
+        return _db.VoiceOutboundCalls.AsNoTracking()
             .CountAsync(c =>
                 c.AppointmentId == call.AppointmentId
                 && c.CallIntent == call.CallIntent
-                && c.DoctorId == call.DoctorId,
+                && c.DoctorId == call.DoctorId
+                && c.CreatedAt >= windowStart,
                 cancellationToken);
+    }
 
-        return dialCount <= maxRetries;
+    private DateTime IntentRetryWindowStart(DateTime callCreatedAt)
+    {
+        var maxRetries = Math.Max(0, _elevenLabs.MaxCallRetriesPerDoctor);
+        var delaySeconds = Math.Max(0, _elevenLabs.CallRetryDelaySeconds);
+        var windowSeconds = Math.Max(60, (maxRetries + 1) * delaySeconds + 60);
+        return callCreatedAt.AddSeconds(-windowSeconds);
+    }
+
+    private void ScheduleDelayedIntentRetry(int completedCallId, TimeSpan delay)
+    {
+        _logger.LogInformation(
+            "Queueing intent retry for call {CallId} in {Delay}s",
+            completedCallId, (int)delay.TotalSeconds);
+        _retryQueue.Enqueue(new VoiceCallRetryJob
+        {
+            Kind = VoiceCallRetryKind.Intent,
+            CompletedCallId = completedCallId,
+            Delay = delay
+        });
     }
 
     private async Task<IntentCallRetryResult> TryRetryIntentCallAsync(
         VoiceOutboundCall call,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool skipRetryDelay = false)
     {
         if (call.AppointmentId is not > 0 || call.DoctorId <= 0)
             return new IntentCallRetryResult();
@@ -2179,12 +2248,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return new IntentCallRetryResult();
 
         var maxRetries = Math.Max(0, _elevenLabs.MaxCallRetriesPerDoctor);
-        var dialCount = await _db.VoiceOutboundCalls.AsNoTracking()
-            .CountAsync(c =>
-                c.AppointmentId == call.AppointmentId
-                && c.CallIntent == call.CallIntent
-                && c.DoctorId == call.DoctorId,
-                cancellationToken);
+        var dialCount = await CountIntentDialsInRetryWindowAsync(call, cancellationToken);
 
         if (dialCount > maxRetries)
             return new IntentCallRetryResult();
@@ -2217,13 +2281,20 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return new IntentCallRetryResult();
 
         var retryDelay = TimeSpan.FromSeconds(Math.Max(0, _elevenLabs.CallRetryDelaySeconds));
-        if (retryDelay > TimeSpan.Zero)
+        if (!skipRetryDelay && retryDelay > TimeSpan.Zero)
         {
             _logger.LogInformation(
-                "Retry {Attempt}/{Max} for {Intent} appointment {AppointmentId} doctor {DoctorId} — waiting {Delay}s",
+                "Retry {Attempt}/{Max} for {Intent} appointment {AppointmentId} doctor {DoctorId} — scheduling redial in {Delay}s",
                 dialCount + 1, maxRetries + 1, call.CallIntent, call.AppointmentId, call.DoctorId,
                 _elevenLabs.CallRetryDelaySeconds);
-            await Task.Delay(retryDelay, cancellationToken);
+            ScheduleDelayedIntentRetry(call.Id, retryDelay);
+            var retryMinutes = FormatRetryDelayMinutes(_elevenLabs.CallRetryDelaySeconds);
+            return new IntentCallRetryResult
+            {
+                Scheduled = true,
+                NotificationBody =
+                    $"I'll retry calling to {(IsCancelIntent(call.CallIntent) ? "cancel" : "reschedule")} after {FormatRetryDelayPhrase(retryMinutes)}."
+            };
         }
 
         var slotStart = appointment.StartsAt;

@@ -20,7 +20,8 @@ public interface IVoiceCallCascadeService
     /// </summary>
     Task<VoiceCallCascadeResult> TryCallNextDoctorAsync(
         VoiceOutboundCall completedCall,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        bool skipRetryDelay = false);
 
     /// <summary>
     /// Dial the next ranked doctor (e.g. when the prior dial never connected).
@@ -37,6 +38,7 @@ public interface IVoiceCallCascadeService
 public sealed class VoiceCallCascadeResult
 {
     public bool NextCallStarted { get; init; }
+    public bool RetryScheduled { get; init; }
     public bool AllDoctorsExhausted { get; init; }
     public string? ChatMessage { get; init; }
     public string? NotificationTitle { get; init; }
@@ -55,6 +57,7 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
     private readonly IDocoveeLogger _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPatientPushDispatcher _push;
+    private readonly IVoiceCallRetryQueue _retryQueue;
 
     public VoiceCallCascadeService(
         DocoveeDbContext db,
@@ -63,7 +66,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         IOptions<ElevenLabsOptions> elevenLabs,
         IDocoveeLogger logger,
         IServiceScopeFactory scopeFactory,
-        IPatientPushDispatcher push)
+        IPatientPushDispatcher push,
+        IVoiceCallRetryQueue retryQueue)
     {
         _db = db;
         _voiceCalling = voiceCalling;
@@ -72,11 +76,13 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         _logger = logger;
         _scopeFactory = scopeFactory;
         _push = push;
+        _retryQueue = retryQueue;
     }
 
     public Task<VoiceCallCascadeResult> TryCallNextDoctorAsync(
         VoiceOutboundCall completedCall,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool skipRetryDelay = false)
     {
         if (!string.Equals(completedCall.CallIntent, VoiceOutboundCallIntents.Book, StringComparison.OrdinalIgnoreCase))
             return Task.FromResult(new VoiceCallCascadeResult());
@@ -89,7 +95,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             completedCall,
             additionallyAttemptedDoctorIds: Array.Empty<int>(),
             previousDoctorName: null,
-            cancellationToken);
+            cancellationToken,
+            skipRetryDelay);
     }
 
     public Task<VoiceCallCascadeResult> TryCallNextDoctorAsync(
@@ -126,7 +133,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             session,
             additionallyAttemptedDoctorIds,
             previousDoctorName,
-            cancellationToken);
+            cancellationToken,
+            skipRetryDelay: false);
     }
 
     private async Task<VoiceCallCascadeResult> TryCallNextDoctorCoreAsync(
@@ -134,7 +142,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         VoiceOutboundCall completedCall,
         IReadOnlyCollection<int> additionallyAttemptedDoctorIds,
         string? previousDoctorName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool skipRetryDelay)
     {
         var session = await _db.SearchSessions
             .FirstOrDefaultAsync(s => s.Id == searchSessionId, cancellationToken);
@@ -163,7 +172,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             session,
             additionallyAttemptedDoctorIds,
             previousDoctorName,
-            cancellationToken);
+            cancellationToken,
+            skipRetryDelay);
     }
 
     private async Task<VoiceCallCascadeResult> TryCallNextDoctorCoreAsync(
@@ -173,7 +183,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         SearchSession session,
         IReadOnlyCollection<int> additionallyAttemptedDoctorIds,
         string? previousDoctorName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool skipRetryDelay)
     {
         // Allow retries for both TopOne and All scopes.
         // For TopOne the matched list only has one doctor so the loop naturally
@@ -308,14 +319,33 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             if (!_voiceCalling.IsConfigured)
                 return new VoiceCallCascadeResult { AllDoctorsExhausted = true };
 
-            // If this is a retry (not the first call to this doctor), wait the configured delay.
+            // Never block the ElevenLabs webhook / HTTP request on CallRetryDelaySeconds —
+            // IIS and reverse proxies cancel the request (typically ~30–100s), which aborts
+            // Task.Delay and skips the redial. Schedule the wait on a background task instead.
             var isRetry = priorDialCount > 0;
-            if (isRetry && retryDelay > TimeSpan.Zero)
+            if (isRetry && !skipRetryDelay && retryDelay > TimeSpan.Zero)
             {
                 _logger.LogInformation(
-                    "Retry {Attempt}/{Max} for doctor {DoctorId} — waiting {Delay}s before redialing (session {SessionId})",
+                    "Retry {Attempt}/{Max} for doctor {DoctorId} — scheduling redial in {Delay}s (session {SessionId})",
                     priorDialCount + 1, maxRetries + 1, doctorId, _elevenLabs.CallRetryDelaySeconds, searchSessionId);
-                await Task.Delay(retryDelay, cancellationToken);
+                ScheduleDelayedBookRetry(session.Id, doctor.Id, retryDelay);
+                var retryMinutes = VoiceCallBookingService.FormatRetryDelayMinutes(_elevenLabs.CallRetryDelaySeconds);
+                return new VoiceCallCascadeResult
+                {
+                    NextCallStarted = true,
+                    RetryScheduled = true,
+                    NextDoctorId = doctor.Id,
+                    NotificationTitle = "Nuvi call update",
+                    NotificationBody =
+                        $"I'll retry {doctor.Name} after {VoiceCallBookingService.FormatRetryDelayPhrase(retryMinutes)}."
+                };
+            }
+
+            if (isRetry && skipRetryDelay)
+            {
+                _logger.LogInformation(
+                    "Retry {Attempt}/{Max} for doctor {DoctorId} — delay elapsed, redialing now (session {SessionId})",
+                    priorDialCount + 1, maxRetries + 1, doctorId, searchSessionId);
             }
 
             var callResult = await _voiceCalling.PlaceOfficeCallAsync(new NuviOutboundCallRequest
@@ -432,6 +462,20 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             NotificationBody =
                 "I couldn't book with any of your matched offices. Please call them directly or try again."
         };
+    }
+
+    private void ScheduleDelayedBookRetry(int searchSessionId, int doctorId, TimeSpan delay)
+    {
+        _logger.LogInformation(
+            "Queueing book retry for session {SessionId} doctor {DoctorId} in {Delay}s",
+            searchSessionId, doctorId, (int)delay.TotalSeconds);
+        _retryQueue.Enqueue(new VoiceCallRetryJob
+        {
+            Kind = VoiceCallRetryKind.Book,
+            SearchSessionId = searchSessionId,
+            DoctorId = doctorId,
+            Delay = delay
+        });
     }
 
     private async Task AppendAssistantChatMessageAsync(

@@ -134,6 +134,7 @@ builder.Services.AddDocoveeBll(builder.Configuration);
 builder.Services.AddScoped<IPatientPushChannel, SignalRPatientPushChannel>();
 builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>();
 builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
+builder.Services.AddHostedService<Docovee.Services.VoiceCallRetryHostedService>();
 
 const string smartScheme = "CookieOrBearer";
 var mobileJwt = builder.Configuration.GetSection(MobileJwtOptions.SectionName).Get<MobileJwtOptions>()
