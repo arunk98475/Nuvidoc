@@ -20,6 +20,8 @@ public sealed class PatientPushMessage
     public DateTime? EndsAt { get; set; }
     public string? SlotLabel { get; set; }
     public int? NotificationId { get; set; }
+    /// <summary>Full assistant message to append in the Nuvi chat thread (may match Body).</summary>
+    public string? ChatMessage { get; set; }
     public Dictionary<string, string>? Data { get; set; }
 }
 

@@ -23,9 +23,12 @@ const NUVI_AVATAR = branding.chatBotName;
 const MATCH_SEARCH_LOADING_MESSAGE =
   branding.matchSearchLoadingMessage ||
   "Please wait for a while — I'm searching for the best matches for you.";
+const seenCallChatKeys = new Set();
+let callResultChatPushBound = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   requestLocation();
+  initCallResultChatPush();
   const chatInput = document.getElementById("chat-input");
   if (chatInput?.tagName === "TEXTAREA") autoResize(chatInput);
 
@@ -277,6 +280,30 @@ function scrollChatToBottom() {
   requestAnimationFrame(() => {
     stick();
     requestAnimationFrame(stick);
+  });
+}
+
+function callChatMessageKey(message) {
+  if (!message) return "";
+  const text = (message.chatMessage || "").trim();
+  if (!text) return "";
+  if (message.conversationId) return `chat:${message.conversationId}:${text}`;
+  return `chat:${text}`;
+}
+
+function initCallResultChatPush() {
+  if (callResultChatPushBound || !document.getElementById("chat-messages")) return;
+  if (!window.NuvidocPatientPush?.onBookingUpdated) return;
+  callResultChatPushBound = true;
+  window.NuvidocPatientPush.onBookingUpdated((message) => {
+    if (!sessionKey || !message?.sessionKey) return;
+    if (String(message.sessionKey).toLowerCase() !== String(sessionKey).toLowerCase()) return;
+    const text = (message.chatMessage || "").trim();
+    if (!text) return;
+    const key = callChatMessageKey(message);
+    if (key && seenCallChatKeys.has(key)) return;
+    if (key) seenCallChatKeys.add(key);
+    addMessage(text, "ai");
   });
 }
 
@@ -853,6 +880,7 @@ function applyChatResponseState(data) {
   if (sessionKey && window.NuvidocPatientPush) {
     window.NuvidocPatientPush.joinSession(sessionKey).catch(() => {});
   }
+  initCallResultChatPush();
 
   const input = document.getElementById("chat-input");
   if (data.flowComplete && input) {

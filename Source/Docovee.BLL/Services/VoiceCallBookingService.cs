@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Data;
 using Docovee.BLL.Services.PatientPush;
 using Docovee.DS;
 using Docovee.DS.Entities;
@@ -143,6 +144,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPatientPushDispatcher _push;
     private readonly IVoiceCallCascadeService _cascade;
+    private readonly INuviVoiceCallingService _voiceCalling;
+    private readonly TwilioOptions _twilio;
 
     public VoiceCallBookingService(
         DocoveeDbContext db,
@@ -153,7 +156,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         IDocoveeLogger logger,
         IServiceScopeFactory scopeFactory,
         IPatientPushDispatcher push,
-        IVoiceCallCascadeService cascade)
+        IVoiceCallCascadeService cascade,
+        INuviVoiceCallingService voiceCalling,
+        IOptions<TwilioOptions> twilio)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
@@ -164,6 +169,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _scopeFactory = scopeFactory;
         _push = push;
         _cascade = cascade;
+        _voiceCalling = voiceCalling;
+        _twilio = twilio.Value;
     }
 
     public async Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
@@ -420,6 +427,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         ProcessIntentInitiationFailureAsync(
             call,
             data,
+            "Cancel update",
             "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.",
             cancellationToken);
 
@@ -428,13 +436,15 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         ProcessIntentInitiationFailureAsync(
             call,
             data,
+            "Reschedule update",
             "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.",
             cancellationToken);
 
     private async Task<bool> ProcessIntentInitiationFailureAsync(
         VoiceOutboundCall call,
         JsonElement data,
-        string patientMessage,
+        string updateTitle,
+        string finalFailureMessage,
         CancellationToken cancellationToken)
     {
         if (call.Status is VoiceOutboundCallStatuses.Canceled
@@ -457,21 +467,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         call.CompletedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        int? notificationId = null;
-        if (call.PatientId is > 0)
-        {
-            notificationId = await AddNotificationAsync(
-                call.PatientId.Value,
-                PatientNotificationTypes.VoiceCallUpdate,
-                "Reschedule update",
-                patientMessage,
-                call.AppointmentId,
-                call.DoctorId,
-                cancellationToken);
-        }
-
-        await DispatchTerminalPushAsync(
-            call, status, "Reschedule update", patientMessage, notificationId, cancellationToken: cancellationToken);
+        await NotifyIntentCallFailureAsync(
+            call, updateTitle, finalFailureMessage, cancellationToken);
         return true;
     }
 
@@ -535,45 +532,21 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
         if (IsCancelIntent(call.CallIntent))
         {
-            const string cancelBody =
-                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.";
-            int? notificationId = null;
-            if (call.PatientId is > 0)
-            {
-                notificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.VoiceCallUpdate,
-                    "Cancel update",
-                    cancelBody,
-                    call.AppointmentId,
-                    call.DoctorId,
-                    cancellationToken);
-            }
-
-            await DispatchTerminalPushAsync(
-                call, call.Status, "Cancel update", cancelBody, notificationId, cancellationToken: cancellationToken);
+            await NotifyIntentCallFailureAsync(
+                call,
+                "Cancel update",
+                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.",
+                cancellationToken);
             return;
         }
 
         if (IsRescheduleIntent(call.CallIntent))
         {
-            const string rescheduleBody =
-                "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.";
-            int? notificationId = null;
-            if (call.PatientId is > 0)
-            {
-                notificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.VoiceCallUpdate,
-                    "Reschedule update",
-                    rescheduleBody,
-                    call.AppointmentId,
-                    call.DoctorId,
-                    cancellationToken);
-            }
-
-            await DispatchTerminalPushAsync(
-                call, call.Status, "Reschedule update", rescheduleBody, notificationId, cancellationToken: cancellationToken);
+            await NotifyIntentCallFailureAsync(
+                call,
+                "Reschedule update",
+                "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.",
+                cancellationToken);
             return;
         }
 
@@ -693,6 +666,11 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             const string missingTitle = "Nuvi call update";
             const string missingBody =
                 "The office confirmed a booking, but Nuvi could not capture the appointment date/time. Please confirm the slot with the office.";
+            var missingPracticeLabel = await ResolvePracticeLabelAsync(call.DoctorId, cancellationToken);
+            var missingChat =
+                $"I spoke with {missingPracticeLabel} and they confirmed a booking, but I couldn't capture the appointment date and time. Please confirm the slot with their office directly.";
+            await AppendCallChatMessageAsync(call, missingChat, cancellationToken);
+            await PushCallChatUpdateAsync(call, missingChat, cancellationToken);
             int? notificationId = null;
             if (call.PatientId is > 0)
             {
@@ -780,9 +758,13 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         await _db.SaveChangesAsync(cancellationToken);
 
         var doctorName = doctor?.Name ?? "your dentist";
+        var practiceLabel = FormatPracticeLabel(doctor?.PracticeName, doctorName);
         var when = FormatPstSlot(appointmentStartsAt, appointmentEndsAt);
         var bookedTitle = "Appointment booked";
         var bookedBody = $"Nuvi booked your visit with {doctorName} on {when}.";
+        var bookedChat = FormatBookedCallChat(practiceLabel, when);
+        await AppendCallChatMessageAsync(call, bookedChat, cancellationToken);
+        await PushCallChatUpdateAsync(call, bookedChat, cancellationToken);
         int? bookedNotificationId = null;
         if (call.PatientId is > 0)
         {
@@ -805,7 +787,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             appointmentStartsAt,
             appointmentEndsAt,
             doctorName,
-            cancellationToken);
+            chatMessage: null,
+            cancellationToken: cancellationToken);
 
         _logger.LogInformation(
             "Voice booking saved. Conversation={ConversationId} Appointment={AppointmentId}",
@@ -904,29 +887,25 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     : outcome.Notes!
             };
 
-            int? failNotificationId = null;
-            if (call.PatientId is > 0)
+            if (ShouldAttemptIntentRetry(call.Status))
             {
-                failNotificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.VoiceCallUpdate,
+                await NotifyIntentCallFailureAsync(
+                    call, failTitle, failBody, cancellationToken,
+                    oldStartsAt, doctorName);
+            }
+            else
+            {
+                await DispatchIntentOutcomeAsync(
+                    call,
+                    call.Status,
                     failTitle,
                     failBody,
-                    call.AppointmentId,
-                    call.DoctorId,
+                    oldStartsAt,
+                    oldStartsAt?.AddHours(1),
+                    doctorName,
                     cancellationToken);
             }
 
-            await DispatchTerminalPushAsync(
-                call,
-                call.Status,
-                failTitle,
-                failBody,
-                failNotificationId,
-                oldStartsAt,
-                oldStartsAt?.AddHours(1),
-                doctorName,
-                cancellationToken);
             return true;
         }
 
@@ -964,29 +943,17 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         var when = FormatPstSlot(newStartsAt, newStartsAt.AddHours(1));
         const string title = "Appointment rescheduled";
         var body = $"Nuvi rescheduled your visit with {doctorName} to {when}.";
-        int? notificationId = null;
-        if (call.PatientId is > 0)
-        {
-            notificationId = await AddNotificationAsync(
-                call.PatientId.Value,
-                PatientNotificationTypes.AppointmentUpdate,
-                title,
-                body,
-                call.AppointmentId,
-                call.DoctorId,
-                cancellationToken);
-        }
 
-        await DispatchTerminalPushAsync(
+        await DispatchIntentOutcomeAsync(
             call,
             VoiceOutboundCallStatuses.Booked,
             title,
             body,
-            notificationId,
             newStartsAt,
             newStartsAt.AddHours(1),
             doctorName,
-            cancellationToken);
+            cancellationToken,
+            notificationType: PatientNotificationTypes.AppointmentUpdate);
 
         _logger.LogInformation(
             "Voice reschedule saved. Conversation={ConversationId} Appointment={AppointmentId} NewStartsAt={StartsAt}",
@@ -1019,23 +986,11 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             call.CompletedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
 
-            const string noAnswerBody =
-                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.";
-            int? notificationId = null;
-            if (call.PatientId is > 0)
-            {
-                notificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.VoiceCallUpdate,
-                    "Cancel update",
-                    noAnswerBody,
-                    call.AppointmentId,
-                    call.DoctorId,
-                    cancellationToken);
-            }
-
-            await DispatchTerminalPushAsync(
-                call, call.Status, "Cancel update", noAnswerBody, notificationId, cancellationToken: cancellationToken);
+            await NotifyIntentCallFailureAsync(
+                call,
+                "Cancel update",
+                "Nuvi couldn't reach the office to cancel. Please try again or call the office directly.",
+                cancellationToken);
             return true;
         }
 
@@ -1086,29 +1041,16 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 ? $"Nuvi canceled your visit with {doctorName} on {slotLabel}."
                 : $"Nuvi canceled your visit with {doctorName}.";
 
-            int? notificationId = null;
-            if (call.PatientId is > 0)
-            {
-                notificationId = await AddNotificationAsync(
-                    call.PatientId.Value,
-                    PatientNotificationTypes.AppointmentCanceled,
-                    title,
-                    body,
-                    call.AppointmentId,
-                    call.DoctorId,
-                    cancellationToken);
-            }
-
-            await DispatchTerminalPushAsync(
+            await DispatchIntentOutcomeAsync(
                 call,
                 VoiceOutboundCallStatuses.Canceled,
                 title,
                 body,
-                notificationId,
                 appointmentStartsAt,
                 appointmentStartsAt?.AddHours(1),
                 doctorName,
-                cancellationToken);
+                cancellationToken,
+                notificationType: PatientNotificationTypes.AppointmentCanceled);
 
             _logger.LogInformation(
                 "Voice cancel confirmed. Conversation={ConversationId} Appointment={AppointmentId}",
@@ -1131,29 +1073,25 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 : outcome.Notes!
         };
 
-        int? failNotificationId = null;
-        if (call.PatientId is > 0)
+        if (ShouldAttemptIntentRetry(call.Status))
         {
-            failNotificationId = await AddNotificationAsync(
-                call.PatientId.Value,
-                PatientNotificationTypes.VoiceCallUpdate,
+            await NotifyIntentCallFailureAsync(
+                call, failTitle, failBody, cancellationToken,
+                appointmentStartsAt, doctorName);
+        }
+        else
+        {
+            await DispatchIntentOutcomeAsync(
+                call,
+                call.Status,
                 failTitle,
                 failBody,
-                call.AppointmentId,
-                call.DoctorId,
+                appointmentStartsAt,
+                appointmentStartsAt?.AddHours(1),
+                doctorName,
                 cancellationToken);
         }
 
-        await DispatchTerminalPushAsync(
-            call,
-            call.Status,
-            failTitle,
-            failBody,
-            failNotificationId,
-            appointmentStartsAt,
-            appointmentStartsAt?.AddHours(1),
-            doctorName,
-            cancellationToken);
         return true;
     }
 
@@ -1330,6 +1268,17 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         string defaultBody,
         CancellationToken cancellationToken)
     {
+        var practiceLabel = await ResolvePracticeLabelAsync(call.DoctorId, cancellationToken);
+        var willRetrySameDoctor = await WillRetrySameDoctorAsync(call, cancellationToken);
+        var retryDelayMinutes = FormatRetryDelayMinutes(_elevenLabs.CallRetryDelaySeconds);
+        var failureChat = FormatBookCallOutcomeChat(
+            practiceLabel,
+            call.Status,
+            willRetrySameDoctor,
+            retryDelayMinutes);
+        await AppendCallChatMessageAsync(call, failureChat, cancellationToken);
+        await PushCallChatUpdateAsync(call, failureChat, cancellationToken);
+
         if (ShouldAttemptBookCascade(call.Status))
         {
             var cascade = await _cascade.TryCallNextDoctorAsync(call, cancellationToken);
@@ -1355,6 +1304,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     title,
                     body,
                     notificationId,
+                    chatMessage: null,
                     cancellationToken: cancellationToken);
                 return;
             }
@@ -1378,6 +1328,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             defaultTitle,
             defaultBody,
             fallbackNotificationId,
+            chatMessage: null,
             cancellationToken: cancellationToken);
     }
 
@@ -1415,6 +1366,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         DateTime? startsAt = null,
         DateTime? endsAt = null,
         string? doctorName = null,
+        string? chatMessage = null,
+        string? notificationType = null,
         CancellationToken cancellationToken = default)
     {
         string? resolvedDoctorName = doctorName;
@@ -1433,20 +1386,23 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             slotLabel = FormatPstSlot(start, end);
         }
 
+        var pushType = notificationType ?? status switch
+        {
+            VoiceOutboundCallStatuses.Booked => PatientNotificationTypes.AppointmentBooked,
+            VoiceOutboundCallStatuses.Canceled => PatientNotificationTypes.AppointmentCanceled,
+            _ => PatientNotificationTypes.VoiceCallUpdate
+        };
+
         await _push.DispatchAsync(new PatientPushMessage
         {
-            Type = status switch
-            {
-                VoiceOutboundCallStatuses.Booked => PatientNotificationTypes.AppointmentBooked,
-                VoiceOutboundCallStatuses.Canceled => PatientNotificationTypes.AppointmentCanceled,
-                _ => PatientNotificationTypes.VoiceCallUpdate
-            },
+            Type = pushType,
             PatientId = call.PatientId,
             SessionKey = call.SessionKey,
             ConversationId = call.ConversationId,
             Status = status,
             Title = title,
             Body = body,
+            ChatMessage = chatMessage,
             DoctorId = call.DoctorId,
             DoctorName = resolvedDoctorName,
             AppointmentId = call.AppointmentId,
@@ -1973,6 +1929,522 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return summary;
 
         return $"{summary} ({detail})";
+    }
+
+    public static string FormatPracticeLabel(string? practiceName, string? doctorName)
+    {
+        if (!string.IsNullOrWhiteSpace(practiceName))
+            return practiceName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(doctorName))
+            return $"{doctorName.Trim()}'s office";
+
+        return "the office";
+    }
+
+    public static string FormatAttemptingCallChat(string practiceLabel) =>
+        $"I'm attempting to call {practiceLabel} now to book your appointment. I'll update you here as soon as I hear back.";
+
+    public static string FormatBookedCallChat(string practiceLabel, string when) =>
+        $"Great news — I successfully booked your appointment with {practiceLabel} on {when}.";
+
+    public static string FormatBookCallOutcomeChat(
+        string practiceLabel,
+        string status,
+        bool willRetrySameDoctor = false,
+        int retryDelayMinutes = 0) =>
+        status switch
+        {
+            VoiceOutboundCallStatuses.NoAnswer =>
+                willRetrySameDoctor && retryDelayMinutes > 0
+                    ? $"I wasn't able to reach {practiceLabel} — the office did not answer. I'll retry after {FormatRetryDelayPhrase(retryDelayMinutes)}."
+                    : $"I wasn't able to reach {practiceLabel} — the office did not answer.",
+            VoiceOutboundCallStatuses.Declined =>
+                $"I couldn't get through to {practiceLabel} — the call was declined or the line was busy.",
+            VoiceOutboundCallStatuses.Failed =>
+                willRetrySameDoctor && retryDelayMinutes > 0
+                    ? $"I couldn't complete the call to {practiceLabel}. I'll retry after {FormatRetryDelayPhrase(retryDelayMinutes)}."
+                    : $"I couldn't complete the call to {practiceLabel}.",
+            VoiceOutboundCallStatuses.NoSlot =>
+                $"{practiceLabel} answered, but they don't have an available appointment in your requested window.",
+            VoiceOutboundCallStatuses.Completed =>
+                $"The call with {practiceLabel} ended without booking an appointment.",
+            _ => $"The call to {practiceLabel} finished without a booking."
+        };
+
+    public static int FormatRetryDelayMinutes(int delaySeconds) =>
+        Math.Max(1, (int)Math.Ceiling(Math.Max(0, delaySeconds) / 60.0));
+
+    public static string FormatRetryDelayPhrase(int delayMinutes) =>
+        delayMinutes == 1 ? "1 minute" : $"{delayMinutes} minutes";
+
+    public static string FormatIntentCallOutcomeChat(
+        string practiceLabel,
+        string callIntent,
+        string status,
+        bool willRetry = false,
+        int retryDelayMinutes = 0)
+    {
+        var isCancel = string.Equals(callIntent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
+        var actionVerb = isCancel ? "cancel" : "reschedule";
+        return status switch
+        {
+            VoiceOutboundCallStatuses.NoAnswer =>
+                willRetry && retryDelayMinutes > 0
+                    ? $"I wasn't able to reach {practiceLabel} — the office did not answer. I'll retry calling to {actionVerb} after {FormatRetryDelayPhrase(retryDelayMinutes)}."
+                    : $"I wasn't able to reach {practiceLabel} — the office did not answer.",
+            VoiceOutboundCallStatuses.Failed =>
+                willRetry && retryDelayMinutes > 0
+                    ? $"I couldn't complete the call to {practiceLabel}. I'll retry calling to {actionVerb} after {FormatRetryDelayPhrase(retryDelayMinutes)}."
+                    : $"I couldn't complete the call to {practiceLabel}.",
+            VoiceOutboundCallStatuses.Declined =>
+                isCancel
+                    ? "The office could not cancel the appointment on the call. Please contact the office directly."
+                    : "The office could not reschedule the appointment on the call. Please contact them directly.",
+            VoiceOutboundCallStatuses.NoSlot =>
+                "The office didn't have a new time available in your window. Please try again or call them directly.",
+            VoiceOutboundCallStatuses.Completed =>
+                isCancel
+                    ? "Nuvi couldn't confirm the cancellation with the office. Please contact them directly."
+                    : "Nuvi couldn't confirm a new appointment time. Please contact the office directly.",
+            _ => isCancel
+                ? "Nuvi couldn't confirm the cancellation with the office. Please contact them directly."
+                : "Nuvi couldn't confirm a new appointment time. Please contact the office directly."
+        };
+    }
+
+    private static bool ShouldAttemptIntentRetry(string status) =>
+        status is VoiceOutboundCallStatuses.NoAnswer or VoiceOutboundCallStatuses.Failed;
+
+    private sealed class IntentCallRetryResult
+    {
+        public bool Started { get; init; }
+        public string? ChatMessage { get; init; }
+        public string? NotificationBody { get; init; }
+        public string? ConversationId { get; init; }
+    }
+
+    private async Task DispatchIntentOutcomeAsync(
+        VoiceOutboundCall call,
+        string status,
+        string title,
+        string body,
+        DateTime? startsAt = null,
+        DateTime? endsAt = null,
+        string? doctorName = null,
+        CancellationToken cancellationToken = default,
+        string? notificationType = null)
+    {
+        await AppendCallChatMessageAsync(call, body, cancellationToken);
+
+        int? notificationId = null;
+        if (call.PatientId is > 0)
+        {
+            notificationId = await AddNotificationAsync(
+                call.PatientId.Value,
+                notificationType ?? PatientNotificationTypes.VoiceCallUpdate,
+                title,
+                body,
+                call.AppointmentId,
+                call.DoctorId,
+                cancellationToken);
+        }
+
+        await DispatchTerminalPushAsync(
+            call,
+            status,
+            title,
+            body,
+            notificationId,
+            startsAt,
+            endsAt,
+            doctorName,
+            chatMessage: body,
+            notificationType: notificationType,
+            cancellationToken: cancellationToken);
+    }
+
+    private async Task NotifyIntentCallFailureAsync(
+        VoiceOutboundCall call,
+        string updateTitle,
+        string finalFailureMessage,
+        CancellationToken cancellationToken,
+        DateTime? startsAt = null,
+        string? doctorName = null)
+    {
+        var practiceLabel = await ResolvePracticeLabelAsync(call.DoctorId, cancellationToken);
+        var willRetry = await WillRetryIntentCallAsync(call, cancellationToken);
+        var retryDelayMinutes = FormatRetryDelayMinutes(_elevenLabs.CallRetryDelaySeconds);
+        var failureChat = FormatIntentCallOutcomeChat(
+            practiceLabel,
+            call.CallIntent,
+            call.Status,
+            willRetry,
+            retryDelayMinutes);
+
+        if (willRetry && ShouldAttemptIntentRetry(call.Status))
+        {
+            await AppendCallChatMessageAsync(call, failureChat, cancellationToken);
+            await PushCallChatUpdateAsync(call, failureChat, cancellationToken);
+
+            var retry = await TryRetryIntentCallAsync(call, cancellationToken);
+            if (retry.Started)
+            {
+                var body = retry.NotificationBody ?? failureChat;
+                int? notificationId = null;
+                if (call.PatientId is > 0)
+                {
+                    notificationId = await AddNotificationAsync(
+                        call.PatientId.Value,
+                        PatientNotificationTypes.VoiceCallUpdate,
+                        updateTitle,
+                        body,
+                        call.AppointmentId,
+                        call.DoctorId,
+                        cancellationToken);
+                }
+
+                await DispatchTerminalPushAsync(
+                    call,
+                    call.Status,
+                    updateTitle,
+                    body,
+                    notificationId,
+                    startsAt,
+                    startsAt?.AddHours(1),
+                    doctorName,
+                    chatMessage: retry.ChatMessage,
+                    cancellationToken: cancellationToken);
+                return;
+            }
+
+            await DispatchIntentOutcomeAsync(
+                call,
+                call.Status,
+                updateTitle,
+                finalFailureMessage,
+                startsAt,
+                startsAt?.AddHours(1),
+                doctorName,
+                cancellationToken);
+            return;
+        }
+
+        await DispatchIntentOutcomeAsync(
+            call,
+            call.Status,
+            updateTitle,
+            failureChat,
+            startsAt,
+            startsAt?.AddHours(1),
+            doctorName,
+            cancellationToken);
+    }
+
+    private async Task<bool> WillRetryIntentCallAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        if (call.AppointmentId is not > 0 || call.DoctorId <= 0)
+            return false;
+
+        if (call.Status is not (VoiceOutboundCallStatuses.NoAnswer or VoiceOutboundCallStatuses.Failed))
+            return false;
+
+        if (!IsCancelIntent(call.CallIntent) && !IsRescheduleIntent(call.CallIntent))
+            return false;
+
+        var maxRetries = Math.Max(0, _elevenLabs.MaxCallRetriesPerDoctor);
+        if (maxRetries == 0)
+            return false;
+
+        var dialCount = await _db.VoiceOutboundCalls.AsNoTracking()
+            .CountAsync(c =>
+                c.AppointmentId == call.AppointmentId
+                && c.CallIntent == call.CallIntent
+                && c.DoctorId == call.DoctorId,
+                cancellationToken);
+
+        return dialCount <= maxRetries;
+    }
+
+    private async Task<IntentCallRetryResult> TryRetryIntentCallAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        if (call.AppointmentId is not > 0 || call.DoctorId <= 0)
+            return new IntentCallRetryResult();
+
+        if (!IsCancelIntent(call.CallIntent) && !IsRescheduleIntent(call.CallIntent))
+            return new IntentCallRetryResult();
+
+        var maxRetries = Math.Max(0, _elevenLabs.MaxCallRetriesPerDoctor);
+        var dialCount = await _db.VoiceOutboundCalls.AsNoTracking()
+            .CountAsync(c =>
+                c.AppointmentId == call.AppointmentId
+                && c.CallIntent == call.CallIntent
+                && c.DoctorId == call.DoctorId,
+                cancellationToken);
+
+        if (dialCount > maxRetries)
+            return new IntentCallRetryResult();
+
+        var pending = await _db.VoiceOutboundCalls.AsNoTracking()
+            .AnyAsync(c =>
+                c.AppointmentId == call.AppointmentId
+                && c.CallIntent == call.CallIntent
+                && c.Status == VoiceOutboundCallStatuses.Initiated,
+                cancellationToken);
+        if (pending)
+            return new IntentCallRetryResult();
+
+        if (!_voiceCalling.IsConfigured)
+            return new IntentCallRetryResult();
+
+        var appointment = await _db.Appointments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == call.AppointmentId, cancellationToken);
+        var doctor = await _db.Doctors.AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == call.DoctorId, cancellationToken);
+        if (appointment == null || doctor == null)
+            return new IntentCallRetryResult();
+
+        var overrideTo = ElevenLabsTwilioCallingService.ToE164(_twilio.OutboundOverrideToNumber);
+        var officePhone = ElevenLabsTwilioCallingService.ToE164(doctor.OfficePhoneNumber);
+        if (string.IsNullOrWhiteSpace(officePhone))
+            officePhone = await ResolveDoctorPhoneE164Async(doctor.Id, cancellationToken);
+        var dialNumber = !string.IsNullOrWhiteSpace(overrideTo) ? overrideTo! : officePhone;
+        if (string.IsNullOrWhiteSpace(dialNumber))
+            return new IntentCallRetryResult();
+
+        var retryDelay = TimeSpan.FromSeconds(Math.Max(0, _elevenLabs.CallRetryDelaySeconds));
+        if (retryDelay > TimeSpan.Zero)
+        {
+            _logger.LogInformation(
+                "Retry {Attempt}/{Max} for {Intent} appointment {AppointmentId} doctor {DoctorId} — waiting {Delay}s",
+                dialCount + 1, maxRetries + 1, call.CallIntent, call.AppointmentId, call.DoctorId,
+                _elevenLabs.CallRetryDelaySeconds);
+            await Task.Delay(retryDelay, cancellationToken);
+        }
+
+        var slotStart = appointment.StartsAt;
+        var appointmentDate = slotStart.ToString("yyyy-MM-dd");
+        var appointmentTime = slotStart.ToString("h:mm tt");
+        var appointmentDateTime =
+            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime} Pacific";
+        var patientName = string.IsNullOrWhiteSpace(call.PatientName) ? "Patient" : call.PatientName;
+        var isCancel = IsCancelIntent(call.CallIntent);
+
+        NuviOutboundCallRequest request;
+        if (isCancel)
+        {
+            request = new NuviOutboundCallRequest
+            {
+                Intent = VoiceOutboundCallIntents.Cancel,
+                ToNumber = dialNumber,
+                DoctorName = doctor.Name,
+                PracticeName = doctor.PracticeName,
+                PracticePhone = officePhone,
+                PatientName = patientName,
+                PatientPhone = call.PatientPhone,
+                PatientEmail = call.PatientEmail,
+                AppointmentId = appointment.Id,
+                AppointmentDate = appointmentDate,
+                AppointmentTime = appointmentTime,
+                AppointmentDateTime = appointmentDateTime,
+                AppointmentType = appointment.VisitReason,
+                ChiefComplaint = appointment.VisitReason,
+                CallContext = $"Cancel appointment #{appointment.Id} for {patientName}.",
+                SessionKey = call.SessionKey.ToString()
+            };
+        }
+        else
+        {
+            var urgency = await ResolveRescheduleUrgencyPreferenceAsync(call, cancellationToken);
+            var window = AppointmentRescheduleService.BuildPacificBookingWindow(urgency);
+            request = new NuviOutboundCallRequest
+            {
+                Intent = VoiceOutboundCallIntents.Reschedule,
+                ToNumber = dialNumber,
+                DoctorName = doctor.Name,
+                PracticeName = doctor.PracticeName,
+                PracticePhone = officePhone,
+                PatientName = patientName,
+                PatientPhone = call.PatientPhone,
+                PatientEmail = call.PatientEmail,
+                AppointmentId = appointment.Id,
+                AppointmentDate = appointmentDate,
+                AppointmentTime = appointmentTime,
+                AppointmentDateTime = appointmentDateTime,
+                AppointmentType = appointment.VisitReason,
+                ChiefComplaint = appointment.VisitReason,
+                PreferredDate = window.Phrase,
+                AvailabilityWindow = window.Phrase,
+                BookingWindowStart = window.StartDate,
+                BookingWindowEnd = window.EndDate,
+                PreferredTimeWindow = "any available time during office hours (Pacific Time)",
+                CallContext =
+                    $"Reschedule appointment #{appointment.Id} for {patientName}. Current slot {appointmentDateTime}. New window: {window.Phrase}.",
+                SessionKey = call.SessionKey.ToString()
+            };
+        }
+
+        var callResult = await _voiceCalling.PlaceOfficeCallAsync(request, cancellationToken);
+        if (!callResult.Success || string.IsNullOrWhiteSpace(callResult.ConversationId))
+        {
+            _logger.LogInformation(
+                "Intent call retry failed for appointment {AppointmentId} intent {Intent}: {Message}",
+                call.AppointmentId, call.CallIntent, callResult.Message);
+            return new IntentCallRetryResult();
+        }
+
+        await RecordInitiatedCallAsync(new VoiceOutboundCallRecordRequest
+        {
+            ConversationId = callResult.ConversationId!,
+            CallSid = callResult.CallSid,
+            SessionKey = call.SessionKey,
+            SearchSessionId = call.SearchSessionId,
+            PatientId = call.PatientId,
+            DoctorId = doctor.Id,
+            PatientName = patientName,
+            PatientPhone = call.PatientPhone,
+            PatientEmail = call.PatientEmail,
+            VisitReason = appointment.VisitReason,
+            ToNumber = dialNumber,
+            CallIntent = call.CallIntent,
+            AppointmentId = appointment.Id
+        }, cancellationToken);
+        ScheduleConversationPolling(callResult.ConversationId!);
+
+        var practiceLabel = FormatPracticeLabel(doctor.PracticeName, doctor.Name);
+        var actionVerb = isCancel ? "cancel" : "reschedule";
+        var chatText =
+            $"I wasn't able to reach {practiceLabel} — retrying now to {actionVerb} (attempt {dialCount + 1} of {maxRetries + 1}).";
+        if (!string.IsNullOrWhiteSpace(overrideTo))
+            chatText += $"\n\n(Dev override: dialing {overrideTo} instead of the office number.)";
+
+        await AppendCallChatMessageAsync(call, chatText, cancellationToken);
+
+        _logger.LogInformation(
+            "Intent call retry started for appointment {AppointmentId} intent {Intent} attempt {Attempt}/{Max} conversation {ConversationId}",
+            call.AppointmentId, call.CallIntent, dialCount + 1, maxRetries + 1, callResult.ConversationId);
+
+        return new IntentCallRetryResult
+        {
+            Started = true,
+            ChatMessage = chatText,
+            NotificationBody = $"Retrying {practiceLabel} to {actionVerb} (attempt {dialCount + 1} of {maxRetries + 1}).",
+            ConversationId = callResult.ConversationId
+        };
+    }
+
+    private async Task<string> ResolveRescheduleUrgencyPreferenceAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        if (call.SearchSessionId is int sessionId)
+        {
+            var session = await _db.SearchSessions.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == sessionId, cancellationToken);
+            if (session != null)
+            {
+                var context = SearchContextHelper.Load(session);
+                if (!string.IsNullOrWhiteSpace(context.RescheduleUrgencyPreference))
+                    return context.RescheduleUrgencyPreference;
+            }
+        }
+
+        return NuviFlowContent.LogisticsUrgencyOptions[1];
+    }
+
+    private async Task<string?> ResolveDoctorPhoneE164Async(int doctorId, CancellationToken cancellationToken)
+    {
+        var locationPhone = await _db.DoctorLocations.AsNoTracking()
+            .Where(l => l.DoctorId == doctorId && l.PhoneNumber != null && l.PhoneNumber != "")
+            .Select(l => l.PhoneNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+        return ElevenLabsTwilioCallingService.ToE164(locationPhone);
+    }
+
+    private async Task<bool> WillRetrySameDoctorAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        if (call.SearchSessionId is not > 0 || call.DoctorId <= 0)
+            return false;
+
+        if (call.Status is not (VoiceOutboundCallStatuses.NoAnswer or VoiceOutboundCallStatuses.Failed))
+            return false;
+
+        var maxRetries = Math.Max(0, _elevenLabs.MaxCallRetriesPerDoctor);
+        if (maxRetries == 0)
+            return false;
+
+        var dialCount = await _db.VoiceOutboundCalls.AsNoTracking()
+            .CountAsync(c =>
+                c.SearchSessionId == call.SearchSessionId
+                && c.CallIntent == VoiceOutboundCallIntents.Book
+                && c.DoctorId == call.DoctorId,
+                cancellationToken);
+
+        return dialCount <= maxRetries;
+    }
+
+    private async Task<string> ResolvePracticeLabelAsync(int doctorId, CancellationToken cancellationToken)
+    {
+        if (doctorId <= 0)
+            return "the office";
+
+        var doctor = await _db.Doctors.AsNoTracking()
+            .Where(d => d.Id == doctorId)
+            .Select(d => new { d.PracticeName, d.Name })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return doctor == null
+            ? "the office"
+            : FormatPracticeLabel(doctor.PracticeName, doctor.Name);
+    }
+
+    private async Task AppendCallChatMessageAsync(
+        VoiceOutboundCall call,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (call.SearchSessionId is not > 0 || string.IsNullOrWhiteSpace(message))
+            return;
+
+        var session = await _db.SearchSessions
+            .FirstOrDefaultAsync(s => s.Id == call.SearchSessionId.Value, cancellationToken);
+        if (session == null)
+            return;
+
+        _db.ChatMessages.Add(new ChatMessage
+        {
+            SearchSessionId = session.Id,
+            Role = "assistant",
+            Content = message,
+            CreatedAt = DateTime.UtcNow
+        });
+        session.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private Task PushCallChatUpdateAsync(VoiceOutboundCall call, string message, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return Task.CompletedTask;
+
+        return _push.DispatchAsync(new PatientPushMessage
+        {
+            Type = PatientNotificationTypes.VoiceCallUpdate,
+            PatientId = call.PatientId,
+            SessionKey = call.SessionKey,
+            ConversationId = call.ConversationId,
+            Status = call.Status,
+            Title = "Nuvi call update",
+            Body = message,
+            ChatMessage = message,
+            DoctorId = call.DoctorId
+        }, cancellationToken);
     }
 
     private static int ScoreSlotCandidate(string blob, DateTime startsAt, int index)

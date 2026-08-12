@@ -1683,6 +1683,9 @@ public class AnthropicChatService : IAnthropicChatService
 
         context.SelectedDoctorId = target.Value.Doctor.Id;
         var topName = string.IsNullOrWhiteSpace(target.Value.Doctor.Name) ? "your top match" : target.Value.Doctor.Name;
+        var practiceLabel = VoiceCallBookingService.FormatPracticeLabel(
+            target.Value.Doctor.PracticeName,
+            target.Value.Doctor.Name);
         var dialNumber = !string.IsNullOrWhiteSpace(overrideTo) ? overrideTo! : target.Value.PhoneE164;
 
         string planText;
@@ -1747,7 +1750,7 @@ public class AnthropicChatService : IAnthropicChatService
         string? voiceStatus = null;
         if (callResult.Success)
         {
-            text = $"{planText}\n\nI've started the call to {topName}'s office now. I'll update you here as soon as I hear back.";
+            text = $"{planText}\n\n{VoiceCallBookingService.FormatAttemptingCallChat(practiceLabel)}";
 
             conversationId = callResult.ConversationId;
             callSid = callResult.CallSid;

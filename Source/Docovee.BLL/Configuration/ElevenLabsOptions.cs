@@ -39,7 +39,7 @@ public class ElevenLabsOptions
 
     /// <summary>
     /// Seconds to wait between retry attempts for the same doctor.
-    /// Default: 60 seconds.
+    /// Displayed to patients in minutes. Default: 120 (2 minutes).
     /// </summary>
-    public int CallRetryDelaySeconds { get; set; } = 60;
+    public int CallRetryDelaySeconds { get; set; } = 120;
 }
