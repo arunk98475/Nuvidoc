@@ -1,0 +1,33 @@
+@page
+@model Docovee.Pages.Admin.Dashboard.IndexModel
+@{
+    ViewData["Title"] = "Admin Dashboard";
+}
+
+<div class="admin-card">
+    <h1>Admin Dashboard</h1>
+    <p>Snapshot of doctors, patients, and bookings across NuviDoc.</p>
+
+    <div class="dash-stats">
+        <a href="/Admin/Doctors" class="dash-stat">
+            <span class="dash-stat-label">Doctors</span>
+            <span class="dash-stat-value">@Model.DoctorCount.ToString("N0")</span>
+           
+        </a>
+        <a href="/Admin/Patients" class="dash-stat">
+            <span class="dash-stat-label">Patients</span>
+            <span class="dash-stat-value">@Model.PatientCount.ToString("N0")</span>
+            
+        </a>
+        <div class="dash-stat">
+            <span class="dash-stat-label">Bookings</span>
+            <span class="dash-stat-value">@Model.BookingCount.ToString("N0")</span>
+            
+        </div>
+        <div class="dash-stat">
+            <span class="dash-stat-label">Bookings this week</span>
+            <span class="dash-stat-value">@Model.BookingsThisWeek.ToString("N0")</span>
+            <span class="dash-stat-hint">@Model.WeekStart.ToString("MMM d") – @Model.WeekEnd.ToString("MMM d")</span>
+        </div>
+    </div>
+</div>

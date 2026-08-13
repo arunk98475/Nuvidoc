@@ -20,7 +20,7 @@ public class LoginModel : PageModel
     public IActionResult OnGet()
     {
         if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Admin))
-            return RedirectToPage("/Admin/Patients/Index");
+            return RedirectToPage("/Admin/Dashboard/Index");
 
         return Redirect("/Account/Admin");
     }
@@ -40,6 +40,6 @@ public class LoginModel : PageModel
             return Page();
         }
 
-        return RedirectToPage("/Admin/Patients/Index");
+        return RedirectToPage("/Admin/Dashboard/Index");
     }
 }

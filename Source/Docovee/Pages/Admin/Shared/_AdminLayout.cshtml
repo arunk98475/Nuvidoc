@@ -15,11 +15,12 @@
 <body>
     <div class="admin-shell">
         <aside class="admin-sidebar">
-            <a href="/Admin/Doctors" class="admin-logo">
+            <a href="/Admin/Dashboard" class="admin-logo">
                 <img class="admin-logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="24" height="24" />
                 <span class="admin-logo-text">@Branding.SiteNameLower <span>admin</span></span>
             </a>
             <nav class="admin-nav">
+                <a href="/Admin/Dashboard" class="@(IsActive("/Admin/Dashboard") ? "active" : null)">Admin Dash Board</a>
                 <a href="/Admin/Doctors" class="@(IsActive("/Admin/Doctors") ? "active" : null)">Doctors</a>
                 <a href="/Admin/Patients" class="@(IsActive("/Admin/Patients") ? "active" : null)">Patients</a>
                 <a href="/Admin/PollingQuestions" class="@(IsActive("/Admin/PollingQuestions") ? "active" : null)">Polling Questions</a>

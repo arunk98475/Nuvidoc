@@ -438,3 +438,46 @@ body {
   gap: 12px;
   align-items: center;
 }
+
+.dash-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.dash-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f5f7f6;
+  border: 1px solid #d4ddd9;
+  border-radius: 12px;
+  padding: 18px 16px;
+  text-decoration: none;
+  color: inherit;
+}
+
+a.dash-stat:hover {
+  border-color: #3d6b5a;
+  background: #eaf2ee;
+}
+
+.dash-stat-value {
+  font-size: 44px;
+  font-weight: 700;
+  color: #1a2b22;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.dash-stat-label {
+  font-size: 36px;
+  font-weight: 600;
+  color: #3d6b5a;
+}
+
+.dash-stat-hint {
+  font-size: 12px;
+  color: #6b8078;
+}

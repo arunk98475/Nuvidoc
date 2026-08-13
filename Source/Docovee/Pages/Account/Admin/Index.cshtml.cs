@@ -20,7 +20,7 @@ public class IndexModel : PageModel
     public IActionResult OnGet()
     {
         if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Admin))
-            return Redirect("/Admin/Patients");
+            return Redirect("/Admin/Dashboard");
 
         return Page();
     }
@@ -36,6 +36,6 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        return Redirect("/Admin/Patients");
+        return Redirect("/Admin/Dashboard");
     }
 }

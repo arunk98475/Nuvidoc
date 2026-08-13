@@ -15,7 +15,7 @@ public class RegisterModel : PageModel
 
     private string GetRedirectUrl()
     {
-        if (User.IsInRole(AuthRoles.Admin)) return "/Admin/Patients";
+        if (User.IsInRole(AuthRoles.Admin)) return "/Admin/Dashboard";
         if (User.IsInRole(AuthRoles.Doctor)) return "/Doctor";
         if (User.IsInRole(AuthRoles.Patient)) return "/Account/Profile";
         return "/";
