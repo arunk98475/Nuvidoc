@@ -55,17 +55,35 @@ public class PatientService : IPatientService
             };
         }
 
+        var phone = PhoneNumberHelper.NormalizeLast10(request.Phone)
+            ?? PhoneNumberHelper.DigitsOnly(request.Phone);
+        if (phone.Length > 30)
+            phone = phone[..30];
+
         var patient = new Patient
         {
             Username = username,
             FullName = request.FullName,
             DateOfBirth = request.DateOfBirth.Value,
-            Phone = request.Phone
+            Phone = phone
         };
         patient.PasswordHash = _passwordHasher.HashPassword(patient, request.Password);
 
         _db.Patients.Add(patient);
-        await _db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Patient registration save failed for {Username}", username);
+            _db.Entry(patient).State = EntityState.Detached;
+            return new PatientRegisterResponse
+            {
+                Success = false,
+                Message = "Something went wrong creating your account. Please check your phone number and try again."
+            };
+        }
 
         session.PatientId = patient.Id;
         session.UpdatedAt = DateTime.UtcNow;

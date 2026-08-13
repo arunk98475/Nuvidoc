@@ -189,9 +189,21 @@ public static class NuviFlowContent
 
 
 
+    public const string AccountEmailRequiredMessage =
+
+        "I'll need an email to create your profile — a Gmail or any personal email works. What's your email address?";
+
+
+
     public const string AccountPhoneQuestion =
 
-        "And a phone number? (We'll only use this if your matched dentist needs to confirm your appointment.)";
+        "And a 10-digit US phone number? (We'll only use this if your matched dentist needs to confirm your appointment.)";
+
+
+
+    public const string AccountPhoneRequiredMessage =
+
+        "I need a 10-digit US phone number so the office can reach you — for example, 713-555-1212.";
 
 
 

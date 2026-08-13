@@ -6,16 +6,24 @@ namespace Docovee.BLL.Services;
 /// </summary>
 public static class PhoneNumberHelper
 {
-    public static string? NormalizeLast10(string? phone)
+    /// <summary>Trim and strip everything except 0-9.</summary>
+    public static string DigitsOnly(string? phone)
     {
         if (string.IsNullOrWhiteSpace(phone))
-            return null;
+            return string.Empty;
 
-        var digits = new string(phone.Where(char.IsDigit).ToArray());
+        return new string(phone.Trim().Where(char.IsDigit).ToArray());
+    }
+
+    public static string? NormalizeLast10(string? phone)
+    {
+        var digits = DigitsOnly(phone);
+        if (digits.Length == 11 && digits[0] == '1')
+            digits = digits[1..];
         if (digits.Length < 10)
             return null;
 
-        return digits[^10..];
+        return digits.Length == 10 ? digits : digits[^10..];
     }
 
     public static bool Matches(string? left, string? right)

@@ -356,6 +356,7 @@ public static class SchemaUpdater
             """, cancellationToken);
 
         await EnsureColumnAsync(db, "patients", "IdCardPhotoUrl", "varchar(500) NULL", cancellationToken);
+        await EnsurePatientsPhoneWidthAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "HipaaDataSharingOptIn", "tinyint(1) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "CookieTrackingOptOut", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "AutofillEnabled", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
@@ -542,6 +543,46 @@ public static class SchemaUpdater
         return count > 0;
     }
 
+    private static async Task EnsurePatientsPhoneWidthAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                ALTER TABLE `patients`
+                MODIFY COLUMN `Phone` varchar(30) CHARACTER SET utf8mb4 NOT NULL
+                """,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Log($"patients.Phone widen skipped — {ex.Message}");
+        }
+    }
+
+    private static async Task<bool> ColumnExistsAsync(
+        DocoveeDbContext db,
+        string tableName,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        var count = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                SELECT COUNT(*) AS Value
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                  AND table_name = {0}
+                  AND column_name = {1}
+                """,
+                tableName,
+                columnName)
+            .FirstOrDefaultAsync(cancellationToken);
+        return count > 0;
+    }
+
     private static async Task EnsureColumnAsync(
         DocoveeDbContext db,
         string tableName,
@@ -549,20 +590,12 @@ public static class SchemaUpdater
         string columnDefinition,
         CancellationToken cancellationToken)
     {
-        var sql = $"""
-            SET @sql = IF(
-                (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = '{tableName}'
-                   AND COLUMN_NAME = '{columnName}') = 0,
-                'ALTER TABLE `{tableName}` ADD `{columnName}` {columnDefinition}',
-                'SELECT 1');
-            PREPARE stmt FROM @sql;
-            EXECUTE stmt;
-            DEALLOCATE PREPARE stmt;
-            """;
+        if (await ColumnExistsAsync(db, tableName, columnName, cancellationToken))
+            return;
 
-        await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(
+            $"ALTER TABLE `{tableName}` ADD `{columnName}` {columnDefinition}",
+            cancellationToken);
     }
 
     private static async Task EnsureTextColumnAsync(
@@ -573,20 +606,12 @@ public static class SchemaUpdater
     {
         await EnsureColumnAsync(db, tableName, columnName, "TEXT NULL", cancellationToken);
 
-        var modifySql = $"""
-            SET @sql = IF(
-                (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-                 WHERE TABLE_SCHEMA = DATABASE()
-                   AND TABLE_NAME = '{tableName}'
-                   AND COLUMN_NAME = '{columnName}') > 0,
-                'ALTER TABLE `{tableName}` MODIFY COLUMN `{columnName}` TEXT NULL',
-                'SELECT 1');
-            PREPARE stmt FROM @sql;
-            EXECUTE stmt;
-            DEALLOCATE PREPARE stmt;
-            """;
+        if (!await ColumnExistsAsync(db, tableName, columnName, cancellationToken))
+            return;
 
-        await db.Database.ExecuteSqlRawAsync(modifySql, cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(
+            $"ALTER TABLE `{tableName}` MODIFY COLUMN `{columnName}` TEXT NULL",
+            cancellationToken);
     }
 
     private static async Task TryBackfillAllowGoogleBookingsAsync(
