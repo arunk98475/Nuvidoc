@@ -891,6 +891,17 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     : $"{outcome.Notes} | Past time rejected.");
         }
 
+        if ((!outcome.IsBooked || outcome.StartsAt == null)
+            && TryExtractCollectedAppointmentSlot(outcome.Notes, out var collectedSlot, out var collectedEnd))
+        {
+            outcome = new BookingOutcome(
+                true,
+                collectedSlot,
+                collectedEnd,
+                VoiceOutboundCallStatuses.Booked,
+                outcome.Notes);
+        }
+
         call.UpdatedAt = DateTime.UtcNow;
         call.CompletedAt = DateTime.UtcNow;
         call.OutcomeNotes = Truncate(outcome.Notes, 2000);
@@ -923,9 +934,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                     "Nuvi couldn't reach the office to reschedule. Please try again or call the office directly.",
                 VoiceOutboundCallStatuses.NoSlot =>
                     "The office didn't have a new time available in your window. Please try again or call them directly.",
-                _ => string.IsNullOrWhiteSpace(outcome.Notes)
-                    ? "Nuvi couldn't confirm a new appointment time. Please contact the office directly."
-                    : outcome.Notes!
+                _ => "Nuvi couldn't confirm a new appointment time. Please contact the office directly."
             };
 
             if (ShouldAttemptIntentRetry(call.Status))
@@ -981,9 +990,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             await _db.SaveChangesAsync(cancellationToken);
         }
 
-        var when = FormatPstSlot(newStartsAt, newStartsAt.AddHours(1));
         const string title = "Appointment rescheduled";
-        var body = FormatRescheduleSuccessChat(when);
+        var body = FormatRescheduleSuccessChat(newStartsAt);
 
         await DispatchIntentOutcomeAsync(
             call,
@@ -1698,11 +1706,22 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (booked && (startsAt == null || IsLikelyMidnightPlaceholder(startsAt.Value))
             && !string.IsNullOrWhiteSpace(joinedNotes)
             && (TryParseAppointmentSlot(joinedNotes, out var fromNotes, out var fromNotesEnd)
-                || TryExtractSpokenSlot(joinedNotes, out fromNotes, out fromNotesEnd))
+                || TryExtractSpokenSlot(joinedNotes, out fromNotes, out fromNotesEnd)
+                || TryExtractCollectedAppointmentSlot(joinedNotes, out fromNotes, out fromNotesEnd))
             && !IsLikelyMidnightPlaceholder(fromNotes))
         {
             startsAt = fromNotes;
             endsAt = fromNotesEnd ?? endsAt;
+        }
+
+        if ((startsAt == null || IsLikelyMidnightPlaceholder(startsAt.Value))
+            && TryExtractCollectedAppointmentSlot(joinedNotes, out var collectedFromNotes, out var collectedFromNotesEnd)
+            && !IsLikelyMidnightPlaceholder(collectedFromNotes))
+        {
+            startsAt = collectedFromNotes;
+            endsAt = collectedFromNotesEnd ?? endsAt;
+            booked = true;
+            statusHint = VoiceOutboundCallStatuses.Booked;
         }
 
         // Never save a midnight "placeholder" as a real dental booking time.
@@ -2009,8 +2028,12 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     public static string FormatCancelSuccessNewBookingChat() =>
         NuviFlowContent.CancelSuccessNewBookingPrompt;
 
-    public static string FormatRescheduleSuccessChat(string when) =>
-        $"I successfully rescheduled the booking, {when}.";
+    public static string FormatRescheduleSuccessChat(DateTime startsAt)
+    {
+        var date = startsAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var time = startsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        return $"Appointment successfully rescheduled to {date} at {time}.";
+    }
 
     public static string FormatBookedCallChat(string practiceLabel, string when) =>
         $"Great news — I successfully booked your appointment with {practiceLabel} on {when}.";
@@ -2947,7 +2970,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
     private static string? MapStatusHint(string valueLower) => valueLower switch
     {
-        "booked" or "confirmed" or "scheduled" or "success" => VoiceOutboundCallStatuses.Booked,
+        "booked" or "confirmed" or "scheduled" or "rescheduled" or "success" => VoiceOutboundCallStatuses.Booked,
         "canceled" or "cancelled" or "cancel" => VoiceOutboundCallStatuses.Canceled,
         "no_slot" or "no slot" or "unavailable" => VoiceOutboundCallStatuses.NoSlot,
         "declined" or "dnc" => VoiceOutboundCallStatuses.Declined,
@@ -2955,6 +2978,32 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         "failed" => VoiceOutboundCallStatuses.Failed,
         _ => VoiceOutboundCallStatuses.Completed
     };
+
+    private static bool TryExtractCollectedAppointmentSlot(
+        string? notes,
+        out DateTime startsAt,
+        out DateTime? endsAt)
+    {
+        startsAt = default;
+        endsAt = null;
+        if (string.IsNullOrWhiteSpace(notes))
+            return false;
+
+        var dateMatch = System.Text.RegularExpressions.Regex.Match(
+            notes,
+            @"appointment_date\s*=\s*(\d{4}-\d{2}-\d{2})",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        var timeMatch = System.Text.RegularExpressions.Regex.Match(
+            notes,
+            @"appointment_time\s*=\s*([^|]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!dateMatch.Success || !timeMatch.Success)
+            return false;
+
+        var date = dateMatch.Groups[1].Value.Trim();
+        var time = timeMatch.Groups[1].Value.Trim();
+        return TryParseAppointmentSlot($"{date} {time}", out startsAt, out endsAt);
+    }
 
     private const string TimeRangePattern =
         @"(\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?|\d{1,2}\s*[AaPp][Mm])\s*(?:[-–—]|to)\s*(\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?|\d{1,2}\s*[AaPp][Mm])";
