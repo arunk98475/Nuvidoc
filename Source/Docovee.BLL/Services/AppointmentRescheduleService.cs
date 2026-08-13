@@ -13,7 +13,8 @@ public interface IAppointmentRescheduleService
         int patientId,
         int appointmentId,
         string urgencyPreference,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        int? currentSearchSessionId = null);
 }
 
 public sealed class AppointmentRescheduleResult
@@ -50,7 +51,8 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
         int patientId,
         int appointmentId,
         string urgencyPreference,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? currentSearchSessionId = null)
     {
         var patient = await _db.Patients.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
@@ -98,14 +100,8 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
         var appointmentDateTime =
             $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime} Pacific";
 
-        var sessionKey = Guid.NewGuid();
-        if (appointment.SearchSessionId is int searchSessionId)
-        {
-            var session = await _db.SearchSessions.AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == searchSessionId, cancellationToken);
-            if (session != null)
-                sessionKey = session.SessionKey;
-        }
+        var (chatSessionId, sessionKey) = await ResolveChatSessionAsync(
+            patientId, appointment.SearchSessionId, currentSearchSessionId, cancellationToken);
 
         var patientName = string.IsNullOrWhiteSpace(appointment.PatientName)
             ? patient.FullName
@@ -154,7 +150,7 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
                 ConversationId = callResult.ConversationId!,
                 CallSid = callResult.CallSid,
                 SessionKey = sessionKey,
-                SearchSessionId = appointment.SearchSessionId,
+                SearchSessionId = chatSessionId,
                 PatientId = patientId,
                 DoctorId = doctor.Id,
                 PatientName = patientName,
@@ -168,14 +164,13 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
             _voiceBookings.ScheduleConversationPolling(callResult.ConversationId!);
         }
 
-        var doctorLabel = string.IsNullOrWhiteSpace(doctor.Name) ? "your dentist" : doctor.Name;
+        var practiceLabel = VoiceCallBookingService.FormatPracticeLabel(doctor.PracticeName, doctor.Name);
         return new AppointmentRescheduleResult
         {
             Success = true,
             VoiceCallStarted = true,
             ConversationId = callResult.ConversationId,
-            Message =
-                $"Nuvi is calling {doctorLabel}'s office now to reschedule your visit currently on {VoiceCallBookingService.FormatPstSlot(slotStart, slotStart.AddHours(1))}. We'll notify you when a new time is confirmed."
+            Message = VoiceCallBookingService.FormatCallingPracticeChat(practiceLabel)
         };
     }
 
@@ -217,6 +212,42 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
         var phrase =
             $"{label}: any day from {start:dddd, MMMM d, yyyy} through {end:dddd, MMMM d, yyyy} (Pacific Time)";
         return (phrase, start.ToString("yyyy-MM-dd"), end.ToString("yyyy-MM-dd"));
+    }
+
+    private async Task<(int? SessionId, Guid SessionKey)> ResolveChatSessionAsync(
+        int patientId,
+        int? appointmentSearchSessionId,
+        int? currentSearchSessionId,
+        CancellationToken cancellationToken)
+    {
+        if (currentSearchSessionId is > 0)
+        {
+            var current = await _db.SearchSessions.AsNoTracking()
+                .FirstOrDefaultAsync(s =>
+                    s.Id == currentSearchSessionId
+                    && (s.PatientId == null || s.PatientId == patientId),
+                    cancellationToken);
+            if (current != null)
+                return (current.Id, current.SessionKey);
+        }
+
+        var latest = await _db.SearchSessions.AsNoTracking()
+            .Where(s => s.PatientId == patientId)
+            .OrderByDescending(s => s.UpdatedAt)
+            .ThenByDescending(s => s.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latest != null)
+            return (latest.Id, latest.SessionKey);
+
+        if (appointmentSearchSessionId is > 0)
+        {
+            var booked = await _db.SearchSessions.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == appointmentSearchSessionId, cancellationToken);
+            if (booked != null)
+                return (booked.Id, booked.SessionKey);
+        }
+
+        return (appointmentSearchSessionId, Guid.NewGuid());
     }
 
     private static AppointmentRescheduleResult Fail(string message) =>

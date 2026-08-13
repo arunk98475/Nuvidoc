@@ -289,12 +289,23 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (string.IsNullOrWhiteSpace(conversationId))
             return;
 
+        if (!string.IsNullOrWhiteSpace(_elevenLabs.WebhookSecret))
+        {
+            _logger.LogInformation(
+                "Skipping conversation polling for {ConversationId} — ElevenLabs webhook secret is configured.",
+                conversationId);
+            return;
+        }
+
+        var initialDelaySeconds = Math.Max(0, _elevenLabs.ConversationPollingDelaySeconds);
+
         _ = Task.Run(async () =>
         {
             try
             {
                 // Wait for the live call + ElevenLabs analysis to finish.
-                await Task.Delay(TimeSpan.FromSeconds(45));
+                if (initialDelaySeconds > 0)
+                    await Task.Delay(TimeSpan.FromSeconds(initialDelaySeconds));
                 for (var i = 0; i < 20; i++)
                 {
                     using var scope = _scopeFactory.CreateScope();
@@ -972,7 +983,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
         var when = FormatPstSlot(newStartsAt, newStartsAt.AddHours(1));
         const string title = "Appointment rescheduled";
-        var body = $"Nuvi rescheduled your visit with {doctorName} to {when}.";
+        var body = FormatRescheduleSuccessChat(when);
 
         await DispatchIntentOutcomeAsync(
             call,
@@ -1063,13 +1074,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             call.Status = VoiceOutboundCallStatuses.Canceled;
             await _db.SaveChangesAsync(cancellationToken);
 
-            var slotLabel = appointmentStartsAt is DateTime start
-                ? FormatPstSlot(start, start.AddHours(1))
-                : null;
             const string title = "Appointment canceled";
-            var body = slotLabel != null
-                ? $"Nuvi canceled your visit with {doctorName} on {slotLabel}."
-                : $"Nuvi canceled your visit with {doctorName}.";
+            var body = FormatCancelSuccessNewBookingChat();
+            await MarkPostCancelNewBookingOfferAsync(call, cancellationToken);
 
             await DispatchIntentOutcomeAsync(
                 call,
@@ -1080,7 +1087,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 appointmentStartsAt?.AddHours(1),
                 doctorName,
                 cancellationToken,
-                notificationType: PatientNotificationTypes.AppointmentCanceled);
+                notificationType: PatientNotificationTypes.AppointmentCanceled,
+                chatOptions: NuviFlowContent.YesNoOptions,
+                optionsOnly: true);
 
             _logger.LogInformation(
                 "Voice cancel confirmed. Conversation={ConversationId} Appointment={AppointmentId}",
@@ -1398,6 +1407,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         string? doctorName = null,
         string? chatMessage = null,
         string? notificationType = null,
+        IReadOnlyList<string>? chatOptions = null,
+        bool optionsOnly = false,
         CancellationToken cancellationToken = default)
     {
         string? resolvedDoctorName = doctorName;
@@ -1423,11 +1434,15 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             _ => PatientNotificationTypes.VoiceCallUpdate
         };
 
+        var liveSession = IsCancelIntent(call.CallIntent) || IsRescheduleIntent(call.CallIntent)
+            ? await ResolveLiveChatSessionAsync(call, cancellationToken)
+            : null;
+
         await _push.DispatchAsync(new PatientPushMessage
         {
             Type = pushType,
             PatientId = call.PatientId,
-            SessionKey = call.SessionKey,
+            SessionKey = liveSession?.SessionKey ?? call.SessionKey,
             ConversationId = call.ConversationId,
             Status = status,
             Title = title,
@@ -1439,7 +1454,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             StartsAt = startsAt,
             EndsAt = endsAt ?? (startsAt?.AddHours(1)),
             SlotLabel = slotLabel,
-            NotificationId = notificationId
+            NotificationId = notificationId,
+            ChatOptions = chatOptions,
+            OptionsOnly = optionsOnly
         }, cancellationToken);
     }
 
@@ -1785,7 +1802,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     /// ElevenLabs sometimes leaves declined/no-answer calls stuck at status=initiated with no analysis.
     /// Returns true when polling should continue waiting.
     /// </summary>
-    private static bool ShouldContinuePollingConversation(
+    private bool ShouldContinuePollingConversation(
         JsonElement data,
         VoiceOutboundCall call,
         string? conversationStatus,
@@ -1807,7 +1824,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return true;
     }
 
-    private static bool TryBuildStaleUnconnectedOutcome(
+    private bool TryBuildStaleUnconnectedOutcome(
         JsonElement data,
         VoiceOutboundCall call,
         out BookingOutcome outcome)
@@ -1819,7 +1836,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             && !string.Equals(status, "in-progress", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        if (DateTime.UtcNow - call.CreatedAt < TimeSpan.FromSeconds(45))
+        var minAgeSeconds = Math.Max(0, _elevenLabs.ConversationPollingDelaySeconds);
+        if (DateTime.UtcNow - call.CreatedAt < TimeSpan.FromSeconds(minAgeSeconds))
             return false;
 
         if (!HasMinimalConversation(data))
@@ -1975,6 +1993,25 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     public static string FormatAttemptingCallChat(string practiceLabel) =>
         $"I'm attempting to call {practiceLabel} now to book your appointment. I'll update you here as soon as I hear back.";
 
+    public static string FormatCallingPracticeChat(string practiceLabel) =>
+        $"I am calling to {practiceLabel}.";
+
+    public static string FormatIntentNoAnswerExhaustedChat(string? callIntent, int attempts)
+    {
+        var n = Math.Max(1, attempts);
+        var attemptWord = n == 1 ? "attempt" : "attempts";
+        var action = string.Equals(callIntent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase)
+            ? "cancellation"
+            : "reschedule";
+        return $"I tried {n} {attemptWord} but no answer. Please try later for {action}.";
+    }
+
+    public static string FormatCancelSuccessNewBookingChat() =>
+        NuviFlowContent.CancelSuccessNewBookingPrompt;
+
+    public static string FormatRescheduleSuccessChat(string when) =>
+        $"I successfully rescheduled the booking, {when}.";
+
     public static string FormatBookedCallChat(string practiceLabel, string when) =>
         $"Great news — I successfully booked your appointment with {practiceLabel} on {when}.";
 
@@ -2064,7 +2101,9 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         DateTime? endsAt = null,
         string? doctorName = null,
         CancellationToken cancellationToken = default,
-        string? notificationType = null)
+        string? notificationType = null,
+        IReadOnlyList<string>? chatOptions = null,
+        bool optionsOnly = false)
     {
         await AppendCallChatMessageAsync(call, body, cancellationToken);
 
@@ -2092,6 +2131,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             doctorName,
             chatMessage: body,
             notificationType: notificationType,
+            chatOptions: chatOptions,
+            optionsOnly: optionsOnly,
             cancellationToken: cancellationToken);
     }
 
@@ -2153,7 +2194,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 call,
                 call.Status,
                 updateTitle,
-                finalFailureMessage,
+                await ResolveIntentExhaustedChatAsync(call, finalFailureMessage, cancellationToken),
                 startsAt,
                 startsAt?.AddHours(1),
                 doctorName,
@@ -2165,11 +2206,23 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             call,
             call.Status,
             updateTitle,
-            failureChat,
+            await ResolveIntentExhaustedChatAsync(call, failureChat, cancellationToken),
             startsAt,
             startsAt?.AddHours(1),
             doctorName,
             cancellationToken);
+    }
+
+    private async Task<string> ResolveIntentExhaustedChatAsync(
+        VoiceOutboundCall call,
+        string fallback,
+        CancellationToken cancellationToken)
+    {
+        if (call.Status is not (VoiceOutboundCallStatuses.NoAnswer or VoiceOutboundCallStatuses.Failed))
+            return fallback;
+
+        var attempts = await CountIntentDialsInRetryWindowAsync(call, cancellationToken);
+        return FormatIntentNoAnswerExhaustedChat(call.CallIntent, attempts);
     }
 
     private async Task<bool> WillRetryIntentCallAsync(
@@ -2387,9 +2440,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         ScheduleConversationPolling(callResult.ConversationId!);
 
         var practiceLabel = FormatPracticeLabel(doctor.PracticeName, doctor.Name);
-        var actionVerb = isCancel ? "cancel" : "reschedule";
-        var chatText =
-            $"I wasn't able to reach {practiceLabel} — retrying now to {actionVerb} (attempt {dialCount + 1} of {maxRetries + 1}).";
+        var chatText = FormatCallingPracticeChat(practiceLabel);
         if (!string.IsNullOrWhiteSpace(overrideTo))
             chatText += $"\n\n(Dev override: dialing {overrideTo} instead of the office number.)";
 
@@ -2403,7 +2454,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             Started = true,
             ChatMessage = chatText,
-            NotificationBody = $"Retrying {practiceLabel} to {actionVerb} (attempt {dialCount + 1} of {maxRetries + 1}).",
+            NotificationBody = chatText,
             ConversationId = callResult.ConversationId
         };
     }
@@ -2475,16 +2526,60 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             : FormatPracticeLabel(doctor.PracticeName, doctor.Name);
     }
 
+    private async Task MarkPostCancelNewBookingOfferAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        var session = await ResolveLiveChatSessionAsync(call, cancellationToken);
+        if (session == null)
+            return;
+
+        var context = SearchContextHelper.Load(session);
+        context.Stage = NuviConversationStage.PostCancelNewBooking;
+        context.CancelAppointmentChoices = null;
+        SearchContextHelper.Save(session, context);
+        session.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<SearchSession?> ResolveLiveChatSessionAsync(
+        VoiceOutboundCall call,
+        CancellationToken cancellationToken)
+    {
+        SearchSession? latest = null;
+        if (call.PatientId is > 0)
+        {
+            latest = await _db.SearchSessions
+                .Where(s => s.PatientId == call.PatientId)
+                .OrderByDescending(s => s.UpdatedAt)
+                .ThenByDescending(s => s.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var preferLatest = IsCancelIntent(call.CallIntent) || IsRescheduleIntent(call.CallIntent);
+        if (preferLatest && latest != null)
+            return latest;
+
+        if (call.SearchSessionId is > 0)
+        {
+            var byId = await _db.SearchSessions
+                .FirstOrDefaultAsync(s => s.Id == call.SearchSessionId.Value, cancellationToken);
+            if (byId != null)
+                return byId;
+        }
+
+        return latest;
+    }
+
     private async Task AppendCallChatMessageAsync(
         VoiceOutboundCall call,
         string message,
         CancellationToken cancellationToken)
     {
-        if (call.SearchSessionId is not > 0 || string.IsNullOrWhiteSpace(message))
+        if (string.IsNullOrWhiteSpace(message))
             return;
 
-        var session = await _db.SearchSessions
-            .FirstOrDefaultAsync(s => s.Id == call.SearchSessionId.Value, cancellationToken);
+        var session = await ResolveLiveChatSessionAsync(call, cancellationToken);
         if (session == null)
             return;
 
@@ -2499,16 +2594,17 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private Task PushCallChatUpdateAsync(VoiceOutboundCall call, string message, CancellationToken cancellationToken)
+    private async Task PushCallChatUpdateAsync(VoiceOutboundCall call, string message, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(message))
-            return Task.CompletedTask;
+            return;
 
-        return _push.DispatchAsync(new PatientPushMessage
+        var liveSession = await ResolveLiveChatSessionAsync(call, cancellationToken);
+        await _push.DispatchAsync(new PatientPushMessage
         {
             Type = PatientNotificationTypes.VoiceCallUpdate,
             PatientId = call.PatientId,
-            SessionKey = call.SessionKey,
+            SessionKey = liveSession?.SessionKey ?? call.SessionKey,
             ConversationId = call.ConversationId,
             Status = call.Status,
             Title = "Nuvi call update",

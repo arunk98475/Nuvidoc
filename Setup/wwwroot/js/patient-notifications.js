@@ -20,8 +20,9 @@
   function messageKey(message) {
     if (!message) return "";
     if (message.notificationId != null) return "n:" + message.notificationId;
-    if (message.conversationId) return "c:" + message.conversationId + ":" + (message.status || "");
-    return "t:" + (message.title || "") + "|" + (message.body || "");
+    var chat = (message.chatMessage || message.body || "");
+    if (message.conversationId) return "c:" + message.conversationId + ":" + (message.status || "") + ":" + chat;
+    return "t:" + (message.title || "") + "|" + chat;
   }
 
   function rememberMessage(message) {

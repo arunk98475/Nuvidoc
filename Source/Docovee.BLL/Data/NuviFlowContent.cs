@@ -377,6 +377,18 @@ public static class NuviFlowContent
     public static readonly string[] RescheduleCallPermissionOptions =
         ["Yes", "No"];
 
+    public static readonly string[] YesNoOptions =
+        ["Yes", "No"];
+
+    public const string CancelSuccessNewBookingPrompt =
+        "I successfully cancelled the booking. Do you want to start a new booking?";
+
+    public const string PostCancelStartBookingPrompt =
+        "Great — let's find you a new appointment. What's going on with your teeth or smile?";
+
+    public const string PostCancelDeclineNewBooking =
+        "Okay — no problem. I'm here if you need anything else.";
+
 }
 
 

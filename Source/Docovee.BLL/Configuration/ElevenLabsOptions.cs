@@ -26,9 +26,16 @@ public class ElevenLabsOptions
 
     /// <summary>
     /// Optional HMAC secret from ElevenLabs post-call webhook settings.
-    /// When empty, webhook signature verification is skipped (dev only).
+    /// When set, outbound-call polling is skipped and post-call webhooks are the source of truth.
+    /// When empty, webhook signature verification is skipped (dev only) and polling is used.
     /// </summary>
     public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// Seconds to wait after placing an outbound call before the first conversation poll.
+    /// Used only when <see cref="WebhookSecret"/> is empty. Default: 45.
+    /// </summary>
+    public int ConversationPollingDelaySeconds { get; set; } = 45;
 
     /// <summary>
     /// How many times to retry calling the same doctor before moving on.

@@ -22,6 +22,9 @@ public sealed class PatientPushMessage
     public int? NotificationId { get; set; }
     /// <summary>Full assistant message to append in the Nuvi chat thread (may match Body).</summary>
     public string? ChatMessage { get; set; }
+    /// <summary>Optional Nuvi chat chips to show with ChatMessage (e.g. Yes/No after cancel).</summary>
+    public IReadOnlyList<string>? ChatOptions { get; set; }
+    public bool OptionsOnly { get; set; }
     public Dictionary<string, string>? Data { get; set; }
 }
 

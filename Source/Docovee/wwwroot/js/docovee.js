@@ -296,14 +296,23 @@ function initCallResultChatPush() {
   if (!window.NuvidocPatientPush?.onBookingUpdated) return;
   callResultChatPushBound = true;
   window.NuvidocPatientPush.onBookingUpdated((message) => {
-    if (!sessionKey || !message?.sessionKey) return;
-    if (String(message.sessionKey).toLowerCase() !== String(sessionKey).toLowerCase()) return;
+    if (!document.getElementById("chat-messages")) return;
     const text = (message.chatMessage || "").trim();
     if (!text) return;
+    const msgSession = message?.sessionKey ? String(message.sessionKey).toLowerCase() : "";
+    const openSession = sessionKey ? String(sessionKey).toLowerCase() : "";
+    const sameSession = !!msgSession && !!openSession && msgSession === openSession;
+    const signedIn = document.getElementById("nav-right")?.dataset?.authenticated === "true";
+    // Cancel/reschedule often belongs to an older booking session; still show it in the open Nuvi chat.
+    if (!sameSession && !(signedIn && text)) return;
     const key = callChatMessageKey(message);
     if (key && seenCallChatKeys.has(key)) return;
     if (key) seenCallChatKeys.add(key);
     addMessage(text, "ai");
+    if (Array.isArray(message.chatOptions) && message.chatOptions.length) {
+      setChips(message.chatOptions);
+      applyInputLock(!!message.optionsOnly);
+    }
   });
 }
 

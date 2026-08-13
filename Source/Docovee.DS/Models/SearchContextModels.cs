@@ -19,7 +19,9 @@ public enum NuviConversationStage
     /// <summary>Registered patient selecting an appointment to cancel via chat.</summary>
     CancelBooking,
     /// <summary>Registered patient rescheduling an appointment via chat.</summary>
-    RescheduleBooking
+    RescheduleBooking,
+    /// <summary>After a successful cancel, offer Yes/No to start a new booking.</summary>
+    PostCancelNewBooking
 }
 
 public enum RescheduleBookingStep
