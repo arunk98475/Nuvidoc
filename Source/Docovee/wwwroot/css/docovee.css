@@ -28,7 +28,7 @@ body {
 }
 
 /* Site header only — exclude footer browse and doctor portal sidebar nav */
-nav:not(.hp-browse):not(.dp-nav),
+nav:not(.hp-browse):not(.dp-nav):not(.sf-menu),
 .site-nav {
   background: var(--white);
   border-bottom: 1px solid var(--rule);
@@ -2701,7 +2701,7 @@ footer.site-footer {
 }
 
 @media (max-width: 768px) {
-  nav:not(.site-nav) { padding: 0 20px; }
+  nav:not(.site-nav):not(.sf-menu) { padding: 0 20px; }
   .hero-steps-strip { grid-template-columns: 1fr 1fr; }
   .hero-step-cell:nth-child(2) { border-right: none; }
   .hero-step-cell { border-bottom: 1px solid var(--rule); }

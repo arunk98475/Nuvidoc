@@ -1,0 +1,20 @@
+@*
+  Homepage-style top nav for signed-in patients (logo + burger).
+  Expects ViewData PatientDisplayName / PatientNotifyCount (same as _PatientAccountMenu).
+*@
+<nav id="site-nav" class="site-nav">
+    <div class="nav-brand">
+        <partial name="Shared/_SiteLogo" />
+    </div>
+    <button type="button" class="nav-burger" id="nav-burger" aria-label="Open menu" aria-expanded="false" aria-controls="nav-panel">
+        <span class="nav-burger-line"></span>
+        <span class="nav-burger-line"></span>
+        <span class="nav-burger-line"></span>
+    </button>
+    <div class="nav-panel" id="nav-panel">
+        <div class="nav-right" id="nav-right" data-authenticated="true">
+            <partial name="Shared/_PatientAccountMenu" />
+        </div>
+    </div>
+</nav>
+<partial name="Shared/_MobileNavScript" />

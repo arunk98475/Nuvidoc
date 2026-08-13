@@ -57,19 +57,49 @@ public class AppSettingsService : IAppSettingsService
 
     public async Task<SiteSettingsModel> GetSiteSettingsAsync(CancellationToken cancellationToken = default)
     {
-        var countValue = await GetValueAsync(AppSettingKeys.DoctorSearchResultCount, cancellationToken);
-        var promoted = await GetValueAsync(AppSettingKeys.PromotedDoctorIds, cancellationToken);
-        var maxQuestions = await GetValueAsync(AppSettingKeys.MaxAiQuestions, cancellationToken);
-        var reviewDays = await GetValueAsync(AppSettingKeys.ReviewEligibleDaysAfterConfirmed, cancellationToken);
+        var keys = new[]
+        {
+            AppSettingKeys.DoctorSearchResultCount,
+            AppSettingKeys.PromotedDoctorIds,
+            AppSettingKeys.MaxAiQuestions,
+            AppSettingKeys.ReviewEligibleDaysAfterConfirmed,
+            AppSettingKeys.FooterFacebookUrl,
+            AppSettingKeys.FooterInstagramUrl,
+            AppSettingKeys.FooterTwitterUrl,
+            AppSettingKeys.FooterLinkedInUrl,
+            AppSettingKeys.FooterAppStoreUrl,
+            AppSettingKeys.FooterPlayStoreUrl,
+            AppSettingKeys.FooterTermsPdfUrl,
+            AppSettingKeys.FooterPrivacyPdfUrl,
+            AppSettingKeys.FooterConsumerHealthPdfUrl,
+            AppSettingKeys.FooterPrivacyChoicesPdfUrl
+        };
+
+        var rows = await _db.AppSettings.AsNoTracking()
+            .Where(s => keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        string Val(string key) => rows.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
 
         return new SiteSettingsModel
         {
-            DoctorSearchResultCount = int.TryParse(countValue, out var count) ? Math.Clamp(count, 1, MaxResultCount) : DefaultResultCount,
-            PromotedDoctorIds = promoted ?? string.Empty,
-            MaxAiQuestions = int.TryParse(maxQuestions, out var mq) ? Math.Clamp(mq, MinAiQuestions, MaxAiQuestionsLimit) : DefaultMaxAiQuestions,
-            ReviewEligibleDaysAfterConfirmed = int.TryParse(reviewDays, out var rd)
-                ? Math.Clamp(rd, MinReviewEligibleDays, MaxReviewEligibleDays)
-                : DefaultReviewEligibleDays
+            DoctorSearchResultCount = int.TryParse(Val(AppSettingKeys.DoctorSearchResultCount), out var count)
+                ? Math.Clamp(count, 1, MaxResultCount) : DefaultResultCount,
+            PromotedDoctorIds = Val(AppSettingKeys.PromotedDoctorIds),
+            MaxAiQuestions = int.TryParse(Val(AppSettingKeys.MaxAiQuestions), out var mq)
+                ? Math.Clamp(mq, MinAiQuestions, MaxAiQuestionsLimit) : DefaultMaxAiQuestions,
+            ReviewEligibleDaysAfterConfirmed = int.TryParse(Val(AppSettingKeys.ReviewEligibleDaysAfterConfirmed), out var rd)
+                ? Math.Clamp(rd, MinReviewEligibleDays, MaxReviewEligibleDays) : DefaultReviewEligibleDays,
+            FacebookUrl = Val(AppSettingKeys.FooterFacebookUrl),
+            InstagramUrl = Val(AppSettingKeys.FooterInstagramUrl),
+            TwitterUrl = Val(AppSettingKeys.FooterTwitterUrl),
+            LinkedInUrl = Val(AppSettingKeys.FooterLinkedInUrl),
+            AppStoreUrl = Val(AppSettingKeys.FooterAppStoreUrl),
+            PlayStoreUrl = Val(AppSettingKeys.FooterPlayStoreUrl),
+            TermsPdfUrl = Val(AppSettingKeys.FooterTermsPdfUrl),
+            PrivacyPdfUrl = Val(AppSettingKeys.FooterPrivacyPdfUrl),
+            ConsumerHealthPdfUrl = Val(AppSettingKeys.FooterConsumerHealthPdfUrl),
+            PrivacyChoicesPdfUrl = Val(AppSettingKeys.FooterPrivacyChoicesPdfUrl)
         };
     }
 
@@ -82,6 +112,27 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.PromotedDoctorIds, settings.PromotedDoctorIds?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.MaxAiQuestions, maxQuestions.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.ReviewEligibleDaysAfterConfirmed, reviewDays.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterFacebookUrl, NormalizeUrl(settings.FacebookUrl), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterInstagramUrl, NormalizeUrl(settings.InstagramUrl), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterTwitterUrl, NormalizeUrl(settings.TwitterUrl), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterLinkedInUrl, NormalizeUrl(settings.LinkedInUrl), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterAppStoreUrl, NormalizeUrl(settings.AppStoreUrl), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterPlayStoreUrl, NormalizeUrl(settings.PlayStoreUrl), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterTermsPdfUrl, settings.TermsPdfUrl?.Trim() ?? string.Empty, cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterPrivacyPdfUrl, settings.PrivacyPdfUrl?.Trim() ?? string.Empty, cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterConsumerHealthPdfUrl, settings.ConsumerHealthPdfUrl?.Trim() ?? string.Empty, cancellationToken);
+        await SetValueAsync(AppSettingKeys.FooterPrivacyChoicesPdfUrl, settings.PrivacyChoicesPdfUrl?.Trim() ?? string.Empty, cancellationToken);
+    }
+
+    private static string NormalizeUrl(string? url)
+    {
+        var value = url?.Trim() ?? string.Empty;
+        if (value.Length == 0)
+            return string.Empty;
+        if (value.StartsWith('/') || value.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return value;
+        return "https://" + value;
     }
 
     private async Task<string?> GetValueAsync(string key, CancellationToken cancellationToken)

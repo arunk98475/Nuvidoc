@@ -11,6 +11,8 @@ public class UploadOptions
     public string PatientsPublicPath { get; set; } = "/uploads/patients";
     public string ContentImagesPhysicalPath { get; set; } = string.Empty;
     public string ContentImagesPublicPath { get; set; } = "/uploads/content";
+    public string LegalPdfsPhysicalPath { get; set; } = string.Empty;
+    public string LegalPdfsPublicPath { get; set; } = "/uploads/legal";
 
     /// <summary>
     /// Max upload body size, sourced from web.config maxAllowedContentLength at startup.

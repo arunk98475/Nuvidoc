@@ -1,0 +1,59 @@
+@page "/sitemap"
+@{
+    Layout = null;
+    ViewData["Title"] = $"Site Map — {Branding.SiteName}";
+    var brand = Branding.SiteName;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
+    <meta name="description" content="Find pages across the @brand website." />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body>
+<partial name="Shared/_PublicNav" />
+
+<main class="cms-shell" style="max-width:720px;margin:0 auto;padding:40px 20px 64px;">
+    <h1 style="font-family:Fraunces,serif;font-weight:300;font-size:2rem;margin-bottom:8px;">Site Map</h1>
+    <p style="color:var(--muted);margin-bottom:28px;">Explore @brand pages.</p>
+
+    <section style="margin-bottom:28px;">
+        <h2 style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Patients</h2>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+            <li><a href="/">Home</a></li>
+            <li><a href="/?chat=1">Find a Dentist</a></li>
+            <li><a href="/services">Services</a></li>
+            <li><a href="/blog">Blog</a></li>
+            <li><a href="/#how-it-works">How It Works</a></li>
+            <li><a href="/#testimonials">Reviews</a></li>
+            <li><a href="/?signup=patient">Create account</a></li>
+            <li><a href="/?login=patient">Sign in</a></li>
+            <li><a href="/Account/Profile">Patient settings</a></li>
+        </ul>
+    </section>
+
+    <section style="margin-bottom:28px;">
+        <h2 style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Doctors</h2>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+            <li><a href="/Account/Register/Doctor">List your practice</a></li>
+            <li><a href="/Account/Login?type=Doctor">Doctor sign in</a></li>
+            <li><a href="/Doctor">Doctor portal</a></li>
+        </ul>
+    </section>
+
+    <section>
+        <h2 style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Legal</h2>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+            <li><a href="/Privacy">Privacy</a></li>
+            <li><a href="/Legal/CommunityStandards">Community Standards</a></li>
+        </ul>
+    </section>
+</main>
+
+@await Component.InvokeAsync("SiteFooter")
+</body>
+</html>

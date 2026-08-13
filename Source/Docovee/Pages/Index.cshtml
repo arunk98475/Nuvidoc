@@ -160,19 +160,9 @@
 {
     <partial name="Shared/_HomeMarketing" model="new Docovee.Pages.Shared.HomeMarketingModel { FeaturedDoctors = Model.FeaturedDoctors, Home = Model.Home }" />
 
-    <footer class="site-footer site-footer-rich">
-        <div class="site-footer-inner">
-            <div class="site-footer-brand">@Branding.SiteName.ToLowerInvariant().</div>
-            <div class="site-footer-links">
-                <a href="#">Terms of Use</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Community Standards</a>
-                <a href="#">Accessibility</a>
-            </div>
-            <div class="site-footer-copy">© @DateTime.UtcNow.Year @Branding.SiteName · Not medical advice · For emergencies call 911</div>
-        </div>
-    </footer>
 }
+
+@await Component.InvokeAsync("SiteFooter")
 
 <div id="doctor-profile-modal" class="hp-doctor-modal" hidden aria-hidden="true">
     <div class="hp-doctor-modal-backdrop" onclick="closeDoctorProfileModal()"></div>

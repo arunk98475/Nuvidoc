@@ -53,6 +53,26 @@ public class SiteSettingsModel
     public string PromotedDoctorIds { get; set; } = string.Empty;
     public int MaxAiQuestions { get; set; } = 3;
     public int ReviewEligibleDaysAfterConfirmed { get; set; } = 1;
+
+    public string FacebookUrl { get; set; } = string.Empty;
+    public string InstagramUrl { get; set; } = string.Empty;
+    public string TwitterUrl { get; set; } = string.Empty;
+    public string LinkedInUrl { get; set; } = string.Empty;
+    public string AppStoreUrl { get; set; } = string.Empty;
+    public string PlayStoreUrl { get; set; } = string.Empty;
+    public string TermsPdfUrl { get; set; } = string.Empty;
+    public string PrivacyPdfUrl { get; set; } = string.Empty;
+    public string ConsumerHealthPdfUrl { get; set; } = string.Empty;
+    public string PrivacyChoicesPdfUrl { get; set; } = string.Empty;
+
+    public bool HasSocialLinks =>
+        !string.IsNullOrWhiteSpace(FacebookUrl)
+        || !string.IsNullOrWhiteSpace(InstagramUrl)
+        || !string.IsNullOrWhiteSpace(TwitterUrl)
+        || !string.IsNullOrWhiteSpace(LinkedInUrl);
+
+    public bool HasStoreLinks =>
+        !string.IsNullOrWhiteSpace(AppStoreUrl) || !string.IsNullOrWhiteSpace(PlayStoreUrl);
 }
 
 /// <summary>Editable homepage marketing copy. Empty values use built-in defaults.</summary>

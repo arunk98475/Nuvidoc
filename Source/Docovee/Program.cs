@@ -28,12 +28,14 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 var uploadsPath = Path.Combine(webRoot, "uploads", "doctors");
 var patientUploadsPath = Path.Combine(webRoot, "uploads", "patients");
 var contentUploadsPath = Path.Combine(webRoot, "uploads", "content");
+var legalUploadsPath = Path.Combine(webRoot, "uploads", "legal");
 var maxUploadBytes = ReadMaxAllowedContentLength(contentRoot);
 // Do not fail startup if IIS app-pool identity cannot create folders —
 // grant Modify on wwwroot\uploads (see deploy notes) and folders are created on first upload.
 TryCreateDirectory(uploadsPath);
 TryCreateDirectory(patientUploadsPath);
 TryCreateDirectory(contentUploadsPath);
+TryCreateDirectory(legalUploadsPath);
 builder.Services.Configure<UploadOptions>(options =>
 {
     options.DoctorsPhysicalPath = uploadsPath;
@@ -42,6 +44,8 @@ builder.Services.Configure<UploadOptions>(options =>
     options.PatientsPublicPath = "/uploads/patients";
     options.ContentImagesPhysicalPath = contentUploadsPath;
     options.ContentImagesPublicPath = "/uploads/content";
+    options.LegalPdfsPhysicalPath = legalUploadsPath;
+    options.LegalPdfsPublicPath = "/uploads/legal";
     options.MaxUploadBytes = maxUploadBytes;
 });
 

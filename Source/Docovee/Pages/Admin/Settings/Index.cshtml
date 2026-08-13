@@ -6,14 +6,19 @@
 
 <div class="admin-card">
     <h1>Site Settings</h1>
-    <p>Configure doctor search behavior. Promoted doctors (top of results) can be configured here in a future phase.</p>
+    <p>Configure search behavior, footer links, app stores, and legal PDFs.</p>
 
     @if (!string.IsNullOrEmpty(Model.SuccessMessage))
     {
         <div class="alert-success">@Model.SuccessMessage</div>
     }
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
 
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
+        <h2 class="admin-section-title">Search</h2>
         <div class="form-grid">
             <div class="form-group">
                 <label asp-for="Input.DoctorSearchResultCount">Doctor search results to show</label>
@@ -36,6 +41,82 @@
                 <p class="hint">Reserved for Phase II — doctors shown at top of search results.</p>
             </div>
         </div>
+
+        <h2 class="admin-section-title">Footer — social media</h2>
+        <p class="hint" style="margin-top:-8px;margin-bottom:14px;">Leave blank to hide an icon. URLs are used in the site footer on all public pages.</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.FacebookUrl">Facebook URL</label>
+                <input asp-for="Input.FacebookUrl" class="form-control" placeholder="https://facebook.com/..." />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.InstagramUrl">Instagram URL</label>
+                <input asp-for="Input.InstagramUrl" class="form-control" placeholder="https://instagram.com/..." />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.TwitterUrl">X (Twitter) URL</label>
+                <input asp-for="Input.TwitterUrl" class="form-control" placeholder="https://x.com/..." />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.LinkedInUrl">LinkedIn URL</label>
+                <input asp-for="Input.LinkedInUrl" class="form-control" placeholder="https://linkedin.com/company/..." />
+            </div>
+        </div>
+
+        <h2 class="admin-section-title">Footer — app stores</h2>
+        <p class="hint" style="margin-top:-8px;margin-bottom:14px;">Leave blank to hide a store badge.</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.AppStoreUrl">Apple App Store URL</label>
+                <input asp-for="Input.AppStoreUrl" class="form-control" placeholder="https://apps.apple.com/..." />
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.PlayStoreUrl">Google Play URL</label>
+                <input asp-for="Input.PlayStoreUrl" class="form-control" placeholder="https://play.google.com/store/apps/..." />
+            </div>
+        </div>
+
+        <h2 class="admin-section-title">Footer — legal PDFs</h2>
+        <p class="hint" style="margin-top:-8px;margin-bottom:14px;">Upload PDFs for Terms, Privacy, Consumer Health, and Your privacy choices. Privacy falls back to the on-site policy page if no PDF is set.</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Terms PDF</label>
+                @if (!string.IsNullOrWhiteSpace(Model.Input.TermsPdfUrl))
+                {
+                    <p class="hint"><a href="@Model.Input.TermsPdfUrl" target="_blank" rel="noopener">Current file</a></p>
+                    <label class="hint"><input type="checkbox" asp-for="RemoveTermsPdf" /> Remove current file</label>
+                }
+                <input asp-for="TermsPdf" type="file" accept="application/pdf,.pdf" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Privacy PDF</label>
+                @if (!string.IsNullOrWhiteSpace(Model.Input.PrivacyPdfUrl))
+                {
+                    <p class="hint"><a href="@Model.Input.PrivacyPdfUrl" target="_blank" rel="noopener">Current file</a></p>
+                    <label class="hint"><input type="checkbox" asp-for="RemovePrivacyPdf" /> Remove current file</label>
+                }
+                <input asp-for="PrivacyPdf" type="file" accept="application/pdf,.pdf" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Consumer Health PDF</label>
+                @if (!string.IsNullOrWhiteSpace(Model.Input.ConsumerHealthPdfUrl))
+                {
+                    <p class="hint"><a href="@Model.Input.ConsumerHealthPdfUrl" target="_blank" rel="noopener">Current file</a></p>
+                    <label class="hint"><input type="checkbox" asp-for="RemoveConsumerHealthPdf" /> Remove current file</label>
+                }
+                <input asp-for="ConsumerHealthPdf" type="file" accept="application/pdf,.pdf" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Your privacy choices PDF</label>
+                @if (!string.IsNullOrWhiteSpace(Model.Input.PrivacyChoicesPdfUrl))
+                {
+                    <p class="hint"><a href="@Model.Input.PrivacyChoicesPdfUrl" target="_blank" rel="noopener">Current file</a></p>
+                    <label class="hint"><input type="checkbox" asp-for="RemovePrivacyChoicesPdf" /> Remove current file</label>
+                }
+                <input asp-for="PrivacyChoicesPdf" type="file" accept="application/pdf,.pdf" class="form-control" />
+            </div>
+        </div>
+
         <button type="submit" class="btn btn-primary">Save Settings</button>
     </form>
 </div>
