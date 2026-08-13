@@ -8,6 +8,9 @@ public class Patient
     public string FullName { get; set; } = string.Empty;
     public DateOnly DateOfBirth { get; set; }
     public string Phone { get; set; } = string.Empty;
+    public bool PhoneVerified { get; set; }
+    public string? PhoneVerificationCodeHash { get; set; }
+    public DateTime? PhoneVerificationExpiresAtUtc { get; set; }
     public string? PreferenceProfileJson { get; set; }
     public string? IdCardPhotoUrl { get; set; }
     public bool? HipaaDataSharingOptIn { get; set; }

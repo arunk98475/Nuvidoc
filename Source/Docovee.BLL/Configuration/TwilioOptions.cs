@@ -31,4 +31,21 @@ public class TwilioOptions
     /// instead of the doctor's phone from the database. Leave empty for production behavior.
     /// </summary>
     public string? OutboundOverrideToNumber { get; set; }
+
+    /// <summary>
+    /// WhatsApp sandbox / business sender for Development phone verification
+    /// (e.g. whatsapp:+14155238886).
+    /// </summary>
+    public string WhatsAppFromNumber { get; set; } = "whatsapp:+14155238886";
+
+    /// <summary>Twilio Content SID for the Development WhatsApp template.</summary>
+    public string WhatsAppContentSid { get; set; } = "HXb5b62575e6e4ff6129ad7c8efe1f983e";
+
+    /// <summary>
+    /// SMS caller ID for Production verification. Falls back to <see cref="FromNumber"/> when empty.
+    /// </summary>
+    public string? SmsFromNumber { get; set; }
+
+    /// <summary>How long a phone verification code stays valid.</summary>
+    public int VerifyCodeExpiryMinutes { get; set; } = 10;
 }

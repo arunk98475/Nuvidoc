@@ -18,6 +18,7 @@ public class ProfileModel : PageModel
     private readonly IPatientInsuranceProfileService _insuranceProfile;
     private readonly IPatientNotificationService _notifications;
     private readonly IAppointmentCancelService _appointmentCancel;
+    private readonly IPhoneVerificationService _phoneVerification;
 
     public ProfileModel(
         IProfileService profileService,
@@ -25,7 +26,8 @@ public class ProfileModel : PageModel
         IInsuranceService insuranceService,
         IPatientInsuranceProfileService insuranceProfile,
         IPatientNotificationService notifications,
-        IAppointmentCancelService appointmentCancel)
+        IAppointmentCancelService appointmentCancel,
+        IPhoneVerificationService phoneVerification)
     {
         _profileService = profileService;
         _appointments = appointments;
@@ -33,6 +35,7 @@ public class ProfileModel : PageModel
         _insuranceProfile = insuranceProfile;
         _notifications = notifications;
         _appointmentCancel = appointmentCancel;
+        _phoneVerification = phoneVerification;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -75,6 +78,9 @@ public class ProfileModel : PageModel
 
     [BindProperty]
     public bool AutofillEnabled { get; set; }
+
+    [BindProperty]
+    public string? PhoneVerificationCode { get; set; }
 
     public async Task<IActionResult> OnGetAsync(
         string? section = null,
@@ -179,14 +185,66 @@ public class ProfileModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostRequestPhoneVerificationAsync()
+    public async Task<IActionResult> OnPostUpdatePhoneAsync()
+    {
+        Section = "security";
+        EditField = "phone";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        PersonalInput.NewPassword = null;
+        var attemptedPhone = PersonalInput.Phone;
+        var current = await _profileService.GetPatientForEditAsync(patientId);
+        if (current == null)
+            return NotFound();
+
+        current.Phone = attemptedPhone;
+        var (success, error) = await _profileService.UpdatePatientProfileAsync(patientId, current);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            PersonalInput.Phone = attemptedPhone;
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "security", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostRequestPhoneVerificationAsync(string channel)
     {
         Section = "security";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
+        if (!PhoneVerificationChannels.IsKnown(channel))
+        {
+            await LoadAsync(patientId);
+            FormError = "Choose Verify via SMS or Verify via WhatsApp.";
+            return Page();
+        }
+
+        var result = await _phoneVerification.SendCodeAsync(patientId, channel);
         await LoadAsync(patientId);
-        FormSuccess = "Phone verification (SMS) will be available in a future update. You can still update your phone number under Personal Information.";
+        if (result.Success)
+            FormSuccess = result.Message;
+        else
+            FormError = result.Message;
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostConfirmPhoneVerificationAsync()
+    {
+        Section = "security";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var result = await _phoneVerification.VerifyCodeAsync(patientId, PhoneVerificationCode ?? "");
+        await LoadAsync(patientId);
+        if (result.Success)
+            FormSuccess = result.Message;
+        else
+            FormError = result.Message;
         return Page();
     }
 

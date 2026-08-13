@@ -62,11 +62,29 @@ public partial class MainPage : ContentPage
     {
         await MainThread.InvokeOnMainThreadAsync(async () =>
         {
-            var line = string.IsNullOrWhiteSpace(message.Body)
-                ? message.Title
-                : $"{message.Title}: {message.Body}";
-            AddAi($"🔔 {line}");
-            StageLabel.Text = message.Status;
+            var chat = (message.ChatMessage ?? "").Trim();
+            var line = !string.IsNullOrWhiteSpace(chat)
+                ? chat
+                : string.IsNullOrWhiteSpace(message.Body)
+                    ? message.Title
+                    : $"{message.Title}: {message.Body}";
+            AddAi(line);
+            if (!string.IsNullOrWhiteSpace(message.Status))
+                StageLabel.Text = message.Status;
+
+            if (message.ChatOptions is { Count: > 0 })
+            {
+                _optionsOnly = message.OptionsOnly;
+                SetChips(message.ChatOptions);
+                if (_optionsOnly)
+                {
+                    ChatEntry.Text = "";
+                    ChatEntry.IsEnabled = false;
+                    ChatEntry.Placeholder = "Tap an option above to continue";
+                    SendBtn.IsEnabled = false;
+                }
+            }
+
             await ChatScroll.ScrollToAsync(MessagesLayout, ScrollToPosition.End, true);
         });
     }

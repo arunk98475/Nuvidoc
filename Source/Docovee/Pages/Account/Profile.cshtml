@@ -528,11 +528,51 @@
                 <div class="pi-row">
                     <div class="pi-row-body">
                         <div class="pi-label">Phone number verification</div>
-                        <div class="pi-value">@(string.IsNullOrWhiteSpace(Model.Profile!.Phone) ? "No phone on file" : Model.Profile.Phone)</div>
-                        <p class="pi-hint">SMS verification will be available in a future update.</p>
-                        <form method="post" asp-page-handler="RequestPhoneVerification" class="pi-inline-form">
-                            <button type="submit" class="pi-link-btn" @(string.IsNullOrWhiteSpace(Model.Profile.Phone) ? "disabled" : null)>Send verification code</button>
-                        </form>
+                        @if (edit == "phone")
+                        {
+                            <form method="post" asp-page-handler="UpdatePhone" class="pi-edit-form">
+                                <input asp-for="PersonalInput.Phone" type="tel" class="pi-input" autocomplete="tel" placeholder="Phone number" />
+                                <div class="pi-edit-actions">
+                                    <button type="submit" class="pi-save">Update phone number</button>
+                                    <a class="pi-cancel" href="/Account/Profile?section=security">Cancel</a>
+                                </div>
+                            </form>
+                        }
+                        else
+                        {
+                            <div class="pi-value">
+                                @(string.IsNullOrWhiteSpace(Model.Profile!.Phone) ? "No phone on file" : Model.Profile.Phone)
+                                @if (Model.Profile.PhoneVerified)
+                                {
+                                    <span class="pi-hint"> · Verified</span>
+                                }
+                            </div>
+                            <p class="pi-hint">
+                                <a class="pi-link" href="/Account/Profile?section=security&amp;edit=phone">Update phone number</a>
+                            </p>
+                            @if (!string.IsNullOrWhiteSpace(Model.Profile.Phone))
+                            {
+                                <div class="pi-hint pi-verify-links">
+                                    <form method="post" asp-page-handler="RequestPhoneVerification" class="pi-inline-form" style="display:inline;">
+                                        <input type="hidden" name="channel" value="sms" />
+                                        <button type="submit" class="pi-link">Verify via SMS</button>
+                                    </form>
+                                    <span> · </span>
+                                    <form method="post" asp-page-handler="RequestPhoneVerification" class="pi-inline-form" style="display:inline;">
+                                        <input type="hidden" name="channel" value="whatsapp" />
+                                        <button type="submit" class="pi-link">Verify via WhatsApp</button>
+                                    </form>
+                                </div>
+                                @if (Model.Profile.PhoneVerificationPending)
+                                {
+                                    <form method="post" asp-page-handler="ConfirmPhoneVerification" class="pi-inline-form" style="margin-top:10px;">
+                                        <label class="pi-label" for="phone-verify-code">Enter 6-digit code</label>
+                                        <input id="phone-verify-code" asp-for="PhoneVerificationCode" class="pi-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+                                        <button type="submit" class="pi-save" style="margin-top:8px;">Verify phone</button>
+                                    </form>
+                                }
+                            }
+                        }
                     </div>
                 </div>
             </div>

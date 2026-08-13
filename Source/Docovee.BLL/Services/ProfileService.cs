@@ -70,6 +70,10 @@ public class ProfileService : IProfileService
             FullName = patient.FullName,
             DateOfBirth = patient.DateOfBirth,
             Phone = patient.Phone,
+            PhoneVerified = patient.PhoneVerified,
+            PhoneVerificationPending = !patient.PhoneVerified
+                && !string.IsNullOrWhiteSpace(patient.PhoneVerificationCodeHash)
+                && patient.PhoneVerificationExpiresAtUtc > DateTime.UtcNow,
             MemberSince = patient.CreatedAt,
             SearchHistory = patient.SearchSessions
                 .OrderByDescending(s => s.UpdatedAt)
@@ -211,7 +215,18 @@ public class ProfileService : IProfileService
         }
 
         patient.FullName = model.FullName.Trim();
-        patient.Phone = model.Phone.Trim();
+        var newPhone = model.Phone.Trim();
+        if (!string.Equals(patient.Phone, newPhone, StringComparison.Ordinal))
+        {
+            patient.Phone = newPhone;
+            patient.PhoneVerified = false;
+            patient.PhoneVerificationCodeHash = null;
+            patient.PhoneVerificationExpiresAtUtc = null;
+        }
+        else
+        {
+            patient.Phone = newPhone;
+        }
         patient.DateOfBirth = model.DateOfBirth;
 
         await _db.SaveChangesAsync(cancellationToken);

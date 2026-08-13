@@ -20,6 +20,8 @@ public class PatientProfileDto
     public string FullName { get; set; } = string.Empty;
     public DateOnly DateOfBirth { get; set; }
     public string Phone { get; set; } = string.Empty;
+    public bool PhoneVerified { get; set; }
+    public bool PhoneVerificationPending { get; set; }
     public DateTime MemberSince { get; set; }
     public IReadOnlyList<PatientSearchHistoryDto> SearchHistory { get; set; } = Array.Empty<PatientSearchHistoryDto>();
     public IReadOnlyList<PatientViewedDoctorDto> ViewedDoctors { get; set; } = Array.Empty<PatientViewedDoctorDto>();

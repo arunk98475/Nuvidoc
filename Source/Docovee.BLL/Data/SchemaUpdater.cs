@@ -360,6 +360,9 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "HipaaDataSharingOptIn", "tinyint(1) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "CookieTrackingOptOut", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "AutofillEnabled", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "PhoneVerified", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "PhoneVerificationCodeHash", "varchar(64) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "PhoneVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
 
         // CMS — editable marketing/SEO pages
         await db.Database.ExecuteSqlRawAsync(

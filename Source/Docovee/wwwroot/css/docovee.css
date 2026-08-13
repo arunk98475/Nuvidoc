@@ -3175,6 +3175,21 @@ footer.site-footer {
   font-weight: 500;
 }
 
+button.pi-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.pi-verify-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 .pi-link:hover {
   text-decoration: underline;
 }
