@@ -17,6 +17,8 @@
     btn.setAttribute('aria-expanded', 'true');
     btn.setAttribute('aria-label', 'Close menu');
     document.body.classList.add('nav-drawer-open');
+    // Expanded menu is in document flow (not sticky overlay) — start at top so items aren't clipped.
+    window.scrollTo(0, 0);
   }
 
   window.closeMobileNav = closeMobileNav;

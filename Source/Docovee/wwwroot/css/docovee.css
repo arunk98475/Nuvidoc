@@ -107,8 +107,9 @@ nav:not(.hp-browse):not(.dp-nav),
   transform: translateY(-7px) rotate(-45deg);
 }
 
+/* Mobile menu expands in-flow (pushes page content down). Do not lock scroll. */
 body.nav-drawer-open {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .nav-dropdown {
@@ -2543,13 +2544,24 @@ footer.site-footer {
 }
 
 @media (max-width: 900px) {
-  .site-nav,
+  /* Match desktop nav specificity (nav:not(...) height:64px) so the header can grow. */
+  nav.site-nav:not(.hp-browse):not(.dp-nav),
   nav.site-nav {
     flex-wrap: wrap;
     height: auto;
     min-height: 64px;
     padding: 10px 16px;
     gap: 0;
+    align-items: center;
+    overflow: visible;
+  }
+
+  nav.site-nav.is-open:not(.hp-browse):not(.dp-nav),
+  nav.site-nav.is-open {
+    position: relative;
+    height: auto;
+    overflow: visible;
+    box-shadow: 0 8px 20px rgba(26, 43, 34, 0.08);
   }
 
   .nav-burger {
@@ -2562,12 +2574,13 @@ footer.site-footer {
     align-items: stretch;
     width: 100%;
     flex: none;
+    flex-basis: 100%;
     gap: 8px;
     padding: 12px 0 16px;
     border-top: 1px solid var(--rule);
     margin-top: 10px;
-    max-height: calc(100vh - 72px);
-    overflow-y: auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .site-nav.is-open .nav-panel {
@@ -2642,6 +2655,48 @@ footer.site-footer {
     box-shadow: none;
     border: 1px solid var(--rule);
     margin-top: 0;
+  }
+
+  /* Logged-in patient: burger shows account links directly — no bell or name chip. */
+  .site-nav .pac-notify,
+  .site-nav .pac-user-btn {
+    display: none;
+  }
+
+  .site-nav .pac-nav,
+  .site-nav .pac-dropdown {
+    display: block;
+    width: 100%;
+    position: static;
+  }
+
+  .site-nav .pac-menu,
+  .site-nav .pac-dropdown.is-open .pac-menu,
+  .site-nav .pac-menu[hidden] {
+    display: flex !important;
+    flex-direction: column;
+    position: static;
+    width: 100%;
+    min-width: 0;
+    right: auto;
+    top: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .site-nav .pac-menu-item {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+
+  .site-nav .nav-right:has(.pac-nav) {
+    border-top: none;
+    padding-top: 0;
   }
 }
 
@@ -4977,6 +5032,7 @@ footer.site-footer {
 }
 
 .pac-menu {
+  display: none;
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -4987,6 +5043,10 @@ footer.site-footer {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
   padding: 8px;
   z-index: 200;
+}
+
+.pac-dropdown.is-open .pac-menu {
+  display: block;
 }
 
 .pac-menu-item {
