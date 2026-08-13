@@ -24,38 +24,32 @@
     <partial name="Shared/_Favicon" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
-<body class="pat-body">
-<nav class="pac-topbar">
-    <div class="nav-left">
-        <partial name="Shared/_SiteLogo" />
-    </div>
-    <div class="nav-right">
-        <partial name="Shared/_PatientAccountMenu" />
-    </div>
-</nav>
+<body class="pat-body @(Model.IsMenuHub ? "pat-menu-hub" : "pat-section-view")">
+<partial name="Shared/_PatientSiteNav" />
 
 <div class="pat-shell">
     <aside class="pat-sidebar" aria-label="Settings menu">
         <div class="pat-nav" role="navigation" aria-label="Settings sections">
-            <a class="pat-nav-item @(section == "personal" ? "active" : "")" href="/Account/Profile?section=personal">Personal information</a>
-            <a class="pat-nav-item @(section == "family" ? "active" : "")" href="/Account/Profile?section=family">Family members</a>
-            <a class="pat-nav-item @(section == "security" ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
-            <a class="pat-nav-item @(section == "notifications" ? "active" : "")" href="/Account/Profile?section=notifications">
+            <a class="pat-nav-item @(section == "personal" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=personal">Personal information</a>
+            <a class="pat-nav-item @(section == "family" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=family">Family members</a>
+            <a class="pat-nav-item @(section == "security" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
+            <a class="pat-nav-item @(section == "notifications" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=notifications">
                 <span>Notifications</span>
                 @if (Model.UnreadNotificationCount > 0)
                 {
                     <span class="pat-nav-badge" data-notify-badge="1">@Model.UnreadNotificationCount</span>
                 }
             </a>
-            <a class="pat-nav-item @(section == "appointments" ? "active" : "")" href="/Account/Profile?section=appointments">Appointments</a>
-            <a class="pat-nav-item @(section == "appointment-history" ? "active" : "")" href="/Account/Profile?section=appointment-history">Appointment History</a>
-            <a class="pat-nav-item @(section == "permissions" ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
-            <a class="pat-nav-item @(section == "insurance" ? "active" : "")" href="/Account/Profile?section=insurance">Insurance &amp; ID Cards</a>
-            <a class="pat-nav-item @(section == "privacy" ? "active" : "")" href="/Account/Profile?section=privacy">Privacy</a>
+            <a class="pat-nav-item @(section == "appointments" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=appointments">Appointments</a>
+            <a class="pat-nav-item" href="/Account/Appointments">Appointment History</a>
+            <a class="pat-nav-item @(section == "permissions" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
+            <a class="pat-nav-item @(section == "insurance" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=insurance">Insurance &amp; ID Cards</a>
+            <a class="pat-nav-item @(section == "privacy" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=privacy">Privacy</a>
         </div>
     </aside>
 
     <main class="pat-main">
+        <a class="pat-mobile-back" href="/Account/Profile">‹ Settings</a>
         @if (Model.Saved)
         {
             <div class="alert-success">Your personal information has been updated.</div>

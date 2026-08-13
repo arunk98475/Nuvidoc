@@ -39,6 +39,8 @@ public class ProfileModel : PageModel
     public PatientInsuranceProfileDto InsuranceProfile { get; set; } = new();
     public IReadOnlyList<InsuranceCarrierDto> InsuranceCatalog { get; set; } = Array.Empty<InsuranceCarrierDto>();
     public string Section { get; set; } = "personal";
+    /// <summary>True when /Account/Profile is opened with no section — mobile shows the settings list only.</summary>
+    public bool IsMenuHub { get; set; }
     public string? EditField { get; set; }
     public bool Saved { get; set; }
     public bool PasswordChanged { get; set; }
@@ -83,6 +85,7 @@ public class ProfileModel : PageModel
         bool privacySaved = false,
         bool permissionsSaved = false)
     {
+        IsMenuHub = string.IsNullOrWhiteSpace(section);
         var normalized = NormalizeSection(section);
         if (normalized is "appointment-history" or "history")
             return RedirectToPage("/Account/Appointments");

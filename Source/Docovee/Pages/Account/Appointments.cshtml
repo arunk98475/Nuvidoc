@@ -15,15 +15,8 @@
     <partial name="Shared/_Favicon" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
 </head>
-<body class="pat-body">
-<nav class="pac-topbar">
-    <div class="nav-left">
-        <partial name="Shared/_SiteLogo" />
-    </div>
-    <div class="nav-right">
-        <partial name="Shared/_PatientAccountMenu" />
-    </div>
-</nav>
+<body class="pat-body pat-section-view">
+<partial name="Shared/_PatientSiteNav" />
 
 <div class="pat-shell">
     <aside class="pat-sidebar" aria-label="Settings menu">
@@ -47,6 +40,7 @@
     </aside>
 
     <main class="pat-main">
+        <a class="pat-mobile-back" href="/Account/Profile">‹ Settings</a>
     @if (Model.ReviewSubmitted)
     {
         <div class="alert-success">Thank you — your review has been submitted.</div>

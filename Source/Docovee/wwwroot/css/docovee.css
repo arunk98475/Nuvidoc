@@ -5088,6 +5088,10 @@ footer.site-footer {
   min-height: calc(100vh - 64px);
 }
 
+.pat-mobile-back {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .pac-topbar {
     padding: 0 16px;
@@ -5101,6 +5105,83 @@ footer.site-footer {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid #e5e5e5;
+  }
+}
+
+/* Patient profile — mobile hub (list + >) and section pages (phone back → hub) */
+@media (max-width: 900px) {
+  .pat-body .pat-shell {
+    flex-direction: column;
+    min-height: calc(100vh - 64px);
+  }
+
+  .pat-mobile-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 0 16px;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--sage);
+    text-decoration: none;
+  }
+
+  .pat-menu-hub .pat-mobile-back {
+    display: none;
+  }
+
+  .pat-menu-hub .pat-main {
+    display: none;
+  }
+
+  .pat-menu-hub .pat-sidebar {
+    width: 100%;
+    height: auto;
+    position: static;
+    border: none;
+    background: #fff;
+    padding: 0;
+  }
+
+  .pat-menu-hub .pat-nav-item {
+    justify-content: flex-start !important;
+    border-left: none !important;
+    border-bottom: 1px solid #eee;
+    padding: 16px 20px !important;
+    font-weight: 500 !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .pat-menu-hub .pat-nav-item.active {
+    font-weight: 500 !important;
+  }
+
+  .pat-menu-hub .pat-nav-badge {
+    margin-left: auto !important;
+    margin-right: 4px;
+  }
+
+  .pat-menu-hub .pat-nav-item::after {
+    content: ">";
+    margin-left: 8px;
+    color: #b0b0b0;
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .pat-menu-hub .pat-nav-item:not(:has(.pat-nav-badge))::after {
+    margin-left: auto;
+  }
+
+  .pat-section-view .pat-sidebar {
+    display: none;
+  }
+
+  .pat-section-view .pat-main {
+    width: 100%;
+    padding: 16px 16px 40px;
   }
 }
 
