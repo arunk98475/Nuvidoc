@@ -204,8 +204,12 @@ public class ProfileService : IProfileService
 
         if (string.IsNullOrWhiteSpace(model.FullName))
             return (false, "Full name is required.");
-        if (string.IsNullOrWhiteSpace(model.Phone))
-            return (false, "Phone number is required.");
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var postedDob = model.DateOfBirth;
+        var hasRealDob = postedDob.Year >= 1901 && postedDob <= today;
+        if (!hasRealDob && IsUnsetDateOfBirth(patient.DateOfBirth))
+            return (false, "Please enter a valid date of birth.");
 
         if (!string.IsNullOrWhiteSpace(model.NewPassword))
         {
@@ -215,19 +219,18 @@ public class ProfileService : IProfileService
         }
 
         patient.FullName = model.FullName.Trim();
-        var newPhone = model.Phone.Trim();
-        if (!string.Equals(patient.Phone, newPhone, StringComparison.Ordinal))
+        var newPhone = (model.Phone ?? string.Empty).Trim();
+        if (!string.IsNullOrWhiteSpace(newPhone)
+            && !string.Equals(patient.Phone, newPhone, StringComparison.Ordinal))
         {
             patient.Phone = newPhone;
             patient.PhoneVerified = false;
             patient.PhoneVerificationCodeHash = null;
             patient.PhoneVerificationExpiresAtUtc = null;
         }
-        else
-        {
-            patient.Phone = newPhone;
-        }
-        patient.DateOfBirth = model.DateOfBirth;
+
+        if (hasRealDob)
+            patient.DateOfBirth = postedDob;
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Patient updated profile {PatientId}", patientId);
@@ -759,6 +762,9 @@ public class ProfileService : IProfileService
 
         return true;
     }
+
+    private static bool IsUnsetDateOfBirth(DateOnly dateOfBirth) =>
+        dateOfBirth.Year <= 1900;
 
     private static string BuildInitials(string name)
     {

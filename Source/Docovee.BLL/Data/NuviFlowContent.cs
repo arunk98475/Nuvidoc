@@ -207,9 +207,21 @@ public static class NuviFlowContent
 
 
 
+    public const string AccountMissingPhoneQuestion =
+
+        "I don't have a phone number on file yet — the office needs it to confirm your appointment. What's a 10-digit US number we can use?";
+
+
+
     public const string AccountDateOfBirthQuestion =
 
         "What's your date of birth? (MM/DD/YYYY — dental offices need this to keep your chart accurate.)";
+
+
+
+    public const string AccountMissingDateOfBirthQuestion =
+
+        "I don't have your date of birth on file yet — dental offices need this to keep your chart accurate. What's your date of birth? (MM/DD/YYYY)";
 
 
 

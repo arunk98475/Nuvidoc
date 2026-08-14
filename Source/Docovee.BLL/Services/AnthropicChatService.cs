@@ -188,6 +188,7 @@ public class AnthropicChatService : IAnthropicChatService
         var skipIncomingValidation =
             isDoctorCardOnly
             || IsPasswordSubmission(context)
+            || IsCollectingMissingProfileFields(context)
             || context.Stage == NuviConversationStage.CancelBooking
             || context.Stage == NuviConversationStage.RescheduleBooking
             || context.Stage == NuviConversationStage.PostCancelNewBooking
@@ -249,6 +250,7 @@ public class AnthropicChatService : IAnthropicChatService
 
         // Registered-user cancel / reschedule shortcuts (chip or free-text intent).
         if (context.SkipAccountCreation
+            && !IsCollectingMissingProfileFields(context)
             && context.Stage != NuviConversationStage.CancelBooking
             && context.Stage != NuviConversationStage.RescheduleBooking
             && context.Stage != NuviConversationStage.PostCancelNewBooking
@@ -401,6 +403,7 @@ public class AnthropicChatService : IAnthropicChatService
                     session.PatientId = signedInPatient.Id;
                     context.PendingFullName = signedInPatient.FullName;
                     context.PatientDateOfBirth = signedInPatient.DateOfBirth;
+                    ApplyPatientPhoneToContext(context, signedInPatient.Phone);
                     context.SkipAccountCreation = true;
                     await LoadReturningPatientProfileAsync(session, context, signedInPatient, cancellationToken);
                 }
@@ -732,7 +735,21 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         if (context.SkipAccountCreation)
-            return await BeginPostAccountFlowAsync(session, context, cancellationToken);
+        {
+            if (NeedsMissingPhone(context)
+                && context.AccountStep == AccountCreationStep.Phone)
+            {
+                return await HandleMissingPhoneAsync(session, context, message, cancellationToken);
+            }
+
+            if (NeedsMissingDateOfBirth(context)
+                && context.AccountStep == AccountCreationStep.DateOfBirth)
+            {
+                return await HandleMissingDateOfBirthAsync(session, context, message, cancellationToken);
+            }
+
+            return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
+        }
 
         var answer = message.Trim();
 
@@ -843,6 +860,7 @@ public class AnthropicChatService : IAnthropicChatService
                     session.PatientId = signedInPatient.Id;
                     context.PendingFullName = signedInPatient.FullName;
                     context.PatientDateOfBirth = signedInPatient.DateOfBirth;
+                    ApplyPatientPhoneToContext(context, signedInPatient.Phone);
                     context.SkipAccountCreation = true;
                     await LoadReturningPatientProfileAsync(session, context, signedInPatient, cancellationToken);
                 }
@@ -891,7 +909,7 @@ public class AnthropicChatService : IAnthropicChatService
                 }
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
-                if (dob > today || dob < today.AddYears(-120))
+                if (dob > today || dob.Year <= 1900 || dob < today.AddYears(-120))
                 {
                     var retry = WithNextRegistrationQuestion(
                         interp.Ack,
@@ -964,8 +982,20 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> BeginPostAccountFlowAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
-        if (!context.SkipAccountCreation)
-            return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+        if (context.SkipAccountCreation)
+            return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
+
+        return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> ContinueSignedInAfterAccountAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (NeedsMissingPhone(context))
+            return await BeginMissingPhoneAsync(session, context, cancellationToken);
+
+        if (NeedsMissingDateOfBirth(context))
+            return await BeginMissingDateOfBirthAsync(session, context, cancellationToken);
 
         await PrefillAgeFromPatientProfileAsync(session, context, cancellationToken);
 
@@ -986,6 +1016,135 @@ public class AnthropicChatService : IAnthropicChatService
 
         var welcome = FormatDeepDiveWelcome(GetDisplayName(context));
         return await BeginDeepDiveAfterAccountAsync(session, context, welcome, cancellationToken, signedIn: true);
+    }
+
+    private static bool NeedsMissingDateOfBirth(SearchContextData context) =>
+        context.SkipAccountCreation && !HasKnownPatientAge(context);
+
+    private static bool NeedsMissingPhone(SearchContextData context) =>
+        context.SkipAccountCreation && !HasKnownPatientPhone(context);
+
+    private static bool HasKnownPatientPhone(SearchContextData context) =>
+        TryNormalizePhone(PhoneNumberHelper.DigitsOnly(context.PendingPhone), out _);
+
+    private static void ApplyPatientPhoneToContext(SearchContextData context, string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+            return;
+
+        if (TryNormalizePhone(PhoneNumberHelper.DigitsOnly(phone), out var normalized))
+            context.PendingPhone = normalized;
+    }
+
+    private static bool IsCollectingMissingProfileFields(SearchContextData context) =>
+        context.SkipAccountCreation
+        && context.Stage == NuviConversationStage.AccountCreation
+        && (context.AccountStep == AccountCreationStep.Phone
+            || context.AccountStep == AccountCreationStep.DateOfBirth);
+
+    private async Task<ChatMessageResponse> BeginMissingPhoneAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.AccountCreation;
+        context.AccountStep = AccountCreationStep.Phone;
+        var text = NuviFlowContent.AccountMissingPhoneQuestion;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
+    }
+
+    private async Task<ChatMessageResponse> HandleMissingPhoneAsync(
+        SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
+    {
+        var answer = (message ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(answer) || answer == RedactedPasswordPlaceholder)
+            return await BeginMissingPhoneAsync(session, context, cancellationToken);
+
+        var interp = await InterpretRegistrationReplyAsync(session, context, answer, "phone", cancellationToken);
+        var phoneRaw = interp.Valid ? interp.Value ?? answer : answer;
+        if (!TryNormalizePhone(PhoneNumberHelper.DigitsOnly(phoneRaw), out var phone)
+            && !TryNormalizePhone(PhoneNumberHelper.DigitsOnly(answer), out phone))
+        {
+            var retry = LooksLikeDeclinedPhone(answer) || AckOffersPhoneSkip(interp.Ack)
+                ? NuviFlowContent.AccountPhoneRequiredMessage
+                : WithNextRegistrationQuestion(
+                    interp.Ack,
+                    NuviFlowContent.AccountPhoneRequiredMessage);
+            await SaveAssistantMessageAsync(session, retry, cancellationToken);
+            return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+        }
+
+        context.PendingPhone = phone;
+        if (session.PatientId.HasValue)
+        {
+            var patient = await _db.Patients
+                .FirstOrDefaultAsync(p => p.Id == session.PatientId.Value, cancellationToken);
+            if (patient != null)
+            {
+                if (!string.Equals(patient.Phone, phone, StringComparison.Ordinal))
+                {
+                    patient.Phone = phone;
+                    patient.PhoneVerified = false;
+                    patient.PhoneVerificationCodeHash = null;
+                    patient.PhoneVerificationExpiresAtUtc = null;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+            }
+        }
+
+        return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> BeginMissingDateOfBirthAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.AccountCreation;
+        context.AccountStep = AccountCreationStep.DateOfBirth;
+        var text = NuviFlowContent.AccountMissingDateOfBirthQuestion;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
+    }
+
+    private async Task<ChatMessageResponse> HandleMissingDateOfBirthAsync(
+        SearchSession session, SearchContextData context, string message, CancellationToken cancellationToken)
+    {
+        var answer = (message ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(answer) || answer == RedactedPasswordPlaceholder)
+            return await BeginMissingDateOfBirthAsync(session, context, cancellationToken);
+
+        var interp = await InterpretRegistrationReplyAsync(session, context, answer, "dateOfBirth", cancellationToken);
+        var dobText = interp.Valid ? interp.Value ?? answer : answer;
+        if (!TryParseDateOfBirth(dobText, out var dob) && !TryParseDateOfBirth(answer, out dob))
+        {
+            var retry = WithNextRegistrationQuestion(
+                interp.Ack,
+                NuviFlowContent.AccountMissingDateOfBirthQuestion);
+            await SaveAssistantMessageAsync(session, retry, cancellationToken);
+            return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (dob > today || dob.Year <= 1900 || dob < today.AddYears(-120))
+        {
+            var retry = WithNextRegistrationQuestion(
+                interp.Ack,
+                "That date doesn't look right — please share a valid date of birth as MM/DD/YYYY.");
+            await SaveAssistantMessageAsync(session, retry, cancellationToken);
+            return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+        }
+
+        context.PatientDateOfBirth = dob;
+        if (session.PatientId.HasValue)
+        {
+            var patient = await _db.Patients
+                .FirstOrDefaultAsync(p => p.Id == session.PatientId.Value, cancellationToken);
+            if (patient != null)
+            {
+                patient.DateOfBirth = dob;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
     }
 
     private async Task<ChatMessageResponse> ApplySavedLocationAndContinueAsync(
@@ -2999,7 +3158,7 @@ public class AnthropicChatService : IAnthropicChatService
         context.PatientDateOfBirth is { } dob && !IsPlaceholderDateOfBirth(dob);
 
     private static bool IsPlaceholderDateOfBirth(DateOnly dateOfBirth) =>
-        dateOfBirth == PlaceholderDateOfBirth;
+        dateOfBirth.Year <= 1900 || dateOfBirth == PlaceholderDateOfBirth;
 
     private static DateOnly ApproximateDateOfBirthFromAge(int age)
     {
@@ -4101,6 +4260,7 @@ public class AnthropicChatService : IAnthropicChatService
         context.PendingFullName ??= patient.FullName;
         context.PendingUsername ??= patient.Username;
         context.PatientDateOfBirth = patient.DateOfBirth;
+        ApplyPatientPhoneToContext(context, patient.Phone);
         context.SkipAccountCreation = true;
 
         await LoadReturningPatientProfileAsync(session, context, patient, cancellationToken);

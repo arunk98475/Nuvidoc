@@ -92,6 +92,7 @@
                         @if (edit == "name")
                         {
                             <form method="post" asp-page-handler="UpdatePersonal" class="pi-edit-form">
+                                <input type="hidden" name="edit" value="name" />
                                 <input type="hidden" asp-for="PersonalInput.Username" />
                                 <input type="hidden" asp-for="PersonalInput.DateOfBirth" />
                                 <input type="hidden" asp-for="PersonalInput.Phone" />
@@ -119,10 +120,13 @@
                         @if (edit == "dob")
                         {
                             <form method="post" asp-page-handler="UpdatePersonal" class="pi-edit-form">
+                                <input type="hidden" name="edit" value="dob" />
                                 <input type="hidden" asp-for="PersonalInput.Username" />
                                 <input type="hidden" asp-for="PersonalInput.FullName" />
                                 <input type="hidden" asp-for="PersonalInput.Phone" />
-                                <input asp-for="PersonalInput.DateOfBirth" type="date" class="pi-input" />
+                                <input asp-for="PersonalInput.DateOfBirth" type="date" class="pi-input"
+                                       min="1901-01-01" max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                                       value="@(Model.Profile!.DateOfBirth.Year <= 1900 ? "" : Model.Profile.DateOfBirth.ToString("yyyy-MM-dd"))" />
                                 <div class="pi-edit-actions">
                                     <button type="submit" class="pi-save">Save</button>
                                     <a class="pi-cancel" href="/Account/Profile?section=personal">Cancel</a>
@@ -131,7 +135,7 @@
                         }
                         else
                         {
-                            <div class="pi-value">@Model.Profile!.DateOfBirth.ToString("MMMM d, yyyy")</div>
+                            <div class="pi-value">@(Model.Profile!.DateOfBirth.Year <= 1900 ? "Not set" : Model.Profile.DateOfBirth.ToString("MMMM d, yyyy"))</div>
                         }
                     </div>
                     @if (edit != "dob")
@@ -146,6 +150,7 @@
                         @if (edit == "phone")
                         {
                             <form method="post" asp-page-handler="UpdatePersonal" class="pi-edit-form">
+                                <input type="hidden" name="edit" value="phone" />
                                 <input type="hidden" asp-for="PersonalInput.Username" />
                                 <input type="hidden" asp-for="PersonalInput.FullName" />
                                 <input type="hidden" asp-for="PersonalInput.DateOfBirth" />

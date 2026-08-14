@@ -122,16 +122,20 @@ public class ProfileModel : PageModel
     public async Task<IActionResult> OnPostUpdatePersonalAsync()
     {
         Section = "personal";
+        EditField ??= NormalizeEditField(Request.Form["edit"].ToString()) ?? "name";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
         PersonalInput.NewPassword = null;
-        var (success, error) = await _profileService.UpdatePatientProfileAsync(patientId, PersonalInput);
+        var attempted = PersonalInput;
+        var (success, error) = await _profileService.UpdatePatientProfileAsync(patientId, attempted);
         if (!success)
         {
             FormError = error;
-            EditField ??= "name";
             await LoadAsync(patientId);
+            PersonalInput.FullName = attempted.FullName;
+            PersonalInput.Phone = attempted.Phone;
+            PersonalInput.DateOfBirth = attempted.DateOfBirth;
             return Page();
         }
 
