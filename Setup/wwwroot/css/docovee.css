@@ -5741,3 +5741,56 @@ button.pi-link {
   background: #3d6b5a;
   color: #fff;
 }
+
+.rem-form {
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rem-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rem-row-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.rem-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px 28px;
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.rem-field input[type="time"],
+.rem-field input[type="number"] {
+  width: 160px;
+  border: 1px solid #cfd6d3;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.rem-channels {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e6ebe8;
+}
+
+.rem-note {
+  margin: -4px 0 12px 28px;
+  font-size: 0.8125rem;
+  color: #6b8078;
+  line-height: 1.4;
+}
+
