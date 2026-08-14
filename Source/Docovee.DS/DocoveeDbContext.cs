@@ -27,6 +27,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<VoiceOutboundCall> VoiceOutboundCalls => Set<VoiceOutboundCall>();
     public DbSet<PatientNotification> PatientNotifications => Set<PatientNotification>();
+    public DbSet<PatientAppointmentReminderSend> PatientAppointmentReminderSends => Set<PatientAppointmentReminderSend>();
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
@@ -161,6 +162,8 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.HipaaDataSharingOptIn);
             entity.Property(e => e.CookieTrackingOptOut).HasDefaultValue(false);
             entity.Property(e => e.AutofillEnabled).HasDefaultValue(false);
+            entity.Property(e => e.PreferenceProfileJson).HasColumnType("text");
+            entity.Property(e => e.ReminderSettingsJson).HasColumnType("text");
             entity.HasIndex(e => e.Username).IsUnique();
         });
 
@@ -317,6 +320,16 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Body).HasMaxLength(1000).IsRequired();
             entity.HasIndex(e => new { e.PatientId, e.IsRead, e.CreatedAt });
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
+        });
+
+        modelBuilder.Entity<PatientAppointmentReminderSend>(entity =>
+        {
+            entity.ToTable("patient_appointment_reminder_sends");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ReminderKind).HasMaxLength(20).IsRequired();
+            entity.HasIndex(e => new { e.AppointmentId, e.ReminderKind }).IsUnique();
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
             entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
         });

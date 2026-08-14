@@ -363,6 +363,23 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "PhoneVerified", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PhoneVerificationCodeHash", "varchar(64) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PhoneVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "ReminderSettingsJson", "TEXT NULL", cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `patient_appointment_reminder_sends` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `AppointmentId` int NOT NULL,
+                `ReminderKind` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `SentAtUtc` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_patient_appointment_reminder_sends_AppointmentId_Kind` (`AppointmentId`, `ReminderKind`),
+                KEY `IX_patient_appointment_reminder_sends_PatientId` (`PatientId`),
+                CONSTRAINT `FK_reminder_sends_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_reminder_sends_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
 
         // CMS — editable marketing/SEO pages
         await db.Database.ExecuteSqlRawAsync(

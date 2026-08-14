@@ -26,6 +26,7 @@ public class MobileController : ControllerBase
     private readonly IVoiceCallBookingService _voiceCalls;
     private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IProfileService _profile;
+    private readonly IPatientReminderService _reminders;
 
     public MobileController(
         IBrandingService branding,
@@ -39,7 +40,8 @@ public class MobileController : ControllerBase
         IAppointmentService appointments,
         IVoiceCallBookingService voiceCalls,
         IAppointmentCancelService appointmentCancel,
-        IProfileService profile)
+        IProfileService profile,
+        IPatientReminderService reminders)
     {
         _branding = branding;
         _registration = registration;
@@ -53,6 +55,7 @@ public class MobileController : ControllerBase
         _voiceCalls = voiceCalls;
         _appointmentCancel = appointmentCancel;
         _profile = profile;
+        _reminders = reminders;
     }
 
     [HttpGet("bootstrap")]
@@ -367,6 +370,34 @@ public class MobileController : ControllerBase
             VoiceCallStarted = result.VoiceCallStarted,
             CanceledImmediately = result.CanceledImmediately
         });
+    }
+
+    [HttpGet("reminders")]
+    [Authorize(Roles = AuthRoles.Patient)]
+    [ProducesResponseType(typeof(PatientReminderSettingsDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PatientReminderSettingsDto>> GetReminders(CancellationToken cancellationToken)
+    {
+        if (!TryGetPatientId(out var patientId))
+            return Unauthorized();
+
+        return Ok(await _reminders.GetAsync(patientId, cancellationToken));
+    }
+
+    [HttpPut("reminders")]
+    [Authorize(Roles = AuthRoles.Patient)]
+    [ProducesResponseType(typeof(PatientReminderSettingsDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PatientReminderSettingsDto>> SaveReminders(
+        [FromBody] PatientReminderSettingsSaveRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetPatientId(out var patientId))
+            return Unauthorized();
+
+        var (success, error) = await _reminders.SaveAsync(patientId, request ?? new PatientReminderSettingsSaveRequest(), cancellationToken);
+        if (!success)
+            return BadRequest(new { message = error });
+
+        return Ok(await _reminders.GetAsync(patientId, cancellationToken));
     }
 
     private bool TryGetPatientId(out int patientId)

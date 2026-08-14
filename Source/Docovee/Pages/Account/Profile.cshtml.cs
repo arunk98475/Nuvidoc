@@ -20,6 +20,7 @@ public class ProfileModel : PageModel
     private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IPhoneVerificationService _phoneVerification;
     private readonly IPatientPreferenceService _preferences;
+    private readonly IPatientReminderService _reminders;
 
     public ProfileModel(
         IProfileService profileService,
@@ -29,7 +30,8 @@ public class ProfileModel : PageModel
         IPatientNotificationService notifications,
         IAppointmentCancelService appointmentCancel,
         IPhoneVerificationService phoneVerification,
-        IPatientPreferenceService preferences)
+        IPatientPreferenceService preferences,
+        IPatientReminderService reminders)
     {
         _profileService = profileService;
         _appointments = appointments;
@@ -39,6 +41,7 @@ public class ProfileModel : PageModel
         _appointmentCancel = appointmentCancel;
         _phoneVerification = phoneVerification;
         _preferences = preferences;
+        _reminders = reminders;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -54,6 +57,8 @@ public class ProfileModel : PageModel
     public bool PrivacySaved { get; set; }
     public bool PermissionsSaved { get; set; }
     public bool PreferencesSaved { get; set; }
+    public bool RemindersSaved { get; set; }
+    public PatientReminderSettingsDto ReminderSettings { get; set; } = new();
     public PatientPreferencePageModel PreferencePage { get; set; } = new();
     public PatientPrivacySettingsDto PrivacySettings { get; set; } = new();
     public string? FormError { get; set; }
@@ -90,6 +95,9 @@ public class ProfileModel : PageModel
     [BindProperty]
     public List<PatientPreferenceAnswerInput> PreferenceInput { get; set; } = new();
 
+    [BindProperty]
+    public PatientReminderSettingsSaveRequest ReminderInput { get; set; } = new();
+
     public async Task<IActionResult> OnGetAsync(
         string? section = null,
         string? edit = null,
@@ -98,7 +106,8 @@ public class ProfileModel : PageModel
         bool insuranceSaved = false,
         bool privacySaved = false,
         bool permissionsSaved = false,
-        bool preferencesSaved = false)
+        bool preferencesSaved = false,
+        bool remindersSaved = false)
     {
         IsMenuHub = string.IsNullOrWhiteSpace(section);
         var normalized = NormalizeSection(section);
@@ -113,6 +122,7 @@ public class ProfileModel : PageModel
         PrivacySaved = privacySaved;
         PermissionsSaved = permissionsSaved;
         PreferencesSaved = preferencesSaved;
+        RemindersSaved = remindersSaved;
 
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
@@ -361,6 +371,23 @@ public class ProfileModel : PageModel
         return RedirectToPage(new { section = "preferences", preferencesSaved = true });
     }
 
+    public async Task<IActionResult> OnPostSaveRemindersAsync()
+    {
+        Section = "reminders";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var (success, error) = await _reminders.SaveAsync(patientId, ReminderInput);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "reminders", remindersSaved = true });
+    }
+
     public async Task<IActionResult> OnGetDownloadSavedInformationAsync()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
@@ -463,6 +490,22 @@ public class ProfileModel : PageModel
         var permissions = await _profileService.GetPatientPermissionsSettingsAsync(patientId);
         AutofillEnabled = permissions?.AutofillEnabled ?? false;
 
+        ReminderSettings = await _reminders.GetAsync(patientId);
+        ReminderInput = new PatientReminderSettingsSaveRequest
+        {
+            Enable7Days = ReminderSettings.Enable7Days,
+            Time7Days = ReminderSettings.Time7Days,
+            Enable3Days = ReminderSettings.Enable3Days,
+            Time3Days = ReminderSettings.Time3Days,
+            Enable1Day = ReminderSettings.Enable1Day,
+            Time1Day = ReminderSettings.Time1Day,
+            EnableSameDay = ReminderSettings.EnableSameDay,
+            SameDayHoursBefore = ReminderSettings.SameDayHoursBefore,
+            ShowNotification = ReminderSettings.ShowNotification,
+            EnableEmail = ReminderSettings.EnableEmail,
+            EnableSms = ReminderSettings.EnableSms
+        };
+
         PreferencePage = await _preferences.GetForEditAsync(patientId);
         if (PreferenceInput.Count == 0)
         {
@@ -527,6 +570,7 @@ public class ProfileModel : PageModel
             "insurance" or "insurance-id" or "insurance-id-cards" => "insurance",
             "privacy" => "privacy",
             "preference" or "preferences" => "preferences",
+            "reminder" or "reminders" => "reminders",
             _ => "personal"
         };
 

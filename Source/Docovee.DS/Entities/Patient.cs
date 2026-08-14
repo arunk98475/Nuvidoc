@@ -12,6 +12,7 @@ public class Patient
     public string? PhoneVerificationCodeHash { get; set; }
     public DateTime? PhoneVerificationExpiresAtUtc { get; set; }
     public string? PreferenceProfileJson { get; set; }
+    public string? ReminderSettingsJson { get; set; }
     public string? IdCardPhotoUrl { get; set; }
     public bool? HipaaDataSharingOptIn { get; set; }
     public bool CookieTrackingOptOut { get; set; }

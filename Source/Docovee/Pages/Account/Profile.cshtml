@@ -41,6 +41,7 @@
                     <span class="pat-nav-badge" data-notify-badge="1">@Model.UnreadNotificationCount</span>
                 }
             </a>
+            <a class="pat-nav-item @(section == "reminders" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=reminders">Reminders</a>
             <a class="pat-nav-item @(section == "appointments" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=appointments">Appointments</a>
             <a class="pat-nav-item" href="/Account/Appointments">Appointment History</a>
             <a class="pat-nav-item @(section == "permissions" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
@@ -74,6 +75,10 @@
         @if (Model.PreferencesSaved)
         {
             <div class="alert-success">Your matching preferences have been saved. Nuvi will use them the next time you search.</div>
+        }
+        @if (Model.RemindersSaved)
+        {
+            <div class="alert-success">Your appointment reminders have been saved.</div>
         }
         @if (!string.IsNullOrEmpty(Model.FormError))
         {
@@ -721,6 +726,69 @@
                     }
                 </div>
             }
+        }
+        else if (section == "reminders")
+        {
+            <div class="pat-panel-head">
+                <h1>Reminders</h1>
+                <p>These apply to every active appointment. Times are US Pacific (PST/PDT). A reminder is sent only when that time is still in the future after you book.</p>
+            </div>
+            <form method="post" asp-page-handler="SaveReminders" class="rem-form">
+                <label class="rem-row">
+                    <input type="checkbox" asp-for="ReminderInput.Enable7Days" />
+                    <span>Enable 7-day reminder</span>
+                </label>
+                <label class="rem-field">
+                    <span>Reminder time</span>
+                    <input type="time" asp-for="ReminderInput.Time7Days" />
+                </label>
+
+                <label class="rem-row">
+                    <input type="checkbox" asp-for="ReminderInput.Enable3Days" />
+                    <span>Enable 3-day reminder</span>
+                </label>
+                <label class="rem-field">
+                    <span>Reminder time</span>
+                    <input type="time" asp-for="ReminderInput.Time3Days" />
+                </label>
+
+                <label class="rem-row">
+                    <input type="checkbox" asp-for="ReminderInput.Enable1Day" />
+                    <span>Enable 1-day reminder</span>
+                </label>
+                <label class="rem-field">
+                    <span>Reminder time</span>
+                    <input type="time" asp-for="ReminderInput.Time1Day" />
+                </label>
+
+                <label class="rem-row">
+                    <input type="checkbox" asp-for="ReminderInput.EnableSameDay" />
+                    <span>Enable same-day reminder</span>
+                </label>
+                <label class="rem-field">
+                    <span>Remind me before (hours of appointment)</span>
+                    <input type="number" asp-for="ReminderInput.SameDayHoursBefore" min="1" max="24" />
+                </label>
+
+                <div class="rem-channels">
+                    <label class="rem-row">
+                        <input type="checkbox" asp-for="ReminderInput.ShowNotification" />
+                        <span>Show notification</span>
+                    </label>
+                    <label class="rem-row rem-row-disabled">
+                        <input type="checkbox" asp-for="ReminderInput.EnableEmail" disabled />
+                        <span>Enable email notification</span>
+                    </label>
+                    <p class="rem-note">@Model.ReminderSettings.EmailNote</p>
+                    <label class="rem-row @(Model.ReminderSettings.PhoneVerified ? "" : "rem-row-disabled")">
+                        <input type="checkbox" asp-for="ReminderInput.EnableSms" disabled="@(!Model.ReminderSettings.PhoneVerified)" />
+                        <span>Enable SMS notification</span>
+                    </label>
+                    <p class="rem-note">@Model.ReminderSettings.PhoneNote</p>
+                </div>
+
+                <button type="submit" class="pi-save">Save</button>
+            </form>
         }
         else if (section == "notifications")
         {

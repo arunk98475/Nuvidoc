@@ -68,4 +68,5 @@ public static class PatientNotificationTypes
     public const string AppointmentCanceled = "AppointmentCanceled";
     public const string AppointmentUpdate = "AppointmentUpdate";
     public const string VoiceCallUpdate = "VoiceCallUpdate";
+    public const string AppointmentReminder = "AppointmentReminder";
 }
