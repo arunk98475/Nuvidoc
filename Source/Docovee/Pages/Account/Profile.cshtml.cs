@@ -19,6 +19,7 @@ public class ProfileModel : PageModel
     private readonly IPatientNotificationService _notifications;
     private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IPhoneVerificationService _phoneVerification;
+    private readonly IPatientPreferenceService _preferences;
 
     public ProfileModel(
         IProfileService profileService,
@@ -27,7 +28,8 @@ public class ProfileModel : PageModel
         IPatientInsuranceProfileService insuranceProfile,
         IPatientNotificationService notifications,
         IAppointmentCancelService appointmentCancel,
-        IPhoneVerificationService phoneVerification)
+        IPhoneVerificationService phoneVerification,
+        IPatientPreferenceService preferences)
     {
         _profileService = profileService;
         _appointments = appointments;
@@ -36,6 +38,7 @@ public class ProfileModel : PageModel
         _notifications = notifications;
         _appointmentCancel = appointmentCancel;
         _phoneVerification = phoneVerification;
+        _preferences = preferences;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -50,6 +53,8 @@ public class ProfileModel : PageModel
     public bool InsuranceSaved { get; set; }
     public bool PrivacySaved { get; set; }
     public bool PermissionsSaved { get; set; }
+    public bool PreferencesSaved { get; set; }
+    public PatientPreferencePageModel PreferencePage { get; set; } = new();
     public PatientPrivacySettingsDto PrivacySettings { get; set; } = new();
     public string? FormError { get; set; }
     public string? FormSuccess { get; set; }
@@ -82,6 +87,9 @@ public class ProfileModel : PageModel
     [BindProperty]
     public string? PhoneVerificationCode { get; set; }
 
+    [BindProperty]
+    public List<PatientPreferenceAnswerInput> PreferenceInput { get; set; } = new();
+
     public async Task<IActionResult> OnGetAsync(
         string? section = null,
         string? edit = null,
@@ -89,7 +97,8 @@ public class ProfileModel : PageModel
         bool passwordChanged = false,
         bool insuranceSaved = false,
         bool privacySaved = false,
-        bool permissionsSaved = false)
+        bool permissionsSaved = false,
+        bool preferencesSaved = false)
     {
         IsMenuHub = string.IsNullOrWhiteSpace(section);
         var normalized = NormalizeSection(section);
@@ -103,6 +112,7 @@ public class ProfileModel : PageModel
         InsuranceSaved = insuranceSaved;
         PrivacySaved = privacySaved;
         PermissionsSaved = permissionsSaved;
+        PreferencesSaved = preferencesSaved;
 
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
@@ -334,6 +344,23 @@ public class ProfileModel : PageModel
         return RedirectToPage(new { section = "permissions", permissionsSaved = true });
     }
 
+    public async Task<IActionResult> OnPostSavePreferencesAsync()
+    {
+        Section = "preferences";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var (success, error) = await _preferences.SaveAsync(patientId, PreferenceInput);
+        if (!success)
+        {
+            FormError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { section = "preferences", preferencesSaved = true });
+    }
+
     public async Task<IActionResult> OnGetDownloadSavedInformationAsync()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
@@ -435,6 +462,19 @@ public class ProfileModel : PageModel
 
         var permissions = await _profileService.GetPatientPermissionsSettingsAsync(patientId);
         AutofillEnabled = permissions?.AutofillEnabled ?? false;
+
+        PreferencePage = await _preferences.GetForEditAsync(patientId);
+        if (PreferenceInput.Count == 0)
+        {
+            PreferenceInput = PreferencePage.Questions
+                .Select(q => new PatientPreferenceAnswerInput
+                {
+                    QuestionId = q.QuestionId,
+                    Answer = q.Answer,
+                    FollowUp = q.FollowUp
+                })
+                .ToList();
+        }
     }
 
     private static PatientInsuranceSaveModel MapInsuranceInput(PatientInsuranceProfileDto profile)
@@ -486,6 +526,7 @@ public class ProfileModel : PageModel
             "permissions" or "permission" => "permissions",
             "insurance" or "insurance-id" or "insurance-id-cards" => "insurance",
             "privacy" => "privacy",
+            "preference" or "preferences" => "preferences",
             _ => "personal"
         };
 

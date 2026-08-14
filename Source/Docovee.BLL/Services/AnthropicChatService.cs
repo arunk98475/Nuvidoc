@@ -2074,20 +2074,20 @@ public class AnthropicChatService : IAnthropicChatService
         if (patient == null)
             return;
 
-        var profile = new
+        var profile = new PatientPreferenceProfile
         {
-            context.VisitPreference,
-            context.LocationPreference,
-            context.UrgencyPreference,
-            context.InsurancePreference,
-            context.InsuranceCategory,
-            context.LanguagePreference,
-            context.WildcardConcern,
+            VisitPreference = context.VisitPreference,
+            LocationPreference = context.LocationPreference,
+            UrgencyPreference = context.UrgencyPreference,
+            InsurancePreference = context.InsurancePreference,
+            InsuranceCategory = context.InsuranceCategory,
+            LanguagePreference = context.LanguagePreference,
+            WildcardConcern = context.WildcardConcern,
             DeepDiveAnswers = context.PollingAnswers,
             UpdatedAt = DateTime.UtcNow
         };
 
-        patient.PreferenceProfileJson = JsonSerializer.Serialize(profile);
+        patient.PreferenceProfileJson = JsonSerializer.Serialize(profile, SearchContextHelper.JsonOptions);
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -4403,18 +4403,6 @@ public class AnthropicChatService : IAnthropicChatService
             return true;
 
         return answers.Count >= MaxDeepDiveQuestions;
-    }
-
-    private sealed class PatientPreferenceProfile
-    {
-        public string? VisitPreference { get; set; }
-        public string? LocationPreference { get; set; }
-        public string? UrgencyPreference { get; set; }
-        public string? InsurancePreference { get; set; }
-        public string? InsuranceCategory { get; set; }
-        public string? LanguagePreference { get; set; }
-        public string? WildcardConcern { get; set; }
-        public List<PollingAnswerEntry>? DeepDiveAnswers { get; set; }
     }
 
     private static int? GetAuthenticatedPatientId(HttpContext? httpContext)

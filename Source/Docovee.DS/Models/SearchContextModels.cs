@@ -136,3 +136,16 @@ public class PollingAnswerEntry
     public string Answer { get; set; } = string.Empty;
     public int MatchWeight { get; set; }
 }
+
+public class PatientPreferenceProfile
+{
+    public string? VisitPreference { get; set; }
+    public string? LocationPreference { get; set; }
+    public string? UrgencyPreference { get; set; }
+    public string? InsurancePreference { get; set; }
+    public string? InsuranceCategory { get; set; }
+    public string? LanguagePreference { get; set; }
+    public string? WildcardConcern { get; set; }
+    public List<PollingAnswerEntry>? DeepDiveAnswers { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}

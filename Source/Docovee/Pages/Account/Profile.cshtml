@@ -31,6 +31,7 @@
     <aside class="pat-sidebar" aria-label="Settings menu">
         <div class="pat-nav" role="navigation" aria-label="Settings sections">
             <a class="pat-nav-item @(section == "personal" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=personal">Personal information</a>
+            <a class="pat-nav-item @(section == "preferences" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=preferences">Preferences</a>
             <a class="pat-nav-item @(section == "family" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=family">Family members</a>
             <a class="pat-nav-item @(section == "security" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=security">Login and security</a>
             <a class="pat-nav-item @(section == "notifications" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=notifications">
@@ -69,6 +70,10 @@
         @if (Model.PermissionsSaved)
         {
             <div class="alert-success">Your permissions have been saved.</div>
+        }
+        @if (Model.PreferencesSaved)
+        {
+            <div class="alert-success">Your matching preferences have been saved. Nuvi will use them the next time you search.</div>
         }
         @if (!string.IsNullOrEmpty(Model.FormError))
         {
@@ -230,6 +235,102 @@
 
                 <button type="submit" class="perm-save">Save</button>
             </form>
+        }
+        else if (section == "preferences")
+        {
+            <div class="pat-panel-head">
+                <h1>Preferences</h1>
+                <p>These are the same questions Nuvi asks when matching you with a dentist. Update them anytime — they will be used on your next search.</p>
+            </div>
+
+            @if (Model.PreferencePage.Questions.Count == 0)
+            {
+                <div class="pi-list">
+                    <div class="pi-row">
+                        <div class="pi-row-body">
+                            <div class="pi-value">No preference questions are available yet.</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="SavePreferences" class="pref-form" id="pref-form">
+                    @for (var i = 0; i < Model.PreferencePage.Questions.Count; i++)
+                    {
+                        var q = Model.PreferencePage.Questions[i];
+                        var current = i < Model.PreferenceInput.Count ? Model.PreferenceInput[i] : new PatientPreferenceAnswerInput { QuestionId = q.QuestionId, Answer = q.Answer, FollowUp = q.FollowUp };
+                        <fieldset class="pref-question" data-pref-kind="@(q.IsLanguage ? "language" : q.IsWildcard ? "wildcard" : "standard")">
+                            <p class="pref-legend">@q.Question</p>
+                            <input type="hidden" name="PreferenceInput[@i].QuestionId" value="@q.QuestionId" />
+
+                            @if (q.IsLanguage || q.IsWildcard || (q.Options != null && q.Options.Count > 0))
+                            {
+                                var choices = (q.IsLanguage || q.IsWildcard) ? new[] { "Yes", "No" } : q.Options!;
+                                <div class="pref-options">
+                                    @foreach (var opt in choices)
+                                    {
+                                        var selected = string.Equals(current.Answer, opt, StringComparison.OrdinalIgnoreCase);
+                                        <label class="pref-radio">
+                                            <input type="radio" name="PreferenceInput[@i].Answer" value="@opt" @(selected ? "checked" : null) />
+                                            <span>@opt</span>
+                                        </label>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <input class="pref-text" name="PreferenceInput[@i].Answer" value="@current.Answer" />
+                            }
+
+                            @if (q.IsLanguage)
+                            {
+                                <div class="pref-followup" data-pref-followup hidden>
+                                    <label class="pref-followup-label" for="pref-lang-@i">Preferred language</label>
+                                    <select class="pref-select" id="pref-lang-@i" name="PreferenceInput[@i].FollowUp">
+                                        <option value="">Select a language</option>
+                                        @foreach (var lang in Model.PreferencePage.Languages)
+                                        {
+                                            if (string.Equals(current.FollowUp, lang, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <option value="@lang" selected>@lang</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@lang">@lang</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            else if (q.IsWildcard)
+                            {
+                                <div class="pref-followup" data-pref-followup hidden>
+                                    <label class="pref-followup-label" for="pref-extra-@i">What else matters to you?</label>
+                                    <textarea class="pref-textarea" id="pref-extra-@i" name="PreferenceInput[@i].FollowUp" rows="3">@current.FollowUp</textarea>
+                                </div>
+                            }
+                        </fieldset>
+                    }
+                    <button type="submit" class="perm-save">Save preferences</button>
+                </form>
+                <script>
+                (function () {
+                  document.querySelectorAll(".pref-question").forEach(function (block) {
+                    var follow = block.querySelector("[data-pref-followup]");
+                    if (!follow) return;
+                    function sync() {
+                      var yes = block.querySelector('input[type="radio"][value="Yes"]');
+                      follow.hidden = !(yes && yes.checked);
+                    }
+                    block.querySelectorAll('input[type="radio"]').forEach(function (r) {
+                      r.addEventListener("change", sync);
+                    });
+                    sync();
+                  });
+                })();
+                </script>
+            }
         }
         else if (section == "insurance")
         {

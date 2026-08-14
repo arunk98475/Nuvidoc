@@ -5658,6 +5658,70 @@ button.pi-link {
   background: #e6b800;
 }
 
+.pref-form {
+  max-width: 640px;
+}
+
+.pref-question {
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  padding: 16px 18px 18px;
+  margin: 0 0 14px;
+  background: #fff;
+}
+
+.pref-legend {
+  display: block;
+  padding: 0;
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.pref-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+
+.pref-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+
+.pref-text,
+.pref-select,
+.pref-textarea {
+  width: 100%;
+  max-width: 480px;
+  border: 1px solid #cfd6d3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 0.9375rem;
+}
+
+.pref-followup {
+  margin-top: 12px;
+}
+
+.pref-followup-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.pref-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
 /* Floating admin "Edit homepage" control */
 .admin-edit-homepage-btn {
   position: fixed;
