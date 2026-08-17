@@ -1,3 +1,4 @@
+using Docovee.BLL.Services.Billing;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Models;
@@ -26,7 +27,7 @@ public interface IAppointmentService
         int appointmentId,
         CancellationToken cancellationToken = default);
 
-    Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsync(
+    Task<(bool Success, string? Error, string? Status, string? StatusLabel, string? BillingMessage)> UpdateStatusAsync(
         int doctorId,
         int appointmentId,
         string status,
@@ -79,20 +80,24 @@ public class AppointmentService : IAppointmentService
         AppointmentStatuses.Unconfirmed,
         AppointmentStatuses.PracticeRescheduled,
         AppointmentStatuses.PracticeCanceled,
-        AppointmentStatuses.PatientNoShow
+        AppointmentStatuses.PatientNoShow,
+        AppointmentStatuses.Completed
     };
 
     private readonly DocoveeDbContext _db;
     private readonly IPmsCalendarService _pms;
+    private readonly IVisitBillingService _visitBilling;
     private readonly ILogger<AppointmentService> _logger;
 
     public AppointmentService(
         DocoveeDbContext db,
         IPmsCalendarService pms,
+        IVisitBillingService visitBilling,
         ILogger<AppointmentService> logger)
     {
         _db = db;
         _pms = pms;
+        _visitBilling = visitBilling;
         _logger = logger;
     }
 
@@ -283,7 +288,7 @@ public class AppointmentService : IAppointmentService
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsync(
+    public async Task<(bool Success, string? Error, string? Status, string? StatusLabel, string? BillingMessage)> UpdateStatusAsync(
         int doctorId,
         int appointmentId,
         string status,
@@ -291,31 +296,34 @@ public class AppointmentService : IAppointmentService
     {
         var normalized = AppointmentStatuses.Normalize(status);
         if (!DoctorSettableStatuses.Contains(normalized) && !DoctorSettableStatuses.Contains(status))
-            return (false, "Unsupported appointment status.", null, null);
+            return (false, "Unsupported appointment status.", null, null, null);
 
         var target = DoctorSettableStatuses.Contains(normalized) ? normalized : status;
 
         var appointment = await _db.Appointments
             .FirstOrDefaultAsync(a => a.DoctorId == doctorId && a.Id == appointmentId, cancellationToken);
         if (appointment == null)
-            return (false, "Appointment not found.", null, null);
+            return (false, "Appointment not found.", null, null, null);
 
         if (AppointmentSources.IsPmsInbound(appointment.Source))
-            return (false, "PMS appointments are managed in your practice software.", null, null);
+            return (false, "PMS appointments are managed in your practice software.", null, null, null);
 
         if (string.Equals(AppointmentStatuses.Normalize(appointment.Status), target, StringComparison.OrdinalIgnoreCase))
         {
-            return (true, null, target, AppointmentStatuses.DisplayLabel(target));
+            return (true, null, target, AppointmentStatuses.DisplayLabel(target), null);
         }
 
         if (target == AppointmentStatuses.Confirmed && !AppointmentStatuses.CanConfirm(appointment.Status))
-            return (false, "This appointment cannot be confirmed.", null, null);
+            return (false, "This appointment cannot be confirmed.", null, null, null);
 
         if (target == AppointmentStatuses.PracticeCanceled && !AppointmentStatuses.CanPracticeCancel(appointment.Status))
-            return (false, "This appointment cannot be canceled.", null, null);
+            return (false, "This appointment cannot be canceled.", null, null, null);
 
         if (target == AppointmentStatuses.PatientNoShow && !AppointmentStatuses.CanMarkNoShow(appointment.Status))
-            return (false, "This appointment cannot be marked as a no-show.", null, null);
+            return (false, "This appointment cannot be marked as a no-show.", null, null, null);
+
+        if (target == AppointmentStatuses.Completed && !AppointmentStatuses.CanMarkCompleted(appointment.Status))
+            return (false, "This appointment cannot be marked as completed.", null, null, null);
 
         appointment.Status = target;
         appointment.UpdatedAt = DateTime.UtcNow;
@@ -324,6 +332,19 @@ public class AppointmentService : IAppointmentService
         _logger.LogInformation(
             "Appointment {Id} status set to {Status} by doctor {DoctorId}",
             appointment.Id, appointment.Status, doctorId);
+
+        string? billingMessage = null;
+        if (target == AppointmentStatuses.Completed)
+        {
+            var charge = await _visitBilling.ChargeForCompletedVisitAsync(doctorId, appointmentId, cancellationToken);
+            billingMessage = charge.Message;
+            if (!charge.Success && charge.ChargeStatus != BillingChargeStatuses.Skipped)
+            {
+                _logger.LogWarning(
+                    "Visit billing failed for appointment {AppointmentId}: {Message}",
+                    appointmentId, charge.Message);
+            }
+        }
 
         try
         {
@@ -334,7 +355,7 @@ public class AppointmentService : IAppointmentService
             _logger.LogWarning(ex, "PMS outbound status push failed for appointment {Id}", appointment.Id);
         }
 
-        return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status));
+        return (true, null, appointment.Status, AppointmentStatuses.DisplayLabel(appointment.Status), billingMessage);
     }
 
     public async Task<(bool Success, string? Error, string? Status, string? StatusLabel)> UpdateStatusAsPatientAsync(

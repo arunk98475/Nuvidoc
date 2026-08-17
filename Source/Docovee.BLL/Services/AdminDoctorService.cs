@@ -319,6 +319,7 @@ public class AdminDoctorService : IAdminDoctorService
         if (string.IsNullOrWhiteSpace(model.SpecialtyCategory)) return "Specialty category is required.";
         if (string.IsNullOrWhiteSpace(model.City)) return "City is required.";
         if (string.IsNullOrWhiteSpace(model.State)) return "State is required.";
+        if (model.PerVisitFeeUsd < 0) return "Per-visit fee cannot be negative.";
         return null;
     }
 
@@ -357,6 +358,7 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.Gender = ParseGender(model.Gender);
         doctor.IsActive = model.IsActive;
         doctor.IsSponsored = model.IsSponsored;
+        doctor.PerVisitFeeCents = UsdToCents(model.PerVisitFeeUsd);
     }
 
     private void ApplyCredentials(Doctor doctor, DoctorAdminEditModel model, bool isCreate)
@@ -432,8 +434,18 @@ public class AdminDoctorService : IAdminDoctorService
         Gender = doctor.Gender.ToString(),
         IsActive = doctor.IsActive,
         IsSponsored = doctor.IsSponsored,
+        PerVisitFeeUsd = CentsToUsd(doctor.PerVisitFeeCents),
         Username = doctor.Username
     };
+
+    private static int UsdToCents(decimal usd)
+    {
+        if (usd < 0)
+            return 0;
+        return (int)Math.Round(usd * 100m, MidpointRounding.AwayFromZero);
+    }
+
+    private static decimal CentsToUsd(int cents) => Math.Max(0, cents) / 100m;
 
     private static async Task<List<Dictionary<string, string>>> ParseCsvAsync(Stream stream, CancellationToken cancellationToken)
     {

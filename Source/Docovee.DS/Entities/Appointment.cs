@@ -123,6 +123,14 @@ public static class AppointmentStatuses
         return s is Confirmed or Unconfirmed or PracticeRescheduled or PatientRescheduled;
     }
 
+    public static bool CanMarkCompleted(string? status)
+    {
+        var s = Normalize(status);
+        if (s == Completed)
+            return false;
+        return s is Confirmed or Unconfirmed or PracticeRescheduled or PatientRescheduled;
+    }
+
     public static bool IsConfirmedWithDoctor(string? status) =>
         string.Equals(Normalize(status), Confirmed, StringComparison.OrdinalIgnoreCase);
 

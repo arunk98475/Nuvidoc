@@ -184,6 +184,8 @@ public class DoctorAdminEditModel
     public string Gender { get; set; } = "Other";
     public bool IsActive { get; set; } = true;
     public bool IsSponsored { get; set; }
+    /// <summary>USD charged when a NuviDoc patient is marked as showed (maps to PerVisitFeeCents).</summary>
+    public decimal PerVisitFeeUsd { get; set; }
     public string? Username { get; set; }
     public string? Password { get; set; }
 }

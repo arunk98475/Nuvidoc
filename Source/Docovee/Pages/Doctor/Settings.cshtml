@@ -1160,6 +1160,103 @@
             }
         </div>
     }
+    else if (Model.Section == "billing")
+    {
+        <div class="dp-billing">
+            @if (!Model.StripeConfigured)
+            {
+                <div class="dp-billing-alert">Stripe is not configured yet. Contact support to enable billing.</div>
+            }
+            else
+            {
+                <div class="dp-billing-tabs" role="tablist">
+                    <button type="button" class="dp-billing-tab is-active" data-billing-tab="payment" role="tab" aria-selected="true">Payment</button>
+                    <button type="button" class="dp-billing-tab" data-billing-tab="invoices" role="tab" aria-selected="false">Invoices</button>
+                </div>
+
+                <div class="dp-billing-panel is-active" id="dp-billing-payment" data-billing-panel="payment" role="tabpanel">
+                    <div class="dp-billing-grid">
+                        <section class="dp-billing-card dp-billing-invoices-preview">
+                            <h2>Recent charges</h2>
+                            <p class="dp-billing-hint">
+                                @if (Model.PerVisitFeeCents > 0)
+                                {
+                                    @:NuviDoc charges <strong>@((Model.PerVisitFeeCents / 100m).ToString("C"))</strong> when you mark a patient as showed.
+                                }
+                                else
+                                {
+                                    @:No per-visit fee is set for your practice yet. Visit records still appear here after you mark a patient as showed.
+                                }
+                            </p>
+                            <ul class="dp-billing-invoice-list" id="dp-billing-recent-charges"></ul>
+                        </section>
+
+                        <section class="dp-billing-card">
+                            <div class="dp-billing-card-head">
+                                <h2>Payment methods</h2>
+                                <button type="button" class="dp-btn dp-btn-primary" id="dp-billing-add-card">+ Add</button>
+                            </div>
+                            <ul class="dp-billing-pm-list" id="dp-billing-pm-list"></ul>
+                            <p class="dp-billing-empty" id="dp-billing-pm-empty" hidden>No cards on file. Add a card to enable visit billing.</p>
+                        </section>
+
+                        <section class="dp-billing-card">
+                            <div class="dp-billing-card-head">
+                                <h2>Billing contact info</h2>
+                                <button type="button" class="dp-btn" id="dp-billing-edit-contact">Edit</button>
+                            </div>
+                            <dl class="dp-billing-contact-view" id="dp-billing-contact-view">
+                                <div><dt>Email</dt><dd id="dp-billing-contact-email">@(Model.BillingContact.BillingEmail ?? "Not set")</dd></div>
+                                <div><dt>Address</dt><dd id="dp-billing-contact-address">@{
+                                    var parts = new[] { Model.BillingContact.Line1, Model.BillingContact.Line2, Model.BillingContact.City, Model.BillingContact.State, Model.BillingContact.PostalCode }
+                                        .Where(s => !string.IsNullOrWhiteSpace(s));
+                                    @(parts.Any() ? string.Join(", ", parts) : "Not set")
+                                }</dd></div>
+                            </dl>
+                            <form class="dp-billing-contact-form" id="dp-billing-contact-form" hidden>
+                                <label>Email<input type="email" name="billingEmail" value="@Model.BillingContact.BillingEmail" /></label>
+                                <label>Address line 1<input type="text" name="line1" value="@Model.BillingContact.Line1" /></label>
+                                <label>Address line 2<input type="text" name="line2" value="@Model.BillingContact.Line2" /></label>
+                                <label>City<input type="text" name="city" value="@Model.BillingContact.City" /></label>
+                                <label>State<input type="text" name="state" value="@Model.BillingContact.State" /></label>
+                                <label>ZIP<input type="text" name="postalCode" value="@Model.BillingContact.PostalCode" /></label>
+                                <div class="dp-billing-form-actions">
+                                    <button type="button" class="dp-btn" id="dp-billing-contact-cancel">Cancel</button>
+                                    <button type="submit" class="dp-btn dp-btn-primary">Save</button>
+                                </div>
+                            </form>
+                        </section>
+                    </div>
+                </div>
+
+                <div class="dp-billing-panel" id="dp-billing-invoices" data-billing-panel="invoices" role="tabpanel" hidden>
+                    <div class="dp-billing-card">
+                        <div class="dp-billing-card-head">
+                            <h2>Invoices</h2>
+                            <select id="dp-billing-year" class="dp-billing-year" aria-label="Invoice year"></select>
+                        </div>
+                        <ul class="dp-billing-invoice-list" id="dp-billing-invoice-list"></ul>
+                        <p class="dp-billing-empty" id="dp-billing-invoice-empty" hidden>No charges for this year.</p>
+                    </div>
+                </div>
+
+                <dialog class="dp-billing-modal" id="dp-billing-card-modal">
+                    <form method="dialog" class="dp-billing-modal-inner">
+                        <header>
+                            <h3>Add payment method</h3>
+                            <button type="button" class="dp-billing-modal-close" id="dp-billing-modal-close" aria-label="Close">&times;</button>
+                        </header>
+                        <div id="dp-billing-card-element"></div>
+                        <p class="dp-billing-error" id="dp-billing-card-error" hidden></p>
+                        <footer>
+                            <button type="button" class="dp-btn" id="dp-billing-card-cancel">Cancel</button>
+                            <button type="button" class="dp-btn dp-btn-primary" id="dp-billing-card-save">Save card</button>
+                        </footer>
+                    </form>
+                </dialog>
+            }
+        </div>
+    }
     else if (Model.Section == "legal")
     {
         <div class="dp-legal">
@@ -1181,6 +1278,17 @@
 }
 
 @section Scripts {
+@if (Model.Section == "billing" && Model.StripeConfigured)
+{
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+      window.NuvidocDoctorBilling = {
+        publishableKey: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.StripePublishableKey)),
+        perVisitFeeCents: @Model.PerVisitFeeCents
+      };
+    </script>
+    <script src="~/js/doctor-billing.js" asp-append-version="true"></script>
+}
 @if (Model.Section == "practice")
 {
     <script src="https://cdn.jsdelivr.net/npm/plyr@3.8.4/dist/plyr.min.js" crossorigin="anonymous"></script>

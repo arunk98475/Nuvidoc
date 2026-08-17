@@ -58,7 +58,14 @@ public class Doctor
     public int OnboardingQuestionIndex { get; set; }
     public int ProfileCompletionPercent { get; set; }
 
+    public string? StripeCustomerId { get; set; }
+    public string? BillingEmail { get; set; }
+    public string? BillingAddressJson { get; set; }
+    /// <summary>Amount charged to this doctor when a NuviDoc patient is marked as showed (cents).</summary>
+    public int PerVisitFeeCents { get; set; }
+
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();
+    public ICollection<DoctorBillingCharge> BillingCharges { get; set; } = new List<DoctorBillingCharge>();
     public ICollection<DoctorPatientReview> PatientReviews { get; set; } = new List<DoctorPatientReview>();
     public ICollection<DoctorDoctorLanguage> DoctorLanguages { get; set; } = new List<DoctorDoctorLanguage>();
     public ICollection<DoctorLocation> Locations { get; set; } = new List<DoctorLocation>();

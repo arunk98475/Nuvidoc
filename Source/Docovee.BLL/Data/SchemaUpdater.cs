@@ -163,6 +163,11 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "IsSponsored", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "GoogleReviewsFetchedAt", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "GoogleReviewsFilePath", "varchar(500) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "StripeCustomerId", "varchar(100) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "BillingEmail", "varchar(200) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "BillingAddressJson", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "PerVisitFeeCents", "int NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureDoctorBillingChargesTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);
@@ -663,5 +668,34 @@ public static class SchemaUpdater
         {
             Log($"AllowGoogleBookings JSON backfill skipped — {ex.Message}");
         }
+    }
+
+    private static async Task EnsureDoctorBillingChargesTableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `doctor_billing_charges` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `AppointmentId` int NOT NULL,
+                `AmountCents` int NOT NULL,
+                `Currency` varchar(10) CHARACTER SET utf8mb4 NOT NULL DEFAULT 'usd',
+                `Status` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `StripePaymentIntentId` varchar(100) CHARACTER SET utf8mb4 NULL,
+                `FailureMessage` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `ChargedAt` datetime(6) NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_doctor_billing_charges_AppointmentId` (`AppointmentId`),
+                KEY `IX_doctor_billing_charges_DoctorId_CreatedAt` (`DoctorId`, `CreatedAt`),
+                KEY `IX_doctor_billing_charges_StripePaymentIntentId` (`StripePaymentIntentId`),
+                CONSTRAINT `FK_doctor_billing_charges_doctors_DoctorId`
+                    FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_doctor_billing_charges_appointments_AppointmentId`
+                    FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
     }
 }

@@ -207,6 +207,7 @@
                 <button type="button" class="dp-drawer-footer-confirm" id="dp-drawer-confirm">Confirm patient can be seen</button>
             </div>
             <button type="button" class="dp-drawer-footer-noshow" id="dp-drawer-noshow" hidden>Mark as no show</button>
+            <button type="button" class="dp-drawer-footer-showed" id="dp-drawer-showed" hidden>Mark patient showed</button>
         </footer>
     </div>
 </aside>
@@ -227,6 +228,7 @@
   const editMenu = document.getElementById("dp-drawer-edit-menu");
   const confirmBtn = document.getElementById("dp-drawer-confirm");
   const noShowBtn = document.getElementById("dp-drawer-noshow");
+  const showedBtn = document.getElementById("dp-drawer-showed");
   let currentAppointmentId = null;
   let currentPhoneDigits = "";
   let toastTimer = null;
@@ -443,6 +445,12 @@
         noShowBtn.disabled = alreadyNoShow || data.canMarkNoShow === false;
         noShowBtn.textContent = alreadyNoShow ? "Marked as no show" : "Mark as no show";
       }
+      if (showedBtn) {
+        showedBtn.hidden = !isPast;
+        const alreadyCompleted = String(data.status || "").toLowerCase() === "completed";
+        showedBtn.disabled = alreadyCompleted || data.canMarkCompleted === false;
+        showedBtn.textContent = alreadyCompleted ? "Patient showed — billed" : "Mark patient showed";
+      }
 
       loading.hidden = true;
       body.hidden = false;
@@ -469,6 +477,7 @@
     if (s === "unconfirmed") return "status-unconfirmed";
     if (s.includes("reschedule")) return "status-reschedule";
     if (s === "patientnoshow") return "status-noshow";
+    if (s === "completed") return "status-completed";
     if (s.includes("cancel")) return "status-cancelled";
     return "status-unconfirmed";
   }
@@ -520,6 +529,11 @@
       const noshow = status === "patientnoshow";
       noShowBtn.disabled = noshow;
       noShowBtn.textContent = noshow ? "Marked as no show" : "Mark as no show";
+    }
+    if (showedBtn) {
+      const completed = status === "completed";
+      showedBtn.disabled = completed;
+      showedBtn.textContent = completed ? "Patient showed — billed" : "Mark patient showed";
     }
   }
 
@@ -590,6 +604,24 @@
     } catch (err) {
       noShowBtn.disabled = false;
       showToast(err.message || "Could not mark no-show.");
+    }
+  });
+
+  showedBtn?.addEventListener("click", async () => {
+    if (!currentAppointmentId || showedBtn.disabled) return;
+    if (!window.confirm("Mark this patient as showed? Your card on file may be charged for this visit.")) return;
+    try {
+      const data = await updateAppointmentStatus("Completed", showedBtn);
+      if (!data) return;
+      applyStatusToDrawer(data);
+      const msg = data.billingMessage || "Patient marked as showed.";
+      showToast(msg);
+      if (data.remainsOnCalendar === false) {
+        setTimeout(() => window.location.reload(), 900);
+      }
+    } catch (err) {
+      showedBtn.disabled = false;
+      showToast(err.message || "Could not mark patient as showed.");
     }
   });
 

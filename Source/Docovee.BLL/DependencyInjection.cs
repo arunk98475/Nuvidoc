@@ -1,6 +1,7 @@
 using Docovee.BLL.Audit;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Services;
+using Docovee.BLL.Services.Billing;
 using Docovee.BLL.Services.PatientPush;
 using Docovee.DS;
 using Docovee.Integrations;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.Configure<ElevenLabsOptions>(configuration.GetSection(ElevenLabsOptions.SectionName));
         services.Configure<MobileJwtOptions>(configuration.GetSection(MobileJwtOptions.SectionName));
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IEmailSender, SesEmailSender>();
         services.AddScoped<IPatientEmailAuthService, PatientEmailAuthService>();
         services.AddSingleton<IBrandingService, BrandingService>();
@@ -113,6 +115,10 @@ public static class DependencyInjection
         services.AddScoped<IHomePageContentService, HomePageContentService>();
         services.AddDocoveeIntegrations(configuration);
         services.AddScoped<IPmsCalendarService, PmsCalendarService>();
+        services.AddScoped<IStripeCustomerService, StripeCustomerService>();
+        services.AddScoped<IStripePaymentMethodService, StripePaymentMethodService>();
+        services.AddScoped<IDoctorBillingService, DoctorBillingService>();
+        services.AddScoped<IVisitBillingService, VisitBillingService>();
 
         return services;
     }

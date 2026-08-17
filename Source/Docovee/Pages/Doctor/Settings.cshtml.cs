@@ -4,6 +4,7 @@ using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
 using Docovee.BLL.Services;
+using Docovee.BLL.Services.Billing;
 using Docovee.DS.Models;
 using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Authorization;
@@ -27,7 +28,8 @@ public class SettingsModel : PageModel
         "working-hours",
         "booking-link",
         "integrations",
-        "legal"
+        "legal",
+        "billing"
     };
 
     private readonly IProfileService _profileService;
@@ -36,6 +38,8 @@ public class SettingsModel : PageModel
     private readonly IDoctorMediaService _mediaService;
     private readonly IPmsCalendarService _pms;
     private readonly UploadOptions _uploadOptions;
+    private readonly StripeOptions _stripeOptions;
+    private readonly IDoctorBillingService _billing;
 
     public SettingsModel(
         IProfileService profileService,
@@ -43,7 +47,9 @@ public class SettingsModel : PageModel
         IDoctorInsuranceService insuranceService,
         IDoctorMediaService mediaService,
         IPmsCalendarService pms,
-        IOptions<UploadOptions> uploadOptions)
+        IOptions<UploadOptions> uploadOptions,
+        IOptions<StripeOptions> stripeOptions,
+        IDoctorBillingService billing)
     {
         _profileService = profileService;
         _locationService = locationService;
@@ -51,6 +57,8 @@ public class SettingsModel : PageModel
         _mediaService = mediaService;
         _pms = pms;
         _uploadOptions = uploadOptions.Value;
+        _stripeOptions = stripeOptions.Value;
+        _billing = billing;
     }
 
     public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
@@ -92,6 +100,10 @@ public class SettingsModel : PageModel
     public PmsConnectionSettingsDto? NexHealthConnection { get; private set; }
     public bool Saved { get; private set; }
     public string? ErrorMessage { get; private set; }
+    public bool StripeConfigured => _stripeOptions.IsConfigured;
+    public string StripePublishableKey => _stripeOptions.PublishableKey;
+    public int PerVisitFeeCents { get; private set; }
+    public DoctorBillingContactDto BillingContact { get; private set; } = new();
 
     private static IReadOnlyList<string> BuildTimeOptions()
     {
@@ -364,6 +376,7 @@ public class SettingsModel : PageModel
             "booking-link" => BookingLinkCreateStep ? "Create a Booking Link" : "Booking Link",
             "integrations" => "Integrations",
             "legal" => "Legal",
+            "billing" => "Billing",
             _ => "Practice profile"
         };
 
@@ -420,6 +433,12 @@ public class SettingsModel : PageModel
         if (Section == "integrations")
         {
             NexHealthConnection = await _pms.GetConnectionAsync(doctorId, PmsProviders.NexHealth, cancellationToken);
+        }
+
+        if (Section == "billing")
+        {
+            BillingContact = await _billing.GetBillingContactAsync(doctorId, cancellationToken);
+            PerVisitFeeCents = await _billing.GetPerVisitFeeCentsAsync(doctorId, cancellationToken);
         }
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";

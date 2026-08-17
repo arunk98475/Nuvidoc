@@ -36,6 +36,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<ContentPage> ContentPages => Set<ContentPage>();
     public DbSet<HomePageContent> HomePageContents => Set<HomePageContent>();
     public DbSet<DoctorMedia> DoctorMedia => Set<DoctorMedia>();
+    public DbSet<DoctorBillingCharge> DoctorBillingCharges => Set<DoctorBillingCharge>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -457,6 +458,21 @@ public class DocoveeDbContext : DbContext
             entity.HasIndex(e => new { e.EntityType, e.EntityId });
             entity.HasIndex(e => e.ActorUserId);
             entity.HasIndex(e => e.Action);
+        });
+
+        modelBuilder.Entity<DoctorBillingCharge>(entity =>
+        {
+            entity.ToTable("doctor_billing_charges");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Currency).HasMaxLength(10).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.StripePaymentIntentId).HasMaxLength(100);
+            entity.Property(e => e.FailureMessage).HasMaxLength(500);
+            entity.HasIndex(e => e.AppointmentId).IsUnique();
+            entity.HasIndex(e => new { e.DoctorId, e.CreatedAt });
+            entity.HasIndex(e => e.StripePaymentIntentId);
+            entity.HasOne(e => e.Doctor).WithMany(d => d.BillingCharges).HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
         });
     }
 }

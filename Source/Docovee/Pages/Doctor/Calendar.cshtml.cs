@@ -93,7 +93,7 @@ public class CalendarModel : PageModel
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return new JsonResult(new { message = "Not signed in." }) { StatusCode = StatusCodes.Status401Unauthorized };
 
-        var (success, error, newStatus, statusLabel) = await _appointments.UpdateStatusAsync(
+        var (success, error, newStatus, statusLabel, billingMessage) = await _appointments.UpdateStatusAsync(
             doctorId,
             appointmentId,
             status,
@@ -107,7 +107,8 @@ public class CalendarModel : PageModel
             success = true,
             status = newStatus,
             statusLabel,
-            remainsOnCalendar = AppointmentStatuses.IsActive(newStatus)
+            remainsOnCalendar = AppointmentStatuses.IsActive(newStatus),
+            billingMessage
         });
     }
 
@@ -213,6 +214,7 @@ public class CalendarModel : PageModel
             canConfirm = AppointmentStatuses.CanConfirm(appointment.Status),
             canCancel = AppointmentStatuses.CanPracticeCancel(appointment.Status),
             canMarkNoShow = AppointmentStatuses.CanMarkNoShow(appointment.Status),
+            canMarkCompleted = AppointmentStatuses.CanMarkCompleted(appointment.Status),
             patientName = fullName,
             patientType = history.Count > 1 ? "Existing patient" : "New patient",
             hasAccount,
