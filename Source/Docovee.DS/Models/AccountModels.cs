@@ -22,6 +22,7 @@ public class PatientProfileDto
     public string Phone { get; set; } = string.Empty;
     public bool PhoneVerified { get; set; }
     public bool PhoneVerificationPending { get; set; }
+    public bool EmailVerified { get; set; }
     public DateTime MemberSince { get; set; }
     public IReadOnlyList<PatientSearchHistoryDto> SearchHistory { get; set; } = Array.Empty<PatientSearchHistoryDto>();
     public IReadOnlyList<PatientViewedDoctorDto> ViewedDoctors { get; set; } = Array.Empty<PatientViewedDoctorDto>();

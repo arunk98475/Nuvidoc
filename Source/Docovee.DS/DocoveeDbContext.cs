@@ -158,6 +158,9 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Phone).HasMaxLength(30).IsRequired();
             entity.Property(e => e.PhoneVerified).HasDefaultValue(false);
             entity.Property(e => e.PhoneVerificationCodeHash).HasMaxLength(64);
+            entity.Property(e => e.EmailVerified).HasDefaultValue(false);
+            entity.Property(e => e.EmailVerificationTokenHash).HasMaxLength(64);
+            entity.Property(e => e.PasswordResetTokenHash).HasMaxLength(64);
             entity.Property(e => e.IdCardPhotoUrl).HasMaxLength(500);
             entity.Property(e => e.HipaaDataSharingOptIn);
             entity.Property(e => e.CookieTrackingOptOut).HasDefaultValue(false);

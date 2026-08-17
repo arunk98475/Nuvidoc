@@ -186,10 +186,23 @@
                 <div class="pi-row">
                     <div class="pi-row-body">
                         <div class="pi-label">Email Address</div>
-                        <div class="pi-value">@Model.Profile!.Username</div>
+                        <div class="pi-value">
+                            @Model.Profile!.Username
+                            @if (Model.Profile.EmailVerified)
+                            {
+                                <span class="pi-hint"> · Verified</span>
+                            }
+                        </div>
                         <p class="pi-hint">
-                            <a class="pi-link" href="/Account/Profile?section=security">Verify your email address</a>
-                            to keep your account secure and receive booking confirmations.
+                            @if (Model.Profile.EmailVerified)
+                            {
+                                <text>Your email is verified.</text>
+                            }
+                            else
+                            {
+                                <a class="pi-link" href="/Account/Profile?section=security">Verify your email address</a>
+                                <text> to keep your account secure and receive booking confirmations.</text>
+                            }
                         </p>
                     </div>
                     <span class="pi-action pi-action-muted">Edit</span>
@@ -628,11 +641,24 @@
                 <div class="pi-row">
                     <div class="pi-row-body">
                         <div class="pi-label">Email verification</div>
-                        <div class="pi-value">@Model.Profile!.Username</div>
-                        <p class="pi-hint">Verification emails will send once the site email service is set up.</p>
-                        <form method="post" asp-page-handler="RequestEmailVerification" class="pi-inline-form">
-                            <button type="submit" class="pi-link-btn">Send verification email</button>
-                        </form>
+                        <div class="pi-value">
+                            @Model.Profile!.Username
+                            @if (Model.Profile.EmailVerified)
+                            {
+                                <span class="pi-hint"> · Verified</span>
+                            }
+                        </div>
+                        @if (Model.Profile.EmailVerified)
+                        {
+                            <p class="pi-hint">Your email is verified.</p>
+                        }
+                        else
+                        {
+                            <p class="pi-hint">We will email a secure link to verify this address. Receiving time depends on network connectivity.</p>
+                            <form method="post" asp-page-handler="RequestEmailVerification" class="pi-inline-form">
+                                <button type="submit" class="pi-link-btn">Send verification email</button>
+                            </form>
+                        }
                     </div>
                 </div>
 

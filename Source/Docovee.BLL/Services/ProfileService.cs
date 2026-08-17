@@ -74,6 +74,7 @@ public class ProfileService : IProfileService
             PhoneVerificationPending = !patient.PhoneVerified
                 && !string.IsNullOrWhiteSpace(patient.PhoneVerificationCodeHash)
                 && patient.PhoneVerificationExpiresAtUtc > DateTime.UtcNow,
+            EmailVerified = patient.EmailVerified,
             MemberSince = patient.CreatedAt,
             SearchHistory = patient.SearchSessions
                 .OrderByDescending(s => s.UpdatedAt)

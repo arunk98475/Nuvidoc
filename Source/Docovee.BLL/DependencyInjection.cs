@@ -49,6 +49,9 @@ public static class DependencyInjection
         services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.SectionName));
         services.Configure<ElevenLabsOptions>(configuration.GetSection(ElevenLabsOptions.SectionName));
         services.Configure<MobileJwtOptions>(configuration.GetSection(MobileJwtOptions.SectionName));
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.AddScoped<IEmailSender, SesEmailSender>();
+        services.AddScoped<IPatientEmailAuthService, PatientEmailAuthService>();
         services.AddSingleton<IBrandingService, BrandingService>();
         services.AddSingleton<IMobileJwtTokenService, MobileJwtTokenService>();
         services.AddScoped<IPatientPushDispatcher, PatientPushDispatcher>();

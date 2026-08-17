@@ -81,6 +81,8 @@
     passwordStep.hidden = false;
     passwordStep.classList.add("is-active");
     document.getElementById("patient-login-title").textContent = "Enter your password";
+    const forgot = document.getElementById("pl-forgot");
+    if (forgot) forgot.href = "/Account/ForgotPassword?email=" + encodeURIComponent(email);
     passwordInput?.focus();
   }
 

@@ -24,6 +24,7 @@
     <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.1" />
     <PackageReference Include="Twilio" Version="7.13.5" />
+    <PackageReference Include="AWSSDK.SimpleEmail" Version="3.7.401.15" />
   </ItemGroup>
 
 </Project>

@@ -21,6 +21,7 @@ public class ProfileModel : PageModel
     private readonly IPhoneVerificationService _phoneVerification;
     private readonly IPatientPreferenceService _preferences;
     private readonly IPatientReminderService _reminders;
+    private readonly IPatientEmailAuthService _emailAuth;
 
     public ProfileModel(
         IProfileService profileService,
@@ -31,7 +32,8 @@ public class ProfileModel : PageModel
         IAppointmentCancelService appointmentCancel,
         IPhoneVerificationService phoneVerification,
         IPatientPreferenceService preferences,
-        IPatientReminderService reminders)
+        IPatientReminderService reminders,
+        IPatientEmailAuthService emailAuth)
     {
         _profileService = profileService;
         _appointments = appointments;
@@ -42,6 +44,7 @@ public class ProfileModel : PageModel
         _phoneVerification = phoneVerification;
         _preferences = preferences;
         _reminders = reminders;
+        _emailAuth = emailAuth;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -204,8 +207,13 @@ public class ProfileModel : PageModel
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var result = await _emailAuth.SendEmailVerificationAsync(patientId, baseUrl);
         await LoadAsync(patientId);
-        FormSuccess = "Email verification will be available once the site email service (e.g. Amazon SES) is connected. Your login email is ready to use.";
+        if (result.Success)
+            FormSuccess = result.Message;
+        else
+            FormError = result.Message;
         return Page();
     }
 

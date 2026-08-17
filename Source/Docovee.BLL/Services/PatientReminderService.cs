@@ -56,10 +56,10 @@ public sealed class PatientReminderService : IPatientReminderService
         var patient = await _db.Patients.AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
         if (patient == null)
-            return ApplyChannelFlags(new PatientReminderSettingsDto(), phoneVerified: false, hasEmail: false);
+            return ApplyChannelFlags(new PatientReminderSettingsDto(), phoneVerified: false, hasEmail: false, emailVerified: false);
 
         var dto = Deserialize(patient.ReminderSettingsJson);
-        return ApplyChannelFlags(dto, patient.PhoneVerified, HasEmailAddress(patient.Username));
+        return ApplyChannelFlags(dto, patient.PhoneVerified, HasEmailAddress(patient.Username), patient.EmailVerified);
     }
 
     public async Task<(bool Success, string? Error)> SaveAsync(
@@ -116,7 +116,7 @@ public sealed class PatientReminderService : IPatientReminderService
                 continue;
 
             var settings = Deserialize(appt.Patient.ReminderSettingsJson);
-            settings = ApplyChannelFlags(settings, appt.Patient.PhoneVerified, HasEmailAddress(appt.Patient.Username));
+            settings = ApplyChannelFlags(settings, appt.Patient.PhoneVerified, HasEmailAddress(appt.Patient.Username), appt.Patient.EmailVerified);
             if (!settings.ShowNotification && !(settings.EnableSms && settings.PhoneVerified))
                 continue;
 
@@ -292,10 +292,11 @@ public sealed class PatientReminderService : IPatientReminderService
     private static PatientReminderSettingsDto ApplyChannelFlags(
         PatientReminderSettingsDto dto,
         bool phoneVerified,
-        bool hasEmail)
+        bool hasEmail,
+        bool emailVerified)
     {
         dto.PhoneVerified = phoneVerified;
-        dto.EmailVerified = false;
+        dto.EmailVerified = emailVerified;
         dto.EmailDeliveryAvailable = false;
         dto.EnableEmail = false;
         if (!phoneVerified)
@@ -304,9 +305,11 @@ public sealed class PatientReminderService : IPatientReminderService
         dto.PhoneNote = phoneVerified
             ? "Receiving time will depend on network connectivity."
             : "Phone is not verified. Verify your phone in Login and security to enable SMS reminders. Receiving time will depend on network connectivity.";
-        dto.EmailNote = hasEmail
-            ? "Email is not verified. Email delivery will be added later. Receiving time will depend on network connectivity."
-            : "Add and verify an email in Login and security. Email delivery will be added later. Receiving time will depend on network connectivity.";
+        dto.EmailNote = !hasEmail
+            ? "Add and verify an email in Login and security. Email delivery will be added later. Receiving time will depend on network connectivity."
+            : emailVerified
+                ? "Email is verified. Reminder emails will send once the mailer is enabled for reminders. Receiving time will depend on network connectivity."
+                : "Email is not verified. Verify your email in Login and security. Receiving time will depend on network connectivity.";
         return dto;
     }
 

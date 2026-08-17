@@ -11,6 +11,11 @@ public class Patient
     public bool PhoneVerified { get; set; }
     public string? PhoneVerificationCodeHash { get; set; }
     public DateTime? PhoneVerificationExpiresAtUtc { get; set; }
+    public bool EmailVerified { get; set; }
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTime? EmailVerificationExpiresAtUtc { get; set; }
+    public string? PasswordResetTokenHash { get; set; }
+    public DateTime? PasswordResetExpiresAtUtc { get; set; }
     public string? PreferenceProfileJson { get; set; }
     public string? ReminderSettingsJson { get; set; }
     public string? IdCardPhotoUrl { get; set; }

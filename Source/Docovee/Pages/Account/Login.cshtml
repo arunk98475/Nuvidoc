@@ -80,8 +80,7 @@
                 </div>
 
                 <button type="submit" class="dl-btn" id="dl-continue-password">Continue</button>
-                <a class="dl-forgot" href="#" id="dl-forgot">Forgot password?</a>
-                <p class="dl-forgot-note" id="dl-forgot-note" hidden>Please contact support to reset your password.</p>
+                <a class="dl-forgot" href="/Account/ForgotPassword" id="dl-forgot">Forgot password?</a>
             </div>
         </form>
     </div>
@@ -101,7 +100,6 @@
   var editEmail = document.getElementById("dl-edit-email");
   var togglePassword = document.getElementById("dl-toggle-password");
   var forgot = document.getElementById("dl-forgot");
-  var forgotNote = document.getElementById("dl-forgot-note");
   var form = document.getElementById("dl-form");
 
   function isValidEmail(value) {
@@ -120,7 +118,6 @@
     passwordStep.hidden = true;
     passwordStep.classList.remove("is-active");
     titleEl.textContent = "Log in to your " + siteName + " account";
-    if (forgotNote) forgotNote.hidden = true;
     setTimeout(function () { emailInput.focus(); }, 30);
   }
 
@@ -138,6 +135,9 @@
     passwordStep.hidden = false;
     passwordStep.classList.add("is-active");
     titleEl.textContent = "Enter your password";
+    if (forgot) {
+      forgot.href = "/Account/ForgotPassword?email=" + encodeURIComponent(email);
+    }
     setTimeout(function () { passwordInput.focus(); }, 30);
   }
 
@@ -157,25 +157,18 @@
     var eyeOn = togglePassword.querySelector(".dl-eye-on");
 
     if (isHidden) {
-      // Reveal password → show open eye
       passwordInput.type = "text";
       togglePassword.setAttribute("aria-label", "Hide password");
       togglePassword.setAttribute("title", "Hide password");
       eyeOff.setAttribute("hidden", "");
       eyeOn.removeAttribute("hidden");
     } else {
-      // Mask password → show crossed eye
       passwordInput.type = "password";
       togglePassword.setAttribute("aria-label", "Show password");
       togglePassword.setAttribute("title", "Show password");
       eyeOn.setAttribute("hidden", "");
       eyeOff.removeAttribute("hidden");
     }
-  });
-
-  forgot.addEventListener("click", function (e) {
-    e.preventDefault();
-    if (forgotNote) forgotNote.hidden = false;
   });
 
   form.addEventListener("submit", function (e) {
@@ -199,6 +192,9 @@
     passwordStep.hidden = false;
     passwordStep.classList.add("is-active");
     titleEl.textContent = "Enter your password";
+    if (forgot && email) {
+      forgot.href = "/Account/ForgotPassword?email=" + encodeURIComponent(email);
+    }
     setTimeout(function () { passwordInput.focus(); }, 30);
   }
 })();

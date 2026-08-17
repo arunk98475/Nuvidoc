@@ -1,0 +1,39 @@
+@page
+@model Docovee.Pages.Account.VerifyEmailModel
+@{
+    Layout = null;
+    ViewData["Title"] = $"Email verification — {Branding.SiteName}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"]</title>
+    <partial name="Shared/_Favicon" />
+    <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
+</head>
+<body class="dl-body">
+<div class="dl-page">
+    <div class="dl-card">
+        <div class="dl-brand">
+            <img class="dl-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="44" height="44" />
+            <span class="dl-brand-name">@Branding.SiteName</span>
+        </div>
+        <h1 class="dl-title">@(Model.Success ? "Email verified" : "Verification failed")</h1>
+        <p class="@(Model.Success ? "alert-success" : "dl-error")">@Model.Message</p>
+        <p style="margin-top:18px;">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a class="dl-btn" href="/Account/Profile?section=security" style="display:inline-block;text-align:center;text-decoration:none;">Back to Login and security</a>
+            }
+            else
+            {
+                <a class="dl-btn" href="/?login=patient" style="display:inline-block;text-align:center;text-decoration:none;">Sign in</a>
+            }
+        </p>
+    </div>
+</div>
+@await Component.InvokeAsync("SiteFooter")
+</body>
+</html>

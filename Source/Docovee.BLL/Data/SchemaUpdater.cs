@@ -364,6 +364,11 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "PhoneVerificationCodeHash", "varchar(64) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PhoneVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "ReminderSettingsJson", "TEXT NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "EmailVerified", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "EmailVerificationTokenHash", "varchar(64) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "EmailVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "PasswordResetTokenHash", "varchar(64) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "PasswordResetExpiresAtUtc", "datetime(6) NULL", cancellationToken);
 
         await db.Database.ExecuteSqlRawAsync(
             """
