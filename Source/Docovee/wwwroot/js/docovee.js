@@ -80,6 +80,10 @@ function playWelcomeIntro(options = {}) {
     }
     if (input) input.disabled = false;
     if (sendBtn) sendBtn.disabled = false;
+    if (branding.welcomeChips?.length) {
+      setChips(branding.welcomeChips);
+      applyInputLock(true);
+    }
     if (options.focusInput) input?.focus();
   }, typingMs);
 }

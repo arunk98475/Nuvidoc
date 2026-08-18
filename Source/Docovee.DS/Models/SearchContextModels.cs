@@ -4,6 +4,7 @@ public enum NuviConversationStage
 {
     Greeting,
     Triage,
+    ImplantQualification,
     Logistics,
     MomentumBridge,
     DeepDivePermission,
@@ -79,7 +80,14 @@ public class SearchContextData
     /// <summary>0 = awaiting first-visit question; 1 = awaiting Yes/No; 2 = awaiting username; 3 = awaiting password.</summary>
     public int GreetingStep { get; set; }
     public int TriageQuestionCount { get; set; }
+    public int ImplantQualStep { get; set; }
     public int LogisticsStep { get; set; }
+    public bool? ImplantIntentQualified { get; set; }
+    public bool? ImplantTimingQualified { get; set; }
+    public string? ImplantPayerType { get; set; }
+    public bool? ImplantFinancingQualified { get; set; }
+    /// <summary>True once implant screening has been passed and logistics may proceed.</summary>
+    public bool ImplantQualificationComplete { get; set; }
     public string? VisitPreference { get; set; }
     public string? UrgencyPreference { get; set; }
     public string? LocationPreference { get; set; }

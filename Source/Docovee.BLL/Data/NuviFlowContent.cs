@@ -60,6 +60,62 @@ public static class NuviFlowContent
 
         ["In-person only", "Telehealth only", "Either works"];
 
+    public const string ImplantQualificationQuestion1 =
+
+        "Are you looking for dental implants — missing teeth, failing teeth, or dentures you want replaced?";
+
+    public static string FormatReturningPatientImplantWelcome(string displayName, string chatBotName) =>
+        $"Hi {displayName}! 👋 I'm {chatBotName} — your personal dentist-matching concierge. Welcome back! {ImplantQualificationQuestion1}";
+
+    public static string FormatGuestImplantWelcome(string chatBotName) =>
+        $"Hi! I'm {chatBotName} 👋 I'm here to match you with the right dentist for dental implants. {ImplantQualificationQuestion1}";
+
+    public static readonly string[] GuestImplantWelcomeOptions =
+        ["Yes", "No"];
+
+    public const string GuestImplantWelcomeDeclinedMessage =
+        "No problem — I'm here whenever you're ready to explore dental implants.";
+
+    public static readonly string[] ImplantQualificationQuestion1Options =
+
+        ["Implants / missing teeth / denture replacement", "Cleaning", "Filling", "Invisalign", "Just browsing"];
+
+    public const string ImplantQualificationQuestion2 =
+
+        "Do you want to start treatment within the next 60 days, or are you looking further out?";
+
+    public static readonly string[] ImplantQualificationQuestion2Options =
+
+        ["ASAP / this month / within 60 days", "Maybe in 6 months", "Just getting prices"];
+
+    public const string ImplantQualificationQuestion3 =
+
+        "How will you cover this?";
+
+    public static readonly string[] ImplantQualificationQuestion3Options =
+
+        ["Private dental insurance", "Cash/card", "Monthly financing", "Medicaid", "Medicare"];
+
+    public const string ImplantQualificationQuestion4 =
+
+        "Most offices offer financing around $150–300 a month for a case like yours — is that something you'd want to apply for, or are you paying cash or card?";
+
+    public static readonly string[] ImplantQualificationQuestion4Options =
+
+        ["Apply for financing", "Cash/card"];
+
+    public const string ImplantQualificationQuestion5 =
+
+        "Financing companies typically approve around 640 and up. Would you like to continue?";
+
+    public static readonly string[] ImplantQualificationQuestion5Options =
+
+        ["Yes Continue", "I dont want to continue"];
+
+    public const string ImplantQualificationDisqualifiedMessage =
+
+        "Thanks for sharing that. Right now we only book implant patients who can start soon and have a way to pay privately or with financing.";
+
 
 
     public const string LogisticsLocationQuestion =
@@ -374,6 +430,9 @@ public static class NuviFlowContent
     public const string CancelBookingChip = "Cancel Booking";
 
     public const string RescheduleBookingChip = "Reschedule Booking";
+
+    public static readonly string[] ImplantQualificationQuestion1ReturningOptions =
+        ["Implants / missing teeth / denture replacement", CancelBookingChip, RescheduleBookingChip];
 
     public const string CancelBookingNeverMindOption = "Never mind";
 

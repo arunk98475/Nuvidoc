@@ -173,16 +173,23 @@
 </div>
 
 @{
-    var welcomeMessage = User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)
-        ? $"Hi {Model.PatientFullName ?? User.Identity!.Name}! 👋 I'm {Branding.ChatBotName} — your personal dentist-matching concierge. Welcome back! What's going on with your teeth or smile?"
-        : $"Hi! I'm {Branding.ChatBotName} 👋 I'm here to match you with the right dentist — not just any dentist, the right one for YOU. Tooth pain, cleaning, implants, or a new dental home — tell me what's going on.";
+    var isReturningPatient = User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient);
+    var welcomeMessage = isReturningPatient
+        ? NuviFlowContent.FormatReturningPatientImplantWelcome(
+            Model.PatientFullName ?? User.Identity!.Name!,
+            Branding.ChatBotName)
+        : NuviFlowContent.FormatGuestImplantWelcome(Branding.ChatBotName);
+    var welcomeChips = isReturningPatient
+        ? NuviFlowContent.ImplantQualificationQuestion1ReturningOptions
+        : NuviFlowContent.GuestImplantWelcomeOptions;
 }
 <script>
   window.nuvidocBranding = {
     siteName: "@Branding.SiteName",
     chatBotName: "@Branding.ChatBotName",
     matchSearchLoadingMessage: @Html.Raw(JsonSerializer.Serialize(NuviFlowContent.MatchSearchLoadingMessage)),
-    welcomeMessage: @Html.Raw(JsonSerializer.Serialize(welcomeMessage))
+    welcomeMessage: @Html.Raw(JsonSerializer.Serialize(welcomeMessage)),
+    welcomeChips: @Html.Raw(JsonSerializer.Serialize(welcomeChips))
   };
 </script>
 @* Guests need SignalR for session-group booking pushes; signed-in patients also get JoinPatient from the account menu. *@

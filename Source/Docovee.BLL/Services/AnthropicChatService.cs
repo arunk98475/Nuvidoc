@@ -278,6 +278,7 @@ public class AnthropicChatService : IAnthropicChatService
         {
             NuviConversationStage.Greeting => await HandleGreetingAsync(session, context, effectiveMessage, httpContext, cancellationToken),
             NuviConversationStage.Triage => await HandleTriageAsync(session, context, effectiveMessage, cancellationToken),
+            NuviConversationStage.ImplantQualification => await HandleImplantQualificationAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.Logistics => await HandleLogisticsAsync(session, context, effectiveMessage, cancellationToken),
             NuviConversationStage.MomentumBridge => await HandleMomentumBridgeAsync(session, context, effectiveMessage, httpContext, cancellationToken),
             NuviConversationStage.DeepDivePermission => await HandleDeepDivePermissionAsync(session, context, effectiveMessage, httpContext, cancellationToken),
@@ -312,23 +313,14 @@ public class AnthropicChatService : IAnthropicChatService
         SearchSession session, SearchContextData context, string message, HttpContext? httpContext, CancellationToken cancellationToken)
     {
         if (context.SkipAccountCreation)
-        {
-            context.Stage = NuviConversationStage.Triage;
-            return await HandleTriageAsync(session, context, message, cancellationToken);
-        }
+            return await HandleSignedInPatientConcernAsync(session, context, message, cancellationToken);
 
         var answer = message.Trim();
 
         switch (context.GreetingStep)
         {
             case 0:
-                context.GreetingStep = 1;
-                var empathy = await GenerateGreetingEmpathyAsync(answer, cancellationToken);
-                var firstVisitQuestion = NuviFlowContent.FormatFirstVisitQuestion(_branding.SiteName);
-                var combined = $"{empathy}\n\n{firstVisitQuestion}";
-                await SaveAssistantMessageAsync(session, combined, cancellationToken);
-                return BuildResponse(session, context, combined, stage: NuviConversationStage.Greeting,
-                    options: NuviFlowContent.FirstVisitOptions);
+                return await HandleGuestImplantWelcomeAsync(session, context, answer, cancellationToken);
 
             case 1:
                 if (TryParseFirstVisitAnswer(answer, out var isFirstVisit))
@@ -411,12 +403,79 @@ public class AnthropicChatService : IAnthropicChatService
                 context.GreetingStep = 0;
                 context.Stage = NuviConversationStage.Triage;
                 var healthConcern = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
-                return await HandleTriageAsync(session, context, healthConcern, cancellationToken);
+                return await HandleSignedInPatientConcernAsync(session, context, healthConcern, cancellationToken);
 
             default:
                 context.GreetingStep = 0;
                 return await HandleGreetingAsync(session, context, message, httpContext, cancellationToken);
         }
+    }
+
+    private async Task<ChatMessageResponse> HandleGuestImplantWelcomeAsync(
+        SearchSession session,
+        SearchContextData context,
+        string answer,
+        CancellationToken cancellationToken)
+    {
+        if (IsGuestImplantWelcomeNo(answer))
+            return await EndGuestImplantWelcomeAsync(session, context, cancellationToken);
+
+        if (IsGuestImplantWelcomeYes(answer) || IsImplantConcern(answer))
+        {
+            await PrepareImplantSessionAsync(session, context, cancellationToken);
+            context.ImplantIntentQualified = true;
+            context.Stage = NuviConversationStage.ImplantQualification;
+            return await AskImplantQualificationQuestionAsync(session, context, 1, cancellationToken);
+        }
+
+        var reprompt = "Please choose Yes or No.";
+        await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            reprompt,
+            stage: NuviConversationStage.Greeting,
+            options: NuviFlowContent.GuestImplantWelcomeOptions,
+            optionsOnly: true);
+    }
+
+    private async Task<ChatMessageResponse> EndGuestImplantWelcomeAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.Complete;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.GuestImplantWelcomeDeclinedMessage, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            NuviFlowContent.GuestImplantWelcomeDeclinedMessage,
+            stage: NuviConversationStage.Complete,
+            flowComplete: true);
+    }
+
+    private async Task<ChatMessageResponse> HandleSignedInPatientConcernAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (IsImplantConcern(message))
+        {
+            await PrepareImplantSessionAsync(session, context, cancellationToken);
+
+            if (IsImplantQualificationPassAnswer(message))
+            {
+                context.ImplantIntentQualified = true;
+                context.Stage = NuviConversationStage.ImplantQualification;
+                return await AskImplantQualificationQuestionAsync(session, context, 1, cancellationToken);
+            }
+
+            return await BeginImplantQualificationAsync(session, context, cancellationToken);
+        }
+
+        context.Stage = NuviConversationStage.Triage;
+        return await HandleTriageAsync(session, context, message, cancellationToken);
     }
 
     private async Task<ChatMessageResponse> HandleTriageAsync(
@@ -547,6 +606,9 @@ public class AnthropicChatService : IAnthropicChatService
         if (string.IsNullOrWhiteSpace(cleanText))
             cleanText = "Got it — I have a good sense of what you need. Let me ask a few quick logistics questions.";
 
+        if (ShouldStartImplantQualification(session, context) && context.SkipAccountCreation)
+            return await BeginImplantQualificationAsync(session, context, cancellationToken);
+
         return await BeginLogisticsAsync(session, context, cleanText, cancellationToken);
     }
 
@@ -562,6 +624,9 @@ public class AnthropicChatService : IAnthropicChatService
         var text = string.IsNullOrWhiteSpace(RoutingRegex.Replace(aiText, string.Empty).Trim())
             ? "Thanks for sharing all of that. Let me ask a few quick logistics questions."
             : RoutingRegex.Replace(aiText, string.Empty).Trim();
+
+        if (ShouldStartImplantQualification(session, context) && context.SkipAccountCreation)
+            return await BeginImplantQualificationAsync(session, context, cancellationToken);
 
         return await BeginLogisticsAsync(session, context, text, cancellationToken);
     }
@@ -637,6 +702,216 @@ public class AnthropicChatService : IAnthropicChatService
             default:
                 return await BeginMomentumBridgeAsync(session, context, cancellationToken);
         }
+    }
+
+    private async Task<ChatMessageResponse> BeginImplantQualificationAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        if (context.ImplantQualificationComplete)
+            return await ContinueAfterImplantQualificationAsync(session, context, cancellationToken);
+
+        context.Stage = NuviConversationStage.ImplantQualification;
+        context.ImplantQualStep = 0;
+
+        return await AskImplantQualificationQuestionAsync(session, context, 0, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> AskImplantQualificationQuestionAsync(
+        SearchSession session,
+        SearchContextData context,
+        int step,
+        CancellationToken cancellationToken)
+    {
+        context.ImplantQualStep = step;
+        var (question, options) = step switch
+        {
+            0 => (NuviFlowContent.ImplantQualificationQuestion1, GetImplantQualificationQuestion1Options(context)),
+            1 => (NuviFlowContent.ImplantQualificationQuestion2, NuviFlowContent.ImplantQualificationQuestion2Options),
+            2 => (NuviFlowContent.ImplantQualificationQuestion3, NuviFlowContent.ImplantQualificationQuestion3Options),
+            3 => (NuviFlowContent.ImplantQualificationQuestion4, NuviFlowContent.ImplantQualificationQuestion4Options),
+            4 => (NuviFlowContent.ImplantQualificationQuestion5, NuviFlowContent.ImplantQualificationQuestion5Options),
+            _ => (NuviFlowContent.ImplantQualificationQuestion1, GetImplantQualificationQuestion1Options(context))
+        };
+
+        await SaveAssistantMessageAsync(session, question, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            question,
+            stage: NuviConversationStage.ImplantQualification,
+            options: options,
+            optionsOnly: true);
+    }
+
+    private async Task<ChatMessageResponse> HandleImplantQualificationAsync(
+        SearchSession session,
+        SearchContextData context,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        var answer = (message ?? string.Empty).Trim();
+
+        switch (context.ImplantQualStep)
+        {
+            case 0:
+                if (IsCancelBookingChip(answer))
+                    return await BeginCancelBookingAsync(session, context, cancellationToken);
+
+                if (IsRescheduleBookingChip(answer))
+                    return await BeginRescheduleBookingAsync(session, context, cancellationToken);
+
+                var q1Options = GetImplantQualificationQuestion1Options(context);
+                if (!MatchesOption(q1Options, answer) && !IsImplantQualificationPassAnswer(answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the options below.",
+                        q1Options,
+                        cancellationToken);
+                }
+
+                context.ImplantIntentQualified = IsImplantQualificationPassAnswer(answer);
+                if (context.ImplantIntentQualified == false)
+                    return await DisqualifyImplantLeadAsync(session, context, cancellationToken);
+
+                return await AskImplantQualificationQuestionAsync(session, context, 1, cancellationToken);
+
+            case 1:
+                if (!MatchesOption(NuviFlowContent.ImplantQualificationQuestion2Options, answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the timing options below.",
+                        NuviFlowContent.ImplantQualificationQuestion2Options,
+                        cancellationToken);
+                }
+
+                context.ImplantTimingQualified = IsImplantTimingPass(answer);
+                if (context.ImplantTimingQualified == false)
+                    return await DisqualifyImplantLeadAsync(session, context, cancellationToken);
+
+                return await AskImplantQualificationQuestionAsync(session, context, 2, cancellationToken);
+
+            case 2:
+                if (!MatchesOption(NuviFlowContent.ImplantQualificationQuestion3Options, answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the payment options below.",
+                        NuviFlowContent.ImplantQualificationQuestion3Options,
+                        cancellationToken);
+                }
+
+                context.ImplantPayerType = answer;
+                if (IsImplantPayerDisqualified(answer))
+                    return await DisqualifyImplantLeadAsync(session, context, cancellationToken);
+
+                if (string.Equals(answer, "Monthly financing", StringComparison.OrdinalIgnoreCase))
+                    return await AskImplantQualificationQuestionAsync(session, context, 3, cancellationToken);
+
+                context.ImplantFinancingQualified = true;
+                return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
+
+            case 3:
+                if (!MatchesOption(NuviFlowContent.ImplantQualificationQuestion4Options, answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the options below.",
+                        NuviFlowContent.ImplantQualificationQuestion4Options,
+                        cancellationToken);
+                }
+
+                if (string.Equals(answer, "Cash/card", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.ImplantFinancingQualified = true;
+                    return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
+                }
+
+                return await AskImplantQualificationQuestionAsync(session, context, 4, cancellationToken);
+
+            case 4:
+                if (!MatchesOption(NuviFlowContent.ImplantQualificationQuestion5Options, answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the options below.",
+                        NuviFlowContent.ImplantQualificationQuestion5Options,
+                        cancellationToken);
+                }
+
+                context.ImplantFinancingQualified =
+                    string.Equals(answer, "Yes Continue", StringComparison.OrdinalIgnoreCase);
+                return context.ImplantFinancingQualified == true
+                    ? await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken)
+                    : await DisqualifyImplantLeadAsync(session, context, cancellationToken);
+
+            default:
+                context.ImplantQualStep = 0;
+                return await BeginImplantQualificationAsync(session, context, cancellationToken);
+        }
+    }
+
+    private async Task<ChatMessageResponse> CompleteImplantQualificationAndBeginLogisticsAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        context.ImplantQualificationComplete = true;
+        return await BeginLogisticsAsync(session, context, string.Empty, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> ContinueAfterImplantQualificationAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        if (context.Stage == NuviConversationStage.Logistics && context.LogisticsStep < 3)
+            return await BeginLogisticsAsync(session, context, string.Empty, cancellationToken);
+
+        if (context.SkipAccountCreation)
+            return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
+
+        return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> RepromptImplantQualificationAsync(
+        SearchSession session,
+        SearchContextData context,
+        string text,
+        IReadOnlyList<string> options,
+        CancellationToken cancellationToken)
+    {
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            text,
+            stage: NuviConversationStage.ImplantQualification,
+            options: options,
+            optionsOnly: true);
+    }
+
+    private async Task<ChatMessageResponse> DisqualifyImplantLeadAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.Complete;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.ImplantQualificationDisqualifiedMessage, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            NuviFlowContent.ImplantQualificationDisqualifiedMessage,
+            stage: NuviConversationStage.Complete,
+            flowComplete: true);
     }
 
     private static string ClassifyInsuranceCategory(string answer)
@@ -982,6 +1257,9 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> BeginPostAccountFlowAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        if (ShouldStartImplantQualification(session, context))
+            return await BeginImplantQualificationAsync(session, context, cancellationToken);
+
         if (context.SkipAccountCreation)
             return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
 
@@ -3786,6 +4064,12 @@ public class AnthropicChatService : IAnthropicChatService
     private static void ResetBookingSearchContext(SearchContextData context)
     {
         context.TriageQuestionCount = 0;
+        context.ImplantQualStep = 0;
+        context.ImplantIntentQualified = null;
+        context.ImplantTimingQualified = null;
+        context.ImplantPayerType = null;
+        context.ImplantFinancingQualified = null;
+        context.ImplantQualificationComplete = false;
         context.LogisticsStep = 0;
         context.VisitPreference = null;
         context.UrgencyPreference = null;
@@ -4228,6 +4512,87 @@ public class AnthropicChatService : IAnthropicChatService
             return "Psychiatrist";
         return "Family Medicine";
     }
+
+    private static bool ShouldStartImplantQualification(SearchSession session, SearchContextData context)
+    {
+        if (context.ImplantQualificationComplete)
+            return false;
+
+        if (!string.Equals(session.Specialty, "Oral Surgeon", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return IsImplantIntent(session.MedicalIssuesSummary)
+               || IsImplantIntent(session.SearchNotes);
+    }
+
+    private async Task PrepareImplantSessionAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        var allUserText = await GetAllUserMessagesAsync(session.Id, cancellationToken);
+        session.Specialty = "Oral Surgeon";
+        session.Urgency = UrgencyLevel.Routine;
+        session.SearchNotes = "Dental implant inquiry";
+        session.MedicalIssuesSummary = string.Join(" | ", allUserText);
+        session.UpdatedAt = DateTime.UtcNow;
+    }
+
+    private static bool IsImplantConcern(string message) => IsImplantIntent(message);
+
+    private static bool IsGuestImplantWelcomeYes(string answer) =>
+        IsYesAnswer(answer) || string.Equals(answer.Trim(), "Yes", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsGuestImplantWelcomeNo(string answer) =>
+        IsNoAnswer(answer) || string.Equals(answer.Trim(), "No", StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyList<string> GetImplantQualificationQuestion1Options(SearchContextData context) =>
+        context.SkipAccountCreation
+            ? NuviFlowContent.ImplantQualificationQuestion1ReturningOptions
+            : NuviFlowContent.ImplantQualificationQuestion1Options;
+
+    private static bool IsImplantQualificationPassAnswer(string answer)
+    {
+        if (IsCancelBookingChip(answer) || IsRescheduleBookingChip(answer))
+            return false;
+
+        if (string.Equals(answer, "Implants / missing teeth / denture replacement", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return IsImplantIntentPass(answer) || IsImplantIntent(answer);
+    }
+
+    private static bool IsImplantIntent(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var lower = text.ToLowerInvariant();
+        return lower.Contains("implant")
+               || lower.Contains("missing teeth")
+               || lower.Contains("missing tooth")
+               || lower.Contains("failing teeth")
+               || lower.Contains("failing tooth")
+               || lower.Contains("denture")
+               || lower.Contains("dentures");
+    }
+
+    private static bool IsImplantIntentPass(string answer)
+        => answer.Contains("implant", StringComparison.OrdinalIgnoreCase)
+           || answer.Contains("missing teeth", StringComparison.OrdinalIgnoreCase)
+           || answer.Contains("denture", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsImplantTimingPass(string answer)
+        => answer.Contains("60 days", StringComparison.OrdinalIgnoreCase)
+           || answer.Contains("asap", StringComparison.OrdinalIgnoreCase)
+           || answer.Contains("this month", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsImplantPayerDisqualified(string answer)
+        => answer.Contains("medicaid", StringComparison.OrdinalIgnoreCase)
+           || answer.Contains("medicare", StringComparison.OrdinalIgnoreCase);
+
+    private static bool MatchesOption(IReadOnlyList<string> options, string answer)
+        => options.Any(option => string.Equals(option, answer, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsPasswordSubmission(SearchContextData context) =>
         (context.Stage == NuviConversationStage.Greeting && context.GreetingStep == 3)
