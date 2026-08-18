@@ -609,13 +609,11 @@
 
   showedBtn?.addEventListener("click", async () => {
     if (!currentAppointmentId || showedBtn.disabled) return;
-    if (!window.confirm("Mark this patient as showed? Your card on file may be charged for this visit.")) return;
     try {
       const data = await updateAppointmentStatus("Completed", showedBtn);
       if (!data) return;
       applyStatusToDrawer(data);
-      const msg = data.billingMessage || "Patient marked as showed.";
-      showToast(msg);
+      showToast(data.billingMessage || "Patient marked as showed.");
       if (data.remainsOnCalendar === false) {
         setTimeout(() => window.location.reload(), 900);
       }
