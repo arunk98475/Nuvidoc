@@ -1,0 +1,30 @@
+@model Docovee.DS.Models.DoctorAdminEditModel
+
+<div class="admin-card" id="visit-billing">
+    <h1>Visit billing</h1>
+    <p>Optional custom fee for this doctor. Leave override off to keep the default from the Doctors list.</p>
+    <div class="form-grid">
+        <div class="form-group">
+            <label><input asp-for="OverridePerVisitFee" id="override-per-visit-fee" /> Override Per-visit fee (USD)</label>
+            <p class="hint">When checked, this doctor is charged the amount below instead of the common default.</p>
+        </div>
+        <div class="form-group">
+            <label asp-for="PerVisitFeeUsd">Per-visit fee (USD)</label>
+            <input asp-for="PerVisitFeeUsd" id="per-visit-fee-usd" type="number" min="0" step="0.01" class="form-control" />
+            <p class="hint">Enabled only when override is checked. Charged when this doctor marks a NuviDoc patient as showed.</p>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">@(ViewData["Title"]?.ToString() == "Add Doctor" ? "Create Doctor" : "Save Changes")</button>
+</div>
+<script>
+(function () {
+  const override = document.getElementById("override-per-visit-fee");
+  const fee = document.getElementById("per-visit-fee-usd");
+  if (!override || !fee) return;
+  function sync() {
+    fee.disabled = !override.checked;
+  }
+  override.addEventListener("change", sync);
+  sync();
+})();
+</script>

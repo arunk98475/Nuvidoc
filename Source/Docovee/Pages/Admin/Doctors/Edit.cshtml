@@ -6,19 +6,19 @@
     var isIntegrated = nh is { IsEnabled: true };
 }
 
-<div class="admin-card">
-    <h1>Edit Doctor</h1>
-
-    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
-    {
-        <div class="alert-error">@Model.ErrorMessage</div>
+<form method="post" enctype="multipart/form-data">
+    <input type="hidden" asp-for="Input.Id" />
+    @{
+        ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
     }
+    <div class="admin-card">
+        <h1>Edit Doctor</h1>
 
-    <form method="post" enctype="multipart/form-data">
-        <input type="hidden" asp-for="Input.Id" />
-        @{
-            ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="alert-error">@Model.ErrorMessage</div>
         }
+
         <partial name="_DoctorForm" model="Model.Input" />
         @if (!string.IsNullOrEmpty(Model.Input.PhotoUrl))
         {
@@ -33,12 +33,14 @@
         </div>
         <button type="submit" class="btn btn-primary">Save Changes</button>
         <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-    </form>
-    @{
-        // Reset so NexHealth fields bind as NexHealthForm.* (not Input.NexHealthForm.*).
-        ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = string.Empty;
-    }
-</div>
+    </div>
+
+    <partial name="_DoctorBillingCard" model="Model.Input" />
+</form>
+@{
+    // Reset so NexHealth fields bind as NexHealthForm.* (not Input.NexHealthForm.*).
+    ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = string.Empty;
+}
 
 <div class="admin-card" id="nexhealth">
     <h1>NexHealth integration</h1>

@@ -61,7 +61,9 @@ public class Doctor
     public string? StripeCustomerId { get; set; }
     public string? BillingEmail { get; set; }
     public string? BillingAddressJson { get; set; }
-    /// <summary>Amount charged to this doctor when a NuviDoc patient is marked as showed (cents).</summary>
+    /// <summary>When true, PerVisitFeeCents is used instead of the platform default.</summary>
+    public bool OverridePerVisitFee { get; set; }
+    /// <summary>Amount charged to this doctor when a NuviDoc patient is marked as showed (cents). Used only if OverridePerVisitFee is true.</summary>
     public int PerVisitFeeCents { get; set; }
 
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();

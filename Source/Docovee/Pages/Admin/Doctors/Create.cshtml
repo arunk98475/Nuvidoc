@@ -4,18 +4,18 @@
     ViewData["Title"] = "Add Doctor";
 }
 
-<div class="admin-card">
-    <h1>Add Doctor</h1>
-
-    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
-    {
-        <div class="alert-error">@Model.ErrorMessage</div>
+<form method="post" enctype="multipart/form-data">
+    @{
+        ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
     }
+    <div class="admin-card">
+        <h1>Add Doctor</h1>
 
-    <form method="post" enctype="multipart/form-data">
-        @{
-            ViewContext.ViewData.TemplateInfo.HtmlFieldPrefix = "Input";
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="alert-error">@Model.ErrorMessage</div>
         }
+
         <partial name="_DoctorForm" model="Model.Input" />
         <div class="form-group">
             <label>Photo</label>
@@ -24,5 +24,7 @@
         </div>
         <button type="submit" class="btn btn-primary">Create Doctor</button>
         <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-    </form>
-</div>
+    </div>
+
+    <partial name="_DoctorBillingCard" model="Model.Input" />
+</form>

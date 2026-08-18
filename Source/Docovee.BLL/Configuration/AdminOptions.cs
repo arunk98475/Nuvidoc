@@ -26,4 +26,7 @@ public static class AppSettingKeys
     public const string FooterPrivacyPdfUrl = "FooterPrivacyPdfUrl";
     public const string FooterConsumerHealthPdfUrl = "FooterConsumerHealthPdfUrl";
     public const string FooterPrivacyChoicesPdfUrl = "FooterPrivacyChoicesPdfUrl";
+
+    public const string DefaultPerVisitFeeCents = "DefaultPerVisitFeeCents";
+    public const string FreeVisitCount = "FreeVisitCount";
 }

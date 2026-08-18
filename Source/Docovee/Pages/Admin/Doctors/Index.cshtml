@@ -22,6 +22,38 @@
 </div>
 
 <div class="admin-card">
+    <h2>Default visit billing</h2>
+    <p>These values apply to all doctors unless a doctor overrides the per-visit fee. Charging starts after free visits are used.</p>
+
+    @if (Model.BillingDefaultsSaved)
+    {
+        <div class="alert-success">Default billing settings saved.</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.BillingDefaultsError))
+    {
+        <div class="alert-error">@Model.BillingDefaultsError</div>
+    }
+
+    <form method="post" asp-page-handler="UpdateBillingDefaults">
+        <input type="hidden" name="Search" value="@Model.Search" />
+        <input type="hidden" name="PageNum" value="@Model.PageNum" />
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="DefaultPerVisitFeeUsd">Per-visit fee (USD)</label>
+                <input asp-for="DefaultPerVisitFeeUsd" type="number" min="0" step="0.01" class="form-control" />
+                <p class="hint">Default amount charged when a doctor marks a NuviDoc patient as showed.</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="FreeVisitCount">Number of free visits</label>
+                <input asp-for="FreeVisitCount" type="number" min="0" step="1" class="form-control" />
+                <p class="hint">Each doctor’s first N showed NuviDoc visits are free. Charging starts after that. Default is 0.</p>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Update</button>
+    </form>
+</div>
+
+<div class="admin-card">
     @if (Model.Results.Items.Count == 0)
     {
         <p>No doctors found. Add one manually or import from CSV/Excel.</p>

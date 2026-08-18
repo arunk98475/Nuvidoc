@@ -194,6 +194,24 @@ public static class SeedData
             });
         }
 
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.DefaultPerVisitFeeCents))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.DefaultPerVisitFeeCents,
+                Value = "0"
+            });
+        }
+
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.FreeVisitCount))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.FreeVisitCount,
+                Value = "0"
+            });
+        }
+
         await PollingQuestionSync.SyncFromSpecAsync(context);
 
         if (!await context.DoctorLanguages.AnyAsync())

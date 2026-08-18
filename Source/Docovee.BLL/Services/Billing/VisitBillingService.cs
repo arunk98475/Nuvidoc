@@ -1,4 +1,5 @@
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Services;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Models;
@@ -28,6 +29,7 @@ public sealed class VisitBillingService : IVisitBillingService
     private readonly DocoveeDbContext _db;
     private readonly IStripeCustomerService _customers;
     private readonly IStripePaymentMethodService _paymentMethods;
+    private readonly IAppSettingsService _appSettings;
     private readonly StripeOptions _options;
     private readonly IDocoveeLogger _logger;
 
@@ -35,12 +37,14 @@ public sealed class VisitBillingService : IVisitBillingService
         DocoveeDbContext db,
         IStripeCustomerService customers,
         IStripePaymentMethodService paymentMethods,
+        IAppSettingsService appSettings,
         IOptions<StripeOptions> options,
         IDocoveeLogger logger)
     {
         _db = db;
         _customers = customers;
         _paymentMethods = paymentMethods;
+        _appSettings = appSettings;
         _options = options.Value;
         _logger = logger;
     }
@@ -79,7 +83,37 @@ public sealed class VisitBillingService : IVisitBillingService
         if (!AppointmentSources.IsNuvidocBooking(appointment.Source))
             return Fail("This appointment is not billable.");
 
-        var amount = Math.Max(0, doctor.PerVisitFeeCents);
+        var defaultFeeCents = await _appSettings.GetDefaultPerVisitFeeCentsAsync(cancellationToken);
+        var amount = doctor.OverridePerVisitFee
+            ? Math.Max(0, doctor.PerVisitFeeCents)
+            : Math.Max(0, defaultFeeCents);
+
+        var freeVisitAllowance = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
+        if (freeVisitAllowance > 0)
+        {
+            var priorCompleted = await _db.Appointments.AsNoTracking()
+                .CountAsync(a =>
+                    a.DoctorId == doctorId
+                    && a.Id != appointmentId
+                    && a.Source != AppointmentSources.PmsInbound
+                    && a.Status == AppointmentStatuses.Completed,
+                    cancellationToken);
+
+            if (priorCompleted < freeVisitAllowance)
+            {
+                var used = priorCompleted + 1;
+                await SaveChargeAsync(doctorId, appointmentId, 0, _options.Currency, BillingChargeStatuses.Skipped,
+                    null, $"Free visit {used} of {freeVisitAllowance}.", cancellationToken);
+                return new VisitChargeResultDto
+                {
+                    Success = true,
+                    Message = $"Free visit {used} of {freeVisitAllowance}. No charge.",
+                    ChargeStatus = BillingChargeStatuses.Skipped,
+                    AmountCents = 0
+                };
+            }
+        }
+
         if (amount == 0)
         {
             await SaveChargeAsync(doctorId, appointmentId, 0, _options.Currency, BillingChargeStatuses.Skipped, null, null, cancellationToken);

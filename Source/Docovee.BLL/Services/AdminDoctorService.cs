@@ -319,7 +319,8 @@ public class AdminDoctorService : IAdminDoctorService
         if (string.IsNullOrWhiteSpace(model.SpecialtyCategory)) return "Specialty category is required.";
         if (string.IsNullOrWhiteSpace(model.City)) return "City is required.";
         if (string.IsNullOrWhiteSpace(model.State)) return "State is required.";
-        if (model.PerVisitFeeUsd < 0) return "Per-visit fee cannot be negative.";
+        if (model.OverridePerVisitFee && model.PerVisitFeeUsd < 0)
+            return "Override per-visit fee cannot be negative.";
         return null;
     }
 
@@ -358,7 +359,9 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.Gender = ParseGender(model.Gender);
         doctor.IsActive = model.IsActive;
         doctor.IsSponsored = model.IsSponsored;
-        doctor.PerVisitFeeCents = UsdToCents(model.PerVisitFeeUsd);
+        doctor.OverridePerVisitFee = model.OverridePerVisitFee;
+        if (model.OverridePerVisitFee)
+            doctor.PerVisitFeeCents = UsdToCents(model.PerVisitFeeUsd);
     }
 
     private void ApplyCredentials(Doctor doctor, DoctorAdminEditModel model, bool isCreate)
@@ -434,6 +437,7 @@ public class AdminDoctorService : IAdminDoctorService
         Gender = doctor.Gender.ToString(),
         IsActive = doctor.IsActive,
         IsSponsored = doctor.IsSponsored,
+        OverridePerVisitFee = doctor.OverridePerVisitFee,
         PerVisitFeeUsd = CentsToUsd(doctor.PerVisitFeeCents),
         Username = doctor.Username
     };

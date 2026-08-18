@@ -14,6 +14,9 @@ public interface IAppSettingsService
     Task<int> GetReviewEligibleDaysAfterConfirmedAsync(CancellationToken cancellationToken = default);
     Task<SiteSettingsModel> GetSiteSettingsAsync(CancellationToken cancellationToken = default);
     Task SaveSiteSettingsAsync(SiteSettingsModel settings, CancellationToken cancellationToken = default);
+    Task<int> GetDefaultPerVisitFeeCentsAsync(CancellationToken cancellationToken = default);
+    Task<int> GetFreeVisitCountAsync(CancellationToken cancellationToken = default);
+    Task SaveDoctorBillingDefaultsAsync(decimal perVisitFeeUsd, int freeVisitCount, CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -122,6 +125,35 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.FooterPrivacyPdfUrl, settings.PrivacyPdfUrl?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterConsumerHealthPdfUrl, settings.ConsumerHealthPdfUrl?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterPrivacyChoicesPdfUrl, settings.PrivacyChoicesPdfUrl?.Trim() ?? string.Empty, cancellationToken);
+    }
+
+    public async Task<int> GetDefaultPerVisitFeeCentsAsync(CancellationToken cancellationToken = default)
+    {
+        var value = await GetValueAsync(AppSettingKeys.DefaultPerVisitFeeCents, cancellationToken);
+        if (int.TryParse(value, out var cents))
+            return Math.Max(0, cents);
+        return 0;
+    }
+
+    public async Task<int> GetFreeVisitCountAsync(CancellationToken cancellationToken = default)
+    {
+        var value = await GetValueAsync(AppSettingKeys.FreeVisitCount, cancellationToken);
+        if (int.TryParse(value, out var count))
+            return Math.Clamp(count, 0, 10_000);
+        return 0;
+    }
+
+    public async Task SaveDoctorBillingDefaultsAsync(
+        decimal perVisitFeeUsd,
+        int freeVisitCount,
+        CancellationToken cancellationToken = default)
+    {
+        var cents = perVisitFeeUsd < 0
+            ? 0
+            : (int)Math.Round(perVisitFeeUsd * 100m, MidpointRounding.AwayFromZero);
+        var visits = Math.Clamp(freeVisitCount, 0, 10_000);
+        await SetValueAsync(AppSettingKeys.DefaultPerVisitFeeCents, cents.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.FreeVisitCount, visits.ToString(), cancellationToken);
     }
 
     private static string NormalizeUrl(string? url)

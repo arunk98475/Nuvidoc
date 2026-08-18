@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Services;
 using Docovee.DS;
 using Docovee.DS.Models;
 using Docovee.logging;
@@ -190,11 +191,16 @@ public sealed class DoctorBillingService : IDoctorBillingService
 {
     private readonly DocoveeDbContext _db;
     private readonly StripeOptions _options;
+    private readonly IAppSettingsService _appSettings;
 
-    public DoctorBillingService(DocoveeDbContext db, IOptions<StripeOptions> options)
+    public DoctorBillingService(
+        DocoveeDbContext db,
+        IOptions<StripeOptions> options,
+        IAppSettingsService appSettings)
     {
         _db = db;
         _options = options.Value;
+        _appSettings = appSettings;
     }
 
     public async Task<DoctorBillingContactDto> GetBillingContactAsync(int doctorId, CancellationToken cancellationToken = default)
@@ -322,10 +328,14 @@ public sealed class DoctorBillingService : IDoctorBillingService
 
     public async Task<int> GetPerVisitFeeCentsAsync(int doctorId, CancellationToken cancellationToken = default)
     {
-        var cents = await _db.Doctors.AsNoTracking()
+        var doctor = await _db.Doctors.AsNoTracking()
             .Where(d => d.Id == doctorId)
-            .Select(d => d.PerVisitFeeCents)
+            .Select(d => new { d.OverridePerVisitFee, d.PerVisitFeeCents })
             .FirstOrDefaultAsync(cancellationToken);
-        return Math.Max(0, cents);
+        if (doctor == null)
+            return 0;
+        if (doctor.OverridePerVisitFee)
+            return Math.Max(0, doctor.PerVisitFeeCents);
+        return Math.Max(0, await _appSettings.GetDefaultPerVisitFeeCentsAsync(cancellationToken));
     }
 }
