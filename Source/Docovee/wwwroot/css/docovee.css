@@ -646,6 +646,11 @@ body.pl-open {
   flex-direction: column;
 }
 
+.hero-doctor-panel[hidden],
+.hero-chat-split-wrap:not(.is-split) .hero-doctor-panel {
+  display: none !important;
+}
+
 .hero-doctor-panel-inner {
   position: relative;
   background: transparent;

@@ -684,12 +684,14 @@ async function openDoctorSidePanel(doctorId, options = {}) {
 function closeDoctorSidePanel() {
   const wrap = document.getElementById("hero-chat-split-wrap");
   const panel = document.getElementById("hero-doctor-panel");
+  const body = document.getElementById("hero-doctor-panel-body");
   wrap?.classList.remove("is-split");
   document.getElementById("hero-section")?.classList.remove("has-doctor-panel");
   if (panel) {
     panel.hidden = true;
     panel.setAttribute("aria-hidden", "true");
   }
+  if (body) body.innerHTML = "";
   panelDoctorId = null;
   panelAiLoading = false;
   highlightDoctorCard(null);
