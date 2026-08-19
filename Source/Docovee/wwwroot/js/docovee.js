@@ -375,7 +375,8 @@ const selectedDoctorsForCall = new Set();
 function addDoctorCards(doctors) {
   doctorListBoxDoctors = doctors.slice();
   selectedDoctorsForCall.clear();
-  doctors.forEach(d => selectedDoctorsForCall.add(d.id));
+  // Default: only the top-ranked doctor is pre-selected.
+  if (doctors.length > 0) selectedDoctorsForCall.add(doctors[0].id);
 
   const msgs = document.getElementById("chat-messages");
   let box = msgs.querySelector(".doctor-list-box");
@@ -385,11 +386,13 @@ function addDoctorCards(doctors) {
   box.className = "doctor-list-box";
   box.innerHTML = `
     <div class="doctor-list-box-toolbar">
-      <span class="doctor-list-box-title">Matched Doctors (${doctors.length})</span>
-      <select class="doctor-list-box-sort" aria-label="Sort doctors">
-        <option value="preference">Best fit</option>
-        <option value="distance">Distance</option>
-      </select>
+      <span class="doctor-list-box-title">🦷 Matched Doctors (${doctors.length})</span>
+      <div class="doctor-list-box-sort-wrap">
+        <select class="doctor-list-box-sort" aria-label="Sort doctors">
+          <option value="preference">Best fit</option>
+          <option value="distance">Distance</option>
+        </select>
+      </div>
     </div>
     <div class="doctor-list-box-items"></div>`;
 
@@ -880,6 +883,16 @@ function removeTyping() {
   if (t) t.remove();
 }
 
+function removeMatchSearchLoadingMessage() {
+  const msgs = document.getElementById("chat-messages");
+  if (!msgs) return;
+  msgs.querySelectorAll(".msg.ai").forEach(el => {
+    if (el.querySelector(".nuvi-loading") || el.textContent.trim() === MATCH_SEARCH_LOADING_MESSAGE) {
+      el.remove();
+    }
+  });
+}
+
 function updateInputMode(passwordMode) {
   usePasswordInput = passwordMode;
   const input = ensureChatInputElement(passwordMode);
@@ -1059,8 +1072,9 @@ async function sendMessage(action = null, selectedDoctorId = null) {
         await delay(minWait - elapsed);
       }
 
-      // Show doctor cards first, then Nuvi's follow-up question below the list.
+      // Show doctor cards; remove the "Searching…" loading bubble first.
       if (searchData.doctorCards?.length) {
+        removeMatchSearchLoadingMessage();
         closeDoctorSidePanel();
         addDoctorCards(searchData.doctorCards);
         clearRecommendedDoctors();
@@ -1155,6 +1169,9 @@ function sendChip(btn) {
   pendingSkipToMatches = btn.dataset.skipToMatches === "true";
   pendingCompleteMatchSearch = btn.dataset.completeMatchSearch === "true";
   document.getElementById("chat-input").value = btn.textContent;
+  // Hide chips immediately so the UI feels instant.
+  const chipsEl = document.getElementById("quick-chips");
+  if (chipsEl) chipsEl.style.display = "none";
   sendMessage();
 }
 
