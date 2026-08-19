@@ -82,11 +82,15 @@ public static class NuviFlowContent
 
     public const string ImplantQualificationQuestion2 =
 
-        "Do you want to start treatment within the next 60 days, or are you looking further out?";
+        "When you want to start the treatment?";
 
     public static readonly string[] ImplantQualificationQuestion2Options =
 
-        ["ASAP / this month / within 60 days", "Maybe in 6 months", "Just getting prices"];
+        ["ASAP (this week)", "Within 30 days", "Within 60 days", "Maybe in 6 months", "Just getting prices"];
+
+    public static readonly string[] ImplantQualificationQuestion2PassOptions =
+
+        ["ASAP (this week)", "Within 30 days", "Within 60 days"];
 
     public const string ImplantQualificationQuestion3 =
 
@@ -249,6 +253,10 @@ public static class NuviFlowContent
 
         "I'll need an email to create your profile — a Gmail or any personal email works. What's your email address?";
 
+    public const string AccountEmailInvalidMessage =
+
+        "Please enter correct email id only";
+
 
 
     public const string AccountPhoneQuestion =
@@ -272,6 +280,10 @@ public static class NuviFlowContent
     public const string AccountDateOfBirthQuestion =
 
         "What's your date of birth? (MM/DD/YYYY — dental offices need this to keep your chart accurate.)";
+
+    public const string AccountDateOfBirthInvalidFormatMessage =
+
+        "Please enter DOB in correct format (MM/DD/YYYY).";
 
 
 

@@ -27,6 +27,10 @@ public class AnthropicChatService : IAnthropicChatService
     private const int MaxTriageQuestions = 3;
     private const int MaxDeepDiveQuestions = 10;
     private const int LogisticsStepNewLocation = 11;
+    private const int ImplantQualStepInsurancePlan = 5;
+    private const string ImplantPayerPrivateInsurance = "Private dental insurance";
+    private const string ImplantPayerCashCard = "Cash/card";
+    private const string ImplantPayerMonthlyFinancing = "Monthly financing";
     private const string RedactedPasswordPlaceholder = "[password hidden]";
     private static readonly DateOnly PlaceholderDateOfBirth = new(1990, 1, 1);
 
@@ -188,6 +192,7 @@ public class AnthropicChatService : IAnthropicChatService
         var skipIncomingValidation =
             isDoctorCardOnly
             || IsPasswordSubmission(context)
+            || context.Stage == NuviConversationStage.AccountCreation
             || IsCollectingMissingProfileFields(context)
             || context.Stage == NuviConversationStage.CancelBooking
             || context.Stage == NuviConversationStage.RescheduleBooking
@@ -732,6 +737,7 @@ public class AnthropicChatService : IAnthropicChatService
             2 => (NuviFlowContent.ImplantQualificationQuestion3, NuviFlowContent.ImplantQualificationQuestion3Options),
             3 => (NuviFlowContent.ImplantQualificationQuestion4, NuviFlowContent.ImplantQualificationQuestion4Options),
             4 => (NuviFlowContent.ImplantQualificationQuestion5, NuviFlowContent.ImplantQualificationQuestion5Options),
+            ImplantQualStepInsurancePlan => (NuviFlowContent.LogisticsInsurancePlanQuestion, NuviFlowContent.LogisticsInsurancePlanOptions),
             _ => (NuviFlowContent.ImplantQualificationQuestion1, GetImplantQualificationQuestion1Options(context))
         };
 
@@ -794,6 +800,9 @@ public class AnthropicChatService : IAnthropicChatService
                 if (context.ImplantTimingQualified == false)
                     return await DisqualifyImplantLeadAsync(session, context, cancellationToken);
 
+                context.UrgencyPreference = answer;
+                session.AvailabilityPreference = MapUrgencyToAvailability(answer);
+                session.UpdatedAt = DateTime.UtcNow;
                 return await AskImplantQualificationQuestionAsync(session, context, 2, cancellationToken);
 
             case 2:
@@ -811,8 +820,36 @@ public class AnthropicChatService : IAnthropicChatService
                 if (IsImplantPayerDisqualified(answer))
                     return await DisqualifyImplantLeadAsync(session, context, cancellationToken);
 
-                if (string.Equals(answer, "Monthly financing", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(answer, ImplantPayerPrivateInsurance, StringComparison.OrdinalIgnoreCase))
+                {
+                    context.InsuranceCategory = "insured";
+                    return await AskImplantQualificationQuestionAsync(session, context, ImplantQualStepInsurancePlan, cancellationToken);
+                }
+
+                if (string.Equals(answer, ImplantPayerMonthlyFinancing, StringComparison.OrdinalIgnoreCase))
                     return await AskImplantQualificationQuestionAsync(session, context, 3, cancellationToken);
+
+                ApplyImplantCashPayerToContext(context, session);
+                context.ImplantFinancingQualified = true;
+                return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
+
+            case ImplantQualStepInsurancePlan:
+                if (!MatchesOption(NuviFlowContent.LogisticsInsurancePlanOptions, answer)
+                    && !answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the insurance options below, or skip for now.",
+                        NuviFlowContent.LogisticsInsurancePlanOptions,
+                        cancellationToken);
+                }
+
+                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
+                {
+                    context.InsurancePreference = answer;
+                    session.InsurancePlanText = answer;
+                }
 
                 context.ImplantFinancingQualified = true;
                 return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
@@ -828,8 +865,9 @@ public class AnthropicChatService : IAnthropicChatService
                         cancellationToken);
                 }
 
-                if (string.Equals(answer, "Cash/card", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(answer, ImplantPayerCashCard, StringComparison.OrdinalIgnoreCase))
                 {
+                    ApplyImplantCashPayerToContext(context, session);
                     context.ImplantFinancingQualified = true;
                     return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
                 }
@@ -1032,55 +1070,27 @@ public class AnthropicChatService : IAnthropicChatService
         {
             case AccountCreationStep.Name:
             {
-                var interp = await InterpretRegistrationReplyAsync(session, context, answer, "name", cancellationToken);
-                ApplyRegistrationCorrections(context, interp);
-                var fromAnswer = ExtractNameHeuristic(answer);
-                var fromInterp = interp.Valid && !string.IsNullOrWhiteSpace(interp.Value)
-                    ? ExtractNameHeuristic(interp.Value)
-                    : null;
-                var name = PreferFullerName(fromAnswer, fromInterp);
-                if (string.IsNullOrWhiteSpace(name) || AnthropicValidationService.LooksLikeGibberish(name))
+                if (string.IsNullOrWhiteSpace(answer))
                 {
-                    var retry = WithNextRegistrationQuestion(
-                        interp.Ack,
-                        "I didn't quite catch your name — what should I call you?");
-                    await SaveAssistantMessageAsync(session, retry, cancellationToken);
-                    return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+                    await SaveAssistantMessageAsync(session, NuviFlowContent.AccountNameQuestion, cancellationToken);
+                    return BuildResponse(session, context, NuviFlowContent.AccountNameQuestion, stage: NuviConversationStage.AccountCreation);
                 }
 
-                context.PendingFullName = ToDisplayName(name);
+                context.PendingFullName = answer.Trim();
                 context.AccountStep = AccountCreationStep.Email;
-                var emailPrompt = BuildRegistrationFollowUp(
-                    interp.Ack,
-                    $"Nice to meet you, {context.PendingFullName}! What's the best email address for you?",
-                    "What's the best email address for you?");
+                var emailPrompt = $"Nice to meet you, {context.PendingFullName}! What's the best email address for you?";
                 await SaveAssistantMessageAsync(session, emailPrompt, cancellationToken);
                 return BuildResponse(session, context, emailPrompt, stage: NuviConversationStage.AccountCreation);
             }
 
             case AccountCreationStep.Email:
             {
-                var interp = await InterpretRegistrationReplyAsync(session, context, answer, "email", cancellationToken);
-                ApplyRegistrationCorrections(context, interp);
-
-                var email = interp.Valid ? interp.Value : null;
-                if (string.IsNullOrWhiteSpace(email) || !TryExtractEmail(email, out email))
-                    TryExtractEmail(answer, out email);
-
-                if (string.IsNullOrWhiteSpace(email))
+                if (!TryMatchEmail(answer, out var email))
                 {
-                    var retry = LooksLikeDeclinedEmail(answer)
-                        || AckOffersEmailSkip(interp.Ack)
-                        || TryNormalizePhone(answer, out _)
-                        ? NuviFlowContent.AccountEmailRequiredMessage
-                        : WithNextRegistrationQuestion(
-                            interp.Ack,
-                            NuviFlowContent.AccountEmailRequiredMessage);
-                    await SaveAssistantMessageAsync(session, retry, cancellationToken);
-                    return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+                    await SaveAssistantMessageAsync(session, NuviFlowContent.AccountEmailInvalidMessage, cancellationToken);
+                    return BuildResponse(session, context, NuviFlowContent.AccountEmailInvalidMessage, stage: NuviConversationStage.AccountCreation);
                 }
 
-                email = email.Trim().ToLowerInvariant();
                 context.PendingEmail = email;
                 context.PendingUsername = email;
                 var existingPatient = await _db.Patients
@@ -1091,17 +1101,14 @@ public class AnthropicChatService : IAnthropicChatService
                 {
                     context.IsExistingAccountLogin = true;
                     context.AccountStep = AccountCreationStep.LoginPassword;
-                    var loginText = WithNextRegistrationQuestion(
-                        interp.Ack,
-                        "You already have an account with that email. Please enter your password and I'll sign you in.");
+                    var loginText = "You already have an account with that email. Please enter your password and I'll sign you in.";
                     await SaveAssistantMessageAsync(session, loginText, cancellationToken);
                     return BuildResponse(session, context, loginText, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
                 }
 
                 context.AccountStep = AccountCreationStep.Phone;
-                var phonePrompt = WithNextRegistrationQuestion(interp.Ack, NuviFlowContent.AccountPhoneQuestion);
-                await SaveAssistantMessageAsync(session, phonePrompt, cancellationToken);
-                return BuildResponse(session, context, phonePrompt, stage: NuviConversationStage.AccountCreation);
+                await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPhoneQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.AccountPhoneQuestion, stage: NuviConversationStage.AccountCreation);
             }
 
             case AccountCreationStep.LoginPassword:
@@ -1145,59 +1152,37 @@ public class AnthropicChatService : IAnthropicChatService
 
             case AccountCreationStep.Phone:
             {
-                var interp = await InterpretRegistrationReplyAsync(session, context, answer, "phone", cancellationToken);
-                ApplyRegistrationCorrections(context, interp);
-
-                var phoneRaw = interp.Valid ? interp.Value ?? answer : answer;
-                if (!TryNormalizePhone(PhoneNumberHelper.DigitsOnly(phoneRaw), out var phone)
-                    && !TryNormalizePhone(PhoneNumberHelper.DigitsOnly(answer), out phone))
+                if (!TryNormalizePhone(PhoneNumberHelper.DigitsOnly(answer), out var phone))
                 {
-                    var retry = LooksLikeDeclinedPhone(answer) || AckOffersPhoneSkip(interp.Ack)
-                        ? NuviFlowContent.AccountPhoneRequiredMessage
-                        : WithNextRegistrationQuestion(
-                            interp.Ack,
-                            NuviFlowContent.AccountPhoneRequiredMessage);
-                    await SaveAssistantMessageAsync(session, retry, cancellationToken);
-                    return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+                    await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPhoneRequiredMessage, cancellationToken);
+                    return BuildResponse(session, context, NuviFlowContent.AccountPhoneRequiredMessage, stage: NuviConversationStage.AccountCreation);
                 }
 
                 context.PendingPhone = phone;
                 context.AccountStep = AccountCreationStep.DateOfBirth;
-                var dobPrompt = WithNextRegistrationQuestion(interp.Ack, NuviFlowContent.AccountDateOfBirthQuestion);
-                await SaveAssistantMessageAsync(session, dobPrompt, cancellationToken);
-                return BuildResponse(session, context, dobPrompt, stage: NuviConversationStage.AccountCreation);
+                await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthQuestion, stage: NuviConversationStage.AccountCreation);
             }
 
             case AccountCreationStep.DateOfBirth:
             {
-                var interp = await InterpretRegistrationReplyAsync(session, context, answer, "dateOfBirth", cancellationToken);
-                ApplyRegistrationCorrections(context, interp);
-
-                var dobText = interp.Valid ? interp.Value ?? answer : answer;
-                if (!TryParseDateOfBirth(dobText, out var dob) && !TryParseDateOfBirth(answer, out dob))
+                if (!TryParseDateOfBirth(answer, out var dob))
                 {
-                    var retry = WithNextRegistrationQuestion(
-                        interp.Ack,
-                        "What's your date of birth? MM/DD/YYYY is perfect — for example, 04/09/1980.");
-                    await SaveAssistantMessageAsync(session, retry, cancellationToken);
-                    return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+                    await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, cancellationToken);
+                    return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, stage: NuviConversationStage.AccountCreation);
                 }
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
                 if (dob > today || dob.Year <= 1900 || dob < today.AddYears(-120))
                 {
-                    var retry = WithNextRegistrationQuestion(
-                        interp.Ack,
-                        "That date doesn't look right — please share a valid date of birth as MM/DD/YYYY.");
-                    await SaveAssistantMessageAsync(session, retry, cancellationToken);
-                    return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+                    await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, cancellationToken);
+                    return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, stage: NuviConversationStage.AccountCreation);
                 }
 
                 context.PatientDateOfBirth = dob;
                 context.AccountStep = AccountCreationStep.Password;
-                var passwordPrompt = WithNextRegistrationQuestion(interp.Ack, NuviFlowContent.AccountPasswordQuestion);
-                await SaveAssistantMessageAsync(session, passwordPrompt, cancellationToken);
-                return BuildResponse(session, context, passwordPrompt, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
+                await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPasswordQuestion, cancellationToken);
+                return BuildResponse(session, context, NuviFlowContent.AccountPasswordQuestion, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
             }
 
             case AccountCreationStep.Password:
@@ -1337,18 +1322,10 @@ public class AnthropicChatService : IAnthropicChatService
         if (string.IsNullOrWhiteSpace(answer) || answer == RedactedPasswordPlaceholder)
             return await BeginMissingPhoneAsync(session, context, cancellationToken);
 
-        var interp = await InterpretRegistrationReplyAsync(session, context, answer, "phone", cancellationToken);
-        var phoneRaw = interp.Valid ? interp.Value ?? answer : answer;
-        if (!TryNormalizePhone(PhoneNumberHelper.DigitsOnly(phoneRaw), out var phone)
-            && !TryNormalizePhone(PhoneNumberHelper.DigitsOnly(answer), out phone))
+        if (!TryNormalizePhone(PhoneNumberHelper.DigitsOnly(answer), out var phone))
         {
-            var retry = LooksLikeDeclinedPhone(answer) || AckOffersPhoneSkip(interp.Ack)
-                ? NuviFlowContent.AccountPhoneRequiredMessage
-                : WithNextRegistrationQuestion(
-                    interp.Ack,
-                    NuviFlowContent.AccountPhoneRequiredMessage);
-            await SaveAssistantMessageAsync(session, retry, cancellationToken);
-            return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+            await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPhoneRequiredMessage, cancellationToken);
+            return BuildResponse(session, context, NuviFlowContent.AccountPhoneRequiredMessage, stage: NuviConversationStage.AccountCreation);
         }
 
         context.PendingPhone = phone;
@@ -1389,25 +1366,17 @@ public class AnthropicChatService : IAnthropicChatService
         if (string.IsNullOrWhiteSpace(answer) || answer == RedactedPasswordPlaceholder)
             return await BeginMissingDateOfBirthAsync(session, context, cancellationToken);
 
-        var interp = await InterpretRegistrationReplyAsync(session, context, answer, "dateOfBirth", cancellationToken);
-        var dobText = interp.Valid ? interp.Value ?? answer : answer;
-        if (!TryParseDateOfBirth(dobText, out var dob) && !TryParseDateOfBirth(answer, out dob))
+        if (!TryParseDateOfBirth(answer, out var dob))
         {
-            var retry = WithNextRegistrationQuestion(
-                interp.Ack,
-                NuviFlowContent.AccountMissingDateOfBirthQuestion);
-            await SaveAssistantMessageAsync(session, retry, cancellationToken);
-            return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+            await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, cancellationToken);
+            return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, stage: NuviConversationStage.AccountCreation);
         }
 
         var today = DateOnly.FromDateTime(DateTime.Today);
         if (dob > today || dob.Year <= 1900 || dob < today.AddYears(-120))
         {
-            var retry = WithNextRegistrationQuestion(
-                interp.Ack,
-                "That date doesn't look right — please share a valid date of birth as MM/DD/YYYY.");
-            await SaveAssistantMessageAsync(session, retry, cancellationToken);
-            return BuildResponse(session, context, retry, stage: NuviConversationStage.AccountCreation);
+            await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, cancellationToken);
+            return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthInvalidFormatMessage, stage: NuviConversationStage.AccountCreation);
         }
 
         context.PatientDateOfBirth = dob;
@@ -1488,6 +1457,9 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<ChatMessageResponse> ContinueLogisticsAfterLocationAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        if (context.ImplantQualificationComplete)
+            return await FinishLogisticsSkippingInsuranceAndUrgencyAsync(session, context, cancellationToken);
+
         if (context.SkipAccountCreation)
             return await AskUrgencySkippingInsuranceAsync(session, context, cancellationToken);
 
@@ -1509,6 +1481,15 @@ public class AnthropicChatService : IAnthropicChatService
             options: NuviFlowContent.LogisticsUrgencyOptions);
     }
 
+    private async Task<ChatMessageResponse> FinishLogisticsSkippingInsuranceAndUrgencyAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        ApplySavedInsuranceToSession(session, context);
+        context.LogisticsStep = 3;
+        session.UpdatedAt = DateTime.UtcNow;
+        return await BeginMomentumBridgeAsync(session, context, cancellationToken);
+    }
+
     private static void ApplySavedInsuranceToSession(SearchSession session, SearchContextData context)
     {
         if (!string.IsNullOrWhiteSpace(context.InsurancePreference))
@@ -1528,428 +1509,26 @@ public class AnthropicChatService : IAnthropicChatService
     private static bool IsReturningWithSavedLocation(SearchContextData context) =>
         context.SkipAccountCreation && !string.IsNullOrWhiteSpace(context.LastKnownLocation);
 
-    private sealed class RegistrationInterpretation
-    {
-        public string Intent { get; init; } = "answer";
-        public string? Value { get; init; }
-        public bool Valid { get; init; }
-        public string? Ack { get; init; }
-        public string? CorrectedName { get; init; }
-        public string? CorrectedEmail { get; init; }
-        public string? CorrectedPhone { get; init; }
-        public string? CorrectedDateOfBirth { get; init; }
-    }
+    private static readonly Regex EmailFormatRegex = new(
+        @"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
-    private async Task<RegistrationInterpretation> InterpretRegistrationReplyAsync(
-        SearchSession session,
-        SearchContextData context,
-        string message,
-        string currentField,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.Model))
-            return InterpretRegistrationFallback(currentField, message);
-
-        try
-        {
-            var history = await _db.ChatMessages
-                .Where(m => m.SearchSessionId == session.Id)
-                .OrderByDescending(m => m.CreatedAt)
-                .Take(8)
-                .Select(m => new { m.Role, m.Content })
-                .ToListAsync(cancellationToken);
-            history.Reverse();
-
-            var historyBlock = history.Count == 0
-                ? "(none yet)"
-                : string.Join("\n", history.Select(m => $"{m.Role}: {m.Content}"));
-
-            var systemPrompt = $$"""
-                You are {{_branding.ChatBotName}}, a warm registration concierge for {{_branding.SiteName}}.
-                You help patients create an account so you can match them with the right dentist.
-
-                Personality:
-                - Sound like a friendly front-desk coordinator on the phone — human, brief, never robotic
-                - Acknowledge corrections gracefully ("Got it — Lama, thanks for the update.")
-                - Extract the real data from natural language. Do not store filler phrases.
-                  "I am lama" / "I'm Lama" / "my name is Lama" / "i am binu k vargese" → Binu K Vargese (full name, not just first name)
-                  "Sorry my name is lama" while asking for email → NAME CORRECTION, not an email
-                  "it's lama@gmail.com" / "i is lama@gmail.com" / "email is lama at gmail.com" → lama@gmail.com
-                  "call me at 713-555-1212" / "7894561230" → phone digits
-                  "April 9 1980" / "4/9/80" → 04/09/1980
-                - Title-case full names (Binu K Vargese, Mary Jane). Lowercase emails.
-                - Never invent data. If unclear, valid=false and ask again in one short sentence.
-                - Do NOT ask more than one question. No medical advice. No password handling.
-
-                EMAIL IS STRICT (currentField=email):
-                - Email is REQUIRED. valid=true ONLY if you extract a real address with @ and a domain (e.g. name@gmail.com).
-                - "I don't have email", "no email", "skip", "use my phone", "yes", a phone number, or anything without @ → valid=false.
-                - NEVER offer to skip email. NEVER substitute phone for email. NEVER ask for a phone number on the email step.
-                - If they refuse or send a phone number, ack briefly then ask ONLY for email again.
-
-                PHONE IS STRICT (currentField=phone):
-                - Phone is REQUIRED. valid=true ONLY if you extract a US number with at least 10 digits.
-                - value must be digits only after stripping spaces, dashes, parentheses, and words
-                  (e.g. "(789) 456-1230" / "call me at 789-456-1230" → "7894561230").
-                - "I don't have a phone", "skip", "use email instead", "yes"/"no" → valid=false.
-                - NEVER offer to skip phone. Ask again for a 10-digit number, e.g. 713-555-1212.
-
-                Respond with ONLY JSON:
-                {
-                  "intent": "answer" | "correct_prior" | "unclear",
-                  "value": "extracted value for the field we asked, or null",
-                  "valid": true,
-                  "ack": "optional short acknowledgement, no next question required",
-                  "correctedName": null,
-                  "correctedEmail": null,
-                  "correctedPhone": null,
-                  "correctedDateOfBirth": null
-                }
-                """;
-
-            var userPrompt = $"""
-                Current registration step: {currentField}
-                Already collected:
-                - name: {context.PendingFullName ?? "(none)"}
-                - email: {context.PendingEmail ?? "(none)"}
-                - phone: {context.PendingPhone ?? "(none)"}
-                - date of birth: {(context.PatientDateOfBirth?.ToString("MM/dd/yyyy") ?? "(none)")}
-
-                Recent chat:
-                {historyBlock}
-
-                Patient just said: {message}
-                """;
-
-            var payload = AnthropicApiHelper.BuildPayload(
-                _options,
-                maxTokens: 350,
-                system: systemPrompt,
-                messages: new[] { new { role = "user", content = userPrompt } });
-
-            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
-            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Registration interpreter HTTP {Status}: {Body}", (int)response.StatusCode, responseBody);
-                return InterpretRegistrationFallback(currentField, message);
-            }
-
-            var text = AnthropicApiHelper.ExtractTextContent(responseBody);
-            var parsed = ParseRegistrationInterpretation(text);
-            if (parsed != null)
-                return SanitizeClaudePhoneFields(parsed, currentField);
-            return InterpretRegistrationFallback(currentField, message);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Registration interpreter failed.");
-            return InterpretRegistrationFallback(currentField, message);
-        }
-    }
-
-    private static RegistrationInterpretation? ParseRegistrationInterpretation(string text)
-    {
-        var json = ExtractJsonObjectLoose(text);
-        if (string.IsNullOrWhiteSpace(json))
-            return null;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            string? Str(string name) =>
-                root.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.String
-                    ? p.GetString()
-                    : null;
-
-            var value = Str("value");
-            var valid = root.TryGetProperty("valid", out var validProp)
-                && validProp.ValueKind == JsonValueKind.True;
-
-            return new RegistrationInterpretation
-            {
-                Intent = Str("intent") ?? "answer",
-                Value = string.IsNullOrWhiteSpace(value) ? null : value.Trim(),
-                Valid = valid,
-                Ack = string.IsNullOrWhiteSpace(Str("ack")) ? null : Str("ack")!.Trim(),
-                CorrectedName = NullIfBlank(Str("correctedName")),
-                CorrectedEmail = NullIfBlank(Str("correctedEmail")),
-                CorrectedPhone = NullIfBlank(Str("correctedPhone")),
-                CorrectedDateOfBirth = NullIfBlank(Str("correctedDateOfBirth"))
-            };
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string? NullIfBlank(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? ExtractJsonObjectLoose(string text)
-    {
-        var trimmed = text.Trim();
-        var start = trimmed.IndexOf('{');
-        var end = trimmed.LastIndexOf('}');
-        if (start >= 0 && end > start)
-            return trimmed[start..(end + 1)];
-        return null;
-    }
-
-    private static RegistrationInterpretation InterpretRegistrationFallback(
-        string currentField,
-        string message)
-    {
-        switch (currentField)
-        {
-            case "name":
-            {
-                var name = ExtractNameHeuristic(message);
-                var ok = !string.IsNullOrWhiteSpace(name) && !AnthropicValidationService.LooksLikeGibberish(name);
-                return new RegistrationInterpretation
-                {
-                    Intent = "answer",
-                    Value = ok ? name : null,
-                    Valid = ok
-                };
-            }
-            case "email":
-            {
-                if (TryExtractEmail(message, out var email))
-                {
-                    return new RegistrationInterpretation
-                    {
-                        Intent = "answer",
-                        Value = email,
-                        Valid = true
-                    };
-                }
-
-                if (LooksLikeNameCorrection(message) && !LooksLikeDeclinedEmail(message))
-                {
-                    var name = ExtractNameHeuristic(message);
-                    return new RegistrationInterpretation
-                    {
-                        Intent = "correct_prior",
-                        Valid = false,
-                        CorrectedName = string.IsNullOrWhiteSpace(name) ? null : ToDisplayName(name),
-                        Ack = string.IsNullOrWhiteSpace(name)
-                            ? "No problem — thanks for the update."
-                            : $"No problem — I'll use {ToDisplayName(name)}."
-                    };
-                }
-
-                return new RegistrationInterpretation { Intent = "unclear", Valid = false };
-            }
-            case "phone":
-            {
-                var ok = TryNormalizePhone(PhoneNumberHelper.DigitsOnly(message), out var phone)
-                    && !LooksLikeDeclinedPhone(message);
-                return new RegistrationInterpretation
-                {
-                    Intent = "answer",
-                    Value = ok ? phone : null,
-                    Valid = ok
-                };
-            }
-            case "dateOfBirth":
-            {
-                var ok = TryParseDateOfBirth(message, out var dob);
-                return new RegistrationInterpretation
-                {
-                    Intent = "answer",
-                    Value = ok ? dob.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture) : null,
-                    Valid = ok
-                };
-            }
-            default:
-                return new RegistrationInterpretation { Intent = "unclear", Valid = false };
-        }
-    }
-
-    private static void ApplyRegistrationCorrections(SearchContextData context, RegistrationInterpretation interp)
-    {
-        if (!string.IsNullOrWhiteSpace(interp.CorrectedName))
-            context.PendingFullName = ToDisplayName(interp.CorrectedName);
-        if (!string.IsNullOrWhiteSpace(interp.CorrectedEmail) && TryExtractEmail(interp.CorrectedEmail, out var email))
-        {
-            context.PendingEmail = email;
-            context.PendingUsername = email;
-        }
-        if (!string.IsNullOrWhiteSpace(interp.CorrectedPhone)
-            && TryNormalizePhone(PhoneNumberHelper.DigitsOnly(interp.CorrectedPhone), out var phone))
-            context.PendingPhone = phone;
-        if (!string.IsNullOrWhiteSpace(interp.CorrectedDateOfBirth)
-            && TryParseDateOfBirth(interp.CorrectedDateOfBirth, out var dob))
-            context.PatientDateOfBirth = dob;
-    }
-
-    private static string WithNextRegistrationQuestion(string? ack, string question)
-    {
-        var a = (ack ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(a))
-            return question;
-        if (a.Contains('?', StringComparison.Ordinal))
-            return a;
-        if (!a.EndsWith('.') && !a.EndsWith('!') && !a.EndsWith('…'))
-            a += ".";
-        return $"{a} {question}";
-    }
-
-    private static string BuildRegistrationFollowUp(string? ack, string defaultPrompt, string nextQuestionOnly)
-    {
-        var a = (ack ?? "").Trim();
-        if (string.IsNullOrWhiteSpace(a))
-            return defaultPrompt;
-        if (a.Contains('?', StringComparison.Ordinal))
-            return a;
-        return WithNextRegistrationQuestion(a, nextQuestionOnly);
-    }
-
-    private static string ToDisplayName(string name)
-    {
-        var trimmed = name.Trim();
-        if (trimmed.Length == 0)
-            return trimmed;
-        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(trimmed.ToLowerInvariant());
-    }
-
-    private static readonly Regex NamePrefixRegex = new(
-        @"^(?:hi|hello|hey)[,.\s]+(?:my name is|i am|i'm|im|i is|this is)?\s*|^sorry[,.\s]+(?:my name is|i am|i'm|im|i is)?\s*|^(?:my name is|i am|i'm|im|i is|this is|it's|its|name is)\s+",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-    private static string ExtractNameHeuristic(string answer)
-    {
-        var s = answer.Trim().Trim('"', '\'');
-        s = NamePrefixRegex.Replace(s, "");
-        s = s.Trim().TrimEnd('.', '!', ',', ';');
-        return s;
-    }
-
-    private static bool LooksLikeNameCorrection(string answer)
-    {
-        var lower = answer.Trim().ToLowerInvariant();
-        if (lower.Contains('@'))
-            return false;
-        return lower.Contains("my name is", StringComparison.Ordinal)
-            || lower.Contains("i am ", StringComparison.Ordinal)
-            || lower.Contains("i'm ", StringComparison.Ordinal)
-            || lower.Contains("i is ", StringComparison.Ordinal)
-            || lower.StartsWith("sorry", StringComparison.Ordinal);
-    }
-
-    private static string? PreferFullerName(string? fromAnswer, string? fromInterp)
-    {
-        var answerOk = !string.IsNullOrWhiteSpace(fromAnswer) && !AnthropicValidationService.LooksLikeGibberish(fromAnswer);
-        var interpOk = !string.IsNullOrWhiteSpace(fromInterp) && !AnthropicValidationService.LooksLikeGibberish(fromInterp);
-        if (answerOk && interpOk)
-        {
-            var answerParts = fromAnswer!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-            var interpParts = fromInterp!.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-            return answerParts >= interpParts ? fromAnswer : fromInterp;
-        }
-
-        return answerOk ? fromAnswer : interpOk ? fromInterp : fromAnswer ?? fromInterp;
-    }
-
-    private static bool LooksLikeDeclinedEmail(string answer)
-    {
-        var lower = answer.Trim().ToLowerInvariant();
-        if (lower.Contains('@'))
-            return false;
-        return lower.Contains("don't have", StringComparison.Ordinal)
-            || lower.Contains("dont have", StringComparison.Ordinal)
-            || lower.Contains("no email", StringComparison.Ordinal)
-            || lower.Contains("no mail", StringComparison.Ordinal)
-            || lower.Contains("skip email", StringComparison.Ordinal)
-            || lower.Contains("use my phone", StringComparison.Ordinal)
-            || lower.Contains("use phone", StringComparison.Ordinal)
-            || lower is "skip" or "no" or "yes" or "y" or "n";
-    }
-
-    private static bool LooksLikeDeclinedPhone(string answer)
-    {
-        var lower = answer.Trim().ToLowerInvariant();
-        return lower.Contains("don't have", StringComparison.Ordinal)
-            || lower.Contains("dont have", StringComparison.Ordinal)
-            || lower.Contains("no phone", StringComparison.Ordinal)
-            || lower.Contains("no number", StringComparison.Ordinal)
-            || lower.Contains("skip phone", StringComparison.Ordinal)
-            || lower is "skip" or "no" or "yes" or "y" or "n";
-    }
-
-    private static bool AckOffersEmailSkip(string? ack)
-    {
-        if (string.IsNullOrWhiteSpace(ack))
-            return false;
-        var lower = ack.ToLowerInvariant();
-        return lower.Contains("phone")
-            || lower.Contains("skip")
-            || lower.Contains("instead")
-            || lower.Contains("don't have")
-            || lower.Contains("dont have")
-            || lower.Contains("no email");
-    }
-
-    private static bool AckOffersPhoneSkip(string? ack)
-    {
-        if (string.IsNullOrWhiteSpace(ack))
-            return false;
-        var lower = ack.ToLowerInvariant();
-        return lower.Contains("skip")
-            || lower.Contains("instead")
-            || lower.Contains("don't have")
-            || lower.Contains("dont have")
-            || lower.Contains("no phone")
-            || lower.Contains("email instead");
-    }
-
-    private static readonly Regex EmailRegex = new(
-        @"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}",
+    private static readonly Regex DateOfBirthFormatRegex = new(
+        @"^(0[1-9]|1[0-2])/(0[1-9]|[12][0-9]|3[01])/\d{4}$",
         RegexOptions.Compiled);
 
-    private static bool TryExtractEmail(string? text, out string email)
+    private static bool TryMatchEmail(string? text, out string email)
     {
         email = "";
         if (string.IsNullOrWhiteSpace(text))
             return false;
-        var match = EmailRegex.Match(text);
-        if (!match.Success)
+
+        var trimmed = text.Trim();
+        if (!EmailFormatRegex.IsMatch(trimmed))
             return false;
-        email = match.Value.Trim().ToLowerInvariant();
+
+        email = trimmed.ToLowerInvariant();
         return true;
-    }
-
-    private static RegistrationInterpretation SanitizeClaudePhoneFields(
-        RegistrationInterpretation parsed,
-        string currentField)
-    {
-        var value = currentField == "phone"
-            ? PhoneNumberHelper.NormalizeLast10(parsed.Value) ?? PhoneNumberHelper.DigitsOnly(parsed.Value)
-            : parsed.Value;
-        var corrected = string.IsNullOrWhiteSpace(parsed.CorrectedPhone)
-            ? parsed.CorrectedPhone
-            : PhoneNumberHelper.NormalizeLast10(parsed.CorrectedPhone)
-                ?? PhoneNumberHelper.DigitsOnly(parsed.CorrectedPhone);
-
-        var valid = parsed.Valid;
-        if (currentField == "phone")
-            valid = value is { Length: 10 };
-
-        return new RegistrationInterpretation
-        {
-            Intent = parsed.Intent,
-            Value = string.IsNullOrWhiteSpace(value) ? null : value,
-            Valid = valid,
-            Ack = parsed.Ack,
-            CorrectedName = parsed.CorrectedName,
-            CorrectedEmail = parsed.CorrectedEmail,
-            CorrectedPhone = string.IsNullOrWhiteSpace(corrected) ? null : corrected,
-            CorrectedDateOfBirth = parsed.CorrectedDateOfBirth
-        };
     }
 
     private static bool TryNormalizePhone(string? text, out string phone)
@@ -1965,17 +1544,15 @@ public class AnthropicChatService : IAnthropicChatService
             return false;
 
         var trimmed = answer.Trim();
-        var formats = new[]
-        {
-            "M/d/yyyy", "MM/dd/yyyy", "M-d-yyyy", "MM-dd-yyyy",
-            "yyyy-MM-dd", "MMMM d, yyyy", "MMM d, yyyy"
-        };
+        if (!DateOfBirthFormatRegex.IsMatch(trimmed))
+            return false;
 
-        if (DateOnly.TryParseExact(trimmed, formats, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateOfBirth))
-            return true;
-
-        return DateOnly.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.None, out dateOfBirth)
-            || DateOnly.TryParse(trimmed, CultureInfo.CurrentCulture, DateTimeStyles.None, out dateOfBirth);
+        return DateOnly.TryParseExact(
+            trimmed,
+            "MM/dd/yyyy",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out dateOfBirth);
     }
 
     private static bool TryParseFirstVisitAnswer(string answer, out bool isFirstVisit)
@@ -4467,8 +4044,9 @@ public class AnthropicChatService : IAnthropicChatService
     {
         var lower = answer.ToLowerInvariant();
         if (lower.Contains("asap") || lower.Contains("this week")) return "asap";
-        if (lower.Contains("month")) return "week";
-        if (lower.Contains("explor")) return "flexible";
+        if (lower.Contains("30 days") || lower.Contains("within a month") || lower.Contains("month")) return "week";
+        if (lower.Contains("60 days")) return "week";
+        if (lower.Contains("explor") || lower.Contains("prices")) return "flexible";
         if (lower.Contains("soon")) return "asap";
         if (lower.Contains("virtual") || lower.Contains("telehealth")) return "telehealth";
         return "flexible";
@@ -4583,9 +4161,15 @@ public class AnthropicChatService : IAnthropicChatService
            || answer.Contains("denture", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsImplantTimingPass(string answer)
-        => answer.Contains("60 days", StringComparison.OrdinalIgnoreCase)
-           || answer.Contains("asap", StringComparison.OrdinalIgnoreCase)
-           || answer.Contains("this month", StringComparison.OrdinalIgnoreCase);
+        => NuviFlowContent.ImplantQualificationQuestion2PassOptions
+            .Any(option => string.Equals(option, answer, StringComparison.OrdinalIgnoreCase));
+
+    private static void ApplyImplantCashPayerToContext(SearchContextData context, SearchSession session)
+    {
+        context.InsuranceCategory = "self-pay";
+        context.InsurancePreference = ImplantPayerCashCard;
+        session.InsurancePlanText = null;
+    }
 
     private static bool IsImplantPayerDisqualified(string answer)
         => answer.Contains("medicaid", StringComparison.OrdinalIgnoreCase)
