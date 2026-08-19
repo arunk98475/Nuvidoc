@@ -633,7 +633,8 @@ body.pl-open {
 }
 
 .hero-chat-split-wrap.is-split .chat-messages {
-  max-height: 520px;
+  flex: 1;
+  min-height: 0;
 }
 
 .hero-doctor-panel {
@@ -832,6 +833,9 @@ body.pl-open {
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 600px;
 }
 
 .chat-header {
@@ -931,8 +935,8 @@ body.pl-open {
 
 .chat-messages {
   padding: 20px;
-  min-height: 280px;
-  max-height: 480px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1027,6 +1031,64 @@ body.pl-open {
 
 .nuvi-doctor-cards-wrap { align-items: flex-start; }
 .nuvi-doctor-cards { display: flex; flex-direction: column; gap: 10px; max-width: 92%; }
+
+.doctor-list-box {
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--white);
+  flex-shrink: 0;
+}
+
+.doctor-list-box-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 6px;
+  gap: 8px;
+}
+
+.doctor-list-box-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.doctor-list-box-sort {
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+}
+
+.doctor-list-box-items {
+  padding: 6px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.doctor-list-box .nuvi-doctor-card {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.doctor-list-box .nuvi-doctor-card-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.doctor-list-box .doctor-list-check {
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--sage);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
 
 .nuvi-doctor-card {
   text-align: left;
@@ -2731,7 +2793,8 @@ footer.site-footer {
     max-height: min(70vh, 560px);
   }
   .hero-chat-split-wrap.is-split .chat-messages {
-    max-height: 360px;
+    flex: 1;
+    min-height: 0;
   }
   .hp-stats-inner { grid-template-columns: 1fr 1fr; }
   .hp-stat:nth-child(2) { border-right: none; }
