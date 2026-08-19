@@ -858,11 +858,16 @@ function isSkipToMatchesMessage(text) {
 }
 
 async function fetchChatMessage(body) {
+  const payload = { ...body };
+  if (userLatitude != null && userLongitude != null) {
+    payload.latitude = userLatitude;
+    payload.longitude = userLongitude;
+  }
   const res = await fetch("/api/chat/message", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };

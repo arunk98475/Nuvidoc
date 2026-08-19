@@ -6,6 +6,9 @@ public class ChatMessageRequest
     public string Message { get; set; } = string.Empty;
     public int? SelectedDoctorId { get; set; }
     public string? Action { get; set; }
+    /// <summary>Browser/device GPS when the patient allows location access.</summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
 }
 
 public class ChatRecordContactViewRequest

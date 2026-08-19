@@ -65,6 +65,13 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(30);
             client.DefaultRequestHeaders.Add("User-Agent", $"{siteName}/1.0");
         });
+        services.AddHttpClient<IZipGeocodeService, ZippopotamGeocodeService>(client =>
+        {
+            client.BaseAddress = new Uri("https://api.zippopotam.us/");
+            client.Timeout = TimeSpan.FromSeconds(8);
+            client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "NuviDoc/1.0");
+            client.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
+        });
         services.AddHttpClient<IAnthropicChatService, AnthropicChatService>();
         services.AddHttpClient<IAnthropicValidationService, AnthropicValidationService>();
         services.AddHttpClient<IAnthropicMatchingService, AnthropicMatchingService>();

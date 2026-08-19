@@ -43,8 +43,8 @@ public class DoctorSearchService : IDoctorSearchService
         }
 
         session.Location = request.Location;
-        session.Latitude = request.Latitude;
-        session.Longitude = request.Longitude;
+        session.Latitude = request.Latitude ?? session.Latitude;
+        session.Longitude = request.Longitude ?? session.Longitude;
         session.InsurancePlanText = string.IsNullOrWhiteSpace(request.InsurancePlan)
             ? null
             : request.InsurancePlan.Trim();
@@ -111,12 +111,14 @@ public class DoctorSearchService : IDoctorSearchService
 
         var userInsurance = session.InsurancePlanText;
         var pollingAnswers = SearchContextHelper.Load(session).PollingAnswers;
+        var originLat = request.Latitude ?? session.Latitude;
+        var originLng = request.Longitude ?? session.Longitude;
 
         var results = filtered
             .Select(d =>
             {
                 rankingMap.TryGetValue(d.Id, out var rank);
-                var distance = CalculateDistanceMiles(request.Latitude, request.Longitude, d.Latitude, d.Longitude);
+                var distance = CalculateDistanceMiles(originLat, originLng, d.Latitude, d.Longitude);
                 var baseScore = rank.DoctorId == d.Id && rank.MatchScore > 0
                     ? rank.MatchScore
                     : CalculateMatchScore(d, distance);
@@ -142,10 +144,11 @@ public class DoctorSearchService : IDoctorSearchService
                     reason = string.IsNullOrWhiteSpace(reason) ? sponsoredNote : $"{reason}; {sponsoredNote}";
                 }
 
-                return MapDoctor(d, request.Latitude, request.Longitude, score, reason);
+                return MapDoctor(d, originLat, originLng, score, reason);
             })
             .OrderByDescending(d => d.IsSponsored)
             .ThenByDescending(d => d.MatchScore)
+            .ThenBy(d => d.DistanceMiles ?? double.MaxValue)
             .ThenByDescending(d => d.GoogleRating)
             .Take(resultCount)
             .ToList();
@@ -383,7 +386,9 @@ public class DoctorSearchService : IDoctorSearchService
         if (distanceMiles.HasValue && distanceMiles.Value <= 5)
             score += 10;
         else if (distanceMiles.HasValue && distanceMiles.Value <= 15)
-            score += 5;
+            score += 6;
+        else if (distanceMiles.HasValue && distanceMiles.Value <= 25)
+            score += 3;
         return Math.Min(score, 99);
     }
 

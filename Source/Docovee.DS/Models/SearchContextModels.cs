@@ -91,6 +91,9 @@ public class SearchContextData
     public string? VisitPreference { get; set; }
     public string? UrgencyPreference { get; set; }
     public string? LocationPreference { get; set; }
+    /// <summary>Last browser/device GPS captured on a chat request (fallback when ZIP geocode fails or ZIP is skipped).</summary>
+    public double? BrowserLatitude { get; set; }
+    public double? BrowserLongitude { get; set; }
     public string? InsurancePreference { get; set; }
     public string? InsuranceCategory { get; set; }
     public AccountCreationStep AccountStep { get; set; } = AccountCreationStep.Name;

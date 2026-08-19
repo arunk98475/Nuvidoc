@@ -67,9 +67,9 @@ public static class MatchWeightHelper
 
             if (question.Contains("close to home") || question.Contains("close to home or work"))
             {
-                if (value.Contains("very important") && distanceMiles is <= 10)
+                if (value.Contains("very important") && distanceMiles is <= 5)
                     boost += (int)Math.Round(8 * factor);
-                else if (value.Contains("somewhat") && distanceMiles is <= 20)
+                else if (value.Contains("somewhat") && distanceMiles is <= 15)
                     boost += (int)Math.Round(4 * factor);
             }
             else if (question.Contains("travel 30"))

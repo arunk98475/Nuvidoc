@@ -57,6 +57,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IAppointmentService _appointments;
     private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IAppointmentRescheduleService _appointmentReschedule;
+    private readonly IZipGeocodeService _zipGeocode;
     private readonly TwilioOptions _twilioOptions;
 
     public AnthropicChatService(
@@ -79,6 +80,7 @@ public class AnthropicChatService : IAnthropicChatService
         IAppointmentService appointments,
         IAppointmentCancelService appointmentCancel,
         IAppointmentRescheduleService appointmentReschedule,
+        IZipGeocodeService zipGeocode,
         IOptions<TwilioOptions> twilioOptions)
     {
         _httpClient = httpClient;
@@ -100,6 +102,7 @@ public class AnthropicChatService : IAnthropicChatService
         _appointments = appointments;
         _appointmentCancel = appointmentCancel;
         _appointmentReschedule = appointmentReschedule;
+        _zipGeocode = zipGeocode;
         _twilioOptions = twilioOptions.Value;
     }
 
@@ -158,6 +161,7 @@ public class AnthropicChatService : IAnthropicChatService
         var session = await GetOrCreateSessionAsync(request.SessionKey, cancellationToken);
         var context = SearchContextHelper.Load(session);
         await ApplyAuthenticatedPatientAsync(session, context, httpContext, cancellationToken);
+        CaptureBrowserCoordinates(request, context);
 
         if (string.Equals(request.Action, "signup", StringComparison.OrdinalIgnoreCase))
         {
@@ -665,6 +669,7 @@ public class AnthropicChatService : IAnthropicChatService
             case 0:
             case LogisticsStepNewLocation:
                 ApplyLocationAnswer(session, context, answer);
+                await ResolvePatientCoordinatesAsync(session, context, cancellationToken);
                 return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
 
             case 1:
@@ -1400,6 +1405,7 @@ public class AnthropicChatService : IAnthropicChatService
         var saved = NuviFlowContent.NormalizeSavedLocationChip(context.LastKnownLocation ?? string.Empty);
         context.LocationPreference = saved;
         session.Location = saved;
+        await ResolvePatientCoordinatesAsync(session, context, cancellationToken);
         return await ContinueLogisticsAfterLocationAsync(session, context, cancellationToken);
     }
 
@@ -1433,6 +1439,74 @@ public class AnthropicChatService : IAnthropicChatService
         context.LocationPreference = string.IsNullOrWhiteSpace(cleaned) ? answer : cleaned;
         session.Location = context.LocationPreference;
     }
+
+    private static void CaptureBrowserCoordinates(ChatMessageRequest request, SearchContextData context)
+    {
+        if (!IsValidLatLng(request.Latitude, request.Longitude))
+            return;
+
+        context.BrowserLatitude = request.Latitude;
+        context.BrowserLongitude = request.Longitude;
+    }
+
+    private async Task ResolvePatientCoordinatesAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        session.Latitude = null;
+        session.Longitude = null;
+
+        var zip = ZippopotamGeocodeService.NormalizeUsZip(context.LocationPreference)
+            ?? ZippopotamGeocodeService.NormalizeUsZip(session.Location);
+        var skipped = IsSkippedLocation(context, session);
+
+        if (!skipped && zip != null)
+        {
+            var geo = await _zipGeocode.TryGeocodeUsZipAsync(zip, cancellationToken);
+            if (geo != null)
+            {
+                session.Latitude = geo.Value.Latitude;
+                session.Longitude = geo.Value.Longitude;
+                return;
+            }
+
+            TryApplyBrowserCoordinates(session, context);
+            return;
+        }
+
+        TryApplyBrowserCoordinates(session, context);
+    }
+
+    private async Task EnsurePatientCoordinatesForSearchAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (session.Latitude.HasValue && session.Longitude.HasValue)
+            return;
+
+        await ResolvePatientCoordinatesAsync(session, context, cancellationToken);
+    }
+
+    private static void TryApplyBrowserCoordinates(SearchSession session, SearchContextData context)
+    {
+        if (!IsValidLatLng(context.BrowserLatitude, context.BrowserLongitude))
+            return;
+
+        session.Latitude = context.BrowserLatitude;
+        session.Longitude = context.BrowserLongitude;
+    }
+
+    private static bool IsSkippedLocation(SearchContextData context, SearchSession session)
+    {
+        var location = context.LocationPreference ?? session.Location ?? string.Empty;
+        if (string.Equals(location, NuviFlowContent.DefaultLocationWhenSkipped, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return ZippopotamGeocodeService.NormalizeUsZip(location) == null
+            && (string.IsNullOrWhiteSpace(location)
+                || location.Contains("skip", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsValidLatLng(double? latitude, double? longitude) =>
+        latitude is >= -90 and <= 90 && longitude is >= -180 and <= 180;
 
     private static bool IsUseLastLocationAnswer(string answer)
     {
@@ -2614,10 +2688,13 @@ public class AnthropicChatService : IAnthropicChatService
     private async Task<IReadOnlyList<DoctorDto>> SearchTopMatchesAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        await EnsurePatientCoordinatesForSearchAsync(session, context, cancellationToken);
         var results = await _doctorSearch.SearchAsync(new DoctorSearchRequest
         {
             SessionKey = session.SessionKey,
             Location = context.LocationPreference ?? session.Location ?? NuviFlowContent.DefaultLocationWhenSkipped,
+            Latitude = session.Latitude,
+            Longitude = session.Longitude,
             InsurancePlan = context.InsurancePreference,
             GenderPreference = "none",
             CommunicationStyle = session.CommunicationStyle,
