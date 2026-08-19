@@ -2082,11 +2082,7 @@ public class AnthropicChatService : IAnthropicChatService
                 selectedDoctor: doctorDetail);
         }
 
-        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
-        var text = await BuildDoctorConciergeRecommendationAsync(doctor, chiefComplaint, session, context, liveReviews, cancellationToken);
         context.RecommendedDoctorIds.Add(doctorId.Value);
-
-        await SaveAssistantMessageAsync(session, text, cancellationToken);
 
         if (session.PatientId.HasValue)
         {
@@ -2094,7 +2090,7 @@ public class AnthropicChatService : IAnthropicChatService
                 session.PatientId.Value, doctor.Id, session.Id, cancellationToken);
         }
 
-        return BuildResponse(session, context, text, stage: NuviConversationStage.RecommendationReveal,
+        return BuildResponse(session, context, string.Empty, stage: NuviConversationStage.RecommendationReveal,
             selectedDoctor: doctorDetail);
     }
 

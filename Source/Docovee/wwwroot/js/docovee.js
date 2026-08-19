@@ -321,23 +321,7 @@ function initCallResultChatPush() {
 }
 
 function buildPanelAiCommentHtml(aiComment = "", aiLoading = false) {
-  const comment = (aiComment || "").trim();
-  if (!comment && !aiLoading) return "";
-
-  const textHtml = aiLoading
-    ? `<span class="nuvi-loading"><span></span><span></span><span></span></span> Matching this dentist to what you shared…`
-    : escapeHtml(comment).replace(/\n/g, "<br>");
-
-  return `<div class="nuvi-panel-ai-card${aiLoading ? " is-loading" : ""}">
-      <div class="nuvi-panel-ai-card-head">
-        <div class="nuvi-panel-ai-avatar" aria-hidden="true">${escapeHtml(NUVI_AVATAR.charAt(0))}</div>
-        <div class="nuvi-panel-ai-card-meta">
-          <div class="nuvi-panel-ai-card-label">${escapeHtml(NUVI_AVATAR)}</div>
-          <div class="nuvi-panel-ai-card-sub">Why this dentist fits</div>
-        </div>
-      </div>
-      <div class="nuvi-panel-ai-card-text">${textHtml}</div>
-    </div>`;
+  return "";
 }
 
 function composeDoctorPanelBody(aiHtml, profileHtml) {
@@ -1095,8 +1079,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
 function selectDoctor(doctorId) {
   const doctorIdNum = Number(doctorId);
-  const needsAi = !recommendedDoctorIds.has(doctorIdNum);
-  openDoctorSidePanel(doctorIdNum, { aiLoading: needsAi && !doctorAiComments.has(doctorIdNum) });
+  openDoctorSidePanel(doctorIdNum);
   if (recommendedDoctorIds.has(doctorIdNum) || pendingDoctorSelections.has(doctorIdNum)) return;
   pendingDoctorSelections.add(doctorIdNum);
   sendMessage(null, doctorIdNum);
