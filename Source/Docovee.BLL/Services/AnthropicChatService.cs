@@ -2253,7 +2253,13 @@ public class AnthropicChatService : IAnthropicChatService
                             optionsOnly: true);
                     }
                     context.CallScope = CallOfficeScope.Selected;
-                    return await StartCallingOfficesAsync(session, context, cancellationToken);
+                    context.CallingStep = CallingConsentStep.AskPreference;
+                    var selPreferenceQ = NuviFlowContent.CallOfficesPreferenceQuestion;
+                    await SaveAssistantMessageAsync(session, selPreferenceQ, cancellationToken);
+                    return BuildResponse(session, context, selPreferenceQ,
+                        stage: NuviConversationStage.CallingConsent,
+                        options: NuviFlowContent.CallOfficesPreferenceOptions,
+                        optionsOnly: true);
                 }
 
                 {
