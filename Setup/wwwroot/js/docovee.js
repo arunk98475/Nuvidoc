@@ -80,6 +80,10 @@ function playWelcomeIntro(options = {}) {
     }
     if (input) input.disabled = false;
     if (sendBtn) sendBtn.disabled = false;
+    if (branding.welcomeChips?.length) {
+      setChips(branding.welcomeChips);
+      applyInputLock(true);
+    }
     if (options.focusInput) input?.focus();
   }, typingMs);
 }
@@ -317,23 +321,7 @@ function initCallResultChatPush() {
 }
 
 function buildPanelAiCommentHtml(aiComment = "", aiLoading = false) {
-  const comment = (aiComment || "").trim();
-  if (!comment && !aiLoading) return "";
-
-  const textHtml = aiLoading
-    ? `<span class="nuvi-loading"><span></span><span></span><span></span></span> Matching this dentist to what you shared…`
-    : escapeHtml(comment).replace(/\n/g, "<br>");
-
-  return `<div class="nuvi-panel-ai-card${aiLoading ? " is-loading" : ""}">
-      <div class="nuvi-panel-ai-card-head">
-        <div class="nuvi-panel-ai-avatar" aria-hidden="true">${escapeHtml(NUVI_AVATAR.charAt(0))}</div>
-        <div class="nuvi-panel-ai-card-meta">
-          <div class="nuvi-panel-ai-card-label">${escapeHtml(NUVI_AVATAR)}</div>
-          <div class="nuvi-panel-ai-card-sub">Why this dentist fits</div>
-        </div>
-      </div>
-      <div class="nuvi-panel-ai-card-text">${textHtml}</div>
-    </div>`;
+  return "";
 }
 
 function composeDoctorPanelBody(aiHtml, profileHtml) {
@@ -380,45 +368,111 @@ function setDoctorPanelAiState(doctorId, { aiComment = "", aiLoading = false } =
   body.scrollTop = 0;
 }
 
-function addDoctorCards(doctors) {
-  const msgs = document.getElementById("chat-messages");
-  const wrap = document.createElement("div");
-  wrap.className = "msg ai nuvi-doctor-cards-wrap";
-  wrap.innerHTML = `<div class="msg-avatar">${NUVI_AVATAR}</div><div class="nuvi-doctor-cards"></div>`;
-  const container = wrap.querySelector(".nuvi-doctor-cards");
+let doctorListBoxDoctors = [];
+let doctorListBoxSortMode = "preference";
+const selectedDoctorsForCall = new Set();
 
-  doctors.forEach((d, i) => {
+function addDoctorCards(doctors) {
+  doctorListBoxDoctors = doctors.slice();
+  selectedDoctorsForCall.clear();
+  // Default: only the top-ranked doctor is pre-selected.
+  if (doctors.length > 0) selectedDoctorsForCall.add(doctors[0].id);
+
+  const msgs = document.getElementById("chat-messages");
+  let box = msgs.querySelector(".doctor-list-box");
+  if (box) box.remove();
+
+  box = document.createElement("div");
+  box.className = "doctor-list-box";
+  box.innerHTML = `
+    <div class="doctor-list-box-toolbar">
+      <span class="doctor-list-box-title">🦷 Matched Doctors (${doctors.length})</span>
+      <div class="doctor-list-box-sort-wrap">
+        <select class="doctor-list-box-sort" aria-label="Sort doctors">
+          <option value="preference">Best fit</option>
+          <option value="distance">Distance</option>
+        </select>
+      </div>
+    </div>
+    <div class="doctor-list-box-items"></div>`;
+
+  const sortEl = box.querySelector(".doctor-list-box-sort");
+  sortEl.value = doctorListBoxSortMode;
+  sortEl.onchange = () => {
+    doctorListBoxSortMode = sortEl.value;
+    rerenderDoctorListBox();
+  };
+
+  renderDoctorListItems(box.querySelector(".doctor-list-box-items"), doctors);
+  msgs.appendChild(box);
+  scrollChatToBottom();
+  setTimeout(scrollChatToBottom, 120);
+}
+
+function rerenderDoctorListBox() {
+  const msgs = document.getElementById("chat-messages");
+  const box = msgs?.querySelector(".doctor-list-box");
+  if (!box) return;
+  const items = box.querySelector(".doctor-list-box-items");
+  if (!items) return;
+
+  let sorted = doctorListBoxDoctors.slice();
+  if (doctorListBoxSortMode === "distance") {
+    sorted.sort((a, b) => (a.distanceMiles ?? 999) - (b.distanceMiles ?? 999));
+  }
+  renderDoctorListItems(items, sorted);
+}
+
+function renderDoctorListItems(container, doctors) {
+  container.innerHTML = "";
+  doctors.forEach(d => {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "nuvi-doctor-card" + (d.recommended ? " recommended" : "") + (d.isSponsored ? " sponsored" : "");
     card.dataset.doctorId = String(d.id);
+
+    const checked = selectedDoctorsForCall.has(d.id) ? "checked" : "";
     const badges = [
       d.isSponsored ? '<div class="nuvi-sponsored-badge">Sponsored</div>' : "",
       d.recommended ? '<div class="nuvi-rec-badge">Best Match</div>' : ""
     ].filter(Boolean).join("");
+
     card.innerHTML = `
       ${badges}
-      <div class="nuvi-doctor-card-top">
-        <div class="nuvi-doctor-avatar">${escapeHtml(d.avatarInitials)}</div>
-        <div>
-          <div class="nuvi-doctor-name">${escapeHtml(d.name)}</div>
-          <div class="nuvi-doctor-spec">${escapeHtml(d.specialty)}</div>
-          <div class="nuvi-doctor-loc">${escapeHtml(d.location)}</div>
-          ${d.officePhoneNumber ? `<div class="nuvi-doctor-phone">${escapeHtml(d.officePhoneNumber)}</div>` : ""}
+      <div class="nuvi-doctor-card-row">
+        <input type="checkbox" class="doctor-list-check" data-doctor-id="${d.id}" ${checked} />
+        <div style="flex:1;min-width:0">
+          <div class="nuvi-doctor-card-top">
+            <div class="nuvi-doctor-avatar">${escapeHtml(d.avatarInitials)}</div>
+            <div>
+              <div class="nuvi-doctor-name">${escapeHtml(d.name)}</div>
+              <div class="nuvi-doctor-spec">${escapeHtml(d.specialty)}</div>
+              <div class="nuvi-doctor-loc">${escapeHtml(d.location)}</div>
+              ${d.officePhoneNumber ? `<div class="nuvi-doctor-phone">${escapeHtml(d.officePhoneNumber)}</div>` : ""}
+            </div>
+            <div class="nuvi-match-score">
+              <div class="nuvi-match-num">${d.matchScore}</div>
+              <div class="nuvi-match-label">Fit</div>
+            </div>
+          </div>
+          ${d.matchReason ? `<div class="nuvi-doctor-reason">${escapeHtml(d.matchReason)}</div>` : ""}
+          <div class="nuvi-doctor-tag">${escapeHtml(d.tag || "")}</div>
         </div>
-        <div class="nuvi-match-score">
-          <div class="nuvi-match-num">${d.matchScore}</div>
-          <div class="nuvi-match-label">Fit</div>
-        </div>
-      </div>
-      ${d.matchReason ? `<div class="nuvi-doctor-reason">${escapeHtml(d.matchReason)}</div>` : ""}
-      <div class="nuvi-doctor-tag">${escapeHtml(d.tag || "")}</div>`;
-    card.onclick = () => selectDoctor(d.id);
+      </div>`;
+
+    const cb = card.querySelector(".doctor-list-check");
+    cb.onclick = (e) => {
+      e.stopPropagation();
+      if (cb.checked) selectedDoctorsForCall.add(d.id);
+      else selectedDoctorsForCall.delete(d.id);
+    };
+    card.onclick = (e) => {
+      if (e.target === cb) return;
+      selectDoctor(d.id);
+    };
+
     container.appendChild(card);
   });
-
-  msgs.appendChild(wrap);
-  scrollChatToBottom();
 }
 
 function toVideoEmbedUrl(url) {
@@ -680,12 +734,14 @@ async function openDoctorSidePanel(doctorId, options = {}) {
 function closeDoctorSidePanel() {
   const wrap = document.getElementById("hero-chat-split-wrap");
   const panel = document.getElementById("hero-doctor-panel");
+  const body = document.getElementById("hero-doctor-panel-body");
   wrap?.classList.remove("is-split");
   document.getElementById("hero-section")?.classList.remove("has-doctor-panel");
   if (panel) {
     panel.hidden = true;
     panel.setAttribute("aria-hidden", "true");
   }
+  if (body) body.innerHTML = "";
   panelDoctorId = null;
   panelAiLoading = false;
   highlightDoctorCard(null);
@@ -827,6 +883,16 @@ function removeTyping() {
   if (t) t.remove();
 }
 
+function removeMatchSearchLoadingMessage() {
+  const msgs = document.getElementById("chat-messages");
+  if (!msgs) return;
+  msgs.querySelectorAll(".msg.ai").forEach(el => {
+    if (el.querySelector(".nuvi-loading") || el.textContent.trim() === MATCH_SEARCH_LOADING_MESSAGE) {
+      el.remove();
+    }
+  });
+}
+
 function updateInputMode(passwordMode) {
   usePasswordInput = passwordMode;
   const input = ensureChatInputElement(passwordMode);
@@ -852,11 +918,19 @@ function isSkipToMatchesMessage(text) {
 }
 
 async function fetchChatMessage(body) {
+  const payload = { ...body };
+  if (userLatitude != null && userLongitude != null) {
+    payload.latitude = userLatitude;
+    payload.longitude = userLongitude;
+  }
+  if (selectedDoctorsForCall.size > 0) {
+    payload.selectedDoctorIds = Array.from(selectedDoctorsForCall);
+  }
   const res = await fetch("/api/chat/message", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, data };
@@ -998,8 +1072,9 @@ async function sendMessage(action = null, selectedDoctorId = null) {
         await delay(minWait - elapsed);
       }
 
-      // Show doctor cards first, then Nuvi's follow-up question below the list.
+      // Show doctor cards; remove the "Searching…" loading bubble first.
       if (searchData.doctorCards?.length) {
+        removeMatchSearchLoadingMessage();
         closeDoctorSidePanel();
         addDoctorCards(searchData.doctorCards);
         clearRecommendedDoctors();
@@ -1084,8 +1159,7 @@ async function sendMessage(action = null, selectedDoctorId = null) {
 
 function selectDoctor(doctorId) {
   const doctorIdNum = Number(doctorId);
-  const needsAi = !recommendedDoctorIds.has(doctorIdNum);
-  openDoctorSidePanel(doctorIdNum, { aiLoading: needsAi && !doctorAiComments.has(doctorIdNum) });
+  openDoctorSidePanel(doctorIdNum);
   if (recommendedDoctorIds.has(doctorIdNum) || pendingDoctorSelections.has(doctorIdNum)) return;
   pendingDoctorSelections.add(doctorIdNum);
   sendMessage(null, doctorIdNum);
@@ -1095,6 +1169,9 @@ function sendChip(btn) {
   pendingSkipToMatches = btn.dataset.skipToMatches === "true";
   pendingCompleteMatchSearch = btn.dataset.completeMatchSearch === "true";
   document.getElementById("chat-input").value = btn.textContent;
+  // Hide chips immediately so the UI feels instant.
+  const chipsEl = document.getElementById("quick-chips");
+  if (chipsEl) chipsEl.style.display = "none";
   sendMessage();
 }
 
