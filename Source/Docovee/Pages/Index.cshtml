@@ -4,7 +4,7 @@
 @model IndexModel
 @{
     Layout = null;
-    ViewData["Title"] = $"{Branding.SiteName} — Find a Dentist in Houston";
+    ViewData["Title"] = $"{Branding.SiteName} — Dental Implants in Houston";
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -13,7 +13,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
     <partial name="Shared/_Favicon" />
-    <meta name="description" content="@Model.Home.MetaDescription" />
+    <meta name="description" content="Find the best dental implant specialists in Houston. Nuvi AI matches you instantly, then calls to book your consultation — free." />
     <meta name="geo.region" content="US-TX" />
     <meta name="geo.placename" content="Houston" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
@@ -40,31 +40,7 @@
         @if (!(User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)))
         {
             <div class="nav-links">
-                <a class="nav-link" href="#" onclick="scrollToChat(); closeMobileNav(); return false;">Find a Dentist</a>
-                <div class="nav-dropdown">
-                    <a class="nav-link" href="#">Houston care</a>
-                    <div class="nav-dropdown-menu">
-                        <a class="nav-dropdown-item" href="/services/emergency-dentist-houston" onclick="closeMobileNav()">🚨 Emergency Dentist</a>
-                        <a class="nav-dropdown-item" href="/services/same-day-dentist-houston" onclick="closeMobileNav()">⚡ Same-Day Dentist</a>
-                        <a class="nav-dropdown-item" href="/services/dentist-near-me-houston" onclick="closeMobileNav()">📍 Dentist Near Me</a>
-                        <a class="nav-dropdown-item" href="/services/best-dentists-houston" onclick="closeMobileNav()">⭐ Best Dentists</a>
-                        <a class="nav-dropdown-item" href="/services/dental-implants-houston" onclick="closeMobileNav()">✨ Dental Implants</a>
-                        <a class="nav-dropdown-item" href="/services" onclick="closeMobileNav()">All Houston services →</a>
-                    </div>
-                </div>
-                <div class="nav-dropdown">
-                    <a class="nav-link" href="#">Dental care</a>
-                    <div class="nav-dropdown-menu">
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a dentist'); closeMobileNav(); return false;">🦷 General Dentist</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an orthodontist'); closeMobileNav(); return false;">😁 Orthodontist</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need an oral surgeon'); closeMobileNav(); return false;">🦴 Oral Surgeon</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I need a periodontist'); closeMobileNav(); return false;">🦷 Periodontist</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want dental implants'); closeMobileNav(); return false;">✨ Dental Implants</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I want teeth whitening'); closeMobileNav(); return false;">💎 Whitening</a>
-                        <a class="nav-dropdown-item" href="#" onclick="fillChatInput('I am interested in Invisalign'); closeMobileNav(); return false;">🦷 Invisalign</a>
-                        <a class="nav-dropdown-item" href="#" onclick="scrollToChat(); closeMobileNav(); return false;">🌿 Tell Nuvi what you need →</a>
-                    </div>
-                </div>
+                <a class="nav-link" href="#" onclick="scrollToChat(); closeMobileNav(); return false;">Find a Dentist for Implants</a>
                 <a class="nav-link" href="#how-it-works" onclick="closeMobileNav()">How It Works</a>
                 <a class="nav-link" href="#testimonials" onclick="closeMobileNav()">Reviews</a>
             </div>
@@ -120,17 +96,16 @@
                 </div>
                 <div>
                     <div class="ai-name">@Branding.ChatBotName</div>
-                    <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right dentist</div>
+                    <div class="ai-status"><span class="ai-dot"></span>Here to help you find the right implant specialist</div>
                 </div>
             </div>
             <div class="chat-messages" id="chat-messages" aria-live="polite"></div>
             <div class="chips" id="quick-chips" style="display:none" aria-hidden="true">
-                <button class="chip" onclick="sendChip(this)">I need a dentist</button>
-                <button class="chip" onclick="sendChip(this)">Tooth pain</button>
-                <button class="chip" onclick="sendChip(this)">Dental implants</button>
-                <button class="chip" onclick="sendChip(this)">Teeth cleaning</button>
-                <button class="chip" onclick="sendChip(this)">Invisalign</button>
-                <button class="chip" onclick="sendChip(this)">Emergency dental</button>
+                <button class="chip" onclick="sendChip(this)">I want dental implants</button>
+                <button class="chip" onclick="sendChip(this)">How much do implants cost?</button>
+                <button class="chip" onclick="sendChip(this)">Am I a candidate?</button>
+                <button class="chip" onclick="sendChip(this)">Full mouth implants</button>
+                <button class="chip" onclick="sendChip(this)">Implants vs dentures</button>
                 @if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient))
                 {
                     <button class="chip" onclick="sendChip(this)">Cancel Booking</button>
