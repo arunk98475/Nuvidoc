@@ -199,6 +199,9 @@ public static class NuviFlowContent
 
         "What insurance plan are you on? (Don't worry if you're not sure — you can skip this for now)";
 
+    public const string LogisticsInsurancePlanInputPlaceholder =
+        "Type your insurance plan or tap an option below";
+
 
 
     public static readonly string[] LogisticsInsurancePlanOptions =

@@ -58,6 +58,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IAppointmentCancelService _appointmentCancel;
     private readonly IAppointmentRescheduleService _appointmentReschedule;
     private readonly IZipGeocodeService _zipGeocode;
+    private readonly IInsurancePlanResolutionService _insurancePlanResolution;
     private readonly TwilioOptions _twilioOptions;
 
     public AnthropicChatService(
@@ -81,6 +82,7 @@ public class AnthropicChatService : IAnthropicChatService
         IAppointmentCancelService appointmentCancel,
         IAppointmentRescheduleService appointmentReschedule,
         IZipGeocodeService zipGeocode,
+        IInsurancePlanResolutionService insurancePlanResolution,
         IOptions<TwilioOptions> twilioOptions)
     {
         _httpClient = httpClient;
@@ -103,6 +105,7 @@ public class AnthropicChatService : IAnthropicChatService
         _appointmentCancel = appointmentCancel;
         _appointmentReschedule = appointmentReschedule;
         _zipGeocode = zipGeocode;
+        _insurancePlanResolution = insurancePlanResolution;
         _twilioOptions = twilioOptions.Value;
     }
 
@@ -678,9 +681,7 @@ public class AnthropicChatService : IAnthropicChatService
                 {
                     context.LogisticsStep = 2;
                     await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsInsurancePlanQuestion, cancellationToken);
-                    return BuildResponse(session, context, NuviFlowContent.LogisticsInsurancePlanQuestion,
-                        stage: NuviConversationStage.Logistics,
-                        options: NuviFlowContent.LogisticsInsurancePlanOptions);
+                    return BuildInsurancePlanQuestionResponse(session, context);
                 }
 
                 context.InsurancePreference = context.InsuranceCategory == "self-pay" ? "Self-pay" : null;
@@ -692,16 +693,18 @@ public class AnthropicChatService : IAnthropicChatService
                     options: NuviFlowContent.LogisticsUrgencyOptions);
 
             case 2:
-                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.InsurancePreference = answer;
-                    session.InsurancePlanText = answer;
-                }
+            {
+                var insuranceBlock = await TryApplyInsurancePlanAnswerAsync(
+                    session, context, answer, NuviConversationStage.Logistics, cancellationToken);
+                if (insuranceBlock != null)
+                    return insuranceBlock;
+
                 context.LogisticsStep = 3;
                 await SaveAssistantMessageAsync(session, NuviFlowContent.LogisticsUrgencyQuestion, cancellationToken);
                 return BuildResponse(session, context, NuviFlowContent.LogisticsUrgencyQuestion,
                     stage: NuviConversationStage.Logistics,
                     options: NuviFlowContent.LogisticsUrgencyOptions);
+            }
 
             case 3:
                 context.UrgencyPreference = answer;
@@ -747,6 +750,15 @@ public class AnthropicChatService : IAnthropicChatService
         };
 
         await SaveAssistantMessageAsync(session, question, cancellationToken);
+        if (step == ImplantQualStepInsurancePlan)
+        {
+            return BuildInsurancePlanQuestionResponse(
+                session,
+                context,
+                stage: NuviConversationStage.ImplantQualification,
+                options: options);
+        }
+
         return BuildResponse(
             session,
             context,
@@ -839,25 +851,15 @@ public class AnthropicChatService : IAnthropicChatService
                 return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
 
             case ImplantQualStepInsurancePlan:
-                if (!MatchesOption(NuviFlowContent.LogisticsInsurancePlanOptions, answer)
-                    && !answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
-                {
-                    return await RepromptImplantQualificationAsync(
-                        session,
-                        context,
-                        "Please choose one of the insurance options below, or skip for now.",
-                        NuviFlowContent.LogisticsInsurancePlanOptions,
-                        cancellationToken);
-                }
-
-                if (!answer.Contains("skip", StringComparison.OrdinalIgnoreCase))
-                {
-                    context.InsurancePreference = answer;
-                    session.InsurancePlanText = answer;
-                }
+            {
+                var insuranceBlock = await TryApplyInsurancePlanAnswerAsync(
+                    session, context, answer, NuviConversationStage.ImplantQualification, cancellationToken);
+                if (insuranceBlock != null)
+                    return insuranceBlock;
 
                 context.ImplantFinancingQualified = true;
                 return await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken);
+            }
 
             case 3:
                 if (!MatchesOption(NuviFlowContent.ImplantQualificationQuestion4Options, answer))
@@ -923,6 +925,51 @@ public class AnthropicChatService : IAnthropicChatService
             return await ContinueSignedInAfterAccountAsync(session, context, cancellationToken);
 
         return await BeginDeepDivePermissionAsync(session, context, cancellationToken);
+    }
+
+    private ChatMessageResponse BuildInsurancePlanQuestionResponse(
+        SearchSession session,
+        SearchContextData context,
+        NuviConversationStage? stage = null,
+        IReadOnlyList<string>? options = null) =>
+        BuildResponse(
+            session,
+            context,
+            NuviFlowContent.LogisticsInsurancePlanQuestion,
+            stage: stage ?? NuviConversationStage.Logistics,
+            options: options ?? NuviFlowContent.LogisticsInsurancePlanOptions,
+            optionsOnly: false,
+            inputPlaceholder: NuviFlowContent.LogisticsInsurancePlanInputPlaceholder);
+
+    private async Task<ChatMessageResponse?> TryApplyInsurancePlanAnswerAsync(
+        SearchSession session,
+        SearchContextData context,
+        string answer,
+        NuviConversationStage stage,
+        CancellationToken cancellationToken)
+    {
+        var resolution = await _insurancePlanResolution.ResolveAsync(answer, cancellationToken);
+        if (resolution.IsSkip)
+            return null;
+
+        if (!resolution.IsResolved || string.IsNullOrWhiteSpace(resolution.ResolvedPlanName))
+        {
+            var reprompt = resolution.RepromptMessage
+                ?? "Please type your insurance plan name, tap one of the options below, or skip for now.";
+            await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
+            return BuildResponse(
+                session,
+                context,
+                reprompt,
+                stage: stage,
+                options: NuviFlowContent.LogisticsInsurancePlanOptions,
+                optionsOnly: false,
+                inputPlaceholder: NuviFlowContent.LogisticsInsurancePlanInputPlaceholder);
+        }
+
+        context.InsurancePreference = resolution.ResolvedPlanName;
+        session.InsurancePlanText = resolution.ResolvedPlanName;
+        return null;
     }
 
     private async Task<ChatMessageResponse> RepromptImplantQualificationAsync(
