@@ -9,6 +9,8 @@ public class ChatMessageRequest
     /// <summary>Browser/device GPS when the patient allows location access.</summary>
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+    /// <summary>Doctor IDs the patient has checked in the in-chat list box.</summary>
+    public List<int>? SelectedDoctorIds { get; set; }
 }
 
 public class ChatRecordContactViewRequest

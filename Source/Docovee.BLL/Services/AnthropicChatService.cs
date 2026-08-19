@@ -257,6 +257,9 @@ public class AnthropicChatService : IAnthropicChatService
         if (request.SelectedDoctorId.HasValue)
             context.SelectedDoctorId = request.SelectedDoctorId;
 
+        if (request.SelectedDoctorIds?.Count > 0)
+            context.CallDoctorIds = request.SelectedDoctorIds;
+
         if (request.Action == "book" && context.SelectedDoctorId.HasValue)
             context.BookingConfirmed = true;
 
@@ -2238,6 +2241,21 @@ public class AnthropicChatService : IAnthropicChatService
                         optionsOnly: true);
                 }
 
+                if (IsSelectedScope(message))
+                {
+                    if (context.CallDoctorIds == null || context.CallDoctorIds.Count == 0)
+                    {
+                        var noSelText = "Please check at least one doctor in the list, then tap SELECTED.";
+                        await SaveAssistantMessageAsync(session, noSelText, cancellationToken);
+                        return BuildResponse(session, context, noSelText,
+                            stage: NuviConversationStage.CallingConsent,
+                            options: NuviFlowContent.CallOfficesAllOrTopOptions,
+                            optionsOnly: true);
+                    }
+                    context.CallScope = CallOfficeScope.Selected;
+                    return await StartCallingOfficesAsync(session, context, cancellationToken);
+                }
+
                 {
                     var reprompt = NuviFlowContent.CallOfficesAllOrTopQuestion;
                     await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
@@ -2301,7 +2319,9 @@ public class AnthropicChatService : IAnthropicChatService
             ? "date_and_time"
             : context.CallPreference == CallOfficePreference.Dentist
                 ? "dentist"
-                : context.CallScope == CallOfficeScope.TopOne ? "top_one" : "any_time";
+                : context.CallScope == CallOfficeScope.TopOne ? "top_one"
+                : context.CallScope == CallOfficeScope.Selected ? "selected"
+                : "any_time";
 
         if (doctors.Count == 0)
         {
@@ -2523,6 +2543,14 @@ public class AnthropicChatService : IAnthropicChatService
         if (context.MatchedDoctorIds == null || context.MatchedDoctorIds.Count == 0)
             return doctors;
 
+        // Filter to only the selected doctors when that scope is chosen.
+        if (context.CallScope == CallOfficeScope.Selected
+            && context.CallDoctorIds?.Count > 0)
+        {
+            var selectedSet = new HashSet<int>(context.CallDoctorIds);
+            doctors = doctors.Where(d => selectedSet.Contains(d.Id)).ToList();
+        }
+
         var order = context.MatchedDoctorIds
             .Select((id, index) => (id, index))
             .ToDictionary(x => x.id, x => x.index);
@@ -2617,6 +2645,12 @@ public class AnthropicChatService : IAnthropicChatService
     {
         var lower = message.Trim().ToLowerInvariant();
         return lower is "all" or "all doctors" or "everyone" or "every doctor";
+    }
+
+    private static bool IsSelectedScope(string message)
+    {
+        var lower = message.Trim().ToLowerInvariant();
+        return lower is "selected" or "selected only" or "only selected";
     }
 
     private static bool IsDentistPreference(string message)

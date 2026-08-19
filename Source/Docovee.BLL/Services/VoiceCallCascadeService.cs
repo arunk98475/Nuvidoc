@@ -189,7 +189,7 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         // Allow retries for both TopOne and All scopes.
         // For TopOne the matched list only has one doctor so the loop naturally
         // retries that same doctor up to MaxCallRetriesPerDoctor times, then exhausts.
-        var isAllScope = context.CallScope == CallOfficeScope.All;
+        var isAllScope = context.CallScope is CallOfficeScope.All or CallOfficeScope.Selected;
         var maxRetries = Math.Max(0, _elevenLabs.MaxCallRetriesPerDoctor);
         if (!isAllScope && maxRetries == 0)
             return new VoiceCallCascadeResult();
@@ -272,10 +272,19 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             ? "dental appointment"
             : patientInfo.VisitReason!;
 
-        // For TopOne scope, only retry the first doctor — never cascade to others.
-        var candidateDoctorIds = isAllScope
-            ? context.MatchedDoctorIds
-            : context.MatchedDoctorIds.Take(1).ToList();
+        // For TopOne scope only retry the first doctor; for Selected, use the checked subset.
+        List<int> candidateDoctorIds;
+        if (context.CallScope == CallOfficeScope.Selected && context.CallDoctorIds?.Count > 0)
+        {
+            var selectedSet = new HashSet<int>(context.CallDoctorIds);
+            candidateDoctorIds = context.MatchedDoctorIds.Where(id => selectedSet.Contains(id)).ToList();
+        }
+        else
+        {
+            candidateDoctorIds = isAllScope
+                ? context.MatchedDoctorIds
+                : context.MatchedDoctorIds.Take(1).ToList();
+        }
 
         foreach (var doctorId in candidateDoctorIds)
         {

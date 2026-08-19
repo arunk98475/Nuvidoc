@@ -46,7 +46,8 @@ public enum CallOfficeScope
 {
     None,
     TopOne,
-    All
+    All,
+    Selected
 }
 
 public enum CallOfficePreference
@@ -126,6 +127,8 @@ public class SearchContextData
     public CallingConsentStep CallingStep { get; set; } = CallingConsentStep.None;
     public CallOfficeScope CallScope { get; set; } = CallOfficeScope.None;
     public CallOfficePreference CallPreference { get; set; } = CallOfficePreference.None;
+    /// <summary>Doctor IDs the user has checked in the list when CallScope == Selected.</summary>
+    public List<int>? CallDoctorIds { get; set; }
     /// <summary>Chip labels → appointment ids while Stage is CancelBooking.</summary>
     public List<CancelAppointmentChoice>? CancelAppointmentChoices { get; set; }
     public RescheduleBookingStep RescheduleStep { get; set; } = RescheduleBookingStep.None;
