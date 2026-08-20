@@ -8,6 +8,9 @@ using Docovee.Pages.Account;
 using Docovee.Services.Push;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
 using System.Xml.Linq;
 
 var contentRoot = Directory.GetCurrentDirectory();
@@ -93,6 +96,14 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.MaxRequestBodySize = maxUploadBytes;
 });
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // IIS / reverse proxy terminates TLS; clear defaults so forwarded headers are honored.
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(AuthRoles.Admin, policy => policy.RequireRole(AuthRoles.Admin));
@@ -122,6 +133,37 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    options.AddPolicy("chat", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+    options.AddPolicy("phoneVerify", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
 builder.Services.AddDocoveeBll(builder.Configuration);
 builder.Services.AddScoped<IPatientPushChannel, SignalRPatientPushChannel>();
 builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>();
@@ -131,17 +173,31 @@ builder.Services.AddHostedService<Docovee.Services.AppointmentReminderHostedServ
 builder.Services.AddHostedService<Docovee.Services.DoctorQualityScoreHostedService>();
 builder.Services.AddHostedService<Docovee.Services.SponsorshipBillingHostedService>();
 
+var isDevelopment = builder.Environment.IsDevelopment();
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/Login";
-        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        // Sliding idle timeout for patient/doctor sessions (admin uses shorter absolute ticket).
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+        options.SlidingExpiration = true;
+        options.Cookie.Name = ".NuviDoc.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = isDevelopment
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
     })
     .AddCookie(ExternalLoginModel.ExternalScheme, options =>
     {
         options.Cookie.Name = ".NuviDoc.External";
         options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = isDevelopment
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
     });
 
 var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
@@ -173,6 +229,8 @@ var app = builder.Build();
 
 Console.WriteLine("[NuviDoc] Web server starting — open http://localhost:5274, https://localhost:7212, or LAN profile http://192.168.1.13:37788");
 
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
@@ -182,6 +240,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -3,9 +3,11 @@ using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Docovee.Pages.Admin;
 
+[EnableRateLimiting("auth")]
 public class LoginModel : PageModel
 {
     private readonly IAdminAuthService _adminAuth;

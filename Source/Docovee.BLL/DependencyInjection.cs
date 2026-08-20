@@ -1,5 +1,6 @@
 using Docovee.BLL.Audit;
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Security;
 using Docovee.BLL.Services;
 using Docovee.BLL.Services.Billing;
 using Docovee.BLL.Services.PatientPush;
@@ -30,6 +31,8 @@ public static class DependencyInjection
         }
 
         services.AddHttpContextAccessor();
+        services.AddMemoryCache();
+        services.AddSingleton<ILoginLockoutService, LoginLockoutService>();
         services.AddScoped<IAuditTrailService, AuditTrailService>();
         services.AddScoped<AuditSaveChangesInterceptor>();
 

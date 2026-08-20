@@ -3,10 +3,12 @@ using Docovee.BLL.Services;
 using Docovee.DS;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Docovee.Pages.Account.Register;
 
+[EnableRateLimiting("auth")]
 public class DoctorModel : PageModel
 {
     private readonly DocoveeDbContext _db;

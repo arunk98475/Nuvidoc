@@ -4,10 +4,12 @@ using Docovee.BLL.Services;
 using Docovee.DS;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace Docovee.Pages.Account;
 
+[EnableRateLimiting("auth")]
 public class LoginModel : PageModel
 {
     private readonly IAccountAuthService _auth;

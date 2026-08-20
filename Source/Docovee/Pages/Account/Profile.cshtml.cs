@@ -6,6 +6,7 @@ using Docovee.DS.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Docovee.Pages.Account;
 
@@ -243,6 +244,7 @@ public class ProfileModel : PageModel
         return RedirectToPage(new { section = "security", saved = true });
     }
 
+    [EnableRateLimiting("phoneVerify")]
     public async Task<IActionResult> OnPostRequestPhoneVerificationAsync(string channel)
     {
         Section = "security";

@@ -1,6 +1,7 @@
 using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Docovee.Controllers.Api;
 
@@ -18,6 +19,7 @@ public class ChatController : ControllerBase
     }
 
     [HttpPost("message")]
+    [EnableRateLimiting("chat")]
     public async Task<ActionResult<ChatMessageResponse>> SendMessage([FromBody] ChatMessageRequest request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Message) && request.SelectedDoctorId == null && string.IsNullOrWhiteSpace(request.Action))

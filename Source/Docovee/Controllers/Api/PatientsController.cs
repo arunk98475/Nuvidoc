@@ -4,6 +4,7 @@ using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Docovee.Controllers.Api;
 
@@ -21,6 +22,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPost("register")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<PatientRegisterResponse>> Register([FromBody] PatientRegisterRequest request, CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(request.Email) || !string.IsNullOrWhiteSpace(request.Username))

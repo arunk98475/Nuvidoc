@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Docovee.BLL.Audit;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Security;
 using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
@@ -28,22 +29,46 @@ public class AdminAuthService : IAdminAuthService
     private readonly DocoveeDbContext _db;
     private readonly IDocoveeLogger _logger;
     private readonly IAuditTrailService _audit;
+    private readonly ILoginLockoutService _lockout;
     private readonly PasswordHasher<Admin> _passwordHasher = new();
 
-    public AdminAuthService(DocoveeDbContext db, IDocoveeLogger logger, IAuditTrailService audit)
+    public AdminAuthService(
+        DocoveeDbContext db,
+        IDocoveeLogger logger,
+        IAuditTrailService audit,
+        ILoginLockoutService lockout)
     {
         _db = db;
         _logger = logger;
         _audit = audit;
+        _lockout = lockout;
     }
 
     public async Task<bool> LoginAsync(AdminLoginRequest request, HttpContext httpContext, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+            return false;
+
+        if (_lockout.IsLockedOut(AdminRole, request.Username))
+        {
+            await _audit.LogAsync(_db, new AuditLogRequest
+            {
+                Action = AuditActions.LoginFailed,
+                EntityType = AuditEntityTypes.Authentication,
+                Success = false,
+                ErrorMessage = "Account locked out.",
+                Summary = $"{AdminRole} login failed",
+                NewValuesJson = $"{{\"role\":\"{AdminRole}\"}}"
+            }, cancellationToken);
+            return false;
+        }
+
         var admin = await _db.Admins
             .FirstOrDefaultAsync(a => a.Username == request.Username, cancellationToken);
 
         if (admin == null)
         {
+            _lockout.RecordFailure(AdminRole, request.Username);
             await _audit.LogAsync(_db, new AuditLogRequest
             {
                 Action = AuditActions.LoginFailed,
@@ -59,6 +84,7 @@ public class AdminAuthService : IAdminAuthService
         var result = _passwordHasher.VerifyHashedPassword(admin, admin.PasswordHash, request.Password);
         if (result == PasswordVerificationResult.Failed)
         {
+            _lockout.RecordFailure(AdminRole, request.Username);
             await _audit.LogAsync(_db, new AuditLogRequest
             {
                 Action = AuditActions.LoginFailed,
@@ -70,6 +96,8 @@ public class AdminAuthService : IAdminAuthService
             }, cancellationToken);
             return false;
         }
+
+        _lockout.Reset(AdminRole, request.Username);
 
         var claims = new List<Claim>
         {
@@ -86,8 +114,9 @@ public class AdminAuthService : IAdminAuthService
             principal,
             new AuthenticationProperties
             {
-                IsPersistent = true,
-                ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
+                IsPersistent = false,
+                AllowRefresh = false,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(15)
             });
 
         _logger.LogInformation("Admin logged in");

@@ -1,6 +1,7 @@
 using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Docovee.Controllers.Api;
 
@@ -13,6 +14,7 @@ public class DoctorOnboardingController : ControllerBase
     public DoctorOnboardingController(IDoctorOnboardingService onboarding) => _onboarding = onboarding;
 
     [HttpPost("message")]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<DoctorOnboardingMessageResponse>> SendMessage(
         [FromBody] DoctorOnboardingMessageRequest request,
         CancellationToken cancellationToken)

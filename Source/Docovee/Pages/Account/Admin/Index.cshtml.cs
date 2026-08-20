@@ -3,9 +3,11 @@ using Docovee.DS.Models;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Docovee.Pages.Account.Admin;
 
+[EnableRateLimiting("auth")]
 public class IndexModel : PageModel
 {
     private readonly IAccountAuthService _auth;
