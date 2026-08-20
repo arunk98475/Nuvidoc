@@ -54,6 +54,33 @@
 </div>
 
 <div class="admin-card">
+    <h2>Sponsorship</h2>
+    <p>Doctors can turn on sponsored listings only when their quality score meets this threshold.</p>
+
+    @if (Model.SponsorshipSettingsSaved)
+    {
+        <div class="alert-success">Sponsorship settings saved.</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.SponsorshipSettingsError))
+    {
+        <div class="alert-error">@Model.SponsorshipSettingsError</div>
+    }
+
+    <form method="post" asp-page-handler="UpdateSponsorshipSettings">
+        <input type="hidden" name="Search" value="@Model.Search" />
+        <input type="hidden" name="PageNum" value="@Model.PageNum" />
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="MinQualityScoreForSponsorship">Minimum quality score to enable sponsorship</label>
+                <input asp-for="MinQualityScoreForSponsorship" type="number" min="0" max="100" step="1" class="form-control" />
+                <p class="hint">Score is 0–100. Doctors below this value cannot enable sponsorship; active sponsorship is paused if their score later drops below it.</p>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Update</button>
+    </form>
+</div>
+
+<div class="admin-card">
     @if (Model.Results.Items.Count == 0)
     {
         <p>No doctors found. Add one manually or import from CSV/Excel.</p>

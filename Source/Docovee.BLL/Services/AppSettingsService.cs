@@ -18,6 +18,7 @@ public interface IAppSettingsService
     Task<int> GetFreeVisitCountAsync(CancellationToken cancellationToken = default);
     Task SaveDoctorBillingDefaultsAsync(decimal perVisitFeeUsd, int freeVisitCount, CancellationToken cancellationToken = default);
     Task<int> GetMinQualityScoreForSponsorshipAsync(CancellationToken cancellationToken = default);
+    Task SaveMinQualityScoreForSponsorshipAsync(int minQualityScore, CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -151,6 +152,14 @@ public class AppSettingsService : IAppSettingsService
         if (int.TryParse(value, out var score))
             return Math.Clamp(score, 0, 100);
         return DefaultMinQualityScoreForSponsorship;
+    }
+
+    public async Task SaveMinQualityScoreForSponsorshipAsync(
+        int minQualityScore,
+        CancellationToken cancellationToken = default)
+    {
+        var score = Math.Clamp(minQualityScore, 0, 100);
+        await SetValueAsync(AppSettingKeys.MinQualityScoreForSponsorship, score.ToString(), cancellationToken);
     }
 
     public async Task SaveDoctorBillingDefaultsAsync(

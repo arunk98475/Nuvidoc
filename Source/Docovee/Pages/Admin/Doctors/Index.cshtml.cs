@@ -19,6 +19,8 @@ public class IndexModel : PageModel
     public PagedResult<DoctorAdminDto> Results { get; set; } = new();
     public bool BillingDefaultsSaved { get; private set; }
     public string? BillingDefaultsError { get; private set; }
+    public bool SponsorshipSettingsSaved { get; private set; }
+    public string? SponsorshipSettingsError { get; private set; }
 
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
@@ -32,10 +34,13 @@ public class IndexModel : PageModel
     [BindProperty]
     public int FreeVisitCount { get; set; }
 
+    [BindProperty]
+    public int MinQualityScoreForSponsorship { get; set; }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Results = await _doctorService.ListAsync(PageNum, 20, Search, cancellationToken);
-        await LoadBillingDefaultsAsync(cancellationToken);
+        await LoadAdminDoctorSettingsAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostDeleteAsync(int id)
@@ -51,19 +56,44 @@ public class IndexModel : PageModel
         if (DefaultPerVisitFeeUsd < 0)
         {
             BillingDefaultsError = "Per-visit fee cannot be negative.";
+            MinQualityScoreForSponsorship = await _appSettings.GetMinQualityScoreForSponsorshipAsync(cancellationToken);
             return Page();
         }
 
         if (FreeVisitCount < 0)
         {
             BillingDefaultsError = "Number of free visits cannot be negative.";
+            MinQualityScoreForSponsorship = await _appSettings.GetMinQualityScoreForSponsorshipAsync(cancellationToken);
             return Page();
         }
 
         await _appSettings.SaveDoctorBillingDefaultsAsync(DefaultPerVisitFeeUsd, FreeVisitCount, cancellationToken);
         BillingDefaultsSaved = true;
-        await LoadBillingDefaultsAsync(cancellationToken);
+        await LoadAdminDoctorSettingsAsync(cancellationToken);
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostUpdateSponsorshipSettingsAsync(CancellationToken cancellationToken)
+    {
+        Results = await _doctorService.ListAsync(PageNum, 20, Search, cancellationToken);
+
+        if (MinQualityScoreForSponsorship < 0 || MinQualityScoreForSponsorship > 100)
+        {
+            SponsorshipSettingsError = "Minimum quality score must be between 0 and 100.";
+            await LoadBillingDefaultsAsync(cancellationToken);
+            return Page();
+        }
+
+        await _appSettings.SaveMinQualityScoreForSponsorshipAsync(MinQualityScoreForSponsorship, cancellationToken);
+        SponsorshipSettingsSaved = true;
+        await LoadAdminDoctorSettingsAsync(cancellationToken);
+        return Page();
+    }
+
+    private async Task LoadAdminDoctorSettingsAsync(CancellationToken cancellationToken)
+    {
+        await LoadBillingDefaultsAsync(cancellationToken);
+        MinQualityScoreForSponsorship = await _appSettings.GetMinQualityScoreForSponsorshipAsync(cancellationToken);
     }
 
     private async Task LoadBillingDefaultsAsync(CancellationToken cancellationToken)
