@@ -29,6 +29,8 @@ public static class AppSettingKeys
 
     public const string DefaultPerVisitFeeCents = "DefaultPerVisitFeeCents";
     public const string FreeVisitCount = "FreeVisitCount";
+    /// <summary>When true, per-visit billing runs only after the patient is marked as showed.</summary>
+    public const string VisitBillingChargeOnlyIfPatientShowed = "VisitBillingChargeOnlyIfPatientShowed";
     /// <summary>Minimum QualityScore (0–100) required before a doctor can enable sponsorship.</summary>
     public const string MinQualityScoreForSponsorship = "MinQualityScoreForSponsorship";
     /// <summary>Minimum Google review count required before a doctor can enable sponsorship.</summary>
@@ -36,4 +38,6 @@ public static class AppSettingKeys
     public const string SponsorshipBillingAmountCents = "SponsorshipBillingAmountCents";
     public const string SponsorshipBillingInterval = "SponsorshipBillingInterval";
     public const string SponsorshipBillingCustomDays = "SponsorshipBillingCustomDays";
+    /// <summary>When true, per-booking sponsorship is charged only after the patient is marked as showed.</summary>
+    public const string SponsorshipBillingChargeOnlyIfPatientShowed = "SponsorshipBillingChargeOnlyIfPatientShowed";
 }

@@ -217,6 +217,30 @@ public class AppointmentService : IAppointmentService
             _logger.LogWarning(ex, "PMS outbound push failed after creating appointment {Id}", appointment.Id);
         }
 
+        var sponsorshipCharge = await _sponsorshipBilling.TryChargeAsync(
+            request.DoctorId,
+            SponsorshipBillingChargeTrigger.Booking,
+            appointment.Id,
+            cancellationToken);
+        if (!sponsorshipCharge.Success && sponsorshipCharge.ChargeStatus != BillingChargeStatuses.Skipped)
+        {
+            _logger.LogWarning(
+                "Sponsorship billing failed for new appointment {AppointmentId}: {Message}",
+                appointment.Id, sponsorshipCharge.Message);
+        }
+
+        var visitCharge = await _visitBilling.TryChargeAsync(
+            request.DoctorId,
+            appointment.Id,
+            VisitBillingChargeTrigger.Booking,
+            cancellationToken);
+        if (!visitCharge.Success && visitCharge.ChargeStatus != BillingChargeStatuses.Skipped)
+        {
+            _logger.LogWarning(
+                "Visit billing failed for new appointment {AppointmentId}: {Message}",
+                appointment.Id, visitCharge.Message);
+        }
+
         return new CreateAppointmentResponse
         {
             Success = true,
@@ -350,7 +374,7 @@ public class AppointmentService : IAppointmentService
 
             var sponsorshipCharge = await _sponsorshipBilling.TryChargeAsync(
                 doctorId,
-                SponsorshipBillingChargeTrigger.Booking,
+                SponsorshipBillingChargeTrigger.PatientShowed,
                 appointmentId,
                 cancellationToken);
             if (!sponsorshipCharge.Success && sponsorshipCharge.ChargeStatus != BillingChargeStatuses.Skipped)

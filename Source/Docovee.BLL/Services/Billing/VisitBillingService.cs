@@ -10,8 +10,20 @@ using Stripe;
 
 namespace Docovee.BLL.Services.Billing;
 
+public enum VisitBillingChargeTrigger
+{
+    Booking,
+    PatientShowed
+}
+
 public interface IVisitBillingService
 {
+    Task<VisitChargeResultDto> TryChargeAsync(
+        int doctorId,
+        int appointmentId,
+        VisitBillingChargeTrigger trigger,
+        CancellationToken cancellationToken = default);
+
     Task<VisitChargeResultDto> ChargeForCompletedVisitAsync(
         int doctorId,
         int appointmentId,
@@ -49,11 +61,24 @@ public sealed class VisitBillingService : IVisitBillingService
         _logger = logger;
     }
 
-    public async Task<VisitChargeResultDto> ChargeForCompletedVisitAsync(
+    public Task<VisitChargeResultDto> ChargeForCompletedVisitAsync(
         int doctorId,
         int appointmentId,
+        CancellationToken cancellationToken = default) =>
+        TryChargeAsync(doctorId, appointmentId, VisitBillingChargeTrigger.PatientShowed, cancellationToken);
+
+    public async Task<VisitChargeResultDto> TryChargeAsync(
+        int doctorId,
+        int appointmentId,
+        VisitBillingChargeTrigger trigger,
         CancellationToken cancellationToken = default)
     {
+        var chargeOnlyIfPatientShowed = await _appSettings.GetVisitBillingChargeOnlyIfPatientShowedAsync(cancellationToken);
+        if (trigger == VisitBillingChargeTrigger.PatientShowed && !chargeOnlyIfPatientShowed)
+            return Skipped("Visit is charged when the booking is created.");
+        if (trigger == VisitBillingChargeTrigger.Booking && chargeOnlyIfPatientShowed)
+            return Skipped("Visit is charged when the patient is marked as showed.");
+
         var existing = await _db.DoctorBillingCharges.AsNoTracking()
             .FirstOrDefaultAsync(c => c.AppointmentId == appointmentId, cancellationToken);
         if (existing != null)
@@ -91,17 +116,12 @@ public sealed class VisitBillingService : IVisitBillingService
         var freeVisitAllowance = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
         if (freeVisitAllowance > 0)
         {
-            var priorCompleted = await _db.Appointments.AsNoTracking()
-                .CountAsync(a =>
-                    a.DoctorId == doctorId
-                    && a.Id != appointmentId
-                    && a.Source != AppointmentSources.PmsInbound
-                    && a.Status == AppointmentStatuses.Completed,
-                    cancellationToken);
+            var priorVisits = await CountPriorVisitsForFreeAllowanceAsync(
+                doctorId, appointmentId, chargeOnlyIfPatientShowed, cancellationToken);
 
-            if (priorCompleted < freeVisitAllowance)
+            if (priorVisits < freeVisitAllowance)
             {
-                var used = priorCompleted + 1;
+                var used = priorVisits + 1;
                 await SaveChargeAsync(doctorId, appointmentId, 0, _options.Currency, BillingChargeStatuses.Skipped,
                     null, $"Free visit {used} of {freeVisitAllowance}.", cancellationToken);
                 return new VisitChargeResultDto
@@ -291,6 +311,40 @@ public sealed class VisitBillingService : IVisitBillingService
         "requires_payment_method" or "requires_action" or "canceled" => BillingChargeStatuses.Failed,
         _ => BillingChargeStatuses.Pending
     };
+
+    private async Task<int> CountPriorVisitsForFreeAllowanceAsync(
+        int doctorId,
+        int appointmentId,
+        bool chargeOnlyIfPatientShowed,
+        CancellationToken cancellationToken)
+    {
+        if (chargeOnlyIfPatientShowed)
+        {
+            return await _db.Appointments.AsNoTracking()
+                .CountAsync(a =>
+                    a.DoctorId == doctorId
+                    && a.Id != appointmentId
+                    && a.Source != AppointmentSources.PmsInbound
+                    && a.Status == AppointmentStatuses.Completed,
+                    cancellationToken);
+        }
+
+        return await _db.Appointments.AsNoTracking()
+            .CountAsync(a =>
+                a.DoctorId == doctorId
+                && a.Id != appointmentId
+                && a.Source != AppointmentSources.PmsInbound,
+                cancellationToken);
+    }
+
+    private static VisitChargeResultDto Skipped(string message) =>
+        new()
+        {
+            Success = true,
+            Message = message,
+            ChargeStatus = BillingChargeStatuses.Skipped,
+            AmountCents = 0
+        };
 
     private static VisitChargeResultDto Fail(string message) =>
         new() { Success = false, Message = message };

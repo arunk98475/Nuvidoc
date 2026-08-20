@@ -36,6 +36,9 @@ public class IndexModel : PageModel
     public int FreeVisitCount { get; set; }
 
     [BindProperty]
+    public bool VisitBillingChargeOnlyIfPatientShowed { get; set; } = true;
+
+    [BindProperty]
     public int MinQualityScoreForSponsorship { get; set; }
 
     [BindProperty]
@@ -49,6 +52,9 @@ public class IndexModel : PageModel
 
     [BindProperty]
     public int SponsorshipBillingCustomDays { get; set; } = 30;
+
+    [BindProperty]
+    public bool SponsorshipBillingChargeOnlyIfPatientShowed { get; set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -90,7 +96,11 @@ public class IndexModel : PageModel
             return Page();
         }
 
-        await _appSettings.SaveDoctorBillingDefaultsAsync(DefaultPerVisitFeeUsd, FreeVisitCount, cancellationToken);
+        await _appSettings.SaveDoctorBillingDefaultsAsync(
+            DefaultPerVisitFeeUsd,
+            FreeVisitCount,
+            VisitBillingChargeOnlyIfPatientShowed,
+            cancellationToken);
         BillingDefaultsSaved = true;
         await LoadAdminDoctorSettingsAsync(cancellationToken);
         return Page();
@@ -144,7 +154,9 @@ public class IndexModel : PageModel
             {
                 AmountCents = (int)Math.Round(Math.Max(0, SponsorshipBillingAmountUsd) * 100m, MidpointRounding.AwayFromZero),
                 Interval = SponsorshipBillingInterval,
-                CustomDays = Math.Clamp(SponsorshipBillingCustomDays, 1, 365)
+                CustomDays = Math.Clamp(SponsorshipBillingCustomDays, 1, 365),
+                ChargeOnlyIfPatientShowed = SponsorshipBillingInterval == SponsorshipBillingInterval.PerBooking
+                    && SponsorshipBillingChargeOnlyIfPatientShowed
             }
         };
 
@@ -163,6 +175,7 @@ public class IndexModel : PageModel
         SponsorshipBillingAmountUsd = sponsorship.Billing.AmountUsd;
         SponsorshipBillingInterval = sponsorship.Billing.Interval;
         SponsorshipBillingCustomDays = sponsorship.Billing.CustomDays;
+        SponsorshipBillingChargeOnlyIfPatientShowed = sponsorship.Billing.ChargeOnlyIfPatientShowed;
     }
 
     private async Task LoadBillingDefaultsAsync(CancellationToken cancellationToken)
@@ -170,6 +183,7 @@ public class IndexModel : PageModel
         var cents = await _appSettings.GetDefaultPerVisitFeeCentsAsync(cancellationToken);
         DefaultPerVisitFeeUsd = Math.Max(0, cents) / 100m;
         FreeVisitCount = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
+        VisitBillingChargeOnlyIfPatientShowed = await _appSettings.GetVisitBillingChargeOnlyIfPatientShowedAsync(cancellationToken);
     }
 
     private async Task LoadPageStateForSponsorshipErrorAsync(CancellationToken cancellationToken)

@@ -7,11 +7,14 @@ public sealed class SponsorshipBillingSettings
     public int AmountCents { get; set; }
     public SponsorshipBillingInterval Interval { get; set; } = SponsorshipBillingInterval.Monthly;
     public int CustomDays { get; set; } = 30;
+    /// <summary>Per-booking only: charge when the patient is marked as showed instead of at booking time.</summary>
+    public bool ChargeOnlyIfPatientShowed { get; set; }
 
     public decimal AmountUsd => Math.Max(0, AmountCents) / 100m;
 
     public string IntervalLabel => Interval switch
     {
+        SponsorshipBillingInterval.PerBooking when ChargeOnlyIfPatientShowed => "each booking when the patient is marked as showed",
         SponsorshipBillingInterval.PerBooking => "each booking",
         SponsorshipBillingInterval.Daily => "every day",
         SponsorshipBillingInterval.Weekly => "every week",

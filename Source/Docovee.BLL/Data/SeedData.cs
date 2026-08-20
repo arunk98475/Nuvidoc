@@ -212,6 +212,15 @@ public static class SeedData
             });
         }
 
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.VisitBillingChargeOnlyIfPatientShowed))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.VisitBillingChargeOnlyIfPatientShowed,
+                Value = "true"
+            });
+        }
+
         if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.MinQualityScoreForSponsorship))
         {
             context.AppSettings.Add(new AppSetting
@@ -254,6 +263,15 @@ public static class SeedData
             {
                 Key = AppSettingKeys.SponsorshipBillingCustomDays,
                 Value = "30"
+            });
+        }
+
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.SponsorshipBillingChargeOnlyIfPatientShowed))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.SponsorshipBillingChargeOnlyIfPatientShowed,
+                Value = "false"
             });
         }
 

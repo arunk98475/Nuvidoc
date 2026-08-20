@@ -17,7 +17,12 @@ public interface IAppSettingsService
     Task SaveSiteSettingsAsync(SiteSettingsModel settings, CancellationToken cancellationToken = default);
     Task<int> GetDefaultPerVisitFeeCentsAsync(CancellationToken cancellationToken = default);
     Task<int> GetFreeVisitCountAsync(CancellationToken cancellationToken = default);
-    Task SaveDoctorBillingDefaultsAsync(decimal perVisitFeeUsd, int freeVisitCount, CancellationToken cancellationToken = default);
+    Task<bool> GetVisitBillingChargeOnlyIfPatientShowedAsync(CancellationToken cancellationToken = default);
+    Task SaveDoctorBillingDefaultsAsync(
+        decimal perVisitFeeUsd,
+        int freeVisitCount,
+        bool chargeOnlyIfPatientShowed,
+        CancellationToken cancellationToken = default);
     Task<int> GetMinQualityScoreForSponsorshipAsync(CancellationToken cancellationToken = default);
     Task SaveMinQualityScoreForSponsorshipAsync(int minQualityScore, CancellationToken cancellationToken = default);
     Task<SponsorshipBillingSettings> GetSponsorshipBillingSettingsAsync(CancellationToken cancellationToken = default);
@@ -151,6 +156,12 @@ public class AppSettingsService : IAppSettingsService
         return 0;
     }
 
+    public async Task<bool> GetVisitBillingChargeOnlyIfPatientShowedAsync(CancellationToken cancellationToken = default)
+    {
+        var value = await GetValueAsync(AppSettingKeys.VisitBillingChargeOnlyIfPatientShowed, cancellationToken);
+        return ParseBoolSetting(value, defaultValue: true);
+    }
+
     public async Task<int> GetMinQualityScoreForSponsorshipAsync(CancellationToken cancellationToken = default)
     {
         var value = await GetValueAsync(AppSettingKeys.MinQualityScoreForSponsorship, cancellationToken);
@@ -180,7 +191,8 @@ public class AppSettingsService : IAppSettingsService
             AppSettingKeys.MinGoogleReviewCountForSponsorship,
             AppSettingKeys.SponsorshipBillingAmountCents,
             AppSettingKeys.SponsorshipBillingInterval,
-            AppSettingKeys.SponsorshipBillingCustomDays
+            AppSettingKeys.SponsorshipBillingCustomDays,
+            AppSettingKeys.SponsorshipBillingChargeOnlyIfPatientShowed
         };
 
         var rows = await _db.AppSettings.AsNoTracking()
@@ -214,7 +226,8 @@ public class AppSettingsService : IAppSettingsService
             {
                 AmountCents = amountCents,
                 Interval = interval,
-                CustomDays = customDays
+                CustomDays = customDays,
+                ChargeOnlyIfPatientShowed = ParseBoolSetting(Val(AppSettingKeys.SponsorshipBillingChargeOnlyIfPatientShowed))
             }
         };
     }
@@ -237,11 +250,21 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.SponsorshipBillingAmountCents, Math.Max(0, amountCents).ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.SponsorshipBillingInterval, interval.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.SponsorshipBillingCustomDays, customDays.ToString(), cancellationToken);
+        var chargeOnlyIfShowed = interval == SponsorshipBillingInterval.PerBooking && billing.ChargeOnlyIfPatientShowed;
+        await SetValueAsync(AppSettingKeys.SponsorshipBillingChargeOnlyIfPatientShowed, chargeOnlyIfShowed ? "true" : "false", cancellationToken);
     }
+
+    private static bool ParseBoolSetting(string? value, bool defaultValue = false) =>
+        string.IsNullOrWhiteSpace(value)
+            ? defaultValue
+            : bool.TryParse(value, out var parsed)
+                ? parsed
+                : string.Equals(value, "1", StringComparison.Ordinal);
 
     public async Task SaveDoctorBillingDefaultsAsync(
         decimal perVisitFeeUsd,
         int freeVisitCount,
+        bool chargeOnlyIfPatientShowed,
         CancellationToken cancellationToken = default)
     {
         var cents = perVisitFeeUsd < 0
@@ -250,6 +273,10 @@ public class AppSettingsService : IAppSettingsService
         var visits = Math.Clamp(freeVisitCount, 0, 10_000);
         await SetValueAsync(AppSettingKeys.DefaultPerVisitFeeCents, cents.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.FreeVisitCount, visits.ToString(), cancellationToken);
+        await SetValueAsync(
+            AppSettingKeys.VisitBillingChargeOnlyIfPatientShowed,
+            chargeOnlyIfPatientShowed ? "true" : "false",
+            cancellationToken);
     }
 
     private static string NormalizeUrl(string? url)

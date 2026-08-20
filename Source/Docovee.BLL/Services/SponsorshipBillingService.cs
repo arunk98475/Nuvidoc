@@ -14,6 +14,7 @@ namespace Docovee.BLL.Services;
 public enum SponsorshipBillingChargeTrigger
 {
     Booking,
+    PatientShowed,
     Recurring
 }
 
@@ -76,12 +77,23 @@ public sealed class SponsorshipBillingService : ISponsorshipBillingService
         if (!doctor.IsSponsored)
             return Skipped("Doctor is not sponsored.");
 
-        if (trigger == SponsorshipBillingChargeTrigger.Booking)
+        if (trigger is SponsorshipBillingChargeTrigger.Booking or SponsorshipBillingChargeTrigger.PatientShowed)
         {
             if (settings.Interval != SponsorshipBillingInterval.PerBooking)
                 return Skipped("Sponsorship billing is not charged per booking.");
             if (appointmentId is null or <= 0)
                 return Fail("Appointment id is required for per-booking sponsorship billing.");
+
+            if (trigger == SponsorshipBillingChargeTrigger.Booking && settings.ChargeOnlyIfPatientShowed)
+                return Skipped("Sponsorship is charged when the patient is marked as showed.");
+            if (trigger == SponsorshipBillingChargeTrigger.PatientShowed && !settings.ChargeOnlyIfPatientShowed)
+                return Skipped("Sponsorship is charged when the booking is created.");
+
+            var alreadyCharged = await _db.DoctorSponsorshipCharges.AsNoTracking()
+                .AnyAsync(c => c.AppointmentId == appointmentId
+                    && c.Status != BillingChargeStatuses.Failed, cancellationToken);
+            if (alreadyCharged)
+                return Skipped("Sponsorship already charged for this booking.");
         }
         else if (settings.Interval == SponsorshipBillingInterval.PerBooking)
         {

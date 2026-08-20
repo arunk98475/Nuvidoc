@@ -41,13 +41,20 @@
             <div class="form-group">
                 <label asp-for="DefaultPerVisitFeeUsd">Per-visit fee (USD)</label>
                 <input asp-for="DefaultPerVisitFeeUsd" type="number" min="0" step="0.01" class="form-control" />
-                <p class="hint">Default amount charged when a doctor marks a NuviDoc patient as showed.</p>
+                <p class="hint">Default amount charged per NuviDoc visit.</p>
             </div>
             <div class="form-group">
                 <label asp-for="FreeVisitCount">Number of free visits</label>
                 <input asp-for="FreeVisitCount" type="number" min="0" step="1" class="form-control" />
-                <p class="hint">Each doctor’s first N showed NuviDoc visits are free. Charging starts after that. Default is 0.</p>
+                <p class="hint">Each doctor’s first N NuviDoc visits are free. Charging starts after that. Default is 0.</p>
             </div>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+            <label style="display:flex;gap:10px;align-items:flex-start;">
+                <input asp-for="VisitBillingChargeOnlyIfPatientShowed" type="checkbox" />
+                <span>Charge only when the patient is marked as showed.</span>
+            </label>
+            <p class="hint" style="margin-top:6px;">When unchecked, the fee is charged as soon as the booking is created.</p>
         </div>
         <button type="submit" class="btn btn-primary">Update</button>
     </form>
@@ -91,9 +98,16 @@
             <label>Sponsorship billing schedule</label>
             <div style="display:grid;gap:10px;margin-top:10px;">
                 <label style="display:flex;gap:10px;align-items:flex-start;">
-                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.PerBooking" />
-                    <span>Charge this amount for each completed NuviDoc booking.</span>
+                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.PerBooking" id="sponsorship-interval-per-booking" />
+                    <span>Charge this amount for each NuviDoc booking.</span>
                 </label>
+                <div id="sponsorship-per-booking-options" style="margin-left:28px;display:none;">
+                    <label style="display:flex;gap:10px;align-items:flex-start;">
+                        <input asp-for="SponsorshipBillingChargeOnlyIfPatientShowed" type="checkbox" />
+                        <span>Charge only when the patient is marked as showed.</span>
+                    </label>
+                    <p class="hint" style="margin-top:6px;">When unchecked, the fee is charged as soon as the booking is created.</p>
+                </div>
                 <label style="display:flex;gap:10px;align-items:flex-start;">
                     <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.Daily" />
                     <span>Charge this amount every day while sponsorship is active.</span>
@@ -206,3 +220,21 @@
         </div>
     }
 </div>
+
+<script>
+    (function () {
+        var perBookingRadio = document.getElementById("sponsorship-interval-per-booking");
+        var perBookingOptions = document.getElementById("sponsorship-per-booking-options");
+        if (!perBookingRadio || !perBookingOptions) return;
+
+        function syncPerBookingOptions() {
+            perBookingOptions.style.display = perBookingRadio.checked ? "block" : "none";
+        }
+
+        document.querySelectorAll('input[name="SponsorshipBillingInterval"]').forEach(function (radio) {
+            radio.addEventListener("change", syncPerBookingOptions);
+        });
+
+        syncPerBookingOptions();
+    })();
+</script>
