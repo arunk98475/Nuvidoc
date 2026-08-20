@@ -144,6 +144,7 @@ public class DoctorAdminDto
     public string? PhotoUrl { get; set; }
     public bool IsActive { get; set; }
     public bool IsSponsored { get; set; }
+    public int QualityScore { get; set; }
     public int PatientReviewCount { get; set; }
     public bool IsNexHealthIntegrated { get; set; }
 }
@@ -183,7 +184,6 @@ public class DoctorAdminEditModel
     public string? TagLine { get; set; }
     public string Gender { get; set; } = "Other";
     public bool IsActive { get; set; } = true;
-    public bool IsSponsored { get; set; }
     public bool OverridePerVisitFee { get; set; }
     /// <summary>USD charged when a NuviDoc patient is marked as showed (maps to PerVisitFeeCents). Used only when OverridePerVisitFee is true.</summary>
     public decimal PerVisitFeeUsd { get; set; }

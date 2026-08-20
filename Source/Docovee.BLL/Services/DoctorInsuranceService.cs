@@ -18,8 +18,13 @@ public interface IDoctorInsuranceService
 public class DoctorInsuranceService : IDoctorInsuranceService
 {
     private readonly DocoveeDbContext _db;
+    private readonly IDoctorQualityScoreService _qualityScore;
 
-    public DoctorInsuranceService(DocoveeDbContext db) => _db = db;
+    public DoctorInsuranceService(DocoveeDbContext db, IDoctorQualityScoreService qualityScore)
+    {
+        _db = db;
+        _qualityScore = qualityScore;
+    }
 
     public async Task<IReadOnlyList<DoctorInsuranceRowDto>> GetDoctorInsurancesAsync(
         int doctorId,
@@ -140,6 +145,7 @@ public class DoctorInsuranceService : IDoctorInsuranceService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 
@@ -171,6 +177,7 @@ public class DoctorInsuranceService : IDoctorInsuranceService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 
@@ -186,6 +193,7 @@ public class DoctorInsuranceService : IDoctorInsuranceService
 
         _db.DoctorInsurances.Remove(row);
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 

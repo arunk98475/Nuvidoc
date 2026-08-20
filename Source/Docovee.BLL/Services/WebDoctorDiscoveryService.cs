@@ -291,12 +291,13 @@ public class WebDoctorDiscoveryService : IWebDoctorDiscoveryService
         var doctorPhones = await _db.Doctors
             .AsNoTracking()
             .Where(d => d.IsActive && d.OfficePhoneNumber != null && d.OfficePhoneNumber != "")
-            .Select(d => new { d.Id, Phone = d.OfficePhoneNumber, d.IsSponsored })
+            .Select(d => new { d.Id, Phone = d.OfficePhoneNumber, d.IsSponsored, d.QualityScore })
             .ToListAsync(cancellationToken);
 
         var matches = doctorPhones
             .Where(d => PhoneNumberHelper.NormalizeLast10(d.Phone) == normalizedPhone)
             .OrderByDescending(d => d.IsSponsored)
+            .ThenByDescending(d => d.QualityScore)
             .ThenByDescending(d => d.Id)
             .ToList();
         if (matches.Count > 0)

@@ -49,8 +49,13 @@ public class Doctor
     public string? TagLine { get; set; }
     public Gender Gender { get; set; }
     public bool IsActive { get; set; } = true;
-    /// <summary>Sponsored / paid listings appear at the top of patient search results.</summary>
+    /// <summary>Sponsored listings appear in the top search tier; order within the tier uses QualityScore.</summary>
     public bool IsSponsored { get; set; }
+    /// <summary>Cached 0–100 merit score used to rank sponsored and organic results.</summary>
+    public int QualityScore { get; set; }
+    public DateTime? QualityScoreUpdatedAt { get; set; }
+    /// <summary>When the doctor last opted into sponsorship (kept after auto-pause so Billing can show a paused state).</summary>
+    public DateTime? SponsorshipEnabledAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }

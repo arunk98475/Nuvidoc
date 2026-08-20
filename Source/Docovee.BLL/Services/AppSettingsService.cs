@@ -17,6 +17,7 @@ public interface IAppSettingsService
     Task<int> GetDefaultPerVisitFeeCentsAsync(CancellationToken cancellationToken = default);
     Task<int> GetFreeVisitCountAsync(CancellationToken cancellationToken = default);
     Task SaveDoctorBillingDefaultsAsync(decimal perVisitFeeUsd, int freeVisitCount, CancellationToken cancellationToken = default);
+    Task<int> GetMinQualityScoreForSponsorshipAsync(CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -29,6 +30,7 @@ public class AppSettingsService : IAppSettingsService
     private const int DefaultReviewEligibleDays = 1;
     private const int MinReviewEligibleDays = 0;
     private const int MaxReviewEligibleDays = 90;
+    private const int DefaultMinQualityScoreForSponsorship = 40;
 
     private readonly DocoveeDbContext _db;
 
@@ -141,6 +143,14 @@ public class AppSettingsService : IAppSettingsService
         if (int.TryParse(value, out var count))
             return Math.Clamp(count, 0, 10_000);
         return 0;
+    }
+
+    public async Task<int> GetMinQualityScoreForSponsorshipAsync(CancellationToken cancellationToken = default)
+    {
+        var value = await GetValueAsync(AppSettingKeys.MinQualityScoreForSponsorship, cancellationToken);
+        if (int.TryParse(value, out var score))
+            return Math.Clamp(score, 0, 100);
+        return DefaultMinQualityScoreForSponsorship;
     }
 
     public async Task SaveDoctorBillingDefaultsAsync(

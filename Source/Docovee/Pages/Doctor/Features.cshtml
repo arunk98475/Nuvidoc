@@ -71,7 +71,7 @@
             </div>
             <div class="dp-feature-actions">
                 <button type="button" class="dp-feature-learn" data-feature="sponsored">Learn more</button>
-                <button type="button" class="dp-btn dp-btn-primary" data-feature-start="sponsored">Get started</button>
+                <a class="dp-btn dp-btn-primary" href="/Doctor/Settings/billing">Get started</a>
             </div>
         </article>
 
@@ -116,7 +116,7 @@
   const blurbs = {
     "booking-link": "Share your public booking link on your website, Google Business Profile, or social pages so patients can request appointments anytime.",
     calendar: "Bookings already appear on your Calendar. Keep your availability accurate so patients can request times that work.",
-    sponsored: "Sponsored results put your practice higher in search when patients look for a dentist. Pricing and campaigns will be managed here when enabled.",
+    sponsored: "Sponsored results put your practice in a top search block. Rank within that block depends on your quality score (reviews, profile content, website), not payment. Enable it in Settings → Billing. No sponsorship fee is charged yet.",
     intake: "Send digital intake forms before the visit so your front desk has insurance and ID details ready. Configure office forms in Settings."
   };
 
@@ -125,14 +125,6 @@
       const key = btn.dataset.feature || "";
       dialogTitle.textContent = btn.closest(".dp-feature-card")?.querySelector("h2")?.textContent || "Feature";
       dialogBody.textContent = blurbs[key] || "More details coming soon.";
-      dialog?.showModal();
-    });
-  });
-
-  document.querySelectorAll("[data-feature-start='sponsored']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      dialogTitle.textContent = "Sponsored results";
-      dialogBody.textContent = "Sponsored campaigns are coming soon. We’ll notify your practice when you can launch pay-per-result listings.";
       dialog?.showModal();
     });
   });

@@ -29,4 +29,6 @@ public static class AppSettingKeys
 
     public const string DefaultPerVisitFeeCents = "DefaultPerVisitFeeCents";
     public const string FreeVisitCount = "FreeVisitCount";
+    /// <summary>Minimum QualityScore (0–100) required before a doctor can enable sponsorship.</summary>
+    public const string MinQualityScoreForSponsorship = "MinQualityScoreForSponsorship";
 }

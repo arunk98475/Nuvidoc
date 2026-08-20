@@ -39,15 +39,18 @@ public class DoctorMediaService : IDoctorMediaService
     private readonly DocoveeDbContext _db;
     private readonly IDoctorFileService _fileService;
     private readonly UploadOptions _uploadOptions;
+    private readonly IDoctorQualityScoreService _qualityScore;
 
     public DoctorMediaService(
         DocoveeDbContext db,
         IDoctorFileService fileService,
-        IOptions<UploadOptions> uploadOptions)
+        IOptions<UploadOptions> uploadOptions,
+        IDoctorQualityScoreService qualityScore)
     {
         _db = db;
         _fileService = fileService;
         _uploadOptions = uploadOptions.Value;
+        _qualityScore = qualityScore;
     }
 
     public async Task<IReadOnlyList<DoctorMediaDto>> GetForDoctorAsync(
@@ -119,6 +122,7 @@ public class DoctorMediaService : IDoctorMediaService
             CreatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 
@@ -171,6 +175,7 @@ public class DoctorMediaService : IDoctorMediaService
             CreatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 
@@ -215,6 +220,7 @@ public class DoctorMediaService : IDoctorMediaService
             CreatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 
@@ -230,6 +236,7 @@ public class DoctorMediaService : IDoctorMediaService
 
         _db.DoctorMedia.Remove(media);
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 

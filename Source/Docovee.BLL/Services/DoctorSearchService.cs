@@ -144,13 +144,17 @@ public class DoctorSearchService : IDoctorSearchService
                     reason = string.IsNullOrWhiteSpace(reason) ? sponsoredNote : $"{reason}; {sponsoredNote}";
                 }
 
-                return MapDoctor(d, originLat, originLng, score, reason);
+                var dto = MapDoctor(d, originLat, originLng, score, reason);
+                var combined = CombinedRankScore(dto.IsSponsored, dto.MatchScore, dto.QualityScore);
+                return (dto, combined);
             })
-            .OrderByDescending(d => d.IsSponsored)
-            .ThenByDescending(d => d.MatchScore)
-            .ThenBy(d => d.DistanceMiles ?? double.MaxValue)
-            .ThenByDescending(d => d.GoogleRating)
+            .OrderByDescending(x => x.dto.IsSponsored)
+            .ThenByDescending(x => x.combined)
+            .ThenBy(x => x.dto.DistanceMiles ?? double.MaxValue)
+            .ThenByDescending(x => x.dto.GoogleRating)
+            .ThenByDescending(x => x.dto.Id)
             .Take(resultCount)
+            .Select(x => x.dto)
             .ToList();
 
         if (results.Count > 0)
@@ -231,6 +235,7 @@ public class DoctorSearchService : IDoctorSearchService
         // they were displaced — already covered by replacement. Sort sponsored first for ranker input.
         return linked
             .OrderByDescending(d => d.IsSponsored)
+            .ThenByDescending(d => d.QualityScore)
             .ThenByDescending(d => d.GoogleRating)
             .ToList();
     }
@@ -260,6 +265,9 @@ public class DoctorSearchService : IDoctorSearchService
     {
         if (candidate.IsSponsored != current.IsSponsored)
             return candidate.IsSponsored;
+
+        if (candidate.QualityScore != current.QualityScore)
+            return candidate.QualityScore > current.QualityScore;
 
         var candidateRegistered = !string.IsNullOrWhiteSpace(candidate.Username);
         var currentRegistered = !string.IsNullOrWhiteSpace(current.Username);
@@ -375,9 +383,16 @@ public class DoctorSearchService : IDoctorSearchService
             PatientReviewCount = patientReviews.Count,
             OfficePhoneNumber = PhoneNumberHelper.FormatUsDisplay(doctor.OfficePhoneNumber),
             YearsOfPractice = doctor.YearsOfPractice,
-            IsSponsored = doctor.IsSponsored
+            IsSponsored = doctor.IsSponsored,
+            QualityScore = doctor.QualityScore
         };
     }
+
+    /// <summary>Sponsored listings weight quality more; organic listings still mix patient fit with quality.</summary>
+    private static double CombinedRankScore(bool isSponsored, int matchScore, int qualityScore) =>
+        isSponsored
+            ? 0.30 * matchScore + 0.70 * qualityScore
+            : 0.55 * matchScore + 0.45 * qualityScore;
 
     private static int CalculateMatchScore(DS.Entities.Doctor doctor, double? distanceMiles)
     {

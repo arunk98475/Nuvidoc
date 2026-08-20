@@ -30,6 +30,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
     private readonly IDocoveeLogger _logger;
     private readonly string _siteName;
     private readonly IAnthropicValidationService _validationService;
+    private readonly IDoctorQualityScoreService _qualityScore;
 
     public DoctorOnboardingService(
         DocoveeDbContext db,
@@ -37,7 +38,8 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         IAccountAuthService auth,
         IDocoveeLogger logger,
         IOptions<SiteOptions> siteOptions,
-        IAnthropicValidationService validationService)
+        IAnthropicValidationService validationService,
+        IDoctorQualityScoreService qualityScore)
     {
         _db = db;
         _registration = registration;
@@ -45,6 +47,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
         _logger = logger;
         _siteName = siteOptions.Value.Name;
         _validationService = validationService;
+        _qualityScore = qualityScore;
     }
 
     public async Task<DoctorOnboardingMessageResponse> SendMessageAsync(
@@ -427,6 +430,7 @@ public class DoctorOnboardingService : IDoctorOnboardingService
 
         context.Stage = DoctorOnboardingStage.Complete;
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(doctor.Id, cancellationToken);
 
         var text = $"You're all set, Dr. {GetFirstName(doctor.Name)}! 🎉 Your {_siteName} profile is **100% complete**. Taking you to your profile now…";
         await SaveAssistantMessageAsync(session, text, cancellationToken);

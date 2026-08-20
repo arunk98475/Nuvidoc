@@ -26,6 +26,39 @@
         <a class="dp-tab" href="/Doctor/Performance">Outcomes</a>
     </div>
 
+    <div class="dp-card" style="margin-bottom:20px;">
+        <h2>Quality score</h2>
+        <p class="dp-billing-hint">
+            Your quality score: <strong>@Model.Sponsorship.QualityScore</strong>/100
+            (minimum @Model.Sponsorship.MinRequired required to enable sponsorship)
+            @(Model.Sponsorship.Enabled ? " · Sponsorship is on" : "")
+            @(Model.Sponsorship.Paused ? " · Sponsorship paused" : "")
+        </p>
+        <div class="dp-quality-bar" aria-hidden="true">
+            <span style="width:@(Model.Sponsorship.QualityScore)%;"></span>
+        </div>
+        @if (Model.Sponsorship.Components.Count > 0)
+        {
+            <ul class="dp-quality-tips">
+                @foreach (var c in Model.Sponsorship.Components)
+                {
+                    <li>@c.Name (@c.WeightPercent%): @c.Score/100</li>
+                }
+            </ul>
+        }
+        @if (Model.Sponsorship.Tips.Count > 0)
+        {
+            <p class="dp-section-label">How to improve</p>
+            <ul class="dp-quality-tips">
+                @foreach (var tip in Model.Sponsorship.Tips)
+                {
+                    <li>@tip</li>
+                }
+            </ul>
+        }
+        <p class="dp-billing-hint"><a href="/Doctor/Settings/billing">Manage sponsorship in Billing</a></p>
+    </div>
+
     <div class="dp-kpi-row">
         <div class="dp-card">
             <div style="font-size:13px;color:var(--dp-muted);">Bookings</div>

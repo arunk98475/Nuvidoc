@@ -40,6 +40,7 @@ public class SettingsModel : PageModel
     private readonly UploadOptions _uploadOptions;
     private readonly StripeOptions _stripeOptions;
     private readonly IDoctorBillingService _billing;
+    private readonly IDoctorSponsorshipService _sponsorship;
 
     public SettingsModel(
         IProfileService profileService,
@@ -49,7 +50,8 @@ public class SettingsModel : PageModel
         IPmsCalendarService pms,
         IOptions<UploadOptions> uploadOptions,
         IOptions<StripeOptions> stripeOptions,
-        IDoctorBillingService billing)
+        IDoctorBillingService billing,
+        IDoctorSponsorshipService sponsorship)
     {
         _profileService = profileService;
         _locationService = locationService;
@@ -59,6 +61,7 @@ public class SettingsModel : PageModel
         _uploadOptions = uploadOptions.Value;
         _stripeOptions = stripeOptions.Value;
         _billing = billing;
+        _sponsorship = sponsorship;
     }
 
     public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
@@ -104,6 +107,7 @@ public class SettingsModel : PageModel
     public string StripePublishableKey => _stripeOptions.PublishableKey;
     public int PerVisitFeeCents { get; private set; }
     public DoctorBillingContactDto BillingContact { get; private set; } = new();
+    public DoctorSponsorshipStatusDto Sponsorship { get; private set; } = new();
 
     private static IReadOnlyList<string> BuildTimeOptions()
     {
@@ -439,6 +443,7 @@ public class SettingsModel : PageModel
         {
             BillingContact = await _billing.GetBillingContactAsync(doctorId, cancellationToken);
             PerVisitFeeCents = await _billing.GetPerVisitFeeCentsAsync(doctorId, cancellationToken);
+            Sponsorship = await _sponsorship.GetStatusAsync(doctorId, cancellationToken) ?? new DoctorSponsorshipStatusDto();
         }
 
         BookingLink = $"{Request.Scheme}://{Request.Host}/doctors/{doctorId}";
