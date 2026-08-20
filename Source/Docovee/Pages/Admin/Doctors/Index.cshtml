@@ -54,7 +54,7 @@
                 <input asp-for="VisitBillingChargeOnlyIfPatientShowed" type="checkbox" />
                 <span>Charge only when the patient is marked as showed.</span>
             </label>
-            <p class="hint" style="margin-top:6px;">When unchecked, the fee is charged as soon as the booking is created.</p>
+            <p class="hint" style="margin-top:6px;">When unchecked, the fee is charged when the booking is confirmed (including NuviChat bookings that are confirmed at creation).</p>
         </div>
         <button type="submit" class="btn btn-primary">Update</button>
     </form>

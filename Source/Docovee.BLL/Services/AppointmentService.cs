@@ -228,6 +228,12 @@ public class AppointmentService : IAppointmentService
                 "Sponsorship billing failed for new appointment {AppointmentId}: {Message}",
                 appointment.Id, sponsorshipCharge.Message);
         }
+        else
+        {
+            _logger.LogInformation(
+                "Sponsorship billing for appointment {AppointmentId}: {Status} — {Message}",
+                appointment.Id, sponsorshipCharge.ChargeStatus, sponsorshipCharge.Message);
+        }
 
         var visitCharge = await _visitBilling.TryChargeAsync(
             request.DoctorId,
@@ -239,6 +245,12 @@ public class AppointmentService : IAppointmentService
             _logger.LogWarning(
                 "Visit billing failed for new appointment {AppointmentId}: {Message}",
                 appointment.Id, visitCharge.Message);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Visit billing for appointment {AppointmentId}: {Status} — {Message}",
+                appointment.Id, visitCharge.ChargeStatus, visitCharge.Message);
         }
 
         return new CreateAppointmentResponse
@@ -361,7 +373,28 @@ public class AppointmentService : IAppointmentService
             appointment.Id, appointment.Status, doctorId);
 
         string? billingMessage = null;
-        if (target == AppointmentStatuses.Completed)
+        if (target == AppointmentStatuses.Confirmed)
+        {
+            var visitCharge = await _visitBilling.TryChargeAsync(
+                doctorId,
+                appointmentId,
+                VisitBillingChargeTrigger.Booking,
+                cancellationToken);
+            billingMessage = visitCharge.Message;
+            if (!visitCharge.Success && visitCharge.ChargeStatus != BillingChargeStatuses.Skipped)
+            {
+                _logger.LogWarning(
+                    "Visit billing failed for confirmed appointment {AppointmentId}: {Message}",
+                    appointmentId, visitCharge.Message);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Visit billing for confirmed appointment {AppointmentId}: {Status} — {Message}",
+                    appointmentId, visitCharge.ChargeStatus, visitCharge.Message);
+            }
+        }
+        else if (target == AppointmentStatuses.Completed)
         {
             var charge = await _visitBilling.ChargeForCompletedVisitAsync(doctorId, appointmentId, cancellationToken);
             billingMessage = charge.Message;

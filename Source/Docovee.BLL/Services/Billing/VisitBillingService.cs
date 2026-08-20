@@ -75,7 +75,7 @@ public sealed class VisitBillingService : IVisitBillingService
     {
         var chargeOnlyIfPatientShowed = await _appSettings.GetVisitBillingChargeOnlyIfPatientShowedAsync(cancellationToken);
         if (trigger == VisitBillingChargeTrigger.PatientShowed && !chargeOnlyIfPatientShowed)
-            return Skipped("Visit is charged when the booking is created.");
+            return Skipped("Visit is charged when the booking is confirmed.");
         if (trigger == VisitBillingChargeTrigger.Booking && chargeOnlyIfPatientShowed)
             return Skipped("Visit is charged when the patient is marked as showed.");
 
@@ -96,6 +96,17 @@ public sealed class VisitBillingService : IVisitBillingService
             .FirstOrDefaultAsync(a => a.Id == appointmentId && a.DoctorId == doctorId, cancellationToken);
         if (appointment == null)
             return Fail("Appointment not found.");
+
+        // When charging at booking time (checkbox unchecked), wait until the appointment is confirmed.
+        if (trigger == VisitBillingChargeTrigger.Booking
+            && !chargeOnlyIfPatientShowed
+            && !string.Equals(
+                AppointmentStatuses.Normalize(appointment.Status),
+                AppointmentStatuses.Confirmed,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Skipped("Visit is charged when the booking is confirmed.");
+        }
 
         var doctor = await _db.Doctors.AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
+using Docovee.BLL.Services.Billing;
 using Docovee.BLL.Services.PatientPush;
 using Docovee.DS;
 using Docovee.DS.Entities;
@@ -144,6 +145,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly DocoveeDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IAppointmentService _appointments;
+    private readonly ISponsorshipBillingService _sponsorshipBilling;
+    private readonly IVisitBillingService _visitBilling;
     private readonly ElevenLabsOptions _elevenLabs;
     private readonly AnthropicOptions _anthropic;
     private readonly IDocoveeLogger _logger;
@@ -158,6 +161,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         DocoveeDbContext db,
         IHttpClientFactory httpClientFactory,
         IAppointmentService appointments,
+        ISponsorshipBillingService sponsorshipBilling,
+        IVisitBillingService visitBilling,
         IOptions<ElevenLabsOptions> elevenLabs,
         IOptions<AnthropicOptions> anthropic,
         IDocoveeLogger logger,
@@ -171,6 +176,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _db = db;
         _httpClientFactory = httpClientFactory;
         _appointments = appointments;
+        _sponsorshipBilling = sponsorshipBilling;
+        _visitBilling = visitBilling;
         _elevenLabs = elevenLabs.Value;
         _anthropic = anthropic.Value;
         _logger = logger;
@@ -834,6 +841,37 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _logger.LogInformation(
             "Voice booking saved. Conversation={ConversationId} Appointment={AppointmentId}",
             conversationId, appointment.Id);
+
+        var sponsorshipCharge = await _sponsorshipBilling.TryChargeAsync(
+            appointment.DoctorId,
+            SponsorshipBillingChargeTrigger.Booking,
+            appointment.Id,
+            cancellationToken);
+        if (!sponsorshipCharge.Success && sponsorshipCharge.ChargeStatus != BillingChargeStatuses.Skipped)
+        {
+            _logger.LogWarning(
+                "Sponsorship billing failed for voice appointment {AppointmentId}: {Message}",
+                appointment.Id, sponsorshipCharge.Message);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Sponsorship billing for voice appointment {AppointmentId}: {Status} — {Message}",
+                appointment.Id, sponsorshipCharge.ChargeStatus, sponsorshipCharge.Message);
+        }
+
+        var visitCharge = await _visitBilling.TryChargeAsync(
+            appointment.DoctorId,
+            appointment.Id,
+            VisitBillingChargeTrigger.Booking,
+            cancellationToken);
+        if (!visitCharge.Success && visitCharge.ChargeStatus != BillingChargeStatuses.Skipped)
+        {
+            _logger.LogWarning(
+                "Visit billing failed for voice appointment {AppointmentId}: {Message}",
+                appointment.Id, visitCharge.Message);
+        }
+
         return true;
     }
 
