@@ -13,13 +13,21 @@
     var siteName = Branding.SiteName;
 }
 <div class="pac-nav" id="patient-account-nav">
-    <a class="pac-notify" href="/Account/Profile?section=notifications" aria-label="Notifications">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-        </svg>
-        <span class="pac-notify-count" data-notify-badge="1"@if (notifyCount <= 0) { <text> hidden</text> }>@notifyCount</span>
-    </a>
+    <div class="pac-notify-wrap" id="pac-notify-wrap">
+        <button type="button" class="pac-notify" id="pac-notify-btn" aria-label="Notifications" aria-expanded="false" aria-haspopup="true" aria-controls="pac-notify-menu">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            <span class="pac-notify-count" data-notify-badge="1"@if (notifyCount <= 0) { <text> hidden</text> }>@notifyCount</span>
+        </button>
+        <div class="pac-notify-menu" id="pac-notify-menu" role="menu" hidden>
+            <div class="pac-notify-list" id="pac-notify-list">
+                <p class="pac-notify-empty">Loading…</p>
+            </div>
+            <a class="pac-notify-all" role="menuitem" href="/Account/Profile?section=notifications">See all notifications</a>
+        </div>
+    </div>
 
     <div class="pac-dropdown" id="pac-dropdown">
         <button type="button" class="pac-user-btn" id="pac-user-btn" aria-expanded="false" aria-haspopup="true">
@@ -59,34 +67,175 @@
 <script src="~/js/patient-notifications.js" asp-append-version="true"></script>
 <script>
 (function () {
-  var root = document.getElementById("pac-dropdown");
-  var btn = document.getElementById("pac-user-btn");
-  var menu = document.getElementById("pac-menu");
-  if (root && btn && menu) {
-    function closeMenu() {
-      btn.setAttribute("aria-expanded", "false");
-      root.classList.remove("is-open");
-    }
-    function openMenu() {
-      btn.setAttribute("aria-expanded", "true");
-      root.classList.add("is-open");
-    }
+  var PREVIEW_LIMIT = 5;
+  var ALL_HREF = "/Account/Profile?section=notifications";
+  var LOGO_SRC = "/images/favicon_large.png";
 
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      if (root.classList.contains("is-open")) closeMenu();
-      else openMenu();
-    });
-    document.addEventListener("click", function (e) {
-      if (!root.contains(e.target)) closeMenu();
-    });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") closeMenu();
+  var userRoot = document.getElementById("pac-dropdown");
+  var userBtn = document.getElementById("pac-user-btn");
+  var userMenu = document.getElementById("pac-menu");
+  var notifyWrap = document.getElementById("pac-notify-wrap");
+  var notifyBtn = document.getElementById("pac-notify-btn");
+  var notifyMenu = document.getElementById("pac-notify-menu");
+  var notifyList = document.getElementById("pac-notify-list");
+  var previewItems = [];
+  var previewLoaded = false;
+  var previewLoading = false;
+
+  function closeUserMenu() {
+    if (!userRoot || !userBtn) return;
+    userBtn.setAttribute("aria-expanded", "false");
+    userRoot.classList.remove("is-open");
+  }
+  function openUserMenu() {
+    if (!userRoot || !userBtn) return;
+    closeNotifyMenu();
+    userBtn.setAttribute("aria-expanded", "true");
+    userRoot.classList.add("is-open");
+  }
+  function closeNotifyMenu() {
+    if (!notifyWrap || !notifyBtn || !notifyMenu) return;
+    notifyBtn.setAttribute("aria-expanded", "false");
+    notifyWrap.classList.remove("is-open");
+    notifyMenu.setAttribute("hidden", "");
+  }
+  function openNotifyMenu() {
+    if (!notifyWrap || !notifyBtn || !notifyMenu) return;
+    closeUserMenu();
+    notifyBtn.setAttribute("aria-expanded", "true");
+    notifyWrap.classList.add("is-open");
+    notifyMenu.removeAttribute("hidden");
+    loadPreview();
+  }
+
+  function itemText(item) {
+    var title = ((item && item.title) || "").trim();
+    var body = ((item && item.body) || "").trim();
+    if (title && body) {
+      if (body.indexOf(title) === 0) return body;
+      return title + " " + body;
+    }
+    return body || title || "Nuvi update";
+  }
+
+  function renderPreview() {
+    if (!notifyList) return;
+    notifyList.innerHTML = "";
+    var slice = previewItems.slice(0, PREVIEW_LIMIT);
+    if (slice.length === 0) {
+      var empty = document.createElement("p");
+      empty.className = "pac-notify-empty";
+      empty.textContent = previewLoaded ? "No notifications yet." : "Loading…";
+      notifyList.appendChild(empty);
+      return;
+    }
+    slice.forEach(function (item) {
+      var row = document.createElement("a");
+      row.className = "pac-notify-item" + (item.isRead ? "" : " pac-notify-item-unread");
+      row.href = ALL_HREF;
+      row.setAttribute("role", "menuitem");
+
+      var img = document.createElement("img");
+      img.className = "pac-notify-avatar";
+      img.src = LOGO_SRC;
+      img.alt = "";
+      img.width = 36;
+      img.height = 36;
+
+      var text = document.createElement("span");
+      text.className = "pac-notify-text";
+      text.textContent = itemText(item);
+
+      row.appendChild(img);
+      row.appendChild(text);
+      notifyList.appendChild(row);
     });
   }
 
+  function upsertPreview(item) {
+    if (!item) return;
+    var id = item.id != null ? item.id : item.notificationId;
+    if (id != null) {
+      previewItems = previewItems.filter(function (n) { return n.id !== id; });
+      item.id = id;
+    }
+    previewItems.unshift(item);
+    previewLoaded = true;
+    renderPreview();
+  }
+
+  function loadPreview() {
+    if (previewLoading) return;
+    if (previewLoaded) {
+      renderPreview();
+      return;
+    }
+    previewLoading = true;
+    fetch("/api/mobile/notifications", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(function (res) {
+        var type = (res.headers.get("content-type") || "").toLowerCase();
+        if (!res.ok || type.indexOf("application/json") === -1) return Promise.reject();
+        return res.json();
+      })
+      .then(function (data) {
+        previewItems = (data && data.items) ? data.items.slice() : [];
+        previewLoaded = true;
+        if (data && typeof data.unreadCount === "number" && window.NuvidocPatientPush) {
+          window.NuvidocPatientPush.setBellCount(data.unreadCount);
+        }
+        renderPreview();
+      })
+      .catch(function () {
+        if (!notifyList) return;
+        notifyList.innerHTML = "";
+        var err = document.createElement("p");
+        err.className = "pac-notify-empty";
+        err.textContent = "Couldn't load notifications.";
+        notifyList.appendChild(err);
+      })
+      .finally(function () {
+        previewLoading = false;
+      });
+  }
+
+  if (userRoot && userBtn && userMenu) {
+    userBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (userRoot.classList.contains("is-open")) closeUserMenu();
+      else openUserMenu();
+    });
+  }
+
+  if (notifyWrap && notifyBtn && notifyMenu) {
+    notifyBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (notifyWrap.classList.contains("is-open")) closeNotifyMenu();
+      else openNotifyMenu();
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (userRoot && !userRoot.contains(e.target)) closeUserMenu();
+    if (notifyWrap && !notifyWrap.contains(e.target)) closeNotifyMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      closeUserMenu();
+      closeNotifyMenu();
+    }
+  });
+
   if (window.NuvidocPatientPush) {
     window.NuvidocPatientPush.start({ joinPatient: true }).catch(function () { /* hub optional */ });
+    window.NuvidocPatientPush.onBookingUpdated(function (message) {
+      upsertPreview({
+        id: message && message.notificationId,
+        title: (message && message.title) || "Nuvi update",
+        body: (message && (message.body || message.chatMessage)) || "",
+        doctorId: message && message.doctorId,
+        isRead: false
+      });
+    });
   }
 })();
 </script>
