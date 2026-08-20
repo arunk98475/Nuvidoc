@@ -2,6 +2,7 @@ using System.Text.Json;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Services;
 using Docovee.DS;
+using Docovee.DS.Entities;
 using Docovee.DS.Models;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
@@ -295,25 +296,53 @@ public sealed class DoctorBillingService : IDoctorBillingService
         int? year,
         CancellationToken cancellationToken = default)
     {
-        var query = _db.DoctorBillingCharges.AsNoTracking()
-            .Include(c => c.Appointment)
-            .Where(c => c.DoctorId == doctorId);
-
+        DateTime? from = null;
+        DateTime? to = null;
         if (year is > 0)
         {
-            var from = new DateTime(year.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var to = from.AddYears(1);
-            query = query.Where(c => c.CreatedAt >= from && c.CreatedAt < to);
+            from = new DateTime(year.Value, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            to = from.Value.AddYears(1);
         }
 
-        var rows = await query
+        var visitQuery = _db.DoctorBillingCharges.AsNoTracking()
+            .Include(c => c.Appointment)
+            .Where(c => c.DoctorId == doctorId);
+        if (from.HasValue)
+            visitQuery = visitQuery.Where(c => c.CreatedAt >= from && c.CreatedAt < to);
+
+        var visitRows = await visitQuery
             .OrderByDescending(c => c.CreatedAt)
             .Take(200)
             .ToListAsync(cancellationToken);
 
-        return rows.Select(c => new DoctorBillingChargeDto
+        var sponsorshipQuery = _db.DoctorSponsorshipCharges.AsNoTracking()
+            .Where(c => c.DoctorId == doctorId
+                && c.Status != BillingChargeStatuses.Skipped);
+        if (from.HasValue)
+            sponsorshipQuery = sponsorshipQuery.Where(c => c.CreatedAt >= from && c.CreatedAt < to);
+
+        var sponsorshipRows = await sponsorshipQuery
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(200)
+            .ToListAsync(cancellationToken);
+
+        var appointmentIds = sponsorshipRows
+            .Where(c => c.AppointmentId is > 0)
+            .Select(c => c.AppointmentId!.Value)
+            .Distinct()
+            .ToList();
+
+        var appointmentNames = appointmentIds.Count == 0
+            ? new Dictionary<int, string>()
+            : await _db.Appointments.AsNoTracking()
+                .Where(a => appointmentIds.Contains(a.Id))
+                .Select(a => new { a.Id, a.PatientName })
+                .ToDictionaryAsync(a => a.Id, a => a.PatientName ?? "Patient", cancellationToken);
+
+        var visitDtos = visitRows.Select(c => new DoctorBillingChargeDto
         {
             Id = c.Id,
+            ChargeKind = "Visit",
             AppointmentId = c.AppointmentId,
             PatientName = c.Appointment?.PatientName ?? "Patient",
             AppointmentStartsAt = c.Appointment?.StartsAt ?? c.CreatedAt,
@@ -323,7 +352,37 @@ public sealed class DoctorBillingService : IDoctorBillingService
             FailureMessage = c.FailureMessage,
             ChargedAt = c.ChargedAt,
             CreatedAt = c.CreatedAt
-        }).ToList();
+        });
+
+        var sponsorshipDtos = sponsorshipRows.Select(c =>
+        {
+            var patient = c.AppointmentId is > 0
+                && appointmentNames.TryGetValue(c.AppointmentId.Value, out var name)
+                ? name
+                : null;
+            return new DoctorBillingChargeDto
+            {
+                Id = c.Id,
+                ChargeKind = "Sponsorship",
+                AppointmentId = c.AppointmentId ?? 0,
+                PatientName = string.IsNullOrWhiteSpace(patient)
+                    ? "Sponsorship"
+                    : $"Sponsorship — {patient}",
+                AppointmentStartsAt = c.ChargedAt ?? c.CreatedAt,
+                AmountCents = c.AmountCents,
+                Currency = c.Currency,
+                Status = c.Status,
+                FailureMessage = c.FailureMessage,
+                ChargedAt = c.ChargedAt,
+                CreatedAt = c.CreatedAt
+            };
+        });
+
+        return visitDtos
+            .Concat(sponsorshipDtos)
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(200)
+            .ToList();
     }
 
     public async Task<int> GetPerVisitFeeCentsAsync(int doctorId, CancellationToken cancellationToken = default)

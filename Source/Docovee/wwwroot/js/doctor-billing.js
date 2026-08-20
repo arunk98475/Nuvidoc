@@ -224,11 +224,15 @@
     rows.forEach(function (c) {
       const badge = statusBadge(c.status);
       const when = new Date(c.chargedAt || c.createdAt);
+      const kind = String(c.chargeKind || "").toLowerCase();
+      const title = kind === "sponsorship"
+        ? (c.patientName || "Sponsorship")
+        : (c.patientName || "Visit");
       const li = document.createElement("li");
       li.className = "dp-billing-invoice-item";
       li.innerHTML =
         "<div class=\"dp-billing-invoice-main\">" +
-        "<div class=\"dp-billing-invoice-title\">" + escapeHtml(c.patientName || "Visit") + "</div>" +
+        "<div class=\"dp-billing-invoice-title\">" + escapeHtml(title) + "</div>" +
         "<div class=\"dp-billing-invoice-sub\">" + when.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) +
         " · " + formatMoney(c.amountCents, c.currency) + "</div>" +
         (c.failureMessage ? "<div class=\"dp-billing-invoice-fail\">" + escapeHtml(c.failureMessage) + "</div>" : "") +

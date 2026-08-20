@@ -56,6 +56,8 @@ public sealed class DoctorPaymentMethodDto
 public sealed class DoctorBillingChargeDto
 {
     public int Id { get; set; }
+    /// <summary>Visit or Sponsorship.</summary>
+    public string ChargeKind { get; set; } = "Visit";
     public int AppointmentId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public DateTime AppointmentStartsAt { get; set; }
