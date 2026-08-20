@@ -1,6 +1,119 @@
 (function () {
-  const cfg = window.NuvidocDoctorBilling;
-  if (!cfg?.publishableKey) return;
+  const cfg = window.NuvidocDoctorBilling || {};
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  async function sponsorshipApi(path, options) {
+    const res = await fetch(path, Object.assign({
+      credentials: "same-origin",
+      headers: { Accept: "application/json" }
+    }, options || {}));
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok) throw new Error(data.message || "Request failed.");
+    return data;
+  }
+
+  function renderSponsorship(status) {
+    const checkbox = document.getElementById("dp-sponsor-enable");
+    const scoreEl = document.getElementById("dp-sponsor-score");
+    const minEl = document.getElementById("dp-sponsor-min");
+    const reviewsEl = document.getElementById("dp-sponsor-reviews");
+    const reviewsMinEl = document.getElementById("dp-sponsor-reviews-min");
+    const cardStatusEl = document.getElementById("dp-sponsor-card-status");
+    const requirements = document.getElementById("dp-sponsor-requirements");
+    const billingSummary = document.getElementById("dp-sponsor-billing-summary");
+    const bar = document.getElementById("dp-sponsor-bar");
+    const paused = document.getElementById("dp-sponsor-paused");
+    const errorEl = document.getElementById("dp-sponsor-error");
+    const tips = document.getElementById("dp-sponsor-tips");
+    if (!checkbox || !status) return;
+
+    checkbox.checked = !!status.enabled;
+    checkbox.disabled = !status.canEnable && !status.enabled;
+    if (scoreEl) scoreEl.textContent = String(status.qualityScore ?? 0);
+    if (minEl) minEl.textContent = String(status.minRequired ?? 40);
+    if (reviewsEl) reviewsEl.textContent = String(status.googleReviewCount ?? 0);
+    if (reviewsMinEl) reviewsMinEl.textContent = String(status.minGoogleReviewsRequired ?? 0);
+    if (cardStatusEl) {
+      cardStatusEl.textContent = status.hasPaymentMethod
+        ? "On file"
+        : "Required — add a card below";
+    }
+    if (requirements) {
+      const items = requirements.querySelectorAll("li");
+      if (items[0]) items[0].className = status.meetsQualityRequirement ? "is-met" : "is-unmet";
+      if (items[1]) items[1].className = status.meetsGoogleReviewRequirement ? "is-met" : "is-unmet";
+      if (items[2]) items[2].className = status.hasPaymentMethod ? "is-met" : "is-unmet";
+    }
+    if (billingSummary && status.sponsorshipBillingSummary) {
+      billingSummary.textContent = status.sponsorshipBillingSummary;
+    }
+    if (bar) bar.style.width = Math.max(0, Math.min(100, status.qualityScore || 0)) + "%";
+    if (paused) {
+      paused.hidden = !status.paused;
+      if (status.pausedMessage) paused.textContent = status.pausedMessage;
+    }
+    if (errorEl) errorEl.hidden = true;
+    if (tips && Array.isArray(status.tips)) {
+      tips.innerHTML = status.tips.map(function (t) { return "<li>" + escapeHtml(t) + "</li>"; }).join("");
+    }
+  }
+
+  async function refreshSponsorshipStatus() {
+    try {
+      const status = await sponsorshipApi("/api/doctor/billing/sponsorship");
+      renderSponsorship(status);
+    } catch (_) { /* keep current UI */ }
+  }
+
+  async function initSponsorship() {
+    const checkbox = document.getElementById("dp-sponsor-enable");
+    if (!checkbox) return;
+
+    try {
+      const status = await sponsorshipApi("/api/doctor/billing/sponsorship");
+      renderSponsorship(status);
+    } catch (err) {
+      /* keep server-rendered values */
+    }
+
+    checkbox.addEventListener("change", async function () {
+      const errorEl = document.getElementById("dp-sponsor-error");
+      const desired = checkbox.checked;
+      checkbox.disabled = true;
+      try {
+        await sponsorshipApi("/api/doctor/billing/sponsorship", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ enabled: desired })
+        });
+        const status = await sponsorshipApi("/api/doctor/billing/sponsorship");
+        renderSponsorship(status);
+      } catch (err) {
+        checkbox.checked = !desired;
+        if (errorEl) {
+          errorEl.hidden = false;
+          errorEl.textContent = err.message || "Could not update sponsorship.";
+        }
+        checkbox.disabled = !desired && checkbox.disabled;
+        try {
+          const status = await sponsorshipApi("/api/doctor/billing/sponsorship");
+          renderSponsorship(status);
+        } catch (_) { /* ignore */ }
+      }
+    });
+  }
+
+  initSponsorship();
+
+  if (!cfg.publishableKey || typeof Stripe === "undefined") return;
+
 
   const tabs = document.querySelectorAll("[data-billing-tab]");
   const panels = document.querySelectorAll("[data-billing-panel]");
@@ -192,6 +305,7 @@
       closeCardModal();
       await loadPaymentMethods();
       await loadRecentCharges();
+      await refreshSponsorshipStatus();
     } catch (err) {
       cardError.textContent = err.message || "Could not save card.";
       cardError.hidden = false;
@@ -211,6 +325,7 @@
           body: JSON.stringify({ paymentMethodId: setDefault.getAttribute("data-set-default") })
         });
         await loadPaymentMethods();
+        await refreshSponsorshipStatus();
       }
       if (remove) {
         if (!confirm("Remove this card?")) return;
@@ -218,6 +333,7 @@
           method: "DELETE"
         });
         await loadPaymentMethods();
+        await refreshSponsorshipStatus();
       }
     } catch (err) {
       alert(err.message || "Action failed.");
@@ -267,14 +383,6 @@
       alert(err.message || "Could not save contact.");
     }
   });
-
-  function escapeHtml(value) {
-    return String(value == null ? "" : value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
 
   initYearSelect();
   loadPaymentMethods().catch(function () { /* optional */ });

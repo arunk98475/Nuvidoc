@@ -2755,7 +2755,7 @@ footer.site-footer {
   }
 
   /* Logged-in patient: burger shows account links directly — no bell or name chip. */
-  .site-nav .pac-notify,
+  .site-nav .pac-notify-wrap,
   .site-nav .pac-user-btn {
     display: none;
   }
@@ -5100,6 +5100,10 @@ button.pi-link {
   gap: 10px;
 }
 
+.pac-notify-wrap {
+  position: relative;
+}
+
 .pac-notify {
   display: inline-flex;
   align-items: center;
@@ -5112,10 +5116,13 @@ button.pi-link {
   padding: 8px 12px;
   font-size: 14px;
   font-weight: 600;
+  font-family: inherit;
   line-height: 1;
+  cursor: pointer;
 }
 
-.pac-notify:hover {
+.pac-notify:hover,
+.pac-notify-wrap.is-open .pac-notify {
   background: #f7f7f7;
   color: #111;
   text-decoration: none;
@@ -5123,6 +5130,94 @@ button.pi-link {
 
 .pac-notify-count {
   min-width: 1ch;
+}
+
+.pac-notify-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 380px;
+  max-width: min(380px, calc(100vw - 24px));
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+  z-index: 210;
+  overflow: hidden;
+}
+
+.pac-notify-wrap.is-open .pac-notify-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.pac-notify-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.pac-notify-empty {
+  margin: 0;
+  padding: 18px 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #6b6b6b;
+}
+
+.pac-notify-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eeeeee;
+  text-decoration: none;
+  color: #2b2b2b;
+}
+
+.pac-notify-item:last-child {
+  border-bottom: none;
+}
+
+.pac-notify-item:hover {
+  background: #f7f7f7;
+  color: #111;
+  text-decoration: none;
+}
+
+.pac-notify-item-unread .pac-notify-text {
+  font-weight: 600;
+}
+
+.pac-notify-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #111;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.pac-notify-text {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.pac-notify-all {
+  display: block;
+  padding: 14px 16px 16px;
+  border-top: 1px solid #eeeeee;
+  color: #222;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pac-notify-all:hover {
+  background: #f7f7f7;
+  color: #111;
+  text-decoration: none;
 }
 
 .pac-dropdown {
