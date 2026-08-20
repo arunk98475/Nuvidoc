@@ -3,8 +3,8 @@ namespace Docovee.BLL.Configuration;
 public class AdminOptions
 {
     public const string SectionName = "Admin";
-    public string Username { get; set; } = "admin";
-    public string Password { get; set; } = "Admin@123";
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
 }
 
 public static class AppSettingKeys

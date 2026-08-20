@@ -160,8 +160,11 @@ public static class AdminSeedHelper
         if (await db.Admins.AnyAsync())
             return;
 
+        if (string.IsNullOrWhiteSpace(options.Username) || string.IsNullOrWhiteSpace(options.Password))
+            return;
+
         var hasher = new PasswordHasher<Admin>();
-        var admin = new Admin { Username = options.Username };
+        var admin = new Admin { Username = options.Username.Trim() };
         admin.PasswordHash = hasher.HashPassword(admin, options.Password);
         db.Admins.Add(admin);
         await db.SaveChangesAsync();
