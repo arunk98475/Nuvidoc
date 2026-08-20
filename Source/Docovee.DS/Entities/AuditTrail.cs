@@ -46,6 +46,9 @@ public static class AuditActions
     public const string Logout = "Logout";
     public const string LoginFailed = "LoginFailed";
     public const string Read = "Read";
+    public const string Export = "Export";
+    public const string Search = "Search";
+    public const string Disclose = "Disclose";
 }
 
 public static class AuditEntityTypes
@@ -63,4 +66,7 @@ public static class AuditEntityTypes
     public const string PmsExternalRef = "PmsExternalRef";
     public const string DoctorLocation = "DoctorLocation";
     public const string DoctorOnboardingSession = "DoctorOnboardingSession";
+    public const string VoiceOutboundCall = "VoiceOutboundCall";
+    public const string PatientInsurance = "PatientInsurance";
+    public const string DataExport = "DataExport";
 }

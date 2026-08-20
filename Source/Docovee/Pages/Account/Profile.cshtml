@@ -9,10 +9,6 @@
     ViewData["PatientNotifyCount"] = Model.UnreadNotificationCount;
     var section = Model.Section;
     var edit = Model.EditField;
-    var medical = Model.Coverage(PatientInsuranceTypes.Medical);
-    var dental = Model.Coverage(PatientInsuranceTypes.Dental);
-    var vision = Model.Coverage(PatientInsuranceTypes.Vision);
-    var secondary = Model.Coverage(PatientInsuranceTypes.Secondary);
     var site = Branding.SiteName;
 }
 <!DOCTYPE html>
@@ -45,7 +41,7 @@
             <a class="pat-nav-item @(section == "appointments" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=appointments">Appointments</a>
             <a class="pat-nav-item" href="/Account/Appointments">Appointment History</a>
             <a class="pat-nav-item @(section == "permissions" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=permissions">Permissions</a>
-            <a class="pat-nav-item @(section == "insurance" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=insurance">Insurance &amp; ID Cards</a>
+            <a class="pat-nav-item @(section == "insurance" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=insurance">Insurance</a>
             <a class="pat-nav-item @(section == "privacy" && !Model.IsMenuHub ? "active" : "")" href="/Account/Profile?section=privacy">Privacy</a>
         </div>
     </aside>
@@ -62,7 +58,7 @@
         }
         @if (Model.InsuranceSaved)
         {
-            <div class="alert-success">Your insurance and ID information has been saved.</div>
+            <div class="alert-success">Your insurance information has been saved.</div>
         }
         @if (Model.PrivacySaved)
         {
@@ -353,12 +349,12 @@
         else if (section == "insurance")
         {
             <div class="pat-panel-head">
-                <h1>Insurance &amp; ID Cards</h1>
+                <h1>Insurance</h1>
             </div>
 
-            <form method="post" asp-page-handler="SaveInsurance" enctype="multipart/form-data" class="ins-form" id="ins-form">
+            <form method="post" asp-page-handler="SaveInsurance" class="ins-form" id="ins-form">
                 <section class="ins-section" aria-labelledby="ins-table-heading">
-                    <h2 id="ins-table-heading" class="ins-section-title">Insurance</h2>
+                    <h2 id="ins-table-heading" class="ins-section-title">Dental insurance</h2>
 
                     <div class="ins-table-wrap">
                         <table class="ins-table">
@@ -366,41 +362,9 @@
                                 <tr>
                                     <th>Type</th>
                                     <th>Carrier and Plan</th>
-                                    <th>Member ID</th>
-                                    <th>Photo</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td class="ins-type">Medical</td>
-                                    <td>
-                                        <div class="ins-carrier-plan">
-                                            <select asp-for="InsuranceInput.MedicalCarrierId" class="ins-select ins-carrier-select" data-plan-target="MedicalPlanId">
-                                                <option value="">None selected</option>
-                                                @foreach (var carrier in Model.InsuranceCatalog)
-                                                {
-                                                    <option value="@carrier.Id">@carrier.Name</option>
-                                                }
-                                            </select>
-                                            <select asp-for="InsuranceInput.MedicalPlanId" id="MedicalPlanId" class="ins-select ins-plan-select" data-carrier-for="InsuranceInput_MedicalCarrierId">
-                                                <option value="">Plan (optional)</option>
-                                            </select>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <input asp-for="InsuranceInput.MedicalMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
-                                    </td>
-                                    <td class="ins-photo-cell">
-                                        <label class="ins-photo-btn" title="Upload insurance card photo">
-                                            <input type="file" name="MedicalCardPhoto" accept="image/*" class="ins-photo-input" />
-                                            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M9 2a1 1 0 0 0-.894.553L7.382 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3.382l-.724-1.447A1 1 0 0 0 15 2H9zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10z"/></svg>
-                                        </label>
-                                        @if (!string.IsNullOrEmpty(medical?.CardPhotoUrl))
-                                        {
-                                            <a class="ins-photo-link" href="@medical.CardPhotoUrl" target="_blank" rel="noopener">View</a>
-                                        }
-                                    </td>
-                                </tr>
                                 <tr>
                                     <td class="ins-type">Dental</td>
                                     <td>
@@ -417,44 +381,6 @@
                                             </select>
                                         </div>
                                     </td>
-                                    <td>
-                                        <input asp-for="InsuranceInput.DentalMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
-                                    </td>
-                                    <td class="ins-photo-na">N/A</td>
-                                </tr>
-                                <tr>
-                                    <td class="ins-type">Vision</td>
-                                    <td>
-                                        <div class="ins-carrier-plan">
-                                            <select asp-for="InsuranceInput.VisionCarrierId" class="ins-select ins-carrier-select" data-plan-target="VisionPlanId">
-                                                <option value="">None selected</option>
-                                                @foreach (var carrier in Model.InsuranceCatalog)
-                                                {
-                                                    <option value="@carrier.Id">@carrier.Name</option>
-                                                }
-                                            </select>
-                                            <select asp-for="InsuranceInput.VisionPlanId" id="VisionPlanId" class="ins-select ins-plan-select" data-carrier-for="InsuranceInput_VisionCarrierId">
-                                                <option value="">Plan (optional)</option>
-                                            </select>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <input asp-for="InsuranceInput.VisionMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
-                                    </td>
-                                    <td class="ins-photo-na">N/A</td>
-                                </tr>
-                                <tr>
-                                    <td class="ins-type">Secondary</td>
-                                    <td>
-                                        <div class="ins-secondary-fields">
-                                            <input asp-for="InsuranceInput.SecondaryCarrierName" class="ins-input" placeholder="Carrier" autocomplete="organization" />
-                                            <input asp-for="InsuranceInput.SecondaryPlanName" class="ins-input" placeholder="Plan (optional)" autocomplete="off" />
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <input asp-for="InsuranceInput.SecondaryMemberId" class="ins-input" placeholder="(optional)" autocomplete="off" />
-                                    </td>
-                                    <td class="ins-photo-na">N/A</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -462,34 +388,12 @@
 
                     <button type="submit" class="ins-save">Save</button>
                 </section>
-
-                <section class="ins-section ins-id-section" aria-labelledby="ins-id-heading">
-                    <h2 id="ins-id-heading" class="ins-section-title">
-                        @(string.IsNullOrEmpty(Model.InsuranceProfile.IdCardPhotoUrl) ? "No ID card on file" : "ID card on file")
-                    </h2>
-                    <p class="ins-id-copy">
-                        Sharing your ID with your provider on @Branding.SiteName saves you time when you arrive at the office.
-                        Practices often require ID cards to verify coverage. @Branding.SiteName never shares your ID without your permission.
-                    </p>
-                    <div class="ins-id-upload">
-                        <label class="ins-id-upload-btn">
-                            <input type="file" name="IdCardPhoto" accept="image/*" class="ins-photo-input" />
-                            @(string.IsNullOrEmpty(Model.InsuranceProfile.IdCardPhotoUrl) ? "Upload ID card" : "Replace ID card")
-                        </label>
-                        @if (!string.IsNullOrEmpty(Model.InsuranceProfile.IdCardPhotoUrl))
-                        {
-                            <a class="ins-photo-link" href="@Model.InsuranceProfile.IdCardPhotoUrl" target="_blank" rel="noopener">View current ID</a>
-                        }
-                    </div>
-                </section>
             </form>
 
             <script>
                 window.nuvidocInsuranceCatalog = @Html.Raw(JsonSerializer.Serialize(Model.InsuranceCatalog, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
                 window.nuvidocInsuranceSelections = {
-                    MedicalPlanId: @(Model.InsuranceInput.MedicalPlanId?.ToString() ?? "null"),
-                    DentalPlanId: @(Model.InsuranceInput.DentalPlanId?.ToString() ?? "null"),
-                    VisionPlanId: @(Model.InsuranceInput.VisionPlanId?.ToString() ?? "null")
+                    DentalPlanId: @(Model.InsuranceInput.DentalPlanId?.ToString() ?? "null")
                 };
             </script>
             <script src="~/js/patient-insurance.js" asp-append-version="true"></script>

@@ -76,7 +76,7 @@ public class PatientService : IPatientService
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogError(ex, "Patient registration save failed for {Username}", username);
+            _logger.LogError(ex, "Patient registration save failed");
             _db.Entry(patient).State = EntityState.Detached;
             return new PatientRegisterResponse
             {
@@ -89,7 +89,7 @@ public class PatientService : IPatientService
         session.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Patient registered: {Username}", request.Username);
+        _logger.LogInformation("Patient registered");
 
         return new PatientRegisterResponse { Success = true, Message = "Registration successful." };
     }

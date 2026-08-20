@@ -2,7 +2,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Docovee.BLL.Audit;
 using Docovee.BLL.Configuration;
+using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;
 using Microsoft.Extensions.Options;
@@ -24,18 +26,24 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
     private readonly ElevenLabsOptions _elevenLabs;
     private readonly TwilioOptions _twilio;
     private readonly IDocoveeLogger _logger;
+    private readonly DocoveeDbContext _db;
+    private readonly IAuditTrailService _audit;
     private string? _resolvedPhoneNumberId;
 
     public ElevenLabsTwilioCallingService(
         HttpClient httpClient,
         IOptions<ElevenLabsOptions> elevenLabs,
         IOptions<TwilioOptions> twilio,
-        IDocoveeLogger logger)
+        IDocoveeLogger logger,
+        DocoveeDbContext db,
+        IAuditTrailService audit)
     {
         _httpClient = httpClient;
         _elevenLabs = elevenLabs.Value;
         _twilio = twilio.Value;
         _logger = logger;
+        _db = db;
+        _audit = audit;
 
         var baseUrl = string.IsNullOrWhiteSpace(_elevenLabs.BaseUrl)
             ? "https://api.elevenlabs.io"
@@ -127,9 +135,8 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation(
-                    "ElevenLabs outbound call failed. Status={Status} Body={Body}",
-                    (int)response.StatusCode,
-                    Truncate(body, 500));
+                    "ElevenLabs outbound call failed. Status={Status}",
+                    (int)response.StatusCode);
 
                 return new NuviOutboundCallResult
                 {
@@ -167,8 +174,15 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             }
 
             _logger.LogInformation(
-                "ElevenLabs outbound call started. To={To} ConversationId={ConversationId} CallSid={CallSid}",
-                toNumber, conversationId ?? "", callSid ?? "");
+                "ElevenLabs outbound call started. ConversationId={ConversationId} CallSid={CallSid}",
+                conversationId ?? "", callSid ?? "");
+
+            await _audit.LogDiscloseAsync(
+                _db,
+                AuditEntityTypes.VoiceOutboundCall,
+                conversationId,
+                "ElevenLabs outbound call started",
+                cancellationToken: cancellationToken);
 
             return new NuviOutboundCallResult
             {
@@ -181,7 +195,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "ElevenLabs outbound call request failed for {ToNumber}", toNumber);
+            _logger.LogError(ex, "ElevenLabs outbound call request failed");
             return new NuviOutboundCallResult
             {
                 Success = false,

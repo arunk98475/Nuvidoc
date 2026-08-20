@@ -68,7 +68,7 @@ public class AccountAuthService : IAccountAuthService
                 Action = AuditActions.Logout,
                 EntityType = AuditEntityTypes.Authentication,
                 EntityId = ctx.ActorUserId,
-                Summary = $"{ctx.ActorRole} logout: {ctx.ActorUsername}",
+                Summary = $"{ctx.ActorRole} logout",
                 Context = ctx
             });
         }
@@ -103,12 +103,12 @@ public class AccountAuthService : IAccountAuthService
             patient.PasswordHash = _patientHasher.HashPassword(patient, Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"));
             _db.Patients.Add(patient);
             await _db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Patient created via {Provider}: {Username}", provider, username);
+            _logger.LogInformation("Patient created via {Provider}", provider);
         }
 
         await SignInAsync(httpContext, patient.Username, AuthRoles.Patient, patient.Id);
         await LogAuthSuccessAsync(httpContext, AuthRoles.Patient, patient.Id.ToString(), patient.Username, cancellationToken);
-        _logger.LogInformation("Patient logged in via {Provider}: {Username}", provider, username);
+        _logger.LogInformation("Patient logged in via {Provider}", provider);
         return (true, null);
     }
 
@@ -134,7 +134,7 @@ public class AccountAuthService : IAccountAuthService
 
         await SignInAsync(httpContext, patient.Username, AuthRoles.Patient, patient.Id);
         await LogAuthSuccessAsync(httpContext, AuthRoles.Patient, patient.Id.ToString(), patient.Username, cancellationToken);
-        _logger.LogInformation("Patient logged in: {Username}", patient.Username);
+        _logger.LogInformation("Patient logged in");
         return (true, null);
     }
 
@@ -166,7 +166,7 @@ public class AccountAuthService : IAccountAuthService
 
         await SignInAsync(httpContext, doctor.Username!, AuthRoles.Doctor, doctor.Id);
         await LogAuthSuccessAsync(httpContext, AuthRoles.Doctor, doctor.Id.ToString(), doctor.Username!, cancellationToken);
-        _logger.LogInformation("Doctor logged in: {Username}", doctor?.Username ?? "Unknown");
+        _logger.LogInformation("Doctor logged in");
         return (true, null);
     }
 
@@ -192,7 +192,7 @@ public class AccountAuthService : IAccountAuthService
 
         await SignInAsync(httpContext, admin.Username, AuthRoles.Admin, admin.Id);
         await LogAuthSuccessAsync(httpContext, AuthRoles.Admin, admin.Id.ToString(), admin.Username, cancellationToken);
-        _logger.LogInformation("Admin logged in: {Username}", admin.Username);
+        _logger.LogInformation("Admin logged in");
         return (true, null);
     }
 
@@ -209,8 +209,8 @@ public class AccountAuthService : IAccountAuthService
             EntityType = AuditEntityTypes.Authentication,
             EntityId = userId,
             Success = true,
-            Summary = $"{role} login: {username}",
-            NewValuesJson = $"{{\"role\":\"{role}\",\"username\":\"{username}\"}}"
+            Summary = $"{role} login",
+            NewValuesJson = $"{{\"role\":\"{role}\",\"userId\":\"{userId}\"}}"
         }, cancellationToken);
     }
 
@@ -227,8 +227,8 @@ public class AccountAuthService : IAccountAuthService
             EntityType = AuditEntityTypes.Authentication,
             Success = false,
             ErrorMessage = reason,
-            Summary = $"{role} login failed: {username}",
-            NewValuesJson = $"{{\"role\":\"{role}\",\"username\":\"{username}\"}}"
+            Summary = $"{role} login failed",
+            NewValuesJson = $"{{\"role\":\"{role}\"}}"
         }, cancellationToken);
     }
 

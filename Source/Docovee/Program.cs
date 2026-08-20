@@ -7,11 +7,7 @@ using Docovee.Hubs;
 using Docovee.Pages.Account;
 using Docovee.Services.Push;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.Google;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using System.Xml.Linq;
 
 var contentRoot = Directory.GetCurrentDirectory();
@@ -126,14 +122,6 @@ builder.Services.AddRazorPages(options =>
 });
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
-builder.Services.AddCors(options =>
-{
-    // Native MAUI apps (emulator / device) call the API outside the web origin.
-    options.AddPolicy("MobileApp", policy =>
-        policy.AllowAnyOrigin()
-            .AllowAnyHeader()
-            .AllowAnyMethod());
-});
 builder.Services.AddDocoveeBll(builder.Configuration);
 builder.Services.AddScoped<IPatientPushChannel, SignalRPatientPushChannel>();
 builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>();
@@ -143,35 +131,7 @@ builder.Services.AddHostedService<Docovee.Services.AppointmentReminderHostedServ
 builder.Services.AddHostedService<Docovee.Services.DoctorQualityScoreHostedService>();
 builder.Services.AddHostedService<Docovee.Services.SponsorshipBillingHostedService>();
 
-const string smartScheme = "CookieOrBearer";
-var mobileJwt = builder.Configuration.GetSection(MobileJwtOptions.SectionName).Get<MobileJwtOptions>()
-    ?? new MobileJwtOptions();
-var signingKey = string.IsNullOrWhiteSpace(mobileJwt.SigningKey) || mobileJwt.SigningKey.Length < 32
-    ? "CHANGE-ME-NUVIDOC-MOBILE-JWT-SIGNING-KEY-32+CHARS-MIN"
-    : mobileJwt.SigningKey;
-
-var authBuilder = builder.Services.AddAuthentication(options =>
-    {
-        options.DefaultAuthenticateScheme = smartScheme;
-        options.DefaultChallengeScheme = smartScheme;
-        options.DefaultScheme = smartScheme;
-    })
-    .AddPolicyScheme(smartScheme, "Cookie or JWT Bearer", options =>
-    {
-        options.ForwardDefaultSelector = context =>
-        {
-            var header = context.Request.Headers.Authorization.FirstOrDefault();
-            if (!string.IsNullOrEmpty(header) && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                return JwtBearerDefaults.AuthenticationScheme;
-
-            var accessToken = context.Request.Query["access_token"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(accessToken)
-                && context.Request.Path.StartsWithSegments("/hubs"))
-                return JwtBearerDefaults.AuthenticationScheme;
-
-            return CookieAuthenticationDefaults.AuthenticationScheme;
-        };
-    })
+var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
@@ -182,31 +142,6 @@ var authBuilder = builder.Services.AddAuthentication(options =>
     {
         options.Cookie.Name = ".NuviDoc.External";
         options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
-    })
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateIssuerSigningKey = true,
-            ValidateLifetime = true,
-            ValidIssuer = mobileJwt.Issuer,
-            ValidAudience = mobileJwt.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
-            ClockSkew = TimeSpan.FromMinutes(2)
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
     });
 
 var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
@@ -247,7 +182,6 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseRouting();
-app.UseCors("MobileApp");
 app.UseAuthentication();
 app.UseAuthorization();
 

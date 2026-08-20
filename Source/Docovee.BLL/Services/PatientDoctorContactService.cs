@@ -55,7 +55,7 @@ public class PatientDoctorContactService : IPatientDoctorContactService
         }
 
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Recorded doctor contact view for patient {PatientId}, doctor {DoctorId}", patientId, doctorId);
+        _logger.LogInformation("Recorded doctor contact view for doctor {DoctorId}", doctorId);
     }
 
     public async Task TryRecordContactViewBySessionAsync(

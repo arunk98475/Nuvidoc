@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Docovee.BLL.Audit;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
@@ -60,6 +61,8 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IZipGeocodeService _zipGeocode;
     private readonly IInsurancePlanResolutionService _insurancePlanResolution;
     private readonly TwilioOptions _twilioOptions;
+    private readonly IAuditTrailService _audit;
+    private static readonly AsyncLocal<HashSet<int>?> ChatHistoryAuditedSessions = new();
 
     public AnthropicChatService(
         HttpClient httpClient,
@@ -83,7 +86,8 @@ public class AnthropicChatService : IAnthropicChatService
         IAppointmentRescheduleService appointmentReschedule,
         IZipGeocodeService zipGeocode,
         IInsurancePlanResolutionService insurancePlanResolution,
-        IOptions<TwilioOptions> twilioOptions)
+        IOptions<TwilioOptions> twilioOptions,
+        IAuditTrailService audit)
     {
         _httpClient = httpClient;
         _db = db;
@@ -107,6 +111,7 @@ public class AnthropicChatService : IAnthropicChatService
         _zipGeocode = zipGeocode;
         _insurancePlanResolution = insurancePlanResolution;
         _twilioOptions = twilioOptions.Value;
+        _audit = audit;
     }
 
     private string TriageSystemPrompt => $"""
@@ -525,7 +530,7 @@ public class AnthropicChatService : IAnthropicChatService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError(new InvalidOperationException(responseBody), "Anthropic API call failed");
+                _logger.LogError(new InvalidOperationException("Anthropic API call failed"), "Anthropic API call failed with status {Status}", (int)response.StatusCode);
                 return await HandleTriageFallbackAsync(session, context, message, cancellationToken);
             }
 
@@ -2912,7 +2917,7 @@ public class AnthropicChatService : IAnthropicChatService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Doctor recommendation API call failed: {Body}", responseBody);
+                _logger.LogWarning("Doctor recommendation API call failed with status {Status}", (int)response.StatusCode);
                 return null;
             }
 
@@ -3882,7 +3887,7 @@ public class AnthropicChatService : IAnthropicChatService
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Cancel-intent classify failed: {Body}", TruncateForLog(responseBody, 300));
+                _logger.LogWarning("Cancel-intent classify failed with status {Status}", (int)response.StatusCode);
                 return false;
             }
 
@@ -3988,6 +3993,17 @@ public class AnthropicChatService : IAnthropicChatService
 
     private async Task<List<object>> GetChatHistoryAsync(int sessionId, CancellationToken cancellationToken)
     {
+        var audited = ChatHistoryAuditedSessions.Value ??= new HashSet<int>();
+        if (audited.Add(sessionId))
+        {
+            await _audit.LogReadAsync(
+                _db,
+                AuditEntityTypes.SearchSession,
+                sessionId.ToString(),
+                "Chat session history loaded",
+                cancellationToken);
+        }
+
         var history = await _db.ChatMessages
             .Where(m => m.SearchSessionId == sessionId)
             .OrderBy(m => m.CreatedAt)
@@ -4030,7 +4046,7 @@ public class AnthropicChatService : IAnthropicChatService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Greeting empathy API call failed: {Body}", responseBody);
+                _logger.LogWarning("Greeting empathy API call failed with status {Status}", (int)response.StatusCode);
                 return GetGreetingEmpathyMessage(trimmed);
             }
 

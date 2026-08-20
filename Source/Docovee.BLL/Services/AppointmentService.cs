@@ -205,8 +205,8 @@ public class AppointmentService : IAppointmentService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Appointment {Id} created for doctor {DoctorId} at {StartsAt} ({Patient})",
-            appointment.Id, appointment.DoctorId, appointment.StartsAt, appointment.PatientName);
+            "Appointment {Id} created for doctor {DoctorId} at {StartsAt}",
+            appointment.Id, appointment.DoctorId, appointment.StartsAt);
 
         try
         {
@@ -464,8 +464,8 @@ public class AppointmentService : IAppointmentService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Appointment {Id} status set to {Status} by patient {PatientId}",
-            appointment.Id, appointment.Status, patientId);
+            "Appointment {Id} status set to {Status}",
+            appointment.Id, appointment.Status);
 
         try
         {
@@ -510,8 +510,8 @@ public class AppointmentService : IAppointmentService
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Appointment {Id} rescheduled to {StartsAt} by patient {PatientId}",
-            appointment.Id, appointment.StartsAt, patientId);
+            "Appointment {Id} rescheduled to {StartsAt}",
+            appointment.Id, appointment.StartsAt);
 
         try
         {

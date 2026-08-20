@@ -215,8 +215,8 @@ public sealed class PatientReminderService : IPatientReminderService
             catch (Exception ex)
             {
                 _logger.LogWarning(
-                    "Appointment reminder SMS failed for patient {PatientId} appointment {AppointmentId}: {Error}",
-                    patientId, appt.Id, ex.Message);
+                    "Appointment reminder SMS failed for appointment {AppointmentId}: {Error}",
+                    appt.Id, ex.Message);
             }
         }
 

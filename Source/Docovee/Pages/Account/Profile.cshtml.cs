@@ -280,19 +280,13 @@ public class ProfileModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSaveInsuranceAsync(
-        IFormFile? MedicalCardPhoto,
-        IFormFile? IdCardPhoto)
+    public async Task<IActionResult> OnPostSaveInsuranceAsync()
     {
         Section = "insurance";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
-        var (success, error) = await _insuranceProfile.SaveAsync(
-            patientId,
-            InsuranceInput,
-            MedicalCardPhoto,
-            IdCardPhoto);
+        var (success, error) = await _insuranceProfile.SaveAsync(patientId, InsuranceInput);
 
         if (!success)
         {
@@ -415,7 +409,7 @@ public class ProfileModel : PageModel
             return RedirectToPage("Login");
 
         await LoadAsync(patientId);
-        FormSuccess = "Data access requests will be available once identity verification (SMS PIN) is connected. You can already view most of your information under Personal information, Insurance & ID Cards, and Appointment history.";
+        FormSuccess = "Data access requests will be available once identity verification (SMS PIN) is connected. You can already view most of your information under Personal information, Insurance, and Appointment history.";
         return Page();
     }
 
@@ -530,26 +524,13 @@ public class ProfileModel : PageModel
 
     private static PatientInsuranceSaveModel MapInsuranceInput(PatientInsuranceProfileDto profile)
     {
-        var byType = profile.Coverages.ToDictionary(c => c.Type, StringComparer.OrdinalIgnoreCase);
-        byType.TryGetValue(PatientInsuranceTypes.Medical, out var medical);
-        byType.TryGetValue(PatientInsuranceTypes.Dental, out var dental);
-        byType.TryGetValue(PatientInsuranceTypes.Vision, out var vision);
-        byType.TryGetValue(PatientInsuranceTypes.Secondary, out var secondary);
+        var dental = profile.Coverages.FirstOrDefault(c =>
+            string.Equals(c.Type, PatientInsuranceTypes.Dental, StringComparison.OrdinalIgnoreCase));
 
         return new PatientInsuranceSaveModel
         {
-            MedicalCarrierId = medical?.InsuranceCarrierId,
-            MedicalPlanId = medical?.InsurancePlanId,
-            MedicalMemberId = medical?.MemberId,
             DentalCarrierId = dental?.InsuranceCarrierId,
-            DentalPlanId = dental?.InsurancePlanId,
-            DentalMemberId = dental?.MemberId,
-            VisionCarrierId = vision?.InsuranceCarrierId,
-            VisionPlanId = vision?.InsurancePlanId,
-            VisionMemberId = vision?.MemberId,
-            SecondaryCarrierName = secondary?.CustomCarrierName,
-            SecondaryPlanName = secondary?.CustomPlanName,
-            SecondaryMemberId = secondary?.MemberId
+            DentalPlanId = dental?.InsurancePlanId
         };
     }
 

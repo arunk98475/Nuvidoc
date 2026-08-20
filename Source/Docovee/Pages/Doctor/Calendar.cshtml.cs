@@ -1,3 +1,4 @@
+using Docovee.BLL.Audit;
 using System.Security.Claims;
 using System.Text.Json;
 using Docovee.BLL.Auth;
@@ -18,15 +19,18 @@ public class CalendarModel : PageModel
     private readonly IProfileService _profileService;
     private readonly IAppointmentService _appointments;
     private readonly DocoveeDbContext _db;
+    private readonly IAuditTrailService _audit;
 
     public CalendarModel(
         IProfileService profileService,
         IAppointmentService appointments,
-        DocoveeDbContext db)
+        DocoveeDbContext db,
+        IAuditTrailService audit)
     {
         _profileService = profileService;
         _appointments = appointments;
         _db = db;
+        _audit = audit;
     }
 
     public string ProviderName { get; private set; } = "Doctor";
@@ -120,6 +124,13 @@ public class CalendarModel : PageModel
         var appointment = await _appointments.GetForDoctorByIdAsync(doctorId, appointmentId, cancellationToken);
         if (appointment == null)
             return NotFound(new { message = "Appointment not found." });
+
+        await _audit.LogReadAsync(
+            _db,
+            AuditEntityTypes.Appointment,
+            appointmentId.ToString(),
+            "Doctor calendar appointment panel viewed",
+            cancellationToken);
 
         if (AppointmentSources.IsPmsInbound(appointment.Source))
         {

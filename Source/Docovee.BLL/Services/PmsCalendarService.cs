@@ -1,3 +1,4 @@
+using Docovee.BLL.Audit;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.Integrations.Configuration;
@@ -100,17 +101,20 @@ public sealed class PmsCalendarService : IPmsCalendarService
     private readonly IEnumerable<IPmsProvider> _providers;
     private readonly NexHealthOptions _nexHealthOptions;
     private readonly ILogger<PmsCalendarService> _logger;
+    private readonly IAuditTrailService _audit;
 
     public PmsCalendarService(
         DocoveeDbContext db,
         IEnumerable<IPmsProvider> providers,
         IOptions<NexHealthOptions> nexHealthOptions,
-        ILogger<PmsCalendarService> logger)
+        ILogger<PmsCalendarService> logger,
+        IAuditTrailService audit)
     {
         _db = db;
         _providers = providers;
         _nexHealthOptions = nexHealthOptions.Value;
         _logger = logger;
+        _audit = audit;
     }
 
     public bool HasGlobalNexHealthApiKey => !string.IsNullOrWhiteSpace(_nexHealthOptions.ApiKey);
@@ -420,6 +424,13 @@ public sealed class PmsCalendarService : IPmsCalendarService
             connection.LastError = null;
             connection.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
+
+            await _audit.LogDiscloseAsync(
+                _db,
+                AuditEntityTypes.Appointment,
+                appointment.Id.ToString(),
+                $"PMS outbound create via {connection.Provider}",
+                cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {

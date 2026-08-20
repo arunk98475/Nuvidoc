@@ -25,10 +25,9 @@ public sealed class PatientPushDispatcher : IPatientPushDispatcher
             catch (Exception ex)
             {
                 _logger.LogWarning(
-                    "Patient push channel {Channel} failed for status {Status} patient={PatientId} session={SessionKey}: {Error}",
+                    "Patient push channel {Channel} failed for status {Status} session={SessionKey}: {Error}",
                     channel.Name,
                     message.Status,
-                    message.PatientId,
                     message.SessionKey,
                     ex.Message);
             }

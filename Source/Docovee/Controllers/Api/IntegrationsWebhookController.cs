@@ -56,10 +56,9 @@ public class IntegrationsWebhookController : ControllerBase
             ?? Request.Headers["elevenlabs-signature"].FirstOrDefault();
 
         _logger.LogInformation(
-            "ElevenLabs webhook received. HasSignature={HasSignature}, BodyLength={BodyLength}, Body={Body}",
+            "ElevenLabs webhook received. HasSignature={HasSignature}, BodyLength={BodyLength}",
             !string.IsNullOrWhiteSpace(signature),
-            rawBody.Length,
-            rawBody);
+            rawBody.Length);
 
         try
         {

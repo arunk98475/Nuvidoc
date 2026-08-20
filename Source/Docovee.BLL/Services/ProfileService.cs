@@ -1,3 +1,4 @@
+using Docovee.BLL.Audit;
 using Docovee.BLL.Data;
 using Docovee.DS.Models;
 using Docovee.DS;
@@ -42,6 +43,7 @@ public class ProfileService : IProfileService
     private readonly IPatientDoctorContactService _contactViews;
     private readonly IDocoveeLogger _logger;
     private readonly IDoctorQualityScoreService _qualityScore;
+    private readonly IAuditTrailService _audit;
     private readonly PasswordHasher<Patient> _patientHasher = new();
     private readonly PasswordHasher<Doctor> _doctorHasher = new();
 
@@ -50,13 +52,15 @@ public class ProfileService : IProfileService
         IDoctorFileService fileService,
         IPatientDoctorContactService contactViews,
         IDocoveeLogger logger,
-        IDoctorQualityScoreService qualityScore)
+        IDoctorQualityScoreService qualityScore,
+        IAuditTrailService audit)
     {
         _db = db;
         _fileService = fileService;
         _contactViews = contactViews;
         _logger = logger;
         _qualityScore = qualityScore;
+        _audit = audit;
     }
 
     public async Task<PatientProfileDto?> GetPatientProfileAsync(int patientId, CancellationToken cancellationToken = default)
@@ -66,6 +70,13 @@ public class ProfileService : IProfileService
             .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
 
         if (patient == null) return null;
+
+        await _audit.LogReadAsync(
+            _db,
+            AuditEntityTypes.Patient,
+            patientId.ToString(),
+            "Patient profile viewed",
+            cancellationToken);
 
         return new PatientProfileDto
         {
@@ -237,7 +248,7 @@ public class ProfileService : IProfileService
             patient.DateOfBirth = postedDob;
 
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Patient updated profile {PatientId}", patientId);
+        _logger.LogInformation("Patient updated profile");
         return (true, null);
     }
 
@@ -266,7 +277,7 @@ public class ProfileService : IProfileService
 
         patient.HipaaDataSharingOptIn = optIn;
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Patient {PatientId} HIPAA data sharing opt-in: {OptIn}", patientId, optIn);
+        _logger.LogInformation("Patient HIPAA data sharing opt-in updated: {OptIn}", optIn);
         return (true, null);
     }
 
@@ -280,7 +291,7 @@ public class ProfileService : IProfileService
 
         patient.CookieTrackingOptOut = optOut;
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Patient {PatientId} cookie tracking opt-out: {OptOut}", patientId, optOut);
+        _logger.LogInformation("Patient cookie tracking opt-out updated: {OptOut}", optOut);
         return (true, null);
     }
 
@@ -308,7 +319,7 @@ public class ProfileService : IProfileService
 
         patient.AutofillEnabled = enabled;
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Patient {PatientId} autofill enabled: {Enabled}", patientId, enabled);
+        _logger.LogInformation("Patient autofill enabled updated: {Enabled}", enabled);
         return (true, null);
     }
 
@@ -324,6 +335,13 @@ public class ProfileService : IProfileService
             .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
 
         if (patient == null) return null;
+
+        await _audit.LogExportAsync(
+            _db,
+            AuditEntityTypes.DataExport,
+            patientId.ToString(),
+            "Patient saved information exported",
+            cancellationToken);
 
         var payload = new
         {

@@ -98,13 +98,12 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Twilio phone verification send failed for patient {PatientId} via {Channel}", patientId, useWhatsApp ? "whatsapp" : "sms");
+            _logger.LogError(ex, "Twilio phone verification send failed via {Channel}", useWhatsApp ? "whatsapp" : "sms");
             return FailSend($"Could not send the verification message: {ex.Message}");
         }
 
         _logger.LogInformation(
-            "Phone verification code sent to patient {PatientId} via {Channel}",
-            patientId,
+            "Phone verification code sent via {Channel}",
             useWhatsApp ? "whatsapp" : "sms");
 
         if (useWhatsApp)

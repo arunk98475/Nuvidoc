@@ -89,7 +89,7 @@ public class AccountRegistrationService : IAccountRegistrationService
 
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Patient self-registered: {Username}", patient.Username);
+        _logger.LogInformation("Patient self-registered");
 
         return new AccountRegisterResponse
         {
@@ -163,7 +163,7 @@ public class AccountRegistrationService : IAccountRegistrationService
 
         await SetDoctorInsurancesAsync(doctor.Id, request.InsuranceCarrierIds, cancellationToken);
 
-        _logger.LogInformation("Doctor self-registered: {Username}", doctor.Username);
+        _logger.LogInformation("Doctor self-registered");
 
         return new AccountRegisterResponse
         {

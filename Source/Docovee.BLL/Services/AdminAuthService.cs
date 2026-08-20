@@ -50,8 +50,8 @@ public class AdminAuthService : IAdminAuthService
                 EntityType = AuditEntityTypes.Authentication,
                 Success = false,
                 ErrorMessage = "Invalid username or password.",
-                Summary = $"{AdminRole} login failed: {request.Username}",
-                NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"username\":\"{request.Username}\"}}"
+                Summary = $"{AdminRole} login failed",
+                NewValuesJson = $"{{\"role\":\"{AdminRole}\"}}"
             }, cancellationToken);
             return false;
         }
@@ -65,8 +65,8 @@ public class AdminAuthService : IAdminAuthService
                 EntityType = AuditEntityTypes.Authentication,
                 Success = false,
                 ErrorMessage = "Invalid username or password.",
-                Summary = $"{AdminRole} login failed: {request.Username}",
-                NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"username\":\"{request.Username}\"}}"
+                Summary = $"{AdminRole} login failed",
+                NewValuesJson = $"{{\"role\":\"{AdminRole}\"}}"
             }, cancellationToken);
             return false;
         }
@@ -90,7 +90,7 @@ public class AdminAuthService : IAdminAuthService
                 ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
             });
 
-        _logger.LogInformation("Admin logged in: {Username}", admin.Username);
+        _logger.LogInformation("Admin logged in");
 
         await _audit.LogAsync(_db, new AuditLogRequest
         {
@@ -98,8 +98,8 @@ public class AdminAuthService : IAdminAuthService
             EntityType = AuditEntityTypes.Authentication,
             EntityId = admin.Id.ToString(),
             Success = true,
-            Summary = $"{AdminRole} login: {admin.Username}",
-            NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"username\":\"{admin.Username}\"}}"
+            Summary = $"{AdminRole} login",
+            NewValuesJson = $"{{\"role\":\"{AdminRole}\",\"userId\":\"{admin.Id}\"}}"
         }, cancellationToken);
 
         return true;
@@ -115,7 +115,7 @@ public class AdminAuthService : IAdminAuthService
                 Action = AuditActions.Logout,
                 EntityType = AuditEntityTypes.Authentication,
                 EntityId = ctx.ActorUserId,
-                Summary = $"{AdminRole} logout: {ctx.ActorUsername}",
+                Summary = $"{AdminRole} logout",
                 Context = ctx
             });
         }

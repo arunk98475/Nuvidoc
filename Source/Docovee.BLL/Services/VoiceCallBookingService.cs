@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Docovee.BLL.Audit;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
 using Docovee.BLL.Services.Billing;
@@ -37,10 +38,6 @@ public interface IVoiceCallBookingService
     /// Invoked from a background task so the ElevenLabs webhook is not held open.
     /// </summary>
     Task ExecuteScheduledIntentRetryAsync(int completedCallId, CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
-        Guid sessionKey,
-        CancellationToken cancellationToken = default);
 }
 
 public sealed class VoiceOutboundCallRecordRequest
@@ -156,6 +153,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     private readonly INuviVoiceCallingService _voiceCalling;
     private readonly TwilioOptions _twilio;
     private readonly IVoiceCallRetryQueue _retryQueue;
+    private readonly IAuditTrailService _audit;
 
     public VoiceCallBookingService(
         DocoveeDbContext db,
@@ -171,7 +169,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         IVoiceCallCascadeService cascade,
         INuviVoiceCallingService voiceCalling,
         IOptions<TwilioOptions> twilio,
-        IVoiceCallRetryQueue retryQueue)
+        IVoiceCallRetryQueue retryQueue,
+        IAuditTrailService audit)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
@@ -187,62 +186,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         _voiceCalling = voiceCalling;
         _twilio = twilio.Value;
         _retryQueue = retryQueue;
-    }
-
-    public async Task<IReadOnlyList<MobileVoiceCallDto>> GetCallsForSessionAsync(
-        Guid sessionKey,
-        CancellationToken cancellationToken = default)
-    {
-        if (sessionKey == Guid.Empty)
-            return Array.Empty<MobileVoiceCallDto>();
-
-        var rows = await (
-            from c in _db.VoiceOutboundCalls.AsNoTracking()
-            join d in _db.Doctors.AsNoTracking() on c.DoctorId equals d.Id into dj
-            from d in dj.DefaultIfEmpty()
-            where c.SessionKey == sessionKey
-            orderby c.CreatedAt descending
-            select new
-            {
-                c.Id,
-                c.ConversationId,
-                c.SessionKey,
-                c.DoctorId,
-                DoctorName = d != null ? d.Name : "",
-                c.Status,
-                c.AppointmentId,
-                c.OutcomeNotes,
-                c.CreatedAt,
-                c.UpdatedAt,
-                StartsAt = c.AppointmentId == null
-                    ? (DateTime?)null
-                    : _db.Appointments.Where(a => a.Id == c.AppointmentId).Select(a => (DateTime?)a.StartsAt).FirstOrDefault()
-            }).ToListAsync(cancellationToken);
-
-        return rows.Select(r =>
-        {
-            var terminal = IsTerminalStatus(r.Status);
-            string? slot = null;
-            if (r.StartsAt is DateTime start)
-                slot = FormatPstSlot(start, start.AddHours(1));
-
-            return new MobileVoiceCallDto
-            {
-                Id = r.Id,
-                ConversationId = r.ConversationId,
-                SessionKey = r.SessionKey,
-                DoctorId = r.DoctorId,
-                DoctorName = r.DoctorName ?? "",
-                Status = r.Status,
-                IsTerminal = terminal,
-                AppointmentId = r.AppointmentId,
-                AppointmentStartsAt = r.StartsAt,
-                AppointmentSlotLabel = slot,
-                OutcomeNotes = r.OutcomeNotes,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt
-            };
-        }).ToList();
+        _audit = audit;
     }
 
     private static bool IsTerminalStatus(string status) =>
@@ -387,6 +331,13 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return true;
         }
 
+        await _audit.LogDiscloseAsync(
+            _db,
+            AuditEntityTypes.VoiceOutboundCall,
+            conversationId,
+            "ElevenLabs post-call webhook processed",
+            cancellationToken: cancellationToken);
+
         return await ProcessConversationPayloadAsync(
             conversationId, data, cancellationToken, allowClaudeSlotExtraction: false);
     }
@@ -517,8 +468,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogInformation(
-                "Failed to fetch ElevenLabs conversation {ConversationId}: {Status} {Body}",
-                conversationId, (int)response.StatusCode, Truncate(body, 300));
+                "Failed to fetch ElevenLabs conversation {ConversationId}: {Status}",
+                conversationId, (int)response.StatusCode);
             return false;
         }
 
@@ -733,8 +684,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
 
             await DispatchTerminalPushAsync(call, call.Status, missingTitle, missingBody, notificationId, cancellationToken: cancellationToken);
             _logger.LogInformation(
-                "Booked without parseable datetime for conversation {ConversationId}. Notes={Notes}",
-                conversationId, Truncate(outcome.Notes, 500));
+                "Booked without parseable datetime for conversation {ConversationId}",
+                conversationId);
             return true;
         }
 
@@ -3535,8 +3486,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogInformation(
-                    "Claude slot extraction HTTP {Status}: {Body}",
-                    (int)response.StatusCode, Truncate(body, 400));
+                    "Claude slot extraction HTTP {Status}",
+                    (int)response.StatusCode);
                 return outcome;
             }
 
@@ -3544,7 +3495,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             var json = ExtractJsonObject(text);
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogInformation("Claude slot extraction returned no JSON: {Text}", Truncate(text, 300));
+                _logger.LogInformation("Claude slot extraction returned no JSON");
                 return outcome;
             }
 
@@ -3587,8 +3538,8 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             else
             {
                 _logger.LogInformation(
-                    "Claude slot extraction could not parse date/time. date={Date} time={Time} raw={Raw}",
-                    date, time, Truncate(json, 200));
+                    "Claude slot extraction could not parse date/time. date={Date} time={Time}",
+                    date, time);
             }
 
             var notes = string.IsNullOrWhiteSpace(outcome.Notes)

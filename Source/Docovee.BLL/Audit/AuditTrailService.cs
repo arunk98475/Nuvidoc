@@ -35,6 +35,11 @@ public interface IAuditTrailService
     AuditRequestContext GetCurrentContext();
     Task LogAsync(DocoveeDbContext db, AuditLogRequest request, CancellationToken cancellationToken = default);
     void AppendEntityChanges(DbContext db, IList<AuditTrail> buffer);
+
+    Task LogReadAsync(DocoveeDbContext db, string entityType, string? entityId, string? summary = null, CancellationToken cancellationToken = default);
+    Task LogSearchAsync(DocoveeDbContext db, string entityType, string? summary = null, CancellationToken cancellationToken = default);
+    Task LogExportAsync(DocoveeDbContext db, string entityType, string? entityId, string? summary = null, CancellationToken cancellationToken = default);
+    Task LogDiscloseAsync(DocoveeDbContext db, string entityType, string? entityId, string? summary = null, bool success = true, string? errorMessage = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class AuditTrailService : IAuditTrailService
@@ -95,6 +100,64 @@ public sealed class AuditTrailService : IAuditTrailService
 
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    public Task LogReadAsync(
+        DocoveeDbContext db,
+        string entityType,
+        string? entityId,
+        string? summary = null,
+        CancellationToken cancellationToken = default) =>
+        LogAsync(db, new AuditLogRequest
+        {
+            Action = AuditActions.Read,
+            EntityType = entityType,
+            EntityId = entityId,
+            Summary = summary ?? $"Read {entityType}"
+        }, cancellationToken);
+
+    public Task LogSearchAsync(
+        DocoveeDbContext db,
+        string entityType,
+        string? summary = null,
+        CancellationToken cancellationToken = default) =>
+        LogAsync(db, new AuditLogRequest
+        {
+            Action = AuditActions.Search,
+            EntityType = entityType,
+            Summary = summary ?? $"Searched {entityType}"
+        }, cancellationToken);
+
+    public Task LogExportAsync(
+        DocoveeDbContext db,
+        string entityType,
+        string? entityId,
+        string? summary = null,
+        CancellationToken cancellationToken = default) =>
+        LogAsync(db, new AuditLogRequest
+        {
+            Action = AuditActions.Export,
+            EntityType = entityType,
+            EntityId = entityId,
+            Summary = summary ?? $"Exported {entityType}"
+        }, cancellationToken);
+
+    public Task LogDiscloseAsync(
+        DocoveeDbContext db,
+        string entityType,
+        string? entityId,
+        string? summary = null,
+        bool success = true,
+        string? errorMessage = null,
+        CancellationToken cancellationToken = default) =>
+        LogAsync(db, new AuditLogRequest
+        {
+            Action = AuditActions.Disclose,
+            EntityType = entityType,
+            EntityId = entityId,
+            Success = success,
+            ErrorMessage = errorMessage,
+            Summary = summary ?? $"Disclosed {entityType}"
+        }, cancellationToken);
 
     public void AppendEntityChanges(DbContext db, IList<AuditTrail> buffer)
     {
@@ -199,7 +262,30 @@ internal static class AuditValueSerializer
         "DeveloperApiKey",
         "CustomerApiKey",
         "PrivateKey",
-        "ClientSecret"
+        "ClientSecret",
+        "FullName",
+        "Username",
+        "Email",
+        "Phone",
+        "PatientPhone",
+        "PatientEmail",
+        "PatientName",
+        "DateOfBirth",
+        "PatientDateOfBirth",
+        "Content",
+        "Notes",
+        "Transcript",
+        "Summary",
+        "OutcomeNotes",
+        "PreferenceProfileJson",
+        "SearchContextJson",
+        "MedicalIssuesSummary",
+        "ChiefComplaint",
+        "MemberId",
+        "CardPhotoUrl",
+        "IdCardPhotoUrl",
+        "PhoneVerificationCodeHash",
+        "VerificationCodeHash"
     };
 
     private const int MaxValueLength = 2000;
@@ -244,7 +330,7 @@ internal static class AuditValueSerializer
     }
 
     private static bool ShouldSkip(string name) =>
-        SensitiveProperties.Contains(name) || name.EndsWith("Navigation", StringComparison.Ordinal);
+        name.EndsWith("Navigation", StringComparison.Ordinal);
 
     private static object? RedactOrTruncate(string name, object? value)
     {

@@ -1,3 +1,4 @@
+using Docovee.BLL.Audit;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Models;
@@ -20,12 +21,14 @@ public class AdminPatientService : IAdminPatientService
 {
     private readonly DocoveeDbContext _db;
     private readonly IDocoveeLogger _logger;
+    private readonly IAuditTrailService _audit;
     private readonly PasswordHasher<Patient> _passwordHasher = new();
 
-    public AdminPatientService(DocoveeDbContext db, IDocoveeLogger logger)
+    public AdminPatientService(DocoveeDbContext db, IDocoveeLogger logger, IAuditTrailService audit)
     {
         _db = db;
         _logger = logger;
+        _audit = audit;
     }
 
     public async Task<PagedResult<PatientAdminDto>> SearchAsync(PatientSearchRequest request, CancellationToken cancellationToken = default)
@@ -81,6 +84,12 @@ public class AdminPatientService : IAdminPatientService
             })
             .ToListAsync(cancellationToken);
 
+        await _audit.LogSearchAsync(
+            _db,
+            AuditEntityTypes.Patient,
+            $"Admin patient search page={page} results={patients.Count}",
+            cancellationToken);
+
         return new PagedResult<PatientAdminDto>
         {
             Items = patients.Select(p => new PatientAdminDto
@@ -104,6 +113,13 @@ public class AdminPatientService : IAdminPatientService
     {
         var patient = await _db.Patients.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (patient == null) return null;
+
+        await _audit.LogReadAsync(
+            _db,
+            AuditEntityTypes.Patient,
+            id.ToString(),
+            "Admin viewed patient detail",
+            cancellationToken);
 
         return new PatientAdminEditModel
         {
@@ -134,7 +150,7 @@ public class AdminPatientService : IAdminPatientService
 
         _db.Patients.Add(patient);
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Admin created patient {Username}", patient.Username);
+        _logger.LogInformation("Admin created patient");
         return (true, null);
     }
 

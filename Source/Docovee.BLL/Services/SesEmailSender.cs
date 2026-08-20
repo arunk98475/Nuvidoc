@@ -92,7 +92,7 @@ public sealed class SesEmailSender : IEmailSender
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SES send failed to {To}", toAddress);
+            _logger.LogError(ex, "SES send failed");
             return new EmailSendResult
             {
                 Success = false,
