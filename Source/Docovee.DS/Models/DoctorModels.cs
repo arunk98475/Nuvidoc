@@ -41,6 +41,7 @@ public class DoctorDto
     public string? OfficePhoneNumber { get; set; }
     public int? YearsOfPractice { get; set; }
     public bool IsSponsored { get; set; }
+    public int QualityScore { get; set; }
 }
 
 public class FeaturedDoctorCardDto

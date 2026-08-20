@@ -41,6 +41,7 @@ public class ProfileService : IProfileService
     private readonly IDoctorFileService _fileService;
     private readonly IPatientDoctorContactService _contactViews;
     private readonly IDocoveeLogger _logger;
+    private readonly IDoctorQualityScoreService _qualityScore;
     private readonly PasswordHasher<Patient> _patientHasher = new();
     private readonly PasswordHasher<Doctor> _doctorHasher = new();
 
@@ -48,12 +49,14 @@ public class ProfileService : IProfileService
         DocoveeDbContext db,
         IDoctorFileService fileService,
         IPatientDoctorContactService contactViews,
-        IDocoveeLogger logger)
+        IDocoveeLogger logger,
+        IDoctorQualityScoreService qualityScore)
     {
         _db = db;
         _fileService = fileService;
         _contactViews = contactViews;
         _logger = logger;
+        _qualityScore = qualityScore;
     }
 
     public async Task<PatientProfileDto?> GetPatientProfileAsync(int patientId, CancellationToken cancellationToken = default)
@@ -450,6 +453,7 @@ public class ProfileService : IProfileService
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated profile {DoctorId}", doctorId);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 
@@ -509,6 +513,7 @@ public class ProfileService : IProfileService
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Doctor updated practice profile {DoctorId}", doctorId);
+        await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
         return (true, null);
     }
 

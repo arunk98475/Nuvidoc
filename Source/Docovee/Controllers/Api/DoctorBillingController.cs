@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Docovee.BLL.Auth;
+using Docovee.BLL.Services;
 using Docovee.BLL.Services.Billing;
 using Docovee.DS.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -14,13 +15,16 @@ public class DoctorBillingController : ControllerBase
 {
     private readonly IStripePaymentMethodService _paymentMethods;
     private readonly IDoctorBillingService _billing;
+    private readonly IDoctorSponsorshipService _sponsorship;
 
     public DoctorBillingController(
         IStripePaymentMethodService paymentMethods,
-        IDoctorBillingService billing)
+        IDoctorBillingService billing,
+        IDoctorSponsorshipService sponsorship)
     {
         _paymentMethods = paymentMethods;
         _billing = billing;
+        _sponsorship = sponsorship;
     }
 
     [HttpPost("setup-intent")]
@@ -111,6 +115,34 @@ public class DoctorBillingController : ControllerBase
 
         var charges = await _billing.GetChargesAsync(doctorId, year, cancellationToken);
         return Ok(charges);
+    }
+
+    [HttpGet("sponsorship")]
+    public async Task<ActionResult<DoctorSponsorshipStatusDto>> GetSponsorship(CancellationToken cancellationToken)
+    {
+        if (!TryGetDoctorId(out var doctorId))
+            return Unauthorized();
+
+        var status = await _sponsorship.GetStatusAsync(doctorId, cancellationToken);
+        if (status == null)
+            return NotFound();
+
+        return Ok(status);
+    }
+
+    [HttpPut("sponsorship")]
+    public async Task<ActionResult<BillingOperationResultDto>> SetSponsorship(
+        [FromBody] SetSponsorshipRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetDoctorId(out var doctorId))
+            return Unauthorized();
+
+        var result = await _sponsorship.SetEnabledAsync(doctorId, request.Enabled, cancellationToken);
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
     }
 
     private bool TryGetDoctorId(out int doctorId)

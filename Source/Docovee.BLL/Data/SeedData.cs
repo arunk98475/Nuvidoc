@@ -212,6 +212,15 @@ public static class SeedData
             });
         }
 
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.MinQualityScoreForSponsorship))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.MinQualityScoreForSponsorship,
+                Value = "40"
+            });
+        }
+
         await PollingQuestionSync.SyncFromSpecAsync(context);
 
         if (!await context.DoctorLanguages.AnyAsync())

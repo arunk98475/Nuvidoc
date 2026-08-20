@@ -48,6 +48,41 @@ public sealed class BillingOperationResultDto
     public string Message { get; set; } = string.Empty;
 }
 
+public sealed class SetSponsorshipRequest
+{
+    public bool Enabled { get; set; }
+}
+
+public sealed class DoctorQualityComponentDto
+{
+    public string Name { get; set; } = string.Empty;
+    public int WeightPercent { get; set; }
+    public int Score { get; set; }
+}
+
+public sealed class DoctorQualityScoreResult
+{
+    public int Score { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public int MinRequired { get; set; }
+    public bool IsSponsored { get; set; }
+    public DateTime? SponsorshipEnabledAt { get; set; }
+    public IReadOnlyList<DoctorQualityComponentDto> Components { get; set; } = Array.Empty<DoctorQualityComponentDto>();
+    public IReadOnlyList<string> Tips { get; set; } = Array.Empty<string>();
+}
+
+public sealed class DoctorSponsorshipStatusDto
+{
+    public bool Enabled { get; set; }
+    public bool CanEnable { get; set; }
+    public int QualityScore { get; set; }
+    public int MinRequired { get; set; }
+    public bool Paused { get; set; }
+    public string? PausedMessage { get; set; }
+    public IReadOnlyList<DoctorQualityComponentDto> Components { get; set; } = Array.Empty<DoctorQualityComponentDto>();
+    public IReadOnlyList<string> Tips { get; set; } = Array.Empty<string>();
+}
+
 public sealed class VisitChargeResultDto
 {
     public bool Success { get; set; }

@@ -4148,6 +4148,41 @@ body.dp-drawer-open {
   gap: 8px;
   margin-top: 16px;
 }
+.dp-sponsor-card {
+  margin-bottom: 20px;
+}
+.dp-sponsor-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  margin: 8px 0 12px;
+}
+.dp-sponsor-toggle input {
+  width: 18px;
+  height: 18px;
+}
+.dp-quality-bar {
+  height: 8px;
+  background: #eee;
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 6px 0 12px;
+}
+.dp-quality-bar span {
+  display: block;
+  height: 100%;
+  background: #c9a227;
+}
+.dp-quality-tips {
+  margin: 8px 0 12px;
+  padding-left: 18px;
+  color: var(--dp-muted);
+  font-size: 13px;
+}
+.dp-quality-tips li {
+  margin: 4px 0;
+}
 @media (max-width: 960px) {
   .dp-billing-grid {
     grid-template-columns: 1fr;

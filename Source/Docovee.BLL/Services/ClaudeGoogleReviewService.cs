@@ -65,19 +65,22 @@ public class ClaudeGoogleReviewService : IClaudeGoogleReviewService
     private readonly AnthropicOptions _options;
     private readonly UploadOptions _uploadOptions;
     private readonly IDocoveeLogger _logger;
+    private readonly IDoctorQualityScoreService _qualityScore;
 
     public ClaudeGoogleReviewService(
         HttpClient httpClient,
         DocoveeDbContext db,
         IOptions<AnthropicOptions> options,
         IOptions<UploadOptions> uploadOptions,
-        IDocoveeLogger logger)
+        IDocoveeLogger logger,
+        IDoctorQualityScoreService qualityScore)
     {
         _httpClient = httpClient;
         _db = db;
         _options = options.Value;
         _uploadOptions = uploadOptions.Value;
         _logger = logger;
+        _qualityScore = qualityScore;
     }
 
     public async Task<GoogleReviewLookupResult?> LookupAsync(int doctorId, CancellationToken cancellationToken = default)
@@ -411,6 +414,7 @@ public class ClaudeGoogleReviewService : IClaudeGoogleReviewService
             doctor.GoogleReviewsFilePath = relativePath;
 
             await _db.SaveChangesAsync(cancellationToken);
+            await _qualityScore.RecomputeAndPersistAsync(doctorId, cancellationToken);
             _logger.LogInformation(
                 "Saved Google reviews for doctor {DoctorId} to {Path} (rating {Rating}, count {Count})",
                 doctorId, relativePath, doctor.GoogleRating, doctor.GoogleReviewCount);

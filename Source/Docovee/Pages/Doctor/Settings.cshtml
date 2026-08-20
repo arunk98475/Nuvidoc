@@ -1163,6 +1163,30 @@
     else if (Model.Section == "billing")
     {
         <div class="dp-billing">
+            <section class="dp-billing-card dp-sponsor-card" id="dp-sponsor-card">
+                <h2>Sponsored results</h2>
+                <label class="dp-sponsor-toggle">
+                    <input type="checkbox" id="dp-sponsor-enable" @(Model.Sponsorship.Enabled ? "checked" : null) @(Model.Sponsorship.CanEnable || Model.Sponsorship.Enabled ? null : "disabled") />
+                    Enable sponsorship
+                </label>
+                <p class="dp-billing-hint" id="dp-sponsor-score-line">
+                    Your quality score: <strong id="dp-sponsor-score">@Model.Sponsorship.QualityScore</strong>/100
+                    (minimum <span id="dp-sponsor-min">@Model.Sponsorship.MinRequired</span> required)
+                </p>
+                <div class="dp-quality-bar" aria-hidden="true">
+                    <span id="dp-sponsor-bar" style="width:@(Model.Sponsorship.QualityScore)%;"></span>
+                </div>
+                <p class="dp-billing-hint">When enabled, your practice appears in the sponsored section. Ranking within sponsored results is based on quality, not payment. No sponsorship fee is charged yet.</p>
+                <p class="dp-billing-error" id="dp-sponsor-paused" @(Model.Sponsorship.Paused ? null : "hidden")>@(Model.Sponsorship.PausedMessage ?? "Sponsorship paused — quality score dropped below the minimum.")</p>
+                <p class="dp-billing-error" id="dp-sponsor-error" hidden></p>
+                <ul class="dp-quality-tips" id="dp-sponsor-tips">
+                    @foreach (var tip in Model.Sponsorship.Tips)
+                    {
+                        <li>@tip</li>
+                    }
+                </ul>
+                <p class="dp-billing-hint"><a href="/Doctor/Settings/practice">Improve your profile</a> · <a href="/Doctor/Settings/insurance">Add insurance</a> · <a href="/Doctor/Performance">View quality breakdown</a></p>
+            </section>
             @if (!Model.StripeConfigured)
             {
                 <div class="dp-billing-alert">Stripe is not configured yet. Contact support to enable billing.</div>
@@ -1278,12 +1302,15 @@
 }
 
 @section Scripts {
-@if (Model.Section == "billing" && Model.StripeConfigured)
+@if (Model.Section == "billing")
 {
-    <script src="https://js.stripe.com/v3/"></script>
+    @if (Model.StripeConfigured)
+    {
+        <script src="https://js.stripe.com/v3/"></script>
+    }
     <script>
       window.NuvidocDoctorBilling = {
-        publishableKey: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.StripePublishableKey)),
+        publishableKey: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.StripeConfigured ? Model.StripePublishableKey : "")),
         perVisitFeeCents: @Model.PerVisitFeeCents
       };
     </script>

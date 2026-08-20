@@ -48,15 +48,18 @@ public class DoctorReviewService : IDoctorReviewService
     private readonly DocoveeDbContext _db;
     private readonly IDocoveeLogger _logger;
     private readonly IAppSettingsService _appSettings;
+    private readonly IDoctorQualityScoreService _qualityScore;
 
     public DoctorReviewService(
         DocoveeDbContext db,
         IDocoveeLogger logger,
-        IAppSettingsService appSettings)
+        IAppSettingsService appSettings,
+        IDoctorQualityScoreService qualityScore)
     {
         _db = db;
         _logger = logger;
         _appSettings = appSettings;
+        _qualityScore = qualityScore;
     }
 
     public async Task<IReadOnlyList<DoctorReviewDto>> GetByDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
@@ -114,6 +117,7 @@ public class DoctorReviewService : IDoctorReviewService
             PhotoUrl = string.IsNullOrWhiteSpace(request.PhotoUrl) ? null : request.PhotoUrl.Trim()
         });
         await _db.SaveChangesAsync(cancellationToken);
+        await _qualityScore.RecomputeAndPersistAsync(request.DoctorId, cancellationToken);
         _logger.LogInformation("Patient review added for doctor {DoctorId}", request.DoctorId);
         return (true, null);
     }

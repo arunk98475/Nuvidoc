@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Docovee.DS;
 using Microsoft.EntityFrameworkCore;
 
@@ -161,6 +162,9 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "AllowGoogleBookings", "tinyint(1) NOT NULL DEFAULT 1", cancellationToken);
         await TryBackfillAllowGoogleBookingsAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "doctors", "IsSponsored", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "QualityScore", "int NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "QualityScoreUpdatedAt", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "SponsorshipEnabledAt", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "GoogleReviewsFetchedAt", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "GoogleReviewsFilePath", "varchar(500) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "StripeCustomerId", "varchar(100) NULL", cancellationToken);
@@ -624,9 +628,10 @@ public static class SchemaUpdater
         if (await ColumnExistsAsync(db, tableName, columnName, cancellationToken))
             return;
 
-        await db.Database.ExecuteSqlRawAsync(
-            $"ALTER TABLE `{tableName}` ADD `{columnName}` {columnDefinition}",
-            cancellationToken);
+        var sql = "ALTER TABLE " + QuoteIdent(tableName)
+            + " ADD " + QuoteIdent(columnName)
+            + " " + SanitizeColumnDefinition(columnDefinition);
+        await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 
     private static async Task EnsureTextColumnAsync(
@@ -640,9 +645,32 @@ public static class SchemaUpdater
         if (!await ColumnExistsAsync(db, tableName, columnName, cancellationToken))
             return;
 
-        await db.Database.ExecuteSqlRawAsync(
-            $"ALTER TABLE `{tableName}` MODIFY COLUMN `{columnName}` TEXT NULL",
-            cancellationToken);
+        var sql = "ALTER TABLE " + QuoteIdent(tableName)
+            + " MODIFY COLUMN " + QuoteIdent(columnName)
+            + " TEXT NULL";
+        await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static readonly Regex MySqlIdentRegex = new(@"^[A-Za-z0-9_]+$", RegexOptions.Compiled);
+
+    private static string QuoteIdent(string name)
+    {
+        if (!MySqlIdentRegex.IsMatch(name))
+            throw new ArgumentException($"Invalid SQL identifier '{name}'.", nameof(name));
+        return "`" + name + "`";
+    }
+
+    private static string SanitizeColumnDefinition(string definition)
+    {
+        if (string.IsNullOrWhiteSpace(definition)
+            || definition.Contains(';', StringComparison.Ordinal)
+            || definition.Contains('`', StringComparison.Ordinal)
+            || definition.Contains("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"Invalid column definition '{definition}'.", nameof(definition));
+        }
+
+        return definition;
     }
 
     private static async Task TryBackfillAllowGoogleBookingsAsync(

@@ -1478,7 +1478,7 @@ public class AnthropicChatService : IAnthropicChatService
             return;
         }
 
-        if (IsLocationSkipAnswer(answer))
+        if (IsLocationSkipAnswer(answer ?? string.Empty))
         {
             context.LocationPreference = NuviFlowContent.DefaultLocationWhenSkipped;
             session.Location = NuviFlowContent.DefaultLocationWhenSkipped;
@@ -2813,8 +2813,12 @@ public class AnthropicChatService : IAnthropicChatService
             Tag = d.TagLine ?? d.Niche ?? d.SpecialtyCategory,
             OfficePhoneNumber = PhoneNumberHelper.FormatUsDisplay(d.OfficePhoneNumber),
             YearsOfPractice = d.YearsOfPractice,
-            IsSponsored = d.IsSponsored
-        }).ToList();
+            IsSponsored = d.IsSponsored,
+            QualityScore = d.QualityScore
+        }).OrderByDescending(d => d.IsSponsored)
+            .ThenByDescending(d => d.QualityScore)
+            .ThenByDescending(d => d.MatchScore)
+            .ToList();
     }
 
     private async Task<IReadOnlyList<DoctorDto>> LoadOtherMatchedDoctorsAsync(

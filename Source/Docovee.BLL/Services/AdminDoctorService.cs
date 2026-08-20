@@ -30,13 +30,19 @@ public class AdminDoctorService : IAdminDoctorService
     private readonly DocoveeDbContext _db;
     private readonly IDoctorFileService _fileService;
     private readonly IDocoveeLogger _logger;
+    private readonly IDoctorQualityScoreService _qualityScore;
     private readonly PasswordHasher<Doctor> _passwordHasher = new();
 
-    public AdminDoctorService(DocoveeDbContext db, IDoctorFileService fileService, IDocoveeLogger logger)
+    public AdminDoctorService(
+        DocoveeDbContext db,
+        IDoctorFileService fileService,
+        IDocoveeLogger logger,
+        IDoctorQualityScoreService qualityScore)
     {
         _db = db;
         _fileService = fileService;
         _logger = logger;
+        _qualityScore = qualityScore;
     }
 
     public async Task<PagedResult<DoctorAdminDto>> ListAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default)
@@ -75,6 +81,7 @@ public class AdminDoctorService : IAdminDoctorService
                 d.GmbPhotoLink,
                 d.IsActive,
                 d.IsSponsored,
+                d.QualityScore,
                 PatientReviewCount = d.PatientReviews.Count
             })
             .ToListAsync(cancellationToken);
@@ -106,6 +113,7 @@ public class AdminDoctorService : IAdminDoctorService
                 PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(d.PhotoUrl, d.GmbPhotoLink),
                 IsActive = d.IsActive,
                 IsSponsored = d.IsSponsored,
+                QualityScore = d.QualityScore,
                 PatientReviewCount = d.PatientReviewCount,
                 IsNexHealthIntegrated = integratedIds.Contains(d.Id)
             }).ToList(),
@@ -148,6 +156,7 @@ public class AdminDoctorService : IAdminDoctorService
         }
 
         _logger.LogInformation("Admin created doctor {Name}", doctor.Name);
+        await _qualityScore.RecomputeAndPersistAsync(doctor.Id, cancellationToken);
         return (true, null);
     }
 
@@ -175,6 +184,7 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.AvatarInitials = BuildInitials(doctor.Name);
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Admin updated doctor {Id}", doctor.Id);
+        await _qualityScore.RecomputeAndPersistAsync(doctor.Id, cancellationToken);
         return (true, null);
     }
 
@@ -358,7 +368,6 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.TagLine = model.TagLine?.Trim();
         doctor.Gender = ParseGender(model.Gender);
         doctor.IsActive = model.IsActive;
-        doctor.IsSponsored = model.IsSponsored;
         doctor.OverridePerVisitFee = model.OverridePerVisitFee;
         if (model.OverridePerVisitFee)
             doctor.PerVisitFeeCents = UsdToCents(model.PerVisitFeeUsd);
@@ -436,7 +445,6 @@ public class AdminDoctorService : IAdminDoctorService
         TagLine = doctor.TagLine,
         Gender = doctor.Gender.ToString(),
         IsActive = doctor.IsActive,
-        IsSponsored = doctor.IsSponsored,
         OverridePerVisitFee = doctor.OverridePerVisitFee,
         PerVisitFeeUsd = CentsToUsd(doctor.PerVisitFeeCents),
         Username = doctor.Username
