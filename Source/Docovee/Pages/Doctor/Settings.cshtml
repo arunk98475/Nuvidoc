@@ -1173,10 +1173,31 @@
                     Your quality score: <strong id="dp-sponsor-score">@Model.Sponsorship.QualityScore</strong>/100
                     (minimum <span id="dp-sponsor-min">@Model.Sponsorship.MinRequired</span> required)
                 </p>
+                <p class="dp-billing-hint" id="dp-sponsor-reviews-line">
+                    Google reviews: <strong id="dp-sponsor-reviews">@Model.Sponsorship.GoogleReviewCount</strong>
+                    (minimum <span id="dp-sponsor-reviews-min">@Model.Sponsorship.MinGoogleReviewsRequired</span> required)
+                </p>
+                <p class="dp-billing-hint" id="dp-sponsor-card-line">
+                    Payment card:
+                    @if (Model.Sponsorship.HasPaymentMethod)
+                    {
+                        <strong id="dp-sponsor-card-status">On file</strong>
+                    }
+                    else
+                    {
+                        <strong id="dp-sponsor-card-status">Required — add a card below</strong>
+                    }
+                </p>
+                <ul class="dp-quality-tips" id="dp-sponsor-requirements">
+                    <li class="@(Model.Sponsorship.MeetsQualityRequirement ? "is-met" : "is-unmet")">Quality score at or above minimum</li>
+                    <li class="@(Model.Sponsorship.MeetsGoogleReviewRequirement ? "is-met" : "is-unmet")">Enough Google reviews</li>
+                    <li class="@(Model.Sponsorship.HasPaymentMethod ? "is-met" : "is-unmet")">At least one payment card on file</li>
+                </ul>
                 <div class="dp-quality-bar" aria-hidden="true">
                     <span id="dp-sponsor-bar" style="width:@(Model.Sponsorship.QualityScore)%;"></span>
                 </div>
-                <p class="dp-billing-hint">When enabled, your practice appears in the sponsored section. Ranking within sponsored results is based on quality, not payment. No sponsorship fee is charged yet.</p>
+                <p class="dp-billing-hint" id="dp-sponsor-billing-summary">@Model.Sponsorship.SponsorshipBillingSummary</p>
+                <p class="dp-billing-hint">When enabled, your practice appears in the sponsored section. Ranking within sponsored results is based on quality, not payment amount.</p>
                 <p class="dp-billing-error" id="dp-sponsor-paused" @(Model.Sponsorship.Paused ? null : "hidden")>@(Model.Sponsorship.PausedMessage ?? "Sponsorship paused — quality score dropped below the minimum.")</p>
                 <p class="dp-billing-error" id="dp-sponsor-error" hidden></p>
                 <ul class="dp-quality-tips" id="dp-sponsor-tips">

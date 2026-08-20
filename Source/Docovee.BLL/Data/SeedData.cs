@@ -221,6 +221,42 @@ public static class SeedData
             });
         }
 
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.MinGoogleReviewCountForSponsorship))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.MinGoogleReviewCountForSponsorship,
+                Value = "5"
+            });
+        }
+
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.SponsorshipBillingAmountCents))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.SponsorshipBillingAmountCents,
+                Value = "0"
+            });
+        }
+
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.SponsorshipBillingInterval))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.SponsorshipBillingInterval,
+                Value = "Monthly"
+            });
+        }
+
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.SponsorshipBillingCustomDays))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.SponsorshipBillingCustomDays,
+                Value = "30"
+            });
+        }
+
         await PollingQuestionSync.SyncFromSpecAsync(context);
 
         if (!await context.DoctorLanguages.AnyAsync())

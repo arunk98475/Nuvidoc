@@ -31,4 +31,9 @@ public static class AppSettingKeys
     public const string FreeVisitCount = "FreeVisitCount";
     /// <summary>Minimum QualityScore (0–100) required before a doctor can enable sponsorship.</summary>
     public const string MinQualityScoreForSponsorship = "MinQualityScoreForSponsorship";
+    /// <summary>Minimum Google review count required before a doctor can enable sponsorship.</summary>
+    public const string MinGoogleReviewCountForSponsorship = "MinGoogleReviewCountForSponsorship";
+    public const string SponsorshipBillingAmountCents = "SponsorshipBillingAmountCents";
+    public const string SponsorshipBillingInterval = "SponsorshipBillingInterval";
+    public const string SponsorshipBillingCustomDays = "SponsorshipBillingCustomDays";
 }

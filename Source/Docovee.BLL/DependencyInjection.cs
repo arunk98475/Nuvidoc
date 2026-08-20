@@ -127,6 +127,7 @@ public static class DependencyInjection
         services.AddScoped<IStripePaymentMethodService, StripePaymentMethodService>();
         services.AddScoped<IDoctorBillingService, DoctorBillingService>();
         services.AddScoped<IVisitBillingService, VisitBillingService>();
+        services.AddScoped<ISponsorshipBillingService, SponsorshipBillingService>();
         services.AddScoped<IDoctorQualityScoreService, DoctorQualityScoreService>();
         services.AddScoped<IDoctorSponsorshipService, DoctorSponsorshipService>();
 

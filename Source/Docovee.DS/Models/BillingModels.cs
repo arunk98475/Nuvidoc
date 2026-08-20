@@ -1,5 +1,34 @@
 namespace Docovee.DS.Models;
 
+using Docovee.DS.Enums;
+
+public sealed class SponsorshipBillingSettings
+{
+    public int AmountCents { get; set; }
+    public SponsorshipBillingInterval Interval { get; set; } = SponsorshipBillingInterval.Monthly;
+    public int CustomDays { get; set; } = 30;
+
+    public decimal AmountUsd => Math.Max(0, AmountCents) / 100m;
+
+    public string IntervalLabel => Interval switch
+    {
+        SponsorshipBillingInterval.PerBooking => "each booking",
+        SponsorshipBillingInterval.Daily => "every day",
+        SponsorshipBillingInterval.Weekly => "every week",
+        SponsorshipBillingInterval.Monthly => "every month",
+        SponsorshipBillingInterval.CustomDays when CustomDays == 1 => "every day",
+        SponsorshipBillingInterval.CustomDays => $"every {CustomDays} days",
+        _ => "periodically"
+    };
+}
+
+public sealed class SponsorshipAdminSettings
+{
+    public int MinQualityScoreForSponsorship { get; set; } = 40;
+    public int MinGoogleReviewCountForSponsorship { get; set; } = 5;
+    public SponsorshipBillingSettings Billing { get; set; } = new();
+}
+
 public sealed class DoctorBillingContactDto
 {
     public string? BillingEmail { get; set; }
@@ -77,8 +106,17 @@ public sealed class DoctorSponsorshipStatusDto
     public bool CanEnable { get; set; }
     public int QualityScore { get; set; }
     public int MinRequired { get; set; }
+    public int GoogleReviewCount { get; set; }
+    public int MinGoogleReviewsRequired { get; set; }
+    public bool MeetsQualityRequirement { get; set; }
+    public bool MeetsGoogleReviewRequirement { get; set; }
+    public bool HasPaymentMethod { get; set; }
     public bool Paused { get; set; }
     public string? PausedMessage { get; set; }
+    public int SponsorshipBillingAmountCents { get; set; }
+    public SponsorshipBillingInterval SponsorshipBillingInterval { get; set; }
+    public int SponsorshipBillingCustomDays { get; set; }
+    public string? SponsorshipBillingSummary { get; set; }
     public IReadOnlyList<DoctorQualityComponentDto> Components { get; set; } = Array.Empty<DoctorQualityComponentDto>();
     public IReadOnlyList<string> Tips { get; set; } = Array.Empty<string>();
 }

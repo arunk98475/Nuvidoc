@@ -4183,6 +4183,12 @@ body.dp-drawer-open {
 .dp-quality-tips li {
   margin: 4px 0;
 }
+#dp-sponsor-requirements li.is-met {
+  color: #1a6b3a;
+}
+#dp-sponsor-requirements li.is-unmet {
+  color: #b45309;
+}
 @media (max-width: 960px) {
   .dp-billing-grid {
     grid-template-columns: 1fr;

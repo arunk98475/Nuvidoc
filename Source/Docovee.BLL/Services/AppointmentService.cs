@@ -87,17 +87,20 @@ public class AppointmentService : IAppointmentService
     private readonly DocoveeDbContext _db;
     private readonly IPmsCalendarService _pms;
     private readonly IVisitBillingService _visitBilling;
+    private readonly ISponsorshipBillingService _sponsorshipBilling;
     private readonly ILogger<AppointmentService> _logger;
 
     public AppointmentService(
         DocoveeDbContext db,
         IPmsCalendarService pms,
         IVisitBillingService visitBilling,
+        ISponsorshipBillingService sponsorshipBilling,
         ILogger<AppointmentService> logger)
     {
         _db = db;
         _pms = pms;
         _visitBilling = visitBilling;
+        _sponsorshipBilling = sponsorshipBilling;
         _logger = logger;
     }
 
@@ -343,6 +346,18 @@ public class AppointmentService : IAppointmentService
                 _logger.LogWarning(
                     "Visit billing failed for appointment {AppointmentId}: {Message}",
                     appointmentId, charge.Message);
+            }
+
+            var sponsorshipCharge = await _sponsorshipBilling.TryChargeAsync(
+                doctorId,
+                SponsorshipBillingChargeTrigger.Booking,
+                appointmentId,
+                cancellationToken);
+            if (!sponsorshipCharge.Success && sponsorshipCharge.ChargeStatus != BillingChargeStatuses.Skipped)
+            {
+                _logger.LogWarning(
+                    "Sponsorship billing failed for appointment {AppointmentId}: {Message}",
+                    appointmentId, sponsorshipCharge.Message);
             }
         }
 

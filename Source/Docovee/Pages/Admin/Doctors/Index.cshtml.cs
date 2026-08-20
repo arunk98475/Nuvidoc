@@ -1,4 +1,5 @@
 using Docovee.DS.Models;
+using Docovee.DS.Enums;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -37,6 +38,18 @@ public class IndexModel : PageModel
     [BindProperty]
     public int MinQualityScoreForSponsorship { get; set; }
 
+    [BindProperty]
+    public int MinGoogleReviewCountForSponsorship { get; set; }
+
+    [BindProperty]
+    public decimal SponsorshipBillingAmountUsd { get; set; }
+
+    [BindProperty]
+    public SponsorshipBillingInterval SponsorshipBillingInterval { get; set; } = SponsorshipBillingInterval.Monthly;
+
+    [BindProperty]
+    public int SponsorshipBillingCustomDays { get; set; } = 30;
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Results = await _doctorService.ListAsync(PageNum, 20, Search, cancellationToken);
@@ -56,14 +69,24 @@ public class IndexModel : PageModel
         if (DefaultPerVisitFeeUsd < 0)
         {
             BillingDefaultsError = "Per-visit fee cannot be negative.";
-            MinQualityScoreForSponsorship = await _appSettings.GetMinQualityScoreForSponsorshipAsync(cancellationToken);
+            var sponsorship = await _appSettings.GetSponsorshipAdminSettingsAsync(cancellationToken);
+            MinQualityScoreForSponsorship = sponsorship.MinQualityScoreForSponsorship;
+            MinGoogleReviewCountForSponsorship = sponsorship.MinGoogleReviewCountForSponsorship;
+            SponsorshipBillingAmountUsd = sponsorship.Billing.AmountUsd;
+            SponsorshipBillingInterval = sponsorship.Billing.Interval;
+            SponsorshipBillingCustomDays = sponsorship.Billing.CustomDays;
             return Page();
         }
 
         if (FreeVisitCount < 0)
         {
             BillingDefaultsError = "Number of free visits cannot be negative.";
-            MinQualityScoreForSponsorship = await _appSettings.GetMinQualityScoreForSponsorshipAsync(cancellationToken);
+            var sponsorship = await _appSettings.GetSponsorshipAdminSettingsAsync(cancellationToken);
+            MinQualityScoreForSponsorship = sponsorship.MinQualityScoreForSponsorship;
+            MinGoogleReviewCountForSponsorship = sponsorship.MinGoogleReviewCountForSponsorship;
+            SponsorshipBillingAmountUsd = sponsorship.Billing.AmountUsd;
+            SponsorshipBillingInterval = sponsorship.Billing.Interval;
+            SponsorshipBillingCustomDays = sponsorship.Billing.CustomDays;
             return Page();
         }
 
@@ -80,11 +103,52 @@ public class IndexModel : PageModel
         if (MinQualityScoreForSponsorship < 0 || MinQualityScoreForSponsorship > 100)
         {
             SponsorshipSettingsError = "Minimum quality score must be between 0 and 100.";
-            await LoadBillingDefaultsAsync(cancellationToken);
+            await LoadPageStateForSponsorshipErrorAsync(cancellationToken);
             return Page();
         }
 
-        await _appSettings.SaveMinQualityScoreForSponsorshipAsync(MinQualityScoreForSponsorship, cancellationToken);
+        if (MinGoogleReviewCountForSponsorship < 0)
+        {
+            SponsorshipSettingsError = "Minimum Google review count cannot be negative.";
+            await LoadPageStateForSponsorshipErrorAsync(cancellationToken);
+            return Page();
+        }
+
+        if (SponsorshipBillingAmountUsd < 0)
+        {
+            SponsorshipSettingsError = "Sponsorship billing amount cannot be negative.";
+            await LoadPageStateForSponsorshipErrorAsync(cancellationToken);
+            return Page();
+        }
+
+        if (!Enum.IsDefined(SponsorshipBillingInterval))
+        {
+            SponsorshipSettingsError = "Select a valid sponsorship billing interval.";
+            await LoadPageStateForSponsorshipErrorAsync(cancellationToken);
+            return Page();
+        }
+
+        if (SponsorshipBillingInterval == SponsorshipBillingInterval.CustomDays
+            && (SponsorshipBillingCustomDays < 1 || SponsorshipBillingCustomDays > 365))
+        {
+            SponsorshipSettingsError = "Custom sponsorship billing days must be between 1 and 365.";
+            await LoadPageStateForSponsorshipErrorAsync(cancellationToken);
+            return Page();
+        }
+
+        var settings = new SponsorshipAdminSettings
+        {
+            MinQualityScoreForSponsorship = MinQualityScoreForSponsorship,
+            MinGoogleReviewCountForSponsorship = MinGoogleReviewCountForSponsorship,
+            Billing = new SponsorshipBillingSettings
+            {
+                AmountCents = (int)Math.Round(Math.Max(0, SponsorshipBillingAmountUsd) * 100m, MidpointRounding.AwayFromZero),
+                Interval = SponsorshipBillingInterval,
+                CustomDays = Math.Clamp(SponsorshipBillingCustomDays, 1, 365)
+            }
+        };
+
+        await _appSettings.SaveSponsorshipAdminSettingsAsync(settings, cancellationToken);
         SponsorshipSettingsSaved = true;
         await LoadAdminDoctorSettingsAsync(cancellationToken);
         return Page();
@@ -93,7 +157,12 @@ public class IndexModel : PageModel
     private async Task LoadAdminDoctorSettingsAsync(CancellationToken cancellationToken)
     {
         await LoadBillingDefaultsAsync(cancellationToken);
-        MinQualityScoreForSponsorship = await _appSettings.GetMinQualityScoreForSponsorshipAsync(cancellationToken);
+        var sponsorship = await _appSettings.GetSponsorshipAdminSettingsAsync(cancellationToken);
+        MinQualityScoreForSponsorship = sponsorship.MinQualityScoreForSponsorship;
+        MinGoogleReviewCountForSponsorship = sponsorship.MinGoogleReviewCountForSponsorship;
+        SponsorshipBillingAmountUsd = sponsorship.Billing.AmountUsd;
+        SponsorshipBillingInterval = sponsorship.Billing.Interval;
+        SponsorshipBillingCustomDays = sponsorship.Billing.CustomDays;
     }
 
     private async Task LoadBillingDefaultsAsync(CancellationToken cancellationToken)
@@ -101,5 +170,10 @@ public class IndexModel : PageModel
         var cents = await _appSettings.GetDefaultPerVisitFeeCentsAsync(cancellationToken);
         DefaultPerVisitFeeUsd = Math.Max(0, cents) / 100m;
         FreeVisitCount = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
+    }
+
+    private async Task LoadPageStateForSponsorshipErrorAsync(CancellationToken cancellationToken)
+    {
+        await LoadBillingDefaultsAsync(cancellationToken);
     }
 }

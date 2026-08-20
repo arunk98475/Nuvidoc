@@ -2,6 +2,7 @@ using Docovee.BLL.Configuration;
 
 using Docovee.DS;
 using Docovee.DS.Entities;
+using Docovee.DS.Enums;
 using Docovee.DS.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,9 @@ public interface IAppSettingsService
     Task SaveDoctorBillingDefaultsAsync(decimal perVisitFeeUsd, int freeVisitCount, CancellationToken cancellationToken = default);
     Task<int> GetMinQualityScoreForSponsorshipAsync(CancellationToken cancellationToken = default);
     Task SaveMinQualityScoreForSponsorshipAsync(int minQualityScore, CancellationToken cancellationToken = default);
+    Task<SponsorshipBillingSettings> GetSponsorshipBillingSettingsAsync(CancellationToken cancellationToken = default);
+    Task<SponsorshipAdminSettings> GetSponsorshipAdminSettingsAsync(CancellationToken cancellationToken = default);
+    Task SaveSponsorshipAdminSettingsAsync(SponsorshipAdminSettings settings, CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -32,6 +36,7 @@ public class AppSettingsService : IAppSettingsService
     private const int MinReviewEligibleDays = 0;
     private const int MaxReviewEligibleDays = 90;
     private const int DefaultMinQualityScoreForSponsorship = 40;
+    private const int DefaultMinGoogleReviewCountForSponsorship = 5;
 
     private readonly DocoveeDbContext _db;
 
@@ -160,6 +165,78 @@ public class AppSettingsService : IAppSettingsService
     {
         var score = Math.Clamp(minQualityScore, 0, 100);
         await SetValueAsync(AppSettingKeys.MinQualityScoreForSponsorship, score.ToString(), cancellationToken);
+    }
+
+    public async Task<SponsorshipBillingSettings> GetSponsorshipBillingSettingsAsync(
+        CancellationToken cancellationToken = default) =>
+        (await GetSponsorshipAdminSettingsAsync(cancellationToken)).Billing;
+
+    public async Task<SponsorshipAdminSettings> GetSponsorshipAdminSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var keys = new[]
+        {
+            AppSettingKeys.MinQualityScoreForSponsorship,
+            AppSettingKeys.MinGoogleReviewCountForSponsorship,
+            AppSettingKeys.SponsorshipBillingAmountCents,
+            AppSettingKeys.SponsorshipBillingInterval,
+            AppSettingKeys.SponsorshipBillingCustomDays
+        };
+
+        var rows = await _db.AppSettings.AsNoTracking()
+            .Where(s => keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        string Val(string key) => rows.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
+
+        var intervalRaw = Val(AppSettingKeys.SponsorshipBillingInterval);
+        var interval = Enum.TryParse<SponsorshipBillingInterval>(intervalRaw, ignoreCase: true, out var parsedInterval)
+            ? parsedInterval
+            : SponsorshipBillingInterval.Monthly;
+
+        var customDays = int.TryParse(Val(AppSettingKeys.SponsorshipBillingCustomDays), out var days)
+            ? Math.Clamp(days, 1, 365)
+            : 30;
+
+        var amountCents = int.TryParse(Val(AppSettingKeys.SponsorshipBillingAmountCents), out var cents)
+            ? Math.Max(0, cents)
+            : 0;
+
+        return new SponsorshipAdminSettings
+        {
+            MinQualityScoreForSponsorship = int.TryParse(Val(AppSettingKeys.MinQualityScoreForSponsorship), out var minScore)
+                ? Math.Clamp(minScore, 0, 100)
+                : DefaultMinQualityScoreForSponsorship,
+            MinGoogleReviewCountForSponsorship = int.TryParse(Val(AppSettingKeys.MinGoogleReviewCountForSponsorship), out var minReviews)
+                ? Math.Clamp(minReviews, 0, 10_000)
+                : DefaultMinGoogleReviewCountForSponsorship,
+            Billing = new SponsorshipBillingSettings
+            {
+                AmountCents = amountCents,
+                Interval = interval,
+                CustomDays = customDays
+            }
+        };
+    }
+
+    public async Task SaveSponsorshipAdminSettingsAsync(
+        SponsorshipAdminSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        var minScore = Math.Clamp(settings.MinQualityScoreForSponsorship, 0, 100);
+        var minGoogleReviews = Math.Clamp(settings.MinGoogleReviewCountForSponsorship, 0, 10_000);
+        var billing = settings.Billing ?? new SponsorshipBillingSettings();
+        var amountCents = Math.Max(0, billing.AmountCents);
+        var interval = Enum.IsDefined(billing.Interval)
+            ? billing.Interval
+            : SponsorshipBillingInterval.Monthly;
+        var customDays = Math.Clamp(billing.CustomDays, 1, 365);
+
+        await SetValueAsync(AppSettingKeys.MinQualityScoreForSponsorship, minScore.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.MinGoogleReviewCountForSponsorship, minGoogleReviews.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.SponsorshipBillingAmountCents, Math.Max(0, amountCents).ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.SponsorshipBillingInterval, interval.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.SponsorshipBillingCustomDays, customDays.ToString(), cancellationToken);
     }
 
     public async Task SaveDoctorBillingDefaultsAsync(

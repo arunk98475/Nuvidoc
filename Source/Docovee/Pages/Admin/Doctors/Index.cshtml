@@ -71,10 +71,49 @@
         <input type="hidden" name="PageNum" value="@Model.PageNum" />
         <div class="form-grid">
             <div class="form-group">
-                <label asp-for="MinQualityScoreForSponsorship">Minimum quality score to enable sponsorship</label>
+                <label asp-for="MinQualityScoreForSponsorship">Min. quality score to enable sponsorship</label>
                 <input asp-for="MinQualityScoreForSponsorship" type="number" min="0" max="100" step="1" class="form-control" />
                 <p class="hint">Score is 0–100. Doctors below this value cannot enable sponsorship; active sponsorship is paused if their score later drops below it.</p>
             </div>
+            <div class="form-group">
+                <label asp-for="MinGoogleReviewCountForSponsorship">Min. Google reviews to enable sponsorship</label>
+                <input asp-for="MinGoogleReviewCountForSponsorship" type="number" min="0" step="1" class="form-control" />
+                <p class="hint">Doctors must have at least this many Google reviews on file before they can turn on sponsorship.</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="SponsorshipBillingAmountUsd">Sponsorship billing amount (USD)</label>
+                <input asp-for="SponsorshipBillingAmountUsd" type="number" min="0" step="0.01" class="form-control" />
+                <p class="hint">Amount charged when the sponsorship billing rule below is triggered.</p>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top:16px;">
+            <label>Sponsorship billing schedule</label>
+            <div style="display:grid;gap:10px;margin-top:10px;">
+                <label style="display:flex;gap:10px;align-items:flex-start;">
+                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.PerBooking" />
+                    <span>Charge this amount for each completed NuviDoc booking.</span>
+                </label>
+                <label style="display:flex;gap:10px;align-items:flex-start;">
+                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.Daily" />
+                    <span>Charge this amount every day while sponsorship is active.</span>
+                </label>
+                <label style="display:flex;gap:10px;align-items:flex-start;">
+                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.Weekly" />
+                    <span>Charge this amount every week while sponsorship is active.</span>
+                </label>
+                <label style="display:flex;gap:10px;align-items:flex-start;">
+                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.Monthly" />
+                    <span>Charge this amount every month while sponsorship is active.</span>
+                </label>
+                <label style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <input asp-for="SponsorshipBillingInterval" type="radio" value="@Docovee.DS.Enums.SponsorshipBillingInterval.CustomDays" />
+                    <span>Charge this amount every</span>
+                    <input asp-for="SponsorshipBillingCustomDays" type="number" min="1" max="365" step="1" class="form-control" style="width:110px;" />
+                    <span>days while sponsorship is active.</span>
+                </label>
+            </div>
+            <p class="hint" style="margin-top:10px;">This sets the platform billing rule only. Sponsored doctors are still ranked within the sponsored section by quality score.</p>
         </div>
         <button type="submit" class="btn btn-primary">Update</button>
     </form>

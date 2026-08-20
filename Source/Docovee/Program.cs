@@ -141,6 +141,7 @@ builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>(
 builder.Services.AddHostedService<Docovee.Services.VoiceCallRetryHostedService>();
 builder.Services.AddHostedService<Docovee.Services.AppointmentReminderHostedService>();
 builder.Services.AddHostedService<Docovee.Services.DoctorQualityScoreHostedService>();
+builder.Services.AddHostedService<Docovee.Services.SponsorshipBillingHostedService>();
 
 const string smartScheme = "CookieOrBearer";
 var mobileJwt = builder.Configuration.GetSection(MobileJwtOptions.SectionName).Get<MobileJwtOptions>()
