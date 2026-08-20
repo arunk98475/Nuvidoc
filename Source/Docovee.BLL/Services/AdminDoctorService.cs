@@ -29,6 +29,7 @@ public class AdminDoctorService : IAdminDoctorService
 {
     private readonly DocoveeDbContext _db;
     private readonly IDoctorFileService _fileService;
+    private readonly IZipGeocodeService _zipGeocode;
     private readonly IDocoveeLogger _logger;
     private readonly IDoctorQualityScoreService _qualityScore;
     private readonly PasswordHasher<Doctor> _passwordHasher = new();
@@ -36,11 +37,13 @@ public class AdminDoctorService : IAdminDoctorService
     public AdminDoctorService(
         DocoveeDbContext db,
         IDoctorFileService fileService,
+        IZipGeocodeService zipGeocode,
         IDocoveeLogger logger,
         IDoctorQualityScoreService qualityScore)
     {
         _db = db;
         _fileService = fileService;
+        _zipGeocode = zipGeocode;
         _logger = logger;
         _qualityScore = qualityScore;
     }
@@ -140,6 +143,7 @@ public class AdminDoctorService : IAdminDoctorService
         var doctor = new Doctor();
         ApplyModel(doctor, model);
         ApplyCredentials(doctor, model, isCreate: true);
+        await TryFillCoordinatesFromZipAsync(doctor, cancellationToken);
 
         doctor.AvatarInitials = BuildInitials(doctor.Name);
         _db.Doctors.Add(doctor);
@@ -173,6 +177,7 @@ public class AdminDoctorService : IAdminDoctorService
 
         ApplyModel(doctor, model);
         ApplyCredentials(doctor, model, isCreate: false);
+        await TryFillCoordinatesFromZipAsync(doctor, cancellationToken);
 
         if (photo != null)
         {
@@ -361,8 +366,11 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.City = model.City.Trim();
         doctor.State = model.State.Trim();
         doctor.ZipCode = string.IsNullOrWhiteSpace(model.ZipCode) ? "00000" : model.ZipCode.Trim();
-        doctor.Latitude = model.Latitude;
-        doctor.Longitude = model.Longitude;
+        // Admin form does not edit coordinates; only overwrite when values are posted.
+        if (model.Latitude.HasValue)
+            doctor.Latitude = model.Latitude;
+        if (model.Longitude.HasValue)
+            doctor.Longitude = model.Longitude;
         doctor.GoogleRating = ClampGoogleRating(model.GoogleRating);
         doctor.GoogleReviewCount = Math.Max(0, model.GoogleReviewCount);
         doctor.TagLine = model.TagLine?.Trim();
@@ -371,6 +379,34 @@ public class AdminDoctorService : IAdminDoctorService
         doctor.OverridePerVisitFee = model.OverridePerVisitFee;
         if (model.OverridePerVisitFee)
             doctor.PerVisitFeeCents = UsdToCents(model.PerVisitFeeUsd);
+    }
+
+    private async Task TryFillCoordinatesFromZipAsync(Doctor doctor, CancellationToken cancellationToken)
+    {
+        if (doctor.Latitude.HasValue && doctor.Longitude.HasValue)
+            return;
+
+        var zip = ZippopotamGeocodeService.NormalizeUsZip(doctor.ZipCode);
+        if (zip == null)
+            return;
+
+        var coords = await _zipGeocode.TryGeocodeUsZipAsync(zip, cancellationToken);
+        if (coords == null)
+        {
+            _logger.LogInformation(
+                "Could not geocode ZipCode {Zip} for doctor {DoctorId}",
+                zip, doctor.Id);
+            return;
+        }
+
+        if (!doctor.Latitude.HasValue)
+            doctor.Latitude = coords.Value.Latitude;
+        if (!doctor.Longitude.HasValue)
+            doctor.Longitude = coords.Value.Longitude;
+
+        _logger.LogInformation(
+            "Filled coordinates from ZipCode {Zip} for doctor {DoctorId}: {Lat}, {Lng}",
+            zip, doctor.Id, doctor.Latitude, doctor.Longitude);
     }
 
     private void ApplyCredentials(Doctor doctor, DoctorAdminEditModel model, bool isCreate)
