@@ -164,7 +164,13 @@ public class ProfileService : IProfileService
                 .ToList(),
             PracticeDescription = doctor.SummaryOfReviews,
             PracticeWebsite = website,
-            AllowGoogleBookings = allowGoogle
+            AllowGoogleBookings = allowGoogle,
+            EmailVerified = doctor.EmailVerified,
+            PhoneVerified = doctor.PhoneVerified,
+            PhoneVerificationPending = !doctor.PhoneVerified
+                && !string.IsNullOrWhiteSpace(doctor.PhoneVerificationCodeHash)
+                && doctor.PhoneVerificationExpiresAtUtc.HasValue
+                && doctor.PhoneVerificationExpiresAtUtc.Value > DateTime.UtcNow
         };
     }
 
@@ -418,7 +424,15 @@ public class ProfileService : IProfileService
         doctor.State = state;
         doctor.ZipCode = model.ZipCode.Trim();
         doctor.Location = $"{doctor.City}, {state}";
-        doctor.OfficePhoneNumber = model.OfficePhoneNumber?.Trim();
+        var newOfficePhone = model.OfficePhoneNumber?.Trim();
+        if (!string.Equals(doctor.OfficePhoneNumber, newOfficePhone, StringComparison.Ordinal))
+        {
+            doctor.OfficePhoneNumber = newOfficePhone;
+            doctor.PhoneVerified = false;
+            doctor.PhoneVerificationCodeHash = null;
+            doctor.PhoneVerificationExpiresAtUtc = null;
+        }
+
         doctor.GmbPhotoLink = DoctorPhotoHelper.NormalizeStoredLink(model.GmbPhotoLink);
         doctor.TagLine = model.TagLine?.Trim();
         doctor.Niche = model.Niche?.Trim();

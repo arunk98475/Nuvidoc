@@ -4197,3 +4197,137 @@ body.dp-drawer-open {
     grid-row: auto;
   }
 }
+
+/* Account (Settings) */
+.dp-account {
+  max-width: 720px;
+  padding: 8px 4px 48px;
+}
+.dp-account-hero h1 {
+  margin: 0 0 28px;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--dp-ink);
+  letter-spacing: -0.02em;
+}
+.dp-account-block {
+  padding: 4px 0 8px;
+}
+.dp-account-label {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dp-ink);
+}
+.dp-account-email-row,
+.dp-account-phone-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.dp-account-email,
+.dp-account-phone-value span:first-child {
+  font-size: 15px;
+  color: var(--dp-ink);
+}
+.dp-account-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #1f9d55;
+}
+.dp-account-hint {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--dp-muted);
+}
+.dp-account-rule {
+  border: 0;
+  border-top: 1px solid var(--dp-rule);
+  margin: 22px 0;
+}
+.dp-account-phone-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dp-account-phone-head .dp-account-label {
+  margin-bottom: 0;
+}
+.dp-account-action,
+.dp-account-action-inline,
+.dp-account-link-btn,
+.dp-account-cancel {
+  color: #2f6fed;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+.dp-account-action:hover,
+.dp-account-action-inline:hover,
+.dp-account-link-btn:hover,
+.dp-account-cancel:hover {
+  text-decoration: underline;
+}
+.dp-account-action-inline {
+  margin-left: 4px;
+}
+.dp-account-inline-form {
+  display: inline;
+  margin: 0;
+}
+.dp-account-verify-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.dp-account-sep {
+  color: var(--dp-muted);
+}
+.dp-account-edit-form {
+  margin-top: 14px;
+  max-width: 360px;
+}
+.dp-account-sublabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dp-ink);
+}
+.dp-account-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--dp-rule);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--dp-ink);
+  background: var(--dp-white);
+}
+.dp-account-input:focus {
+  outline: 2px solid rgba(47, 111, 237, 0.35);
+  border-color: #2f6fed;
+}
+.dp-account-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+}
+

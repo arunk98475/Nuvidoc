@@ -381,6 +381,13 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "PasswordResetTokenHash", "varchar(64) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PasswordResetExpiresAtUtc", "datetime(6) NULL", cancellationToken);
 
+        await EnsureColumnAsync(db, "doctors", "EmailVerified", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "EmailVerificationTokenHash", "varchar(64) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "EmailVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "PhoneVerified", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "PhoneVerificationCodeHash", "varchar(64) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "PhoneVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
+
         await db.Database.ExecuteSqlRawAsync(
             """
             CREATE TABLE IF NOT EXISTS `patient_appointment_reminder_sends` (

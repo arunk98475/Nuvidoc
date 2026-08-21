@@ -8,14 +8,20 @@ namespace Docovee.Pages.Account;
 [AllowAnonymous]
 public class VerifyEmailModel : PageModel
 {
-    private readonly IPatientEmailAuthService _emailAuth;
+    private readonly IPatientEmailAuthService _patientEmailAuth;
+    private readonly IDoctorAccountService _doctorAccount;
 
-    public VerifyEmailModel(IPatientEmailAuthService emailAuth) => _emailAuth = emailAuth;
+    public VerifyEmailModel(IPatientEmailAuthService patientEmailAuth, IDoctorAccountService doctorAccount)
+    {
+        _patientEmailAuth = patientEmailAuth;
+        _doctorAccount = doctorAccount;
+    }
 
     public string? Message { get; set; }
     public bool Success { get; set; }
+    public bool IsDoctor { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(string? token)
+    public async Task<IActionResult> OnGetAsync(string? token, string? kind = null)
     {
         if (string.IsNullOrWhiteSpace(token))
         {
@@ -24,9 +30,35 @@ public class VerifyEmailModel : PageModel
             return Page();
         }
 
-        var result = await _emailAuth.ConfirmEmailVerificationAsync(token);
-        Success = result.Success;
-        Message = result.Message;
+        IsDoctor = string.Equals(kind, "doctor", StringComparison.OrdinalIgnoreCase);
+        if (IsDoctor)
+        {
+            var doctorResult = await _doctorAccount.ConfirmEmailVerificationAsync(token);
+            Success = doctorResult.Success;
+            Message = doctorResult.Message;
+            return Page();
+        }
+
+        var patientResult = await _patientEmailAuth.ConfirmEmailVerificationAsync(token);
+        if (patientResult.Success)
+        {
+            Success = true;
+            Message = patientResult.Message;
+            return Page();
+        }
+
+        // Fallback: doctor links without kind=doctor still resolve.
+        var fallback = await _doctorAccount.ConfirmEmailVerificationAsync(token);
+        if (fallback.Success)
+        {
+            IsDoctor = true;
+            Success = true;
+            Message = fallback.Message;
+            return Page();
+        }
+
+        Success = false;
+        Message = patientResult.Message;
         return Page();
     }
 }

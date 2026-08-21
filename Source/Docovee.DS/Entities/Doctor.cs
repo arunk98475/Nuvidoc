@@ -59,6 +59,12 @@ public class Doctor
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }
+    public bool EmailVerified { get; set; }
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTime? EmailVerificationExpiresAtUtc { get; set; }
+    public bool PhoneVerified { get; set; }
+    public string? PhoneVerificationCodeHash { get; set; }
+    public DateTime? PhoneVerificationExpiresAtUtc { get; set; }
     public string? OnboardingProfileJson { get; set; }
     public int OnboardingQuestionIndex { get; set; }
     public int ProfileCompletionPercent { get; set; }

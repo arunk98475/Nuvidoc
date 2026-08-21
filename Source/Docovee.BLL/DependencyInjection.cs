@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IEmailSender, SesEmailSender>();
         services.AddScoped<IPatientEmailAuthService, PatientEmailAuthService>();
+        services.AddScoped<IDoctorAccountService, DoctorAccountService>();
         services.AddSingleton<IBrandingService, BrandingService>();
         services.AddScoped<IPatientPushDispatcher, PatientPushDispatcher>();
 

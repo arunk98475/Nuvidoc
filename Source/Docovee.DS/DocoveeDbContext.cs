@@ -73,6 +73,10 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Niche).HasMaxLength(200);
             entity.Property(e => e.Username).HasMaxLength(100);
             entity.Property(e => e.PasswordHash).HasMaxLength(500);
+            entity.Property(e => e.EmailVerified).HasDefaultValue(false);
+            entity.Property(e => e.EmailVerificationTokenHash).HasMaxLength(64);
+            entity.Property(e => e.PhoneVerified).HasDefaultValue(false);
+            entity.Property(e => e.PhoneVerificationCodeHash).HasMaxLength(64);
             entity.Property(e => e.OnboardingProfileJson).HasColumnType("text");
             entity.HasIndex(e => e.Username).IsUnique();
         });

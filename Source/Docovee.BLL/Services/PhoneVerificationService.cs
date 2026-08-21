@@ -5,6 +5,7 @@ using Docovee.BLL.Configuration;
 using Docovee.DS;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;
@@ -48,15 +49,18 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
 {
     private readonly DocoveeDbContext _db;
     private readonly TwilioOptions _twilio;
+    private readonly IHostEnvironment _environment;
     private readonly IDocoveeLogger _logger;
 
     public PhoneVerificationService(
         DocoveeDbContext db,
         IOptions<TwilioOptions> twilio,
+        IHostEnvironment environment,
         IDocoveeLogger logger)
     {
         _db = db;
         _twilio = twilio.Value;
+        _environment = environment;
         _logger = logger;
     }
 
@@ -108,13 +112,18 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
 
         if (useWhatsApp)
         {
+            var message = "We sent a WhatsApp verification message.";
+            if (_environment.IsDevelopment())
+            {
+                message +=
+                    " If you haven't joined the Twilio sandbox yet, open WhatsApp and send the join code to +1 (415) 523-8886 first, then tap Send again.";
+            }
+
             return new PhoneVerificationSendResult
             {
                 Success = true,
                 Channel = PhoneVerificationChannels.WhatsApp,
-                Message =
-                    "We sent a WhatsApp verification message. "
-                    + "If you haven't joined the Twilio sandbox yet, open WhatsApp and send the join code to +1 (415) 523-8886 first, then tap Send again."
+                Message = message
             };
         }
 

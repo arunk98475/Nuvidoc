@@ -23,7 +23,11 @@
         <h1 class="dl-title">@(Model.Success ? "Email verified" : "Verification failed")</h1>
         <p class="@(Model.Success ? "alert-success" : "dl-error")">@Model.Message</p>
         <p style="margin-top:18px;">
-            @if (User.Identity?.IsAuthenticated == true)
+            @if (Model.IsDoctor)
+            {
+                <a class="dl-btn" href="/Doctor/Settings/account" style="display:inline-block;text-align:center;text-decoration:none;">Back to Account</a>
+            }
+            else if (User.Identity?.IsAuthenticated == true)
             {
                 <a class="dl-btn" href="/Account/Profile?section=security" style="display:inline-block;text-align:center;text-decoration:none;">Back to Login and security</a>
             }

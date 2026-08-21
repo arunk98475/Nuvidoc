@@ -10,6 +10,7 @@ using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 
 namespace Docovee.Pages.Doctor;
@@ -29,7 +30,8 @@ public class SettingsModel : PageModel
         "booking-link",
         "integrations",
         "legal",
-        "billing"
+        "billing",
+        "account"
     };
 
     private readonly IProfileService _profileService;
@@ -41,6 +43,7 @@ public class SettingsModel : PageModel
     private readonly StripeOptions _stripeOptions;
     private readonly IDoctorBillingService _billing;
     private readonly IDoctorSponsorshipService _sponsorship;
+    private readonly IDoctorAccountService _doctorAccount;
 
     public SettingsModel(
         IProfileService profileService,
@@ -51,7 +54,8 @@ public class SettingsModel : PageModel
         IOptions<UploadOptions> uploadOptions,
         IOptions<StripeOptions> stripeOptions,
         IDoctorBillingService billing,
-        IDoctorSponsorshipService sponsorship)
+        IDoctorSponsorshipService sponsorship,
+        IDoctorAccountService doctorAccount)
     {
         _profileService = profileService;
         _locationService = locationService;
@@ -62,6 +66,7 @@ public class SettingsModel : PageModel
         _stripeOptions = stripeOptions.Value;
         _billing = billing;
         _sponsorship = sponsorship;
+        _doctorAccount = doctorAccount;
     }
 
     public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
@@ -103,6 +108,15 @@ public class SettingsModel : PageModel
     public PmsConnectionSettingsDto? NexHealthConnection { get; private set; }
     public bool Saved { get; private set; }
     public string? ErrorMessage { get; private set; }
+    public string? AccountMessage { get; private set; }
+    public bool AccountMessageSuccess { get; private set; }
+    public string? AccountEdit { get; private set; }
+
+    [BindProperty]
+    public string? PhoneVerificationCode { get; set; }
+
+    [BindProperty]
+    public string AccountPhoneInput { get; set; } = "";
     public bool StripeConfigured => _stripeOptions.IsConfigured;
     public string StripePublishableKey => _stripeOptions.PublishableKey;
     public int PerVisitFeeCents { get; private set; }
@@ -128,13 +142,14 @@ public class SettingsModel : PageModel
         return dt.ToString("h:mm tt");
     }
 
-    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(string? section = null, bool? saved = null, string? step = null, string? edit = null, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
             return RedirectToPage("/Account/Login");
 
         Saved = saved == true;
         BookingLinkCreateStep = string.Equals(step, "create", StringComparison.OrdinalIgnoreCase);
+        AccountEdit = string.Equals(edit, "phone", StringComparison.OrdinalIgnoreCase) ? "phone" : null;
         return await LoadPageAsync(doctorId, section, cancellationToken);
     }
 
@@ -352,6 +367,65 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "working-hours", saved = true });
     }
 
+    public async Task<IActionResult> OnPostRequestEmailVerificationAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var result = await _doctorAccount.SendEmailVerificationAsync(doctorId, baseUrl, cancellationToken);
+        AccountMessage = result.Message;
+        AccountMessageSuccess = result.Success;
+        return await LoadPageAsync(doctorId, "account", cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostUpdateAccountPhoneAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        AccountEdit = "phone";
+        var result = await _doctorAccount.UpdatePhoneAsync(doctorId, AccountPhoneInput, cancellationToken);
+        if (!result.Success)
+        {
+            AccountMessage = result.Message;
+            AccountMessageSuccess = false;
+            return await LoadPageAsync(doctorId, "account", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "account", saved = true });
+    }
+
+    [EnableRateLimiting("phoneVerify")]
+    public async Task<IActionResult> OnPostRequestPhoneVerificationAsync(string channel, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        if (!PhoneVerificationChannels.IsKnown(channel))
+        {
+            AccountMessage = "Choose Verify via SMS or Verify via WhatsApp.";
+            AccountMessageSuccess = false;
+            return await LoadPageAsync(doctorId, "account", cancellationToken);
+        }
+
+        var result = await _doctorAccount.SendPhoneVerificationAsync(doctorId, channel, cancellationToken);
+        AccountMessage = result.Message;
+        AccountMessageSuccess = result.Success;
+        return await LoadPageAsync(doctorId, "account", cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostConfirmPhoneVerificationAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var result = await _doctorAccount.ConfirmPhoneVerificationAsync(doctorId, PhoneVerificationCode ?? "", cancellationToken);
+        AccountMessage = result.Message;
+        AccountMessageSuccess = result.Success;
+        return await LoadPageAsync(doctorId, "account", cancellationToken);
+    }
+
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)
     {
         Section = string.IsNullOrWhiteSpace(section) || !AllowedSections.Contains(section.Trim())
@@ -381,12 +455,16 @@ public class SettingsModel : PageModel
             "integrations" => "Integrations",
             "legal" => "Legal",
             "billing" => "Billing",
+            "account" => "Account",
             _ => "Practice profile"
         };
 
         Profile = await _profileService.GetDoctorProfileAsync(doctorId, cancellationToken);
         if (Profile == null)
             return NotFound();
+
+        if (Section == "account")
+            AccountPhoneInput = Profile.OfficePhoneNumber ?? "";
 
         if (Section == "practice" && string.IsNullOrEmpty(PracticeInput.PracticeName))
         {

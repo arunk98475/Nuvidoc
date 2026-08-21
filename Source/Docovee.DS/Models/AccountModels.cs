@@ -90,6 +90,9 @@ public class DoctorProfileDto
     public string? PracticeDescription { get; set; }
     public string? PracticeWebsite { get; set; }
     public bool AllowGoogleBookings { get; set; } = true;
+    public bool EmailVerified { get; set; }
+    public bool PhoneVerified { get; set; }
+    public bool PhoneVerificationPending { get; set; }
 }
 
 public class PracticeProfileInput

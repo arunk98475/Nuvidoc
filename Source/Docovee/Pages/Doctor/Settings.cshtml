@@ -6,8 +6,8 @@
     var p = Model.Profile!;
 }
 
-<div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" || Model.Section == "working-hours" ? " dp-content-practice" : "")">
-    @if (Model.Section != "practice" && Model.Section != "visit-reasons" && Model.Section != "working-hours" && Model.Section != "booking-link")
+<div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" || Model.Section == "working-hours" || Model.Section == "account" ? " dp-content-practice" : "")">
+    @if (Model.Section != "practice" && Model.Section != "visit-reasons" && Model.Section != "working-hours" && Model.Section != "booking-link" && Model.Section != "account")
     {
         <div class="dp-page-head@(Model.Section == "locations" || Model.Section == "insurance" || Model.Section == "legal" ? " dp-locations-head" : "")">
             <div>
@@ -1300,6 +1300,125 @@
                     </form>
                 </dialog>
             }
+        </div>
+    }
+    else if (Model.Section == "account")
+    {
+        var email = string.IsNullOrWhiteSpace(p.Username) ? "—" : p.Username;
+        var hasPhone = !string.IsNullOrWhiteSpace(p.OfficePhoneNumber);
+        <div class="dp-account">
+            @if (Model.Saved)
+            {
+                <div class="dp-practice-alert is-success">Saved.</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.AccountMessage))
+            {
+                <div class="dp-practice-alert @(Model.AccountMessageSuccess ? "is-success" : "is-error")">@Model.AccountMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="dp-practice-alert is-error">@Model.ErrorMessage</div>
+            }
+
+            <header class="dp-account-hero">
+                <h1>Account</h1>
+            </header>
+
+            <section class="dp-account-block">
+                <h2 class="dp-account-label">Current logged in email</h2>
+                <div class="dp-account-email-row">
+                    <span class="dp-account-email">@email</span>
+                    @if (p.EmailVerified)
+                    {
+                        <span class="dp-account-verified" title="Email verified">
+                            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="#1f9d55"/><path d="M4.6 8.2 6.8 10.4 11.4 5.6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            VERIFIED
+                        </span>
+                    }
+                </div>
+                @if (!p.EmailVerified && email.Contains('@'))
+                {
+                    <p class="dp-account-hint">We will email a secure link to verify this address.</p>
+                    <form method="post" asp-page-handler="RequestEmailVerification" class="dp-account-inline-form">
+                        <button type="submit" class="dp-account-link-btn">Verify email address</button>
+                    </form>
+                }
+                else if (!p.EmailVerified)
+                {
+                    <p class="dp-account-hint">Your login username must be an email address before it can be verified.</p>
+                }
+            </section>
+
+            <hr class="dp-account-rule" />
+
+            <section class="dp-account-block">
+                <div class="dp-account-phone-head">
+                    <h2 class="dp-account-label">Phone number</h2>
+                    @if (Model.AccountEdit != "phone")
+                    {
+                        <a class="dp-account-action" href="/Doctor/Settings/account?edit=phone">@(hasPhone ? "Edit" : "Add")</a>
+                    }
+                </div>
+
+                @if (Model.AccountEdit == "phone")
+                {
+                    <form method="post" asp-page-handler="UpdateAccountPhone" class="dp-account-edit-form">
+                        <label class="dp-account-sublabel" for="AccountPhoneInput">Phone number</label>
+                        <input id="AccountPhoneInput" name="AccountPhoneInput" type="tel" class="dp-account-input" value="@Model.AccountPhoneInput" autocomplete="tel" placeholder="(555) 555-5555" />
+                        <div class="dp-account-edit-actions">
+                            <button type="submit" class="dp-btn dp-btn-primary">Update phone number</button>
+                            <a class="dp-account-cancel" href="/Doctor/Settings/account">Cancel</a>
+                        </div>
+                    </form>
+                }
+                else
+                {
+                    <p class="dp-account-hint">
+                        Adding and verifying your phone number allows two-step verification to be turned on.
+                        @if (!hasPhone)
+                        {
+                            <a class="dp-account-action-inline" href="/Doctor/Settings/account?edit=phone">Add</a>
+                        }
+                    </p>
+                    @if (hasPhone)
+                    {
+                        <div class="dp-account-phone-value">
+                            <span>@p.OfficePhoneNumber</span>
+                            @if (p.PhoneVerified)
+                            {
+                                <span class="dp-account-verified" title="Phone verified">
+                                    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="8" fill="#1f9d55"/><path d="M4.6 8.2 6.8 10.4 11.4 5.6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    VERIFIED
+                                </span>
+                            }
+                        </div>
+                        @if (!p.PhoneVerified)
+                        {
+                            <div class="dp-account-verify-links">
+                                <form method="post" asp-page-handler="RequestPhoneVerification" class="dp-account-inline-form">
+                                    <input type="hidden" name="channel" value="sms" />
+                                    <button type="submit" class="dp-account-link-btn">Verify via SMS</button>
+                                </form>
+                                <span class="dp-account-sep">·</span>
+                                <form method="post" asp-page-handler="RequestPhoneVerification" class="dp-account-inline-form">
+                                    <input type="hidden" name="channel" value="whatsapp" />
+                                    <button type="submit" class="dp-account-link-btn">Verify via WhatsApp</button>
+                                </form>
+                            </div>
+                            @if (p.PhoneVerificationPending)
+                            {
+                                <form method="post" asp-page-handler="ConfirmPhoneVerification" class="dp-account-edit-form">
+                                    <label class="dp-account-sublabel" for="phone-verify-code">Enter 6-digit code</label>
+                                    <input id="phone-verify-code" name="PhoneVerificationCode" class="dp-account-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+                                    <button type="submit" class="dp-btn dp-btn-primary" style="margin-top:10px;">Verify phone</button>
+                                </form>
+                            }
+                        }
+                    }
+                }
+            </section>
+
+            <hr class="dp-account-rule" />
         </div>
     }
     else if (Model.Section == "legal")
