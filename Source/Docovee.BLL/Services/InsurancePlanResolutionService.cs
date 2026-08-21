@@ -141,7 +141,7 @@ public sealed class InsurancePlanResolutionService : IInsurancePlanResolutionSer
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Insurance plan resolution API call failed: {Body}", responseBody);
+                _logger.LogWarning("Insurance plan resolution API call failed with status {Status}", (int)response.StatusCode);
                 return null;
             }
 

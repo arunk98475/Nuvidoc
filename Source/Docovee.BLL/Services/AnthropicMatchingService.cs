@@ -83,7 +83,7 @@ public class AnthropicMatchingService : IAnthropicMatchingService
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Anthropic matching failed: {Body}", responseBody);
+                _logger.LogWarning("Anthropic matching failed with status {Status}", (int)response.StatusCode);
                 return FallbackRank(session, candidates);
             }
 

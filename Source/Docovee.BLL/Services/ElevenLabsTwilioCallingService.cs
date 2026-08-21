@@ -25,6 +25,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
     private readonly HttpClient _httpClient;
     private readonly ElevenLabsOptions _elevenLabs;
     private readonly TwilioOptions _twilio;
+    private readonly VoiceOptions _voice;
     private readonly IDocoveeLogger _logger;
     private readonly DocoveeDbContext _db;
     private readonly IAuditTrailService _audit;
@@ -34,6 +35,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         HttpClient httpClient,
         IOptions<ElevenLabsOptions> elevenLabs,
         IOptions<TwilioOptions> twilio,
+        IOptions<VoiceOptions> voice,
         IDocoveeLogger logger,
         DocoveeDbContext db,
         IAuditTrailService audit)
@@ -41,6 +43,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         _httpClient = httpClient;
         _elevenLabs = elevenLabs.Value;
         _twilio = twilio.Value;
+        _voice = voice.Value;
         _logger = logger;
         _db = db;
         _audit = audit;
@@ -122,7 +125,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             {
                 // Agent first message in ElevenLabs dashboard should be {{first_message}} only.
                 // Do NOT pass conversation_config_override.first_message unless Security → Overrides allows it.
-                ["dynamic_variables"] = BuildDynamicVariables(request)
+                ["dynamic_variables"] = BuildDynamicVariables(request, _voice.IncludePhi)
             }
         };
 
@@ -205,7 +208,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         }
     }
 
-    private static Dictionary<string, string> BuildDynamicVariables(NuviOutboundCallRequest request)
+    private static Dictionary<string, string> BuildDynamicVariables(NuviOutboundCallRequest request, bool includePhi)
     {
         var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var intent = string.IsNullOrWhiteSpace(request.Intent)
@@ -220,7 +223,10 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         vars["current_timezone"] = "America/Los_Angeles (US Pacific Time)";
         vars["today"] = nowPacific.ToString("yyyy-MM-dd");
 
-        vars["patient_name"] = FirstNonEmpty(request.PatientName, "a patient");
+        // Minimum necessary: generic label unless IncludePhi is explicitly enabled.
+        vars["patient_name"] = includePhi
+            ? FirstNonEmpty(request.PatientName, "a patient")
+            : "a patient";
         vars["practice_name"] = FirstNonEmpty(request.PracticeName, request.DoctorName, "your office");
         vars["external_call_id"] = FirstNonEmpty(request.SessionKey, Guid.NewGuid().ToString("N"));
         vars["call_intent"] = isCancel
@@ -229,14 +235,26 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
                 ? VoiceOutboundCallIntents.Reschedule
                 : VoiceOutboundCallIntents.Book;
 
+        // Callback number is required for the office to reach the patient.
         AddVar(vars, "patient_phone", request.PatientPhone);
-        AddVar(vars, "patient_email", request.PatientEmail);
         AddVar(vars, "practice_phone", request.PracticePhone);
-        AddVar(vars, "call_context", request.CallContext);
         AddVar(vars, "doctor_name", request.DoctorName);
         AddVar(vars, "session_key", request.SessionKey);
-        AddVar(vars, "chief_complaint", request.ChiefComplaint);
-        AddVar(vars, "insurance_name", request.InsuranceName);
+
+        if (includePhi)
+        {
+            AddVar(vars, "patient_email", request.PatientEmail);
+            AddVar(vars, "call_context", request.CallContext);
+            AddVar(vars, "chief_complaint", request.ChiefComplaint);
+            AddVar(vars, "insurance_name", request.InsuranceName);
+        }
+        else
+        {
+            // Generic visit reason only — no free-text complaint or insurance detail.
+            vars["chief_complaint"] = "dental appointment";
+            vars["visit_reason"] = "dental appointment";
+            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, "dental appointment");
+        }
 
         if (isCancel)
         {
@@ -253,8 +271,11 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["availability_window"] = cancelSlot;
             if (!string.IsNullOrWhiteSpace(request.AppointmentTime))
                 vars["preferred_time_window"] = request.AppointmentTime.Trim();
-            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
-            vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
+            if (includePhi)
+            {
+                vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+                vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
+            }
         }
         else if (isReschedule)
         {
@@ -277,8 +298,11 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["preferred_time_window"] = FirstNonEmpty(
                 request.PreferredTimeWindow,
                 "any available time during office hours (Pacific Time)");
-            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
-            vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
+            if (includePhi)
+            {
+                vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+                vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
+            }
             AddVar(vars, "booking_window_start", request.BookingWindowStart);
             AddVar(vars, "booking_window_end", request.BookingWindowEnd);
             vars["appointment_datetime_format"] =
@@ -299,14 +323,16 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["preferred_date"] = dateTime;
             vars["preferred_time_window"] = timeWindow;
             vars["availability_window"] = dateTime;
-            vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
+            if (includePhi)
+                vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
 
             AddVar(vars, "booking_window_start", request.BookingWindowStart);
             AddVar(vars, "booking_window_end", request.BookingWindowEnd);
             vars["appointment_datetime_format"] =
                 "When booked, report the exact confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). If a range like 9-10 AM was confirmed, use the start time and mention the end in confirmation_notes.";
 
-            AddVar(vars, "call_preference", request.CallPreference);
+            if (includePhi)
+                AddVar(vars, "call_preference", request.CallPreference);
         }
 
         vars["first_message"] = BuildFirstMessage(intent, vars);

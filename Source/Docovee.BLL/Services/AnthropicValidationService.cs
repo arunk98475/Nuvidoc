@@ -116,7 +116,7 @@ public class AnthropicValidationService : IAnthropicValidationService
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Anthropic validation failed: {Body}", responseBody);
+                _logger.LogWarning("Anthropic validation failed with status {Status}", (int)response.StatusCode);
                 return null;
             }
 

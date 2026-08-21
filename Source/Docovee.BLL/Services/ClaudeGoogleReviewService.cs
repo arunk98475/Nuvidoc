@@ -319,8 +319,8 @@ public class ClaudeGoogleReviewService : IClaudeGoogleReviewService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Claude Google review lookup failed for doctor {DoctorId}: {Body}",
-                    doctor.Id, responseBody);
+                _logger.LogWarning("Claude Google review lookup failed for doctor {DoctorId} with status {Status}",
+                    doctor.Id, (int)response.StatusCode);
                 return null;
             }
 

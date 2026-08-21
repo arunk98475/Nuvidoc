@@ -130,7 +130,7 @@ public class WebDoctorDiscoveryService : IWebDoctorDiscoveryService
             var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Web doctor discovery failed: {Body}", responseBody);
+                _logger.LogWarning("Web doctor discovery failed with status {Status}", (int)response.StatusCode);
                 return [];
             }
 

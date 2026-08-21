@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.Configure<ChatBotOptions>(configuration.GetSection(ChatBotOptions.SectionName));
         services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.SectionName));
         services.Configure<ElevenLabsOptions>(configuration.GetSection(ElevenLabsOptions.SectionName));
+        services.Configure<VoiceOptions>(configuration.GetSection(VoiceOptions.SectionName));
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IEmailSender, SesEmailSender>();

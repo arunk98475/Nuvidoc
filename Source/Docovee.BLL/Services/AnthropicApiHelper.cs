@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Security;
 
 namespace Docovee.BLL.Services;
 
@@ -17,15 +18,22 @@ public static class AnthropicApiHelper
         bool includeWebSearch = false,
         int? webSearchMaxUses = null)
     {
+        var systemOut = options.DeidentifyPrompts ? PhiPromptSanitizer.Deidentify(system) : system;
+        var messageList = SanitizeMessages(messages, options.DeidentifyPrompts);
+
+        // Web search is controlled only by EnableWebSearch (and the caller flag).
+        // AllowPhi gates whether raw PHI may be sent; de-identify still runs separately.
+        var allowWebSearch = includeWebSearch && options.EnableWebSearch;
+
         var payload = new Dictionary<string, object>
         {
             ["model"] = options.Model.Trim(),
             ["max_tokens"] = maxTokens,
-            ["system"] = system,
-            ["messages"] = messages.ToList()
+            ["system"] = systemOut,
+            ["messages"] = messageList
         };
 
-        if (includeWebSearch && options.EnableWebSearch)
+        if (allowWebSearch)
         {
             var maxUses = Math.Max(1, webSearchMaxUses ?? options.WebSearchMaxUses);
             payload["tools"] = new object[]
@@ -73,5 +81,33 @@ public static class AnthropicApiHelper
         }
 
         return text.ToString();
+    }
+
+    private static List<object> SanitizeMessages(IEnumerable<object> messages, bool deidentify)
+    {
+        var result = new List<object>();
+        foreach (var message in messages)
+        {
+            if (!deidentify)
+            {
+                result.Add(message);
+                continue;
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(JsonSerializer.Serialize(message));
+                var root = doc.RootElement;
+                var role = root.TryGetProperty("role", out var roleEl) ? roleEl.GetString() ?? "user" : "user";
+                var content = root.TryGetProperty("content", out var contentEl) ? contentEl.GetString() ?? "" : "";
+                result.Add(new { role, content = PhiPromptSanitizer.Deidentify(content) });
+            }
+            catch (JsonException)
+            {
+                result.Add(message);
+            }
+        }
+
+        return result;
     }
 }
