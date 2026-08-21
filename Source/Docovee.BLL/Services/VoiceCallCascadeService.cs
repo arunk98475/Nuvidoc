@@ -366,6 +366,10 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
                 PatientName = patientInfo.PatientName,
                 PatientPhone = patientInfo.PatientPhone,
                 PatientEmail = patientInfo.PatientEmail,
+                PatientDateOfBirth = await ResolvePatientDateOfBirthAsync(
+                    patientInfo.PatientId ?? session.PatientId,
+                    context.PatientDateOfBirth,
+                    cancellationToken),
                 CallPreference = callPreferenceLabel,
                 AvailabilityWindow = urgencyWindow,
                 PreferredDate = urgencyWindow,
@@ -531,5 +535,23 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
             .Select(l => l.PhoneNumber)
             .FirstOrDefaultAsync(cancellationToken);
         return ElevenLabsTwilioCallingService.ToE164(locationPhone);
+    }
+
+    private async Task<DateOnly?> ResolvePatientDateOfBirthAsync(
+        int? patientId,
+        DateOnly? fromContext,
+        CancellationToken cancellationToken)
+    {
+        if (ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(fromContext) is DateOnly ctxDob)
+            return ctxDob;
+
+        if (patientId is not > 0)
+            return null;
+
+        var dob = await _db.Patients.AsNoTracking()
+            .Where(p => p.Id == patientId.Value)
+            .Select(p => (DateOnly?)p.DateOfBirth)
+            .FirstOrDefaultAsync(cancellationToken);
+        return ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(dob);
     }
 }

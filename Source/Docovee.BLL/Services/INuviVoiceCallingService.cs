@@ -22,6 +22,8 @@ public sealed class NuviOutboundCallRequest
     public string? PatientName { get; init; }
     public string? PatientPhone { get; init; }
     public string? PatientEmail { get; init; }
+    /// <summary>Patient DOB for the office (spoken via {{patient_date_of_birth}} when IncludePhi is on).</summary>
+    public DateOnly? PatientDateOfBirth { get; init; }
     public string? CallPreference { get; init; }
     public string? AvailabilityWindow { get; init; }
     public string? PreferredDate { get; init; }

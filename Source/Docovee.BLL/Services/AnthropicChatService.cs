@@ -2397,6 +2397,16 @@ public class AnthropicChatService : IAnthropicChatService
                 : "Call offices in rank order until any booking is available.")
             : "Call the top matched doctor only.";
 
+        DateOnly? patientDob = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(context.PatientDateOfBirth);
+        if (patientDob is null && session.PatientId is > 0)
+        {
+            var dob = await _db.Patients.AsNoTracking()
+                .Where(p => p.Id == session.PatientId.Value)
+                .Select(p => (DateOnly?)p.DateOfBirth)
+                .FirstOrDefaultAsync(cancellationToken);
+            patientDob = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(dob);
+        }
+
         var callResult = await _voiceCalling.PlaceOfficeCallAsync(new NuviOutboundCallRequest
         {
             ToNumber = dialNumber,
@@ -2406,6 +2416,7 @@ public class AnthropicChatService : IAnthropicChatService
             PatientName = GetDisplayName(context),
             PatientPhone = context.PendingPhone,
             PatientEmail = context.PendingEmail,
+            PatientDateOfBirth = patientDob,
             CallPreference = callPreferenceLabel,
             AvailabilityWindow = urgencyWindow,
             PreferredDate = agentDateTime,

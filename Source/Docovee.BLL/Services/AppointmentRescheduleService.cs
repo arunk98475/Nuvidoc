@@ -119,6 +119,9 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
             PatientName = patientName,
             PatientPhone = appointment.PatientPhone ?? patient.Phone,
             PatientEmail = appointment.PatientEmail ?? patient.Username,
+            PatientDateOfBirth = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(
+                appointment.PatientDateOfBirth,
+                patient.DateOfBirth),
             AppointmentId = appointmentId,
             AppointmentDate = appointmentDate,
             AppointmentTime = appointmentTime,

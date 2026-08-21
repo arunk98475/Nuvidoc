@@ -245,12 +245,24 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         {
             AddVar(vars, "patient_email", request.PatientEmail);
             AddVar(vars, "call_context", request.CallContext);
-            AddVar(vars, "chief_complaint", request.ChiefComplaint);
             AddVar(vars, "insurance_name", request.InsuranceName);
+
+            // Patient details the office needs once a slot is available:
+            // full name (patient_name above), phone, DOB, reason for visit.
+            var visitReason = FirstNonEmpty(
+                request.ChiefComplaint,
+                request.AppointmentType,
+                "dental appointment");
+            vars["chief_complaint"] = visitReason;
+            vars["visit_reason"] = visitReason;
+            vars["appointment_type"] = visitReason;
+
+            if (TryFormatPatientDateOfBirth(request.PatientDateOfBirth, out var dobSpoken))
+                vars["patient_date_of_birth"] = dobSpoken;
         }
         else
         {
-            // Generic visit reason only — no free-text complaint or insurance detail.
+            // Generic visit reason only — no free-text complaint, DOB, or insurance detail.
             vars["chief_complaint"] = "dental appointment";
             vars["visit_reason"] = "dental appointment";
             vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, "dental appointment");
@@ -271,11 +283,6 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["availability_window"] = cancelSlot;
             if (!string.IsNullOrWhiteSpace(request.AppointmentTime))
                 vars["preferred_time_window"] = request.AppointmentTime.Trim();
-            if (includePhi)
-            {
-                vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
-                vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
-            }
         }
         else if (isReschedule)
         {
@@ -298,11 +305,6 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["preferred_time_window"] = FirstNonEmpty(
                 request.PreferredTimeWindow,
                 "any available time during office hours (Pacific Time)");
-            if (includePhi)
-            {
-                vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
-                vars["visit_reason"] = FirstNonEmpty(request.ChiefComplaint, request.AppointmentType, "dental appointment");
-            }
             AddVar(vars, "booking_window_start", request.BookingWindowStart);
             AddVar(vars, "booking_window_end", request.BookingWindowEnd);
             vars["appointment_datetime_format"] =
@@ -323,8 +325,6 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["preferred_date"] = dateTime;
             vars["preferred_time_window"] = timeWindow;
             vars["availability_window"] = dateTime;
-            if (includePhi)
-                vars["appointment_type"] = FirstNonEmpty(request.AppointmentType, request.ChiefComplaint, "dental appointment");
 
             AddVar(vars, "booking_window_start", request.BookingWindowStart);
             AddVar(vars, "booking_window_end", request.BookingWindowEnd);
@@ -341,6 +341,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
 
     /// <summary>
     /// Full opener sent as {{first_message}} — set the ElevenLabs agent first message to that variable only.
+    /// Keep short: no booking window, slot time, or availability details in the opener.
     /// </summary>
     private static string BuildFirstMessage(string intent, IReadOnlyDictionary<string, string> vars)
     {
@@ -350,31 +351,18 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
 
         if (isCancel)
         {
-            var slot = vars.TryGetValue("appointment_datetime", out var dt) ? dt : string.Empty;
-            return string.IsNullOrWhiteSpace(slot)
-                ? $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to cancel their dental appointment. Do you have a moment?"
-                : $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to cancel their dental appointment on {slot}. Do you have a moment?";
+            return
+                $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request to cancel a dental appointment. Do you have a moment?";
         }
 
         if (isReschedule)
         {
-            var currentSlot = vars.TryGetValue("appointment_datetime", out var cur) ? cur : string.Empty;
-            var window = FirstNonEmpty(
-                vars.TryGetValue("preferred_date", out var pd) ? pd : null,
-                vars.TryGetValue("date_time", out var dtm) ? dtm : null,
-                "within the next 30 days");
-            return string.IsNullOrWhiteSpace(currentSlot)
-                ? $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to reschedule their dental appointment. We're looking for a new time {window}. Do you have a moment?"
-                : $"Hi, this is Nuvi calling on behalf of {patientName}. I'm calling to reschedule their appointment currently on {currentSlot}. We're looking for a new time {window}. Do you have a moment?";
+            return
+                $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request to reschedule a dental appointment. Do you have a moment?";
         }
 
-        var bookWindow = FirstNonEmpty(
-            vars.TryGetValue("preferred_date", out var pd2) ? pd2 : null,
-            vars.TryGetValue("date_time", out var dtm2) ? dtm2 : null,
-            "within the next 30 days");
-
         return
-            $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request a dental appointment at your office {bookWindow}. Do you have a moment to check availability?";
+            $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request a dental appointment. Do you have a moment?";
     }
 
     /// <summary>Clinic-local "now" in US Pacific (PST/PDT). Server local time (e.g. IST) is ignored.</summary>
@@ -401,6 +389,31 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         }
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Formats DOB for the agent to speak. Skips unset / placeholder values (year ≤ 1900 or 1990-01-01).
+    /// </summary>
+    internal static bool TryFormatPatientDateOfBirth(DateOnly? dateOfBirth, out string spoken)
+    {
+        spoken = string.Empty;
+        if (dateOfBirth is not DateOnly dob)
+            return false;
+        if (dob.Year <= 1900 || dob == new DateOnly(1990, 1, 1))
+            return false;
+
+        spoken = dob.ToString("MMMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture);
+        return true;
+    }
+
+    /// <summary>Returns a usable patient DOB, preferring appointment then patient, skipping placeholders.</summary>
+    internal static DateOnly? PreferPatientDateOfBirth(DateOnly? preferred, DateOnly? fallback = null)
+    {
+        if (TryFormatPatientDateOfBirth(preferred, out _))
+            return preferred;
+        if (TryFormatPatientDateOfBirth(fallback, out _))
+            return fallback;
+        return null;
     }
 
     private static void AddVar(IDictionary<string, string> vars, string key, string? value)

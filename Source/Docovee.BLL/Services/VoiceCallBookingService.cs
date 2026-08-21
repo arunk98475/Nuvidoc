@@ -2369,6 +2369,15 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime} Pacific";
         var patientName = string.IsNullOrWhiteSpace(call.PatientName) ? "Patient" : call.PatientName;
         var isCancel = IsCancelIntent(call.CallIntent);
+        DateOnly? patientDob = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(appointment.PatientDateOfBirth);
+        if (patientDob is null && call.PatientId is > 0)
+        {
+            var dob = await _db.Patients.AsNoTracking()
+                .Where(p => p.Id == call.PatientId.Value)
+                .Select(p => (DateOnly?)p.DateOfBirth)
+                .FirstOrDefaultAsync(cancellationToken);
+            patientDob = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(dob);
+        }
 
         NuviOutboundCallRequest request;
         if (isCancel)
@@ -2383,6 +2392,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 PatientName = patientName,
                 PatientPhone = call.PatientPhone,
                 PatientEmail = call.PatientEmail,
+                PatientDateOfBirth = patientDob,
                 AppointmentId = appointment.Id,
                 AppointmentDate = appointmentDate,
                 AppointmentTime = appointmentTime,
@@ -2407,6 +2417,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 PatientName = patientName,
                 PatientPhone = call.PatientPhone,
                 PatientEmail = call.PatientEmail,
+                PatientDateOfBirth = patientDob,
                 AppointmentId = appointment.Id,
                 AppointmentDate = appointmentDate,
                 AppointmentTime = appointmentTime,
