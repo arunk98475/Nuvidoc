@@ -803,6 +803,47 @@ public class ProfileService : IProfileService
         return true;
     }
 
+    public async Task<DoctorQaPageModel> GetDoctorQaAsync(int doctorId, CancellationToken cancellationToken = default)
+    {
+        var json = await _db.Doctors.AsNoTracking()
+            .Where(d => d.Id == doctorId)
+            .Select(d => d.OnboardingProfileJson)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var answers = DoctorOnboardingProgress.LoadAnswers(new DS.Entities.Doctor { OnboardingProfileJson = json ?? "" });
+
+        var items = DoctorOnboardingQuestions.All
+            .Select(q => new DoctorQaItemVm
+            {
+                QuestionId = q.Id,
+                Category = q.Category,
+                Question = q.Question,
+                InputType = q.AnswerType,
+                Placeholder = q.OptionsHint,
+                Answer = answers.TryGetValue(q.Id, out var a) ? a : ""
+            })
+            .ToList();
+
+        return new DoctorQaPageModel { Items = items };
+    }
+
+    public async Task<(bool Success, string? Error)> SaveDoctorQaAsync(int doctorId, Dictionary<int, string> answers, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null)
+            return (false, "Doctor not found.");
+
+        var existing = DoctorOnboardingProgress.LoadAnswers(doctor);
+        foreach (var kvp in answers)
+            existing[kvp.Key] = kvp.Value ?? "";
+
+        doctor.OnboardingProfileJson = DoctorOnboardingProgress.SerializeAnswers(existing);
+        doctor.ProfileCompletionPercent = DoctorOnboardingProgress.CalculatePercent(
+            DoctorOnboardingProgress.CountAnsweredQuestions(existing));
+        await _db.SaveChangesAsync(cancellationToken);
+        return (true, null);
+    }
+
     private static bool IsUnsetDateOfBirth(DateOnly dateOfBirth) =>
         dateOfBirth.Year <= 1900;
 

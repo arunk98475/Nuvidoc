@@ -130,3 +130,18 @@ public class PublicDoctorInsuranceDto
     public string CarrierCode { get; set; } = string.Empty;
     public IReadOnlyList<string> Plans { get; set; } = Array.Empty<string>();
 }
+
+public class DoctorQaItemVm
+{
+    public int QuestionId { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public string Question { get; set; } = string.Empty;
+    public string InputType { get; set; } = string.Empty;
+    public string Placeholder { get; set; } = string.Empty;
+    public string Answer { get; set; } = string.Empty;
+}
+
+public class DoctorQaPageModel
+{
+    public IReadOnlyList<DoctorQaItemVm> Items { get; set; } = Array.Empty<DoctorQaItemVm>();
+}

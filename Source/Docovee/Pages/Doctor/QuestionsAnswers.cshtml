@@ -1,0 +1,55 @@
+@page "/Doctor/Settings/questions-answers"
+@model Docovee.Pages.Doctor.QuestionsAnswersModel
+@{
+    ViewData["Title"] = "Questions & Answers";
+    ViewData["Nav"] = "settings-questions-answers";
+}
+<div class="dp-content dp-content-practice">
+<form method="post" class="dp-practice-form">
+    <div class="dp-practice-scroll">
+        <div class="dp-practice-inner">
+            @if (Model.Saved)
+            {
+                <div class="dp-practice-alert is-success">Your answers have been saved.</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="dp-practice-alert is-error">@Model.ErrorMessage</div>
+            }
+            <header class="dp-practice-hero">
+                <h1>Questions &amp; Answers</h1>
+                <p>These answers power how Nuvi introduces you to patients. Fill in as many as you can for the best results.</p>
+            </header>
+            @foreach (var group in Model.QaPage.Items.GroupBy(i => i.Category))
+            {
+                <section class="dp-practice-block dp-practice-block-divider">
+                    <header class="dp-practice-section-head">
+                        <h2>@group.Key</h2>
+                    </header>
+                    @foreach (var item in group)
+                    {
+                        <div class="dp-practice-field">
+                            <label class="dp-practice-label" for="qa_@item.QuestionId">@item.Question</label>
+                            @if (!string.IsNullOrEmpty(item.Placeholder))
+                            {
+                                <p class="dp-practice-hint">@item.Placeholder</p>
+                            }
+                            @if (item.InputType is "Long Text")
+                            {
+                                <textarea class="dp-practice-textarea" id="qa_@item.QuestionId" name="qa_@item.QuestionId" rows="4">@item.Answer</textarea>
+                            }
+                            else
+                            {
+                                <input class="dp-practice-input" type="text" id="qa_@item.QuestionId" name="qa_@item.QuestionId" value="@item.Answer" />
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        </div>
+    </div>
+    <footer class="dp-practice-footer">
+        <button type="submit" class="dp-btn dp-btn-primary">Save answers</button>
+    </footer>
+</form>
+</div>
