@@ -147,6 +147,8 @@ public class DoctorAdminDto
     public int QualityScore { get; set; }
     public int PatientReviewCount { get; set; }
     public bool IsNexHealthIntegrated { get; set; }
+    public bool PaymentVerified { get; set; }
+    public int FreeVisitsRemaining { get; set; }
 }
 
 public class DoctorAdminEditModel

@@ -3,6 +3,7 @@ using System.Text;
 using ClosedXML.Excel;
 using CsvHelper;
 using CsvHelper.Configuration;
+using Docovee.BLL.Services.Billing;
 using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Entities;
@@ -32,6 +33,8 @@ public class AdminDoctorService : IAdminDoctorService
     private readonly IZipGeocodeService _zipGeocode;
     private readonly IDocoveeLogger _logger;
     private readonly IDoctorQualityScoreService _qualityScore;
+    private readonly IAppSettingsService _appSettings;
+    private readonly IStripePaymentMethodService _paymentMethods;
     private readonly PasswordHasher<Doctor> _passwordHasher = new();
 
     public AdminDoctorService(
@@ -39,13 +42,17 @@ public class AdminDoctorService : IAdminDoctorService
         IDoctorFileService fileService,
         IZipGeocodeService zipGeocode,
         IDocoveeLogger logger,
-        IDoctorQualityScoreService qualityScore)
+        IDoctorQualityScoreService qualityScore,
+        IAppSettingsService appSettings,
+        IStripePaymentMethodService paymentMethods)
     {
         _db = db;
         _fileService = fileService;
         _zipGeocode = zipGeocode;
         _logger = logger;
         _qualityScore = qualityScore;
+        _appSettings = appSettings;
+        _paymentMethods = paymentMethods;
     }
 
     public async Task<PagedResult<DoctorAdminDto>> ListAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default)
@@ -100,30 +107,85 @@ public class AdminDoctorService : IAdminDoctorService
                 .ToListAsync(cancellationToken))
                 .ToHashSet();
 
+        var freeAllowance = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
+        var chargeOnlyIfPatientShowed = await _appSettings.GetVisitBillingChargeOnlyIfPatientShowedAsync(cancellationToken);
+        var visitsUsedByDoctor = await CountBillableVisitsByDoctorAsync(doctorIds, chargeOnlyIfPatientShowed, cancellationToken);
+        var paymentVerifiedByDoctor = await LoadPaymentVerifiedByDoctorAsync(doctorIds, cancellationToken);
+
         return new PagedResult<DoctorAdminDto>
         {
-            Items = items.Select(d => new DoctorAdminDto
+            Items = items.Select(d =>
             {
-                Id = d.Id,
-                Name = d.Name,
-                Specialty = d.Specialty,
-                PracticeName = d.PracticeName,
-                Location = d.Location ?? (d.City + ", " + d.State),
-                City = d.City,
-                State = d.State,
-                GoogleRating = d.GoogleRating,
-                GoogleReviewCount = d.GoogleReviewCount,
-                PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(d.PhotoUrl, d.GmbPhotoLink),
-                IsActive = d.IsActive,
-                IsSponsored = d.IsSponsored,
-                QualityScore = d.QualityScore,
-                PatientReviewCount = d.PatientReviewCount,
-                IsNexHealthIntegrated = integratedIds.Contains(d.Id)
+                visitsUsedByDoctor.TryGetValue(d.Id, out var visitsUsed);
+                return new DoctorAdminDto
+                {
+                    Id = d.Id,
+                    Name = d.Name,
+                    Specialty = d.Specialty,
+                    PracticeName = d.PracticeName,
+                    Location = d.Location ?? (d.City + ", " + d.State),
+                    City = d.City,
+                    State = d.State,
+                    GoogleRating = d.GoogleRating,
+                    GoogleReviewCount = d.GoogleReviewCount,
+                    PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(d.PhotoUrl, d.GmbPhotoLink),
+                    IsActive = d.IsActive,
+                    IsSponsored = d.IsSponsored,
+                    QualityScore = d.QualityScore,
+                    PatientReviewCount = d.PatientReviewCount,
+                    IsNexHealthIntegrated = integratedIds.Contains(d.Id),
+                    PaymentVerified = paymentVerifiedByDoctor.GetValueOrDefault(d.Id),
+                    FreeVisitsRemaining = Math.Max(0, freeAllowance - visitsUsed)
+                };
             }).ToList(),
             TotalCount = total,
             Page = page,
             PageSize = pageSize
         };
+    }
+
+    private async Task<Dictionary<int, int>> CountBillableVisitsByDoctorAsync(
+        IReadOnlyList<int> doctorIds,
+        bool chargeOnlyIfPatientShowed,
+        CancellationToken cancellationToken)
+    {
+        if (doctorIds.Count == 0)
+            return new Dictionary<int, int>();
+
+        var query = _db.Appointments.AsNoTracking()
+            .Where(a => doctorIds.Contains(a.DoctorId) && a.Source != AppointmentSources.PmsInbound);
+
+        if (chargeOnlyIfPatientShowed)
+            query = query.Where(a => a.Status == AppointmentStatuses.Completed);
+
+        return await query
+            .GroupBy(a => a.DoctorId)
+            .Select(g => new { DoctorId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.DoctorId, x => x.Count, cancellationToken);
+    }
+
+    private async Task<Dictionary<int, bool>> LoadPaymentVerifiedByDoctorAsync(
+        IReadOnlyList<int> doctorIds,
+        CancellationToken cancellationToken)
+    {
+        var result = doctorIds.ToDictionary(id => id, _ => false);
+        if (doctorIds.Count == 0)
+            return result;
+
+        var withStripeCustomer = await _db.Doctors.AsNoTracking()
+            .Where(d => doctorIds.Contains(d.Id)
+                && d.StripeCustomerId != null
+                && d.StripeCustomerId != "")
+            .Select(d => d.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var id in withStripeCustomer)
+        {
+            var methods = await _paymentMethods.ListPaymentMethodsAsync(id, cancellationToken);
+            result[id] = methods.Count > 0;
+        }
+
+        return result;
     }
 
     public async Task<DoctorAdminEditModel?> GetForEditAsync(int id, CancellationToken cancellationToken = default)

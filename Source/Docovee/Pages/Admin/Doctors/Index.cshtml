@@ -149,6 +149,8 @@
                     <th>Location</th>
                     <th>Rating</th>
                     <th>Patient Reviews</th>
+                    <th>Payment verified</th>
+                    <th>Free visits left</th>
                     <th>Status</th>
                     <th>NexHealth</th>
                     <th>Actions</th>
@@ -182,6 +184,17 @@
                         <td>@(d.Location ?? $"{d.City}, {d.State}")</td>
                         <td>★ @d.GoogleRating (@d.GoogleReviewCount)</td>
                         <td>@d.PatientReviewCount</td>
+                        <td>
+                            @if (d.PaymentVerified)
+                            {
+                                <span class="badge-integrated">Yes</span>
+                            }
+                            else
+                            {
+                                <span class="hint">No</span>
+                            }
+                        </td>
+                        <td>@d.FreeVisitsRemaining</td>
                         <td>@(d.IsActive ? "Active" : "Inactive")@(d.IsSponsored ? $" · Sponsored · Q{d.QualityScore}" : $" · Q{d.QualityScore}")</td>
                         <td>
                             @if (d.IsNexHealthIntegrated)
