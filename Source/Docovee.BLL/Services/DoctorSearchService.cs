@@ -1,4 +1,5 @@
 using Docovee.BLL.Data;
+using Docovee.BLL.Services.Billing;
 using Docovee.DS.Models;
 using Docovee.DS;
 using Docovee.DS.Enums;
@@ -18,17 +19,20 @@ public class DoctorSearchService : IDoctorSearchService
     private readonly IDocoveeLogger _logger;
     private readonly IAppSettingsService _appSettings;
     private readonly IAnthropicMatchingService _matchingService;
+    private readonly IDoctorCallingEligibilityService _callingEligibility;
 
     public DoctorSearchService(
         DocoveeDbContext db,
         IDocoveeLogger logger,
         IAppSettingsService appSettings,
-        IAnthropicMatchingService matchingService)
+        IAnthropicMatchingService matchingService,
+        IDoctorCallingEligibilityService callingEligibility)
     {
         _db = db;
         _logger = logger;
         _appSettings = appSettings;
         _matchingService = matchingService;
+        _callingEligibility = callingEligibility;
     }
 
     public async Task<IReadOnlyList<DoctorDto>> SearchAsync(DoctorSearchRequest request, CancellationToken cancellationToken = default)
@@ -114,7 +118,7 @@ public class DoctorSearchService : IDoctorSearchService
         var originLat = request.Latitude ?? session.Latitude;
         var originLng = request.Longitude ?? session.Longitude;
 
-        var results = filtered
+        var ranked = filtered
             .Select(d =>
             {
                 rankingMap.TryGetValue(d.Id, out var rank);
@@ -153,9 +157,25 @@ public class DoctorSearchService : IDoctorSearchService
             .ThenBy(x => x.dto.DistanceMiles ?? double.MaxValue)
             .ThenByDescending(x => x.dto.GoogleRating)
             .ThenByDescending(x => x.dto.Id)
+            .ToList();
+
+        var eligibleIds = await _callingEligibility.FilterEligibleDoctorIdsAsync(
+            ranked.Select(x => x.dto.Id),
+            cancellationToken);
+        var eligibleSet = eligibleIds.ToHashSet();
+
+        var results = ranked
+            .Where(x => eligibleSet.Contains(x.dto.Id))
             .Take(resultCount)
             .Select(x => x.dto)
             .ToList();
+
+        if (eligibleIds.Count < ranked.Count)
+        {
+            _logger.LogInformation(
+                "Doctor search filtered {Removed} ineligible doctor(s) for session {SessionKey} ({Eligible} of {Candidates} kept).",
+                ranked.Count - eligibleIds.Count, request.SessionKey, eligibleIds.Count, ranked.Count);
+        }
 
         if (results.Count > 0)
             results[0].Recommended = true;

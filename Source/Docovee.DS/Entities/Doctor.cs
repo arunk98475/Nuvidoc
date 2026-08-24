@@ -77,6 +77,12 @@ public class Doctor
     /// <summary>Amount charged to this doctor when a NuviDoc patient is marked as showed (cents). Used only if OverridePerVisitFee is true.</summary>
     public int PerVisitFeeCents { get; set; }
 
+    /// <summary>
+    /// When set, we already emailed the doctor that Nuvi calling is paused until they add a payment method
+    /// after free visits were used.
+    /// </summary>
+    public DateTime? BillingCallBlockedNotifiedAtUtc { get; set; }
+
     public ICollection<DoctorInsurance> DoctorInsurances { get; set; } = new List<DoctorInsurance>();
     public ICollection<DoctorBillingCharge> BillingCharges { get; set; } = new List<DoctorBillingCharge>();
     public ICollection<DoctorPatientReview> PatientReviews { get; set; } = new List<DoctorPatientReview>();

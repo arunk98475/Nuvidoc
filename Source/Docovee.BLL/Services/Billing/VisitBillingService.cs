@@ -44,6 +44,7 @@ public sealed class VisitBillingService : IVisitBillingService
     private readonly IAppSettingsService _appSettings;
     private readonly StripeOptions _options;
     private readonly IDocoveeLogger _logger;
+    private readonly IDoctorCallingEligibilityService _callingEligibility;
 
     public VisitBillingService(
         DocoveeDbContext db,
@@ -51,7 +52,8 @@ public sealed class VisitBillingService : IVisitBillingService
         IStripePaymentMethodService paymentMethods,
         IAppSettingsService appSettings,
         IOptions<StripeOptions> options,
-        IDocoveeLogger logger)
+        IDocoveeLogger logger,
+        IDoctorCallingEligibilityService callingEligibility)
     {
         _db = db;
         _customers = customers;
@@ -59,6 +61,7 @@ public sealed class VisitBillingService : IVisitBillingService
         _appSettings = appSettings;
         _options = options.Value;
         _logger = logger;
+        _callingEligibility = callingEligibility;
     }
 
     public Task<VisitChargeResultDto> ChargeForCompletedVisitAsync(
@@ -135,6 +138,11 @@ public sealed class VisitBillingService : IVisitBillingService
                 var used = priorVisits + 1;
                 await SaveChargeAsync(doctorId, appointmentId, 0, _options.Currency, BillingChargeStatuses.Skipped,
                     null, $"Free visit {used} of {freeVisitAllowance}.", cancellationToken);
+
+                // Last free visit just used — prompt for a card before the next billable booking.
+                if (used >= freeVisitAllowance)
+                    await _callingEligibility.NotifyIfPaymentMethodRequiredAsync(doctorId, cancellationToken);
+
                 return new VisitChargeResultDto
                 {
                     Success = true,
@@ -180,6 +188,7 @@ public sealed class VisitBillingService : IVisitBillingService
         {
             await SaveChargeAsync(doctorId, appointmentId, amount, _options.Currency, BillingChargeStatuses.Failed,
                 null, "No payment method on file.", cancellationToken);
+            await _callingEligibility.NotifyIfPaymentMethodRequiredAsync(doctorId, cancellationToken);
             return Fail("Add a credit card under Settings → Billing before marking patients as showed.");
         }
 

@@ -133,3 +133,28 @@ public sealed class VisitChargeResultDto
     public string? ChargeStatus { get; set; }
     public int? AmountCents { get; set; }
 }
+
+public sealed class DoctorPerformanceDayPointDto
+{
+    public DateOnly Date { get; init; }
+    public int MarketplaceCount { get; init; }
+    public int NuviMatchingCount { get; init; }
+}
+
+public sealed class DoctorPerformanceOverviewDto
+{
+    public DateTime PeriodStart { get; init; }
+    public DateTime PeriodEndExclusive { get; init; }
+    public string PeriodLabel { get; init; } = string.Empty;
+    public int Bookings { get; init; }
+    public int BookingsPriorPeriod { get; init; }
+    public int CompletedAppointments { get; init; }
+    public int CompletedPriorPeriod { get; init; }
+    public int SpendCents { get; init; }
+    public int AverageCostPerBookingCents { get; init; }
+    public int MarketplaceBookings { get; init; }
+    public int NuviMatchingBookings { get; init; }
+    public int NewPatientBookings { get; init; }
+    public IReadOnlyList<DoctorPerformanceDayPointDto> DailySeries { get; init; }
+        = Array.Empty<DoctorPerformanceDayPointDto>();
+}

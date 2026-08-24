@@ -3,27 +3,47 @@
 @{
     ViewData["Title"] = "Performance overview";
     ViewData["Nav"] = "performance";
+
+    var o = Model.Overview;
+    var totalSource = Math.Max(1, o.MarketplaceBookings + o.NuviMatchingBookings);
+    var marketplacePct = (int)Math.Round(100.0 * o.MarketplaceBookings / totalSource);
+    var nuviPct = 100 - marketplacePct;
+    if (o.MarketplaceBookings + o.NuviMatchingBookings == 0)
+    {
+        marketplacePct = 0;
+        nuviPct = 0;
+    }
+
+    var maxDaily = o.DailySeries.Count == 0
+        ? 1
+        : Math.Max(1, o.DailySeries.Max(d => d.MarketplaceCount + d.NuviMatchingCount));
+
+    string Money(int cents) => (cents / 100m).ToString("C");
+    string Compare(int current, int prior)
+    {
+        if (prior <= 0 && current <= 0) return "No activity in this period yet";
+        if (prior <= 0) return $"Compared to 0 at this time last month";
+        return $"Compared to {prior} at this time last month";
+    }
 }
 
 <div class="dp-content">
-    <div class="dp-mock-banner">Mock preview — performance metrics are sample data.</div>
-
     <div class="dp-page-head">
         <div>
             <h1>Performance overview</h1>
             <select class="dp-select" style="width:auto;margin-top:10px;" disabled>
-                <option>Since last statement (07/01/26 – 07/09/26)</option>
+                <option>@o.PeriodLabel</option>
             </select>
         </div>
         <div class="dp-page-actions">
-            <button type="button" class="dp-btn" disabled>Manage spend</button>
-            <button type="button" class="dp-btn dp-btn-primary" disabled>Appointment report</button>
+            <a class="dp-btn" href="/Doctor/Settings/billing">Manage spend</a>
+            <a class="dp-btn dp-btn-primary" href="/Doctor/Calendar">Appointment report</a>
         </div>
     </div>
 
     <div class="dp-tabs">
         <a class="dp-tab active" href="/Doctor/Performance">Bookings</a>
-        <a class="dp-tab" href="/Doctor/Performance">Outcomes</a>
+        <a class="dp-tab" href="/Doctor/Settings/billing">Billing</a>
     </div>
 
     <div class="dp-card" style="margin-bottom:20px;">
@@ -62,87 +82,93 @@
     <div class="dp-kpi-row">
         <div class="dp-card">
             <div style="font-size:13px;color:var(--dp-muted);">Bookings</div>
-            <div class="dp-kpi-value">7</div>
-            <div class="dp-metric-compare">Compared to 2 at this time last month</div>
+            <div class="dp-kpi-value">@o.Bookings</div>
+            <div class="dp-metric-compare">@Compare(o.Bookings, o.BookingsPriorPeriod)</div>
         </div>
         <div class="dp-card">
             <div style="font-size:13px;color:var(--dp-muted);">Completed appointments</div>
-            <div class="dp-kpi-value">3</div>
-            <div class="dp-metric-compare">Compared to 3 at this time last month</div>
+            <div class="dp-kpi-value">@o.CompletedAppointments</div>
+            <div class="dp-metric-compare">@Compare(o.CompletedAppointments, o.CompletedPriorPeriod)</div>
         </div>
         <div class="dp-card">
             <div style="font-size:13px;color:var(--dp-muted);">Spend</div>
-            <div class="dp-kpi-value">$2,149</div>
-            <div class="dp-metric-compare">Average cost per booking is $307.00</div>
+            <div class="dp-kpi-value">@Money(o.SpendCents)</div>
+            <div class="dp-metric-compare">
+                @if (o.Bookings > 0)
+                {
+                    <text>Average cost per booking is @Money(o.AverageCostPerBookingCents)</text>
+                }
+                else
+                {
+                    <text>Successful Stripe charges this month (visit + sponsorship)</text>
+                }
+            </div>
         </div>
     </div>
 
     <div class="dp-charts-row">
         <div class="dp-card">
             <h2>Booking source over time</h2>
-            <div class="dp-bars-chart">
-                @{
-                    var bars = new[] {
-                        (new[] { 20, 40 }, "Jul 1"),
-                        (new[] { 0, 60 }, "Jul 2"),
-                        (new[] { 30, 20 }, "Jul 3"),
-                        (new[] { 0, 80 }, "Jul 4"),
-                        (new[] { 10, 30 }, "Jul 5"),
-                        (new[] { 0, 50 }, "Jul 6"),
-                        (new[] { 20, 70 }, "Jul 7"),
-                        (new[] { 0, 40 }, "Jul 8"),
-                        (new[] { 15, 55 }, "Jul 9"),
-                    };
-                }
-                @foreach (var (heights, label) in bars)
-                {
-                    <div class="dp-bars-col">
-                        <div class="dp-bars-stack">
-                            <span style="height:@(heights[0])%;background:#7bc47f;"></span>
-                            <span style="height:@(heights[1])%;background:var(--dp-yellow);"></span>
+            @if (o.DailySeries.Count == 0 || o.Bookings == 0)
+            {
+                <p class="dp-billing-hint">No NuviDoc bookings in this period yet.</p>
+            }
+            else
+            {
+                <div class="dp-bars-chart">
+                    @foreach (var day in o.DailySeries)
+                    {
+                        var total = day.MarketplaceCount + day.NuviMatchingCount;
+                        var mPct = total == 0 ? 0 : (int)Math.Round(100.0 * day.MarketplaceCount / maxDaily);
+                        var nPct = total == 0 ? 0 : (int)Math.Round(100.0 * day.NuviMatchingCount / maxDaily);
+                        <div class="dp-bars-col">
+                            <div class="dp-bars-stack">
+                                <span style="height:@(mPct)%;background:#7bc47f;" title="Marketplace: @day.MarketplaceCount"></span>
+                                <span style="height:@(nPct)%;background:var(--dp-yellow);" title="Nuvi matching: @day.NuviMatchingCount"></span>
+                            </div>
+                            <div class="lbl">@day.Date.ToString("MMM d")</div>
                         </div>
-                        <div class="lbl">@label</div>
-                    </div>
-                }
-            </div>
-            <div class="dp-legend" style="flex-direction:row;gap:16px;margin-top:14px;">
-                <div class="dp-legend-row"><span class="dp-dot green"></span> Marketplace</div>
-                <div class="dp-legend-row"><span class="dp-dot yellow"></span> Sponsored</div>
-            </div>
+                    }
+                </div>
+                <div class="dp-legend" style="flex-direction:row;gap:16px;margin-top:14px;">
+                    <div class="dp-legend-row"><span class="dp-dot green"></span> Marketplace</div>
+                    <div class="dp-legend-row"><span class="dp-dot yellow"></span> Nuvi matching</div>
+                </div>
+            }
         </div>
 
         <div class="dp-card">
             <h2>Bookings breakdown</h2>
             <div class="dp-section-label" style="margin-top:0;">Source</div>
             <div class="dp-bar-track">
-                <div class="dp-bar-seg green" style="width:14%;"></div>
-                <div class="dp-bar-seg yellow" style="width:86%;"></div>
+                @if (o.MarketplaceBookings + o.NuviMatchingBookings == 0)
+                {
+                    <div class="dp-bar-seg" style="width:100%;background:#e5e7eb;"></div>
+                }
+                else
+                {
+                    <div class="dp-bar-seg green" style="width:@(marketplacePct)%;"></div>
+                    <div class="dp-bar-seg yellow" style="width:@(nuviPct)%;"></div>
+                }
             </div>
             <div class="dp-legend">
                 <div class="dp-legend-row">
                     <span class="dp-dot green"></span>
                     <span>@Branding.SiteName Marketplace</span>
-                    <span class="count">1</span>
-                    <span class="pct">14%</span>
+                    <span class="count">@o.MarketplaceBookings</span>
+                    <span class="pct">@(o.MarketplaceBookings + o.NuviMatchingBookings == 0 ? 0 : marketplacePct)%</span>
                 </div>
                 <div class="dp-legend-row">
                     <span class="dp-dot yellow"></span>
-                    <span>Sponsored Results</span>
-                    <span class="count">6</span>
-                    <span class="pct">86%</span>
-                </div>
-                <div class="dp-legend-row">
-                    <span class="dp-dot orange"></span>
-                    <span>Google and others</span>
-                    <span class="count">0</span>
-                    <span class="pct">0%</span>
+                    <span>Nuvi matching</span>
+                    <span class="count">@o.NuviMatchingBookings</span>
+                    <span class="pct">@(o.MarketplaceBookings + o.NuviMatchingBookings == 0 ? 0 : nuviPct)%</span>
                 </div>
             </div>
 
             <div class="dp-section-label">Patient type</div>
             <div class="dp-legend">
-                <div class="dp-legend-row"><span>New patients</span><span class="count">7</span></div>
-                <div class="dp-legend-row"><span>Existing patients (Free)</span><span class="count">0</span></div>
+                <div class="dp-legend-row"><span>New patients (NuviDoc)</span><span class="count">@o.NewPatientBookings</span></div>
             </div>
         </div>
     </div>

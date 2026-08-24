@@ -1,4 +1,5 @@
 using Docovee.BLL.Configuration;
+using Docovee.BLL.Services.Billing;
 using Docovee.BLL.Services.PatientPush;
 using Docovee.DS;
 using Docovee.DS.Entities;
@@ -58,6 +59,7 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IPatientPushDispatcher _push;
     private readonly IVoiceCallRetryQueue _retryQueue;
+    private readonly IDoctorCallingEligibilityService _callingEligibility;
 
     public VoiceCallCascadeService(
         DocoveeDbContext db,
@@ -67,7 +69,8 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         IDocoveeLogger logger,
         IServiceScopeFactory scopeFactory,
         IPatientPushDispatcher push,
-        IVoiceCallRetryQueue retryQueue)
+        IVoiceCallRetryQueue retryQueue,
+        IDoctorCallingEligibilityService callingEligibility)
     {
         _db = db;
         _voiceCalling = voiceCalling;
@@ -77,6 +80,7 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
         _scopeFactory = scopeFactory;
         _push = push;
         _retryQueue = retryQueue;
+        _callingEligibility = callingEligibility;
     }
 
     public Task<VoiceCallCascadeResult> TryCallNextDoctorAsync(
@@ -316,6 +320,17 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
                 .FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
             if (doctor == null)
                 continue;
+
+            if (!await _callingEligibility.IsEligibleForCallingAsync(doctorId, cancellationToken))
+            {
+                _logger.LogInformation(
+                    "Skipping doctor {DoctorId} — free visits used and no payment method on file (session {SessionId})",
+                    doctorId, searchSessionId);
+                await _callingEligibility.NotifyIfPaymentMethodRequiredAsync(doctorId, cancellationToken);
+                if (!attemptedDoctorIds.Contains(doctorId))
+                    attemptedDoctorIds.Add(doctorId);
+                continue;
+            }
 
             var phoneE164 = await ResolveDoctorPhoneE164Async(doctor.Id, doctor.OfficePhoneNumber, cancellationToken);
             if (string.IsNullOrWhiteSpace(phoneE164) && !allowMissingPhone)

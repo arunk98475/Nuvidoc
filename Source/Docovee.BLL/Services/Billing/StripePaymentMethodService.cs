@@ -94,7 +94,7 @@ public sealed class StripePaymentMethodService : IStripePaymentMethodService
             Type = "card"
         }, cancellationToken: cancellationToken);
 
-        return methods.Data
+        var list = methods.Data
             .Where(m => m.Card != null)
             .Select(m => new DoctorPaymentMethodDto
             {
@@ -108,6 +108,18 @@ public sealed class StripePaymentMethodService : IStripePaymentMethodService
             .OrderByDescending(m => m.IsDefault)
             .ThenBy(m => m.Brand)
             .ToList();
+
+        if (list.Count > 0 && doctor.BillingCallBlockedNotifiedAtUtc != null)
+        {
+            var tracked = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+            if (tracked?.BillingCallBlockedNotifiedAtUtc != null)
+            {
+                tracked.BillingCallBlockedNotifiedAtUtc = null;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        return list;
     }
 
     public async Task<BillingOperationResultDto> SetDefaultPaymentMethodAsync(
@@ -139,6 +151,9 @@ public sealed class StripePaymentMethodService : IStripePaymentMethodService
                 DefaultPaymentMethod = paymentMethodId.Trim()
             }
         }, cancellationToken: cancellationToken);
+
+        doctor.BillingCallBlockedNotifiedAtUtc = null;
+        await _db.SaveChangesAsync(cancellationToken);
 
         return OkOp("Default payment method updated.");
     }
@@ -186,6 +201,7 @@ public interface IDoctorBillingService
     Task<BillingOperationResultDto> UpdateBillingContactAsync(int doctorId, DoctorBillingContactDto contact, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DoctorBillingChargeDto>> GetChargesAsync(int doctorId, int? year, CancellationToken cancellationToken = default);
     Task<int> GetPerVisitFeeCentsAsync(int doctorId, CancellationToken cancellationToken = default);
+    Task<DoctorPerformanceOverviewDto> GetPerformanceOverviewAsync(int doctorId, CancellationToken cancellationToken = default);
 }
 
 public sealed class DoctorBillingService : IDoctorBillingService
@@ -396,5 +412,123 @@ public sealed class DoctorBillingService : IDoctorBillingService
         if (doctor.OverridePerVisitFee)
             return Math.Max(0, doctor.PerVisitFeeCents);
         return Math.Max(0, await _appSettings.GetDefaultPerVisitFeeCentsAsync(cancellationToken));
+    }
+
+    public async Task<DoctorPerformanceOverviewDto> GetPerformanceOverviewAsync(
+        int doctorId,
+        CancellationToken cancellationToken = default)
+    {
+        var today = DateTime.Today;
+        var periodStart = new DateTime(today.Year, today.Month, 1);
+        var periodEnd = periodStart.AddMonths(1);
+        var priorStart = periodStart.AddMonths(-1);
+        // Same day-of-month window last month (month-to-date comparison).
+        var priorEndExclusive = priorStart.AddDays((today.Date - periodStart.Date).Days + 1);
+        if (priorEndExclusive > periodStart)
+            priorEndExclusive = periodStart;
+        var periodLabel =
+            $"This month ({periodStart:MM/dd/yy} – {today:MM/dd/yy})";
+
+        var appointments = await _db.Appointments.AsNoTracking()
+            .Where(a => a.DoctorId == doctorId && a.Source != AppointmentSources.PmsInbound)
+            .Select(a => new
+            {
+                a.Id,
+                a.Source,
+                a.Status,
+                a.StartsAt,
+                a.CreatedAt,
+                a.UpdatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        static bool IsBookingInRange(
+            DateTime createdAt,
+            DateTime startsAt,
+            DateTime from,
+            DateTime toExclusive)
+        {
+            // Prefer booking time; fall back to start if CreatedAt is unset/min.
+            var bookedAt = createdAt > DateTime.MinValue.AddYears(1) ? createdAt : startsAt;
+            return bookedAt >= from && bookedAt < toExclusive;
+        }
+
+        static bool NotCanceled(string status) => !AppointmentStatuses.IsCanceled(status);
+
+        var periodBookings = appointments
+            .Where(a => NotCanceled(a.Status) && IsBookingInRange(a.CreatedAt, a.StartsAt, periodStart, periodEnd))
+            .ToList();
+        var priorBookings = appointments
+            .Where(a => NotCanceled(a.Status) && IsBookingInRange(a.CreatedAt, a.StartsAt, priorStart, priorEndExclusive))
+            .ToList();
+
+        var completed = appointments.Count(a =>
+            string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase)
+            && a.StartsAt >= periodStart && a.StartsAt < periodEnd);
+        var completedPrior = appointments.Count(a =>
+            string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase)
+            && a.StartsAt >= priorStart && a.StartsAt < priorEndExclusive);
+
+        var marketplace = periodBookings.Count(a =>
+            !string.Equals(a.Source, AppointmentSources.NuviChat, StringComparison.OrdinalIgnoreCase));
+        var nuviMatching = periodBookings.Count(a =>
+            string.Equals(a.Source, AppointmentSources.NuviChat, StringComparison.OrdinalIgnoreCase));
+
+        var visitSpend = await _db.DoctorBillingCharges.AsNoTracking()
+            .Where(c => c.DoctorId == doctorId
+                && c.Status == BillingChargeStatuses.Succeeded
+                && ((c.ChargedAt ?? c.CreatedAt) >= periodStart)
+                && ((c.ChargedAt ?? c.CreatedAt) < periodEnd))
+            .SumAsync(c => (int?)c.AmountCents, cancellationToken) ?? 0;
+
+        var sponsorshipSpend = await _db.DoctorSponsorshipCharges.AsNoTracking()
+            .Where(c => c.DoctorId == doctorId
+                && c.Status == BillingChargeStatuses.Succeeded
+                && ((c.ChargedAt ?? c.CreatedAt) >= periodStart)
+                && ((c.ChargedAt ?? c.CreatedAt) < periodEnd))
+            .SumAsync(c => (int?)c.AmountCents, cancellationToken) ?? 0;
+
+        var spendCents = visitSpend + sponsorshipSpend;
+        var bookingCount = periodBookings.Count;
+        var avgCents = bookingCount > 0
+            ? (int)Math.Round(spendCents / (decimal)bookingCount, MidpointRounding.AwayFromZero)
+            : 0;
+
+        var daysInSeries = Math.Max(1, (today.Date - periodStart.Date).Days + 1);
+        var daily = new List<DoctorPerformanceDayPointDto>(daysInSeries);
+        for (var i = 0; i < daysInSeries; i++)
+        {
+            var day = DateOnly.FromDateTime(periodStart.AddDays(i));
+            var dayStart = day.ToDateTime(TimeOnly.MinValue);
+            var dayEnd = dayStart.AddDays(1);
+            var dayRows = periodBookings
+                .Where(a => IsBookingInRange(a.CreatedAt, a.StartsAt, dayStart, dayEnd))
+                .ToList();
+            daily.Add(new DoctorPerformanceDayPointDto
+            {
+                Date = day,
+                MarketplaceCount = dayRows.Count(a =>
+                    !string.Equals(a.Source, AppointmentSources.NuviChat, StringComparison.OrdinalIgnoreCase)),
+                NuviMatchingCount = dayRows.Count(a =>
+                    string.Equals(a.Source, AppointmentSources.NuviChat, StringComparison.OrdinalIgnoreCase))
+            });
+        }
+
+        return new DoctorPerformanceOverviewDto
+        {
+            PeriodStart = periodStart,
+            PeriodEndExclusive = periodEnd,
+            PeriodLabel = periodLabel,
+            Bookings = bookingCount,
+            BookingsPriorPeriod = priorBookings.Count,
+            CompletedAppointments = completed,
+            CompletedPriorPeriod = completedPrior,
+            SpendCents = spendCents,
+            AverageCostPerBookingCents = avgCents,
+            MarketplaceBookings = marketplace,
+            NuviMatchingBookings = nuviMatching,
+            NewPatientBookings = bookingCount,
+            DailySeries = daily
+        };
     }
 }

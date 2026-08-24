@@ -172,6 +172,7 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "BillingAddressJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "PerVisitFeeCents", "int NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "OverridePerVisitFee", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "BillingCallBlockedNotifiedAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureDoctorBillingChargesTableAsync(db, cancellationToken);
         await EnsureDoctorSponsorshipChargesTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);

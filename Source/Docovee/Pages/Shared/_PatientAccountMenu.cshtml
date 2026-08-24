@@ -171,7 +171,7 @@
       return;
     }
     previewLoading = true;
-    fetch("/api/mobile/notifications", { credentials: "same-origin", headers: { Accept: "application/json" } })
+    fetch("/api/notifications", { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(function (res) {
         var type = (res.headers.get("content-type") || "").toLowerCase();
         if (!res.ok || type.indexOf("application/json") === -1) return Promise.reject();

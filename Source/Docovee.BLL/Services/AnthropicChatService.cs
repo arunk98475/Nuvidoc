@@ -7,6 +7,7 @@ using Docovee.BLL.Audit;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Configuration;
 using Docovee.BLL.Data;
+using Docovee.BLL.Services.Billing;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Enums;
@@ -62,6 +63,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IInsurancePlanResolutionService _insurancePlanResolution;
     private readonly TwilioOptions _twilioOptions;
     private readonly IAuditTrailService _audit;
+    private readonly IDoctorCallingEligibilityService _callingEligibility;
     private static readonly AsyncLocal<HashSet<int>?> ChatHistoryAuditedSessions = new();
 
     public AnthropicChatService(
@@ -87,7 +89,8 @@ public class AnthropicChatService : IAnthropicChatService
         IZipGeocodeService zipGeocode,
         IInsurancePlanResolutionService insurancePlanResolution,
         IOptions<TwilioOptions> twilioOptions,
-        IAuditTrailService audit)
+        IAuditTrailService audit,
+        IDoctorCallingEligibilityService callingEligibility)
     {
         _httpClient = httpClient;
         _db = db;
@@ -112,6 +115,7 @@ public class AnthropicChatService : IAnthropicChatService
         _insurancePlanResolution = insurancePlanResolution;
         _twilioOptions = twilioOptions.Value;
         _audit = audit;
+        _callingEligibility = callingEligibility;
     }
 
     private string TriageSystemPrompt => $"""
@@ -2815,7 +2819,7 @@ public class AnthropicChatService : IAnthropicChatService
             .Where(d => context.MatchedDoctorIds.Contains(d.Id))
             .ToListAsync(cancellationToken);
 
-        return doctors.Select(d => new DoctorDto
+        var doctorCards = doctors.Select(d => new DoctorDto
         {
             Id = d.Id,
             Name = d.Name,
@@ -2835,6 +2839,22 @@ public class AnthropicChatService : IAnthropicChatService
             .ThenByDescending(d => d.QualityScore)
             .ThenByDescending(d => d.MatchScore)
             .ToList();
+
+        return await FilterEligibleDoctorCardsAsync(doctorCards, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<DoctorDto>> FilterEligibleDoctorCardsAsync(
+        IReadOnlyList<DoctorDto> doctors,
+        CancellationToken cancellationToken)
+    {
+        if (doctors.Count == 0)
+            return doctors;
+
+        var eligibleIds = await _callingEligibility.FilterEligibleDoctorIdsAsync(
+            doctors.Select(d => d.Id),
+            cancellationToken);
+        var eligibleSet = eligibleIds.ToHashSet();
+        return doctors.Where(d => eligibleSet.Contains(d.Id)).ToList();
     }
 
     private async Task<IReadOnlyList<DoctorDto>> LoadOtherMatchedDoctorsAsync(
