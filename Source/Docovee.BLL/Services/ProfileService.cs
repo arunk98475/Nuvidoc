@@ -34,6 +34,8 @@ public interface IProfileService
     Task<(bool Success, string? Error)> UpdateVisitReasonPreferencesAsync(int doctorId, VisitReasonPreferencesInput model, CancellationToken cancellationToken = default);
     Task<WorkingHoursPageModel?> GetWorkingHoursAsync(int doctorId, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateWorkingHoursAsync(int doctorId, WorkingHoursInput model, CancellationToken cancellationToken = default);
+    Task<DoctorQaPageModel> GetDoctorQaAsync(int doctorId, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SaveDoctorQaAsync(int doctorId, Dictionary<int, string> answers, CancellationToken cancellationToken = default);
 }
 
 public class ProfileService : IProfileService

@@ -149,6 +149,30 @@ body {
 
 .admin-card p { color: #6b8078; font-size: 14px; margin-bottom: 16px; }
 
+.admin-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.admin-subnav a {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #d4ddd9;
+  color: #355247;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-subnav a.active {
+  background: #1f6b52;
+  border-color: #1f6b52;
+  color: #fff;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

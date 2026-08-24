@@ -1,0 +1,8 @@
+@{
+    var path = Context.Request.Path.Value ?? "";
+    var onLanguages = path.StartsWith("/Admin/Doctors/Languages", StringComparison.OrdinalIgnoreCase);
+}
+<nav class="admin-subnav" aria-label="Doctors section">
+    <a class="@(onLanguages ? null : "active")" href="/Admin/Doctors">Doctor list</a>
+    <a class="@(onLanguages ? "active" : null)" href="/Admin/Doctors/Languages">Languages</a>
+</nav>

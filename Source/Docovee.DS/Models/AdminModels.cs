@@ -151,6 +151,18 @@ public class DoctorAdminDto
     public int FreeVisitsRemaining { get; set; }
 }
 
+public class DoctorAdminListFilters
+{
+    public string? Search { get; set; }
+    public string? Location { get; set; }
+    public string? Specialty { get; set; }
+    public decimal? MinRating { get; set; }
+    public int? MinPatientReviews { get; set; }
+    public int? FreeVisitsRemaining { get; set; }
+    /// <summary>null = any, true = verified, false = not verified</summary>
+    public bool? PaymentVerified { get; set; }
+}
+
 public class DoctorAdminEditModel
 {
     public int Id { get; set; }

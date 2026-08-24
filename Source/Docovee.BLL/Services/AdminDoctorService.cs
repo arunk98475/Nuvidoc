@@ -17,7 +17,12 @@ namespace Docovee.BLL.Services;
 
 public interface IAdminDoctorService
 {
-    Task<PagedResult<DoctorAdminDto>> ListAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default);
+    Task<PagedResult<DoctorAdminDto>> ListAsync(
+        DoctorAdminListFilters filters,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> GetSpecialtyOptionsAsync(CancellationToken cancellationToken = default);
     Task<DoctorAdminEditModel?> GetForEditAsync(int id, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> CreateAsync(DoctorAdminEditModel model, IFormFile? photo, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateAsync(DoctorAdminEditModel model, IFormFile? photo, CancellationToken cancellationToken = default);
@@ -55,66 +60,94 @@ public class AdminDoctorService : IAdminDoctorService
         _paymentMethods = paymentMethods;
     }
 
-    public async Task<PagedResult<DoctorAdminDto>> ListAsync(int page, int pageSize, string? search, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> GetSpecialtyOptionsAsync(CancellationToken cancellationToken = default) =>
+        await _db.Doctors.AsNoTracking()
+            .Select(d => d.Specialty)
+            .Where(s => s != null && s != "")
+            .Distinct()
+            .OrderBy(s => s)
+            .ToListAsync(cancellationToken);
+
+    public async Task<PagedResult<DoctorAdminDto>> ListAsync(
+        DoctorAdminListFilters filters,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
+        filters ??= new DoctorAdminListFilters();
 
-        var query = _db.Doctors.AsNoTracking().AsQueryable();
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var term = search.Trim().ToLowerInvariant();
-            query = query.Where(d =>
-                d.Name.ToLower().Contains(term) ||
-                d.Specialty.ToLower().Contains(term) ||
-                (d.PracticeName != null && d.PracticeName.ToLower().Contains(term)) ||
-                d.City.ToLower().Contains(term));
-        }
-
-        var total = await query.CountAsync(cancellationToken);
-        var items = await query
+        var query = ApplyDoctorListFilters(_db.Doctors.AsNoTracking(), filters);
+        var candidates = await query
             .OrderBy(d => d.Name)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(d => new
+            .Select(d => new DoctorListCandidate
             {
-                d.Id,
-                d.Name,
-                d.Specialty,
-                d.PracticeName,
-                d.Location,
-                d.City,
-                d.State,
-                d.GoogleRating,
-                d.GoogleReviewCount,
-                d.PhotoUrl,
-                d.GmbPhotoLink,
-                d.IsActive,
-                d.IsSponsored,
-                d.QualityScore,
+                Id = d.Id,
+                Name = d.Name,
+                Specialty = d.Specialty,
+                PracticeName = d.PracticeName,
+                Location = d.Location,
+                City = d.City,
+                State = d.State,
+                GoogleRating = d.GoogleRating,
+                GoogleReviewCount = d.GoogleReviewCount,
+                PhotoUrl = d.PhotoUrl,
+                GmbPhotoLink = d.GmbPhotoLink,
+                IsActive = d.IsActive,
+                IsSponsored = d.IsSponsored,
+                QualityScore = d.QualityScore,
                 PatientReviewCount = d.PatientReviews.Count
             })
             .ToListAsync(cancellationToken);
 
-        var doctorIds = items.Select(d => d.Id).ToList();
-        var integratedIds = doctorIds.Count == 0
+        var freeAllowance = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
+        var chargeOnlyIfPatientShowed = await _appSettings.GetVisitBillingChargeOnlyIfPatientShowedAsync(cancellationToken);
+        var doctorIds = candidates.Select(d => d.Id).ToList();
+        var visitsUsedByDoctor = await CountBillableVisitsByDoctorAsync(doctorIds, chargeOnlyIfPatientShowed, cancellationToken);
+
+        var needsPaymentForFilter = filters.PaymentVerified.HasValue;
+        var paymentVerifiedByDoctor = needsPaymentForFilter
+            ? await LoadPaymentVerifiedByDoctorAsync(doctorIds, cancellationToken)
+            : new Dictionary<int, bool>();
+
+        IEnumerable<DoctorListCandidate> filtered = candidates;
+        if (filters.FreeVisitsRemaining.HasValue)
+        {
+            filtered = filtered.Where(d =>
+                Math.Max(0, freeAllowance - visitsUsedByDoctor.GetValueOrDefault(d.Id)) == filters.FreeVisitsRemaining.Value);
+        }
+
+        if (filters.PaymentVerified.HasValue)
+        {
+            filtered = filtered.Where(d =>
+                paymentVerifiedByDoctor.GetValueOrDefault(d.Id) == filters.PaymentVerified.Value);
+        }
+
+        var filteredList = filtered.ToList();
+        var total = filteredList.Count;
+        var pageItems = filteredList
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        var pageDoctorIds = pageItems.Select(d => d.Id).ToList();
+        if (!needsPaymentForFilter && pageDoctorIds.Count > 0)
+            paymentVerifiedByDoctor = await LoadPaymentVerifiedByDoctorAsync(pageDoctorIds, cancellationToken);
+
+        var integratedIds = pageDoctorIds.Count == 0
             ? new HashSet<int>()
             : (await _db.PmsConnections.AsNoTracking()
-                .Where(c => doctorIds.Contains(c.DoctorId)
+                .Where(c => pageDoctorIds.Contains(c.DoctorId)
                     && c.Provider == Docovee.Integrations.Contracts.PmsProviders.NexHealth
                     && c.IsEnabled)
                 .Select(c => c.DoctorId)
                 .ToListAsync(cancellationToken))
                 .ToHashSet();
 
-        var freeAllowance = await _appSettings.GetFreeVisitCountAsync(cancellationToken);
-        var chargeOnlyIfPatientShowed = await _appSettings.GetVisitBillingChargeOnlyIfPatientShowedAsync(cancellationToken);
-        var visitsUsedByDoctor = await CountBillableVisitsByDoctorAsync(doctorIds, chargeOnlyIfPatientShowed, cancellationToken);
-        var paymentVerifiedByDoctor = await LoadPaymentVerifiedByDoctorAsync(doctorIds, cancellationToken);
-
         return new PagedResult<DoctorAdminDto>
         {
-            Items = items.Select(d =>
+            Items = pageItems.Select(d =>
             {
                 visitsUsedByDoctor.TryGetValue(d.Id, out var visitsUsed);
                 return new DoctorAdminDto
@@ -142,6 +175,62 @@ public class AdminDoctorService : IAdminDoctorService
             Page = page,
             PageSize = pageSize
         };
+    }
+
+    private static IQueryable<Doctor> ApplyDoctorListFilters(IQueryable<Doctor> query, DoctorAdminListFilters filters)
+    {
+        if (!string.IsNullOrWhiteSpace(filters.Search))
+        {
+            var term = filters.Search.Trim().ToLowerInvariant();
+            query = query.Where(d =>
+                d.Name.ToLower().Contains(term) ||
+                d.Specialty.ToLower().Contains(term) ||
+                (d.PracticeName != null && d.PracticeName.ToLower().Contains(term)) ||
+                d.City.ToLower().Contains(term));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.Location))
+        {
+            var loc = filters.Location.Trim().ToLowerInvariant();
+            query = query.Where(d =>
+                d.City.ToLower().Contains(loc) ||
+                d.State.ToLower().Contains(loc) ||
+                (d.Location != null && d.Location.ToLower().Contains(loc)) ||
+                (d.ZipCode != null && d.ZipCode.ToLower().Contains(loc)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filters.Specialty))
+        {
+            var specialty = filters.Specialty.Trim();
+            query = query.Where(d => d.Specialty == specialty);
+        }
+
+        if (filters.MinRating.HasValue)
+            query = query.Where(d => d.GoogleRating >= filters.MinRating.Value);
+
+        if (filters.MinPatientReviews.HasValue)
+            query = query.Where(d => d.PatientReviews.Count >= filters.MinPatientReviews.Value);
+
+        return query;
+    }
+
+    private sealed class DoctorListCandidate
+    {
+        public int Id { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public string Specialty { get; init; } = string.Empty;
+        public string? PracticeName { get; init; }
+        public string? Location { get; init; }
+        public string City { get; init; } = string.Empty;
+        public string State { get; init; } = string.Empty;
+        public decimal GoogleRating { get; init; }
+        public int GoogleReviewCount { get; init; }
+        public string? PhotoUrl { get; init; }
+        public string? GmbPhotoLink { get; init; }
+        public bool IsActive { get; init; }
+        public bool IsSponsored { get; init; }
+        public int QualityScore { get; init; }
+        public int PatientReviewCount { get; init; }
     }
 
     private async Task<Dictionary<int, int>> CountBillableVisitsByDoctorAsync(

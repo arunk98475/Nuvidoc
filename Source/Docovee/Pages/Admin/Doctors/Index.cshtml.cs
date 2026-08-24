@@ -3,6 +3,7 @@ using Docovee.DS.Enums;
 using Docovee.BLL.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 
 namespace Docovee.Pages.Admin.Doctors;
 
@@ -18,6 +19,7 @@ public class IndexModel : PageModel
     }
 
     public PagedResult<DoctorAdminDto> Results { get; set; } = new();
+    public IReadOnlyList<string> SpecialtyOptions { get; set; } = Array.Empty<string>();
     public bool BillingDefaultsSaved { get; private set; }
     public string? BillingDefaultsError { get; private set; }
     public bool SponsorshipSettingsSaved { get; private set; }
@@ -25,6 +27,25 @@ public class IndexModel : PageModel
 
     [BindProperty(SupportsGet = true)]
     public string? Search { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Location { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Specialty { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public decimal? MinRating { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int? MinPatientReviews { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public int? FreeVisitsRemaining { get; set; }
+
+    /// <summary>Empty = any, yes = verified, no = not verified.</summary>
+    [BindProperty(SupportsGet = true)]
+    public string? PaymentVerified { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public int PageNum { get; set; } = 1;
@@ -58,41 +79,33 @@ public class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        Results = await _doctorService.ListAsync(PageNum, 20, Search, cancellationToken);
+        SpecialtyOptions = await _doctorService.GetSpecialtyOptionsAsync(cancellationToken);
+        Results = await _doctorService.ListAsync(BuildFilters(), PageNum, 20, cancellationToken);
         await LoadAdminDoctorSettingsAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostDeleteAsync(int id)
     {
         await _doctorService.DeleteAsync(id);
-        return RedirectToPage(new { Search, PageNum });
+        return RedirectToPage(BuildRouteValues());
     }
 
     public async Task<IActionResult> OnPostUpdateBillingDefaultsAsync(CancellationToken cancellationToken)
     {
-        Results = await _doctorService.ListAsync(PageNum, 20, Search, cancellationToken);
+        SpecialtyOptions = await _doctorService.GetSpecialtyOptionsAsync(cancellationToken);
+        Results = await _doctorService.ListAsync(BuildFilters(), PageNum, 20, cancellationToken);
 
         if (DefaultPerVisitFeeUsd < 0)
         {
             BillingDefaultsError = "Per-visit fee cannot be negative.";
-            var sponsorship = await _appSettings.GetSponsorshipAdminSettingsAsync(cancellationToken);
-            MinQualityScoreForSponsorship = sponsorship.MinQualityScoreForSponsorship;
-            MinGoogleReviewCountForSponsorship = sponsorship.MinGoogleReviewCountForSponsorship;
-            SponsorshipBillingAmountUsd = sponsorship.Billing.AmountUsd;
-            SponsorshipBillingInterval = sponsorship.Billing.Interval;
-            SponsorshipBillingCustomDays = sponsorship.Billing.CustomDays;
+            await LoadSponsorshipFieldsAsync(cancellationToken);
             return Page();
         }
 
         if (FreeVisitCount < 0)
         {
             BillingDefaultsError = "Number of free visits cannot be negative.";
-            var sponsorship = await _appSettings.GetSponsorshipAdminSettingsAsync(cancellationToken);
-            MinQualityScoreForSponsorship = sponsorship.MinQualityScoreForSponsorship;
-            MinGoogleReviewCountForSponsorship = sponsorship.MinGoogleReviewCountForSponsorship;
-            SponsorshipBillingAmountUsd = sponsorship.Billing.AmountUsd;
-            SponsorshipBillingInterval = sponsorship.Billing.Interval;
-            SponsorshipBillingCustomDays = sponsorship.Billing.CustomDays;
+            await LoadSponsorshipFieldsAsync(cancellationToken);
             return Page();
         }
 
@@ -108,7 +121,8 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostUpdateSponsorshipSettingsAsync(CancellationToken cancellationToken)
     {
-        Results = await _doctorService.ListAsync(PageNum, 20, Search, cancellationToken);
+        SpecialtyOptions = await _doctorService.GetSpecialtyOptionsAsync(cancellationToken);
+        Results = await _doctorService.ListAsync(BuildFilters(), PageNum, 20, cancellationToken);
 
         if (MinQualityScoreForSponsorship < 0 || MinQualityScoreForSponsorship > 100)
         {
@@ -166,9 +180,61 @@ public class IndexModel : PageModel
         return Page();
     }
 
+    public RouteValueDictionary BuildRouteValues(int? pageNum = null)
+    {
+        var values = new RouteValueDictionary
+        {
+            ["Search"] = Search,
+            ["Location"] = Location,
+            ["Specialty"] = Specialty,
+            ["MinRating"] = MinRating,
+            ["MinPatientReviews"] = MinPatientReviews,
+            ["FreeVisitsRemaining"] = FreeVisitsRemaining,
+            ["PaymentVerified"] = PaymentVerified,
+            ["PageNum"] = pageNum ?? PageNum
+        };
+
+        foreach (var key in values.Keys.ToList())
+        {
+            if (values[key] == null || (values[key] is string s && string.IsNullOrWhiteSpace(s)))
+                values.Remove(key);
+        }
+
+        return values;
+    }
+
+    private DoctorAdminListFilters BuildFilters() => new()
+    {
+        Search = Search,
+        Location = Location,
+        Specialty = Specialty,
+        MinRating = MinRating,
+        MinPatientReviews = MinPatientReviews,
+        FreeVisitsRemaining = FreeVisitsRemaining,
+        PaymentVerified = ParsePaymentVerifiedFilter(PaymentVerified)
+    };
+
+    private static bool? ParsePaymentVerifiedFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "yes" or "true" or "1" => true,
+            "no" or "false" or "0" => false,
+            _ => null
+        };
+    }
+
     private async Task LoadAdminDoctorSettingsAsync(CancellationToken cancellationToken)
     {
         await LoadBillingDefaultsAsync(cancellationToken);
+        await LoadSponsorshipFieldsAsync(cancellationToken);
+    }
+
+    private async Task LoadSponsorshipFieldsAsync(CancellationToken cancellationToken)
+    {
         var sponsorship = await _appSettings.GetSponsorshipAdminSettingsAsync(cancellationToken);
         MinQualityScoreForSponsorship = sponsorship.MinQualityScoreForSponsorship;
         MinGoogleReviewCountForSponsorship = sponsorship.MinGoogleReviewCountForSponsorship;

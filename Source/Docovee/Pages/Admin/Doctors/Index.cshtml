@@ -4,6 +4,8 @@
     ViewData["Title"] = "Doctors";
 }
 
+<partial name="_DoctorsNav" />
+
 <div class="admin-card">
     <h1>Doctors</h1>
     <p>Manage practitioner listings used by the AI matching engine.</p>
@@ -14,10 +16,46 @@
                 <label>Search</label>
                 <input name="Search" value="@Model.Search" class="form-control" placeholder="Name, specialty, practice, city" />
             </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input name="Location" value="@Model.Location" class="form-control" placeholder="City, state, zip" />
+            </div>
+            <div class="form-group">
+                <label>Specialty</label>
+                <select name="Specialty" class="form-control">
+                    <option value="">All specialties</option>
+                    @foreach (var specialty in Model.SpecialtyOptions)
+                    {
+                        <option value="@specialty" selected="@(string.Equals(Model.Specialty, specialty, StringComparison.OrdinalIgnoreCase))">@specialty</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Min. rating</label>
+                <input name="MinRating" value="@Model.MinRating" type="number" min="0" max="5" step="0.1" class="form-control" placeholder="e.g. 4.0" />
+            </div>
+            <div class="form-group">
+                <label>Min. patient reviews</label>
+                <input name="MinPatientReviews" value="@Model.MinPatientReviews" type="number" min="0" step="1" class="form-control" placeholder="e.g. 1" />
+            </div>
+            <div class="form-group">
+                <label>Free visits remaining</label>
+                <input name="FreeVisitsRemaining" value="@Model.FreeVisitsRemaining" type="number" min="0" step="1" class="form-control" placeholder="Exact count" />
+            </div>
+            <div class="form-group">
+                <label>Payment verified</label>
+                <select name="PaymentVerified" class="form-control">
+                    <option value="" selected="@(string.IsNullOrWhiteSpace(Model.PaymentVerified))">Any</option>
+                    <option value="yes" selected="@(string.Equals(Model.PaymentVerified, "yes", StringComparison.OrdinalIgnoreCase))">Yes</option>
+                    <option value="no" selected="@(string.Equals(Model.PaymentVerified, "no", StringComparison.OrdinalIgnoreCase))">No</option>
+                </select>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary">Apply filters</button>
+        <a asp-page="./Index" class="btn btn-secondary">Clear</a>
         <a asp-page="Create" class="btn btn-secondary">+ Add Doctor</a>
         <a asp-page="Import" class="btn btn-secondary">Import CSV / Excel</a>
+        <a asp-page="./Languages/Index" class="btn btn-secondary">Manage languages</a>
     </form>
 </div>
 
@@ -35,8 +73,7 @@
     }
 
     <form method="post" asp-page-handler="UpdateBillingDefaults">
-        <input type="hidden" name="Search" value="@Model.Search" />
-        <input type="hidden" name="PageNum" value="@Model.PageNum" />
+        <partial name="_DoctorListFilterFields" model="Model" />
         <div class="form-grid">
             <div class="form-group">
                 <label asp-for="DefaultPerVisitFeeUsd">Per-visit fee (USD)</label>
@@ -74,8 +111,7 @@
     }
 
     <form method="post" asp-page-handler="UpdateSponsorshipSettings">
-        <input type="hidden" name="Search" value="@Model.Search" />
-        <input type="hidden" name="PageNum" value="@Model.PageNum" />
+        <partial name="_DoctorListFilterFields" model="Model" />
         <div class="form-grid">
             <div class="form-group">
                 <label asp-for="MinQualityScoreForSponsorship">Min. quality score to enable sponsorship</label>
@@ -224,11 +260,27 @@
             <span>Showing @Model.Results.Items.Count of @Model.Results.TotalCount (page @Model.Results.Page of @Model.Results.TotalPages)</span>
             @if (Model.Results.Page > 1)
             {
-                <a class="btn btn-secondary btn-sm" asp-page="./Index" asp-route-Search="@Model.Search" asp-route-PageNum="@(Model.Results.Page - 1)">Previous</a>
+                <a class="btn btn-secondary btn-sm" asp-page="./Index"
+                   asp-route-Search="@Model.Search"
+                   asp-route-Location="@Model.Location"
+                   asp-route-Specialty="@Model.Specialty"
+                   asp-route-MinRating="@Model.MinRating"
+                   asp-route-MinPatientReviews="@Model.MinPatientReviews"
+                   asp-route-FreeVisitsRemaining="@Model.FreeVisitsRemaining"
+                   asp-route-PaymentVerified="@Model.PaymentVerified"
+                   asp-route-PageNum="@(Model.Results.Page - 1)">Previous</a>
             }
             @if (Model.Results.Page < Model.Results.TotalPages)
             {
-                <a class="btn btn-secondary btn-sm" asp-page="./Index" asp-route-Search="@Model.Search" asp-route-PageNum="@(Model.Results.Page + 1)">Next</a>
+                <a class="btn btn-secondary btn-sm" asp-page="./Index"
+                   asp-route-Search="@Model.Search"
+                   asp-route-Location="@Model.Location"
+                   asp-route-Specialty="@Model.Specialty"
+                   asp-route-MinRating="@Model.MinRating"
+                   asp-route-MinPatientReviews="@Model.MinPatientReviews"
+                   asp-route-FreeVisitsRemaining="@Model.FreeVisitsRemaining"
+                   asp-route-PaymentVerified="@Model.PaymentVerified"
+                   asp-route-PageNum="@(Model.Results.Page + 1)">Next</a>
             }
         </div>
     }
