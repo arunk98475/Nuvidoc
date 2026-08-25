@@ -102,6 +102,7 @@ public static class DependencyInjection
         services.AddScoped<IProfileService, ProfileService>();
         services.AddScoped<IPatientPreferenceService, PatientPreferenceService>();
         services.AddScoped<IPhoneVerificationService, PhoneVerificationService>();
+        services.AddScoped<IPatientPrivacyRightsService, PatientPrivacyRightsService>();
         services.AddScoped<IAdminPatientService, AdminPatientService>();
         services.AddScoped<IAdminDoctorService, AdminDoctorService>();
         services.AddScoped<IDoctorFileService, DoctorFileService>();

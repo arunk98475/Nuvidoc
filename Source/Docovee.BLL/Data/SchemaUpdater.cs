@@ -567,6 +567,55 @@ public static class SchemaUpdater
             """,
             cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `hipaa_authorizations` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `FormVersion` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `Granted` tinyint(1) NOT NULL,
+                `OccurredAtUtc` datetime(6) NOT NULL,
+                `IpAddress` varchar(64) CHARACTER SET utf8mb4 NULL,
+                `UserAgent` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `ESignName` varchar(200) CHARACTER SET utf8mb4 NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_hipaa_authorizations_PatientId_OccurredAtUtc` (`PatientId`, `OccurredAtUtc`),
+                CONSTRAINT `FK_hipaa_authorizations_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
+
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `data_subject_requests` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `RequestType` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `Status` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `RequestedAtUtc` datetime(6) NOT NULL,
+                `VerifiedAtUtc` datetime(6) NULL,
+                `HipaaDueAtUtc` datetime(6) NULL,
+                `ConsumerDueAtUtc` datetime(6) NULL,
+                `CompletedAtUtc` datetime(6) NULL,
+                `ExtensionReason` varchar(1000) CHARACTER SET utf8mb4 NULL,
+                `ExtendedDueAtUtc` datetime(6) NULL,
+                `DenialReason` varchar(1000) CHARACTER SET utf8mb4 NULL,
+                `RequestNotes` text CHARACTER SET utf8mb4 NULL,
+                `AmendmentPayloadJson` text CHARACTER SET utf8mb4 NULL,
+                `DownloadTokenHash` varchar(64) CHARACTER SET utf8mb4 NULL,
+                `DownloadExpiresAtUtc` datetime(6) NULL,
+                `ExportPayloadJson` mediumtext CHARACTER SET utf8mb4 NULL,
+                `PmsRemoteCopyNoted` tinyint(1) NOT NULL DEFAULT 0,
+                `StaffNotes` text CHARACTER SET utf8mb4 NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_data_subject_requests_PatientId_Type_Status` (`PatientId`, `RequestType`, `Status`),
+                KEY `IX_data_subject_requests_DownloadTokenHash` (`DownloadTokenHash`),
+                KEY `IX_data_subject_requests_HipaaDueAtUtc` (`HipaaDueAtUtc`),
+                CONSTRAINT `FK_data_subject_requests_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
+
         Log("Schema updates complete.");
     }
 

@@ -41,7 +41,11 @@ public sealed class PhoneVerificationCheckResult
 
 public interface IPhoneVerificationService
 {
-    Task<PhoneVerificationSendResult> SendCodeAsync(int patientId, string channel, CancellationToken cancellationToken = default);
+    Task<PhoneVerificationSendResult> SendCodeAsync(
+        int patientId,
+        string channel,
+        CancellationToken cancellationToken = default,
+        bool resetVerifiedStatus = true);
     Task<PhoneVerificationCheckResult> VerifyCodeAsync(int patientId, string code, CancellationToken cancellationToken = default);
 }
 
@@ -67,7 +71,8 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
     public async Task<PhoneVerificationSendResult> SendCodeAsync(
         int patientId,
         string channel,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool resetVerifiedStatus = true)
     {
         var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
         if (patient == null)
@@ -89,7 +94,8 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
         var expiryMinutes = Math.Clamp(_twilio.VerifyCodeExpiryMinutes, 5, 60);
         patient.PhoneVerificationCodeHash = HashCode(code);
         patient.PhoneVerificationExpiresAtUtc = DateTime.UtcNow.AddMinutes(expiryMinutes);
-        patient.PhoneVerified = false;
+        if (resetVerifiedStatus)
+            patient.PhoneVerified = false;
         await _db.SaveChangesAsync(cancellationToken);
 
         try

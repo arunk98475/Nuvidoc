@@ -38,6 +38,8 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorMedia> DoctorMedia => Set<DoctorMedia>();
     public DbSet<DoctorBillingCharge> DoctorBillingCharges => Set<DoctorBillingCharge>();
     public DbSet<DoctorSponsorshipCharge> DoctorSponsorshipCharges => Set<DoctorSponsorshipCharge>();
+    public DbSet<HipaaAuthorization> HipaaAuthorizations => Set<HipaaAuthorization>();
+    public DbSet<DataSubjectRequest> DataSubjectRequests => Set<DataSubjectRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -495,6 +497,37 @@ public class DocoveeDbContext : DbContext
             entity.HasIndex(e => e.StripePaymentIntentId);
 
             entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
+        });
+
+        modelBuilder.Entity<HipaaAuthorization>(entity =>
+        {
+            entity.ToTable("hipaa_authorizations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.FormVersion).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.IpAddress).HasMaxLength(64);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.ESignName).HasMaxLength(200);
+            entity.HasIndex(e => new { e.PatientId, e.OccurredAtUtc });
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+        });
+
+        modelBuilder.Entity<DataSubjectRequest>(entity =>
+        {
+            entity.ToTable("data_subject_requests");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.RequestType).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.ExtensionReason).HasMaxLength(1000);
+            entity.Property(e => e.DenialReason).HasMaxLength(1000);
+            entity.Property(e => e.RequestNotes).HasColumnType("text");
+            entity.Property(e => e.AmendmentPayloadJson).HasColumnType("text");
+            entity.Property(e => e.DownloadTokenHash).HasMaxLength(64);
+            entity.Property(e => e.ExportPayloadJson).HasColumnType("mediumtext");
+            entity.Property(e => e.StaffNotes).HasColumnType("text");
+            entity.HasIndex(e => new { e.PatientId, e.RequestType, e.Status });
+            entity.HasIndex(e => e.DownloadTokenHash);
+            entity.HasIndex(e => e.HipaaDueAtUtc);
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
         });
     }
 }

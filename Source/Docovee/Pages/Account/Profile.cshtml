@@ -413,9 +413,12 @@
                     <details class="prv-accordion">
                         <summary class="prv-accordion-head">Access to your healthcare data</summary>
                         <div class="prv-accordion-body">
-                            <p>@site is about giving power to the patient — and we’re here to help you do just that. You can choose to give @site permission to get certain health records from affiliated healthcare providers by agreeing to @site’s <a class="prv-link" href="/Privacy#hipaa-and-phi" target="_blank" rel="noopener">HIPAA Authorization</a>.</p>
-                            <p>If you opt in, @site can collect, store, utilize, and display certain health information from your providers in your @site account. This can include information about past and upcoming appointments—even ones booked outside @site, health history information that you submit in connection with specific appointments, and in the future, much more.</p>
-                            <p>You can stop sharing at any time by returning to this page or navigating to Account &gt; Settings &gt; Privacy &gt; Access to your healthcare data. We’ll store and protect your information as described in our <a class="prv-link" href="/Privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+                            <p>@site is about giving power to the patient — and we’re here to help you do just that. You can choose to give @site permission to get certain health records from affiliated healthcare providers by agreeing to @site’s HIPAA Authorization below.</p>
+                            <div class="prv-auth-box">
+                                <p><strong>HIPAA Authorization (form @Docovee.DS.Entities.HipaaAuthorizationFormVersions.Current)</strong></p>
+                                <p>By selecting Yes, you authorize @site to request, receive, store, and display protected health information (PHI) from connected healthcare providers for the purpose of showing your care history and appointments in your @site account. Recipients: @site and its service providers acting on its behalf. This authorization expires when you revoke it on this page or delete your account. You may revoke at any time by selecting No and saving; revocation does not affect disclosures already made. Treatment, payment, and health plan enrollment are not conditioned on signing this authorization.</p>
+                            </div>
+                            <p>You can stop sharing at any time by returning to this page. We’ll store and protect your information as described in our <a class="prv-link" href="/Privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
                             <form method="post" asp-page-handler="SaveHipaa" class="prv-form">
                                 <fieldset class="prv-fieldset">
                                     <legend class="prv-question">Would you like @site to retrieve and display your healthcare data from connected healthcare providers in your @site account?</legend>
@@ -429,7 +432,7 @@
                                     </label>
                                 </fieldset>
                                 <button type="submit" class="prv-save">Save</button>
-                                <p class="prv-fine-print">By opting in you agree to @site’s <a class="prv-link" href="/Privacy#hipaa-and-phi" target="_blank" rel="noopener">HIPAA Authorization</a>.</p>
+                                <p class="prv-fine-print">Saving records your choice with form version, date, IP, and browser for our authorization log. Full policy: <a class="prv-link" href="/Privacy#hipaa-and-phi" target="_blank" rel="noopener">HIPAA and PHI</a>.</p>
                             </form>
                         </div>
                     </details>
@@ -451,35 +454,75 @@
                         </div>
                     </details>
 
-                    <details class="prv-accordion">
+                    @if (!string.IsNullOrEmpty(Model.PrivacyPinRequestType))
+                    {
+                        <div class="prv-pin-panel" style="margin:16px 0;padding:16px;border:1px solid #c8e6c9;border-radius:8px;background:#f1f8f2;">
+                            <p><strong>Confirm with PIN</strong> — we sent a code to the phone on your account. Enter it to finish your
+                                @(Model.PrivacyPinRequestType == "access" ? "data access" : Model.PrivacyPinRequestType == "amend" ? "correction" : "deletion")
+                                request.</p>
+                            <form method="post" asp-page-handler="ConfirmPrivacyRequest" class="prv-form">
+                                <input type="hidden" name="PendingPrivacyRequestType" value="@Model.PrivacyPinRequestType" />
+                                <label class="pi-sublabel" for="privacy-pin-code">6-digit PIN</label>
+                                <input id="privacy-pin-code" asp-for="PhoneVerificationCode" class="pi-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+                                <button type="submit" class="prv-save" style="margin-top:10px;">Confirm request</button>
+                            </form>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(Model.AccessDownloadUrl))
+                    {
+                        <div class="alert-success" style="margin:16px 0;">
+                            <a class="prv-link" href="@Model.AccessDownloadUrl">Download your verified data export</a> (link also sent by email when configured; expires in 7 days).
+                        </div>
+                    }
+
+                    <details class="prv-accordion" @(Model.PrivacyPinRequestType == "access" ? "open" : null)>
                         <summary class="prv-accordion-head">Access your information</summary>
                         <div class="prv-accordion-body">
                             <p>If you have a @site account, you can access most of your personal information on @site while logged in to your account by viewing your profile, settings or appointment history.</p>
                             <p>You can also submit a request to download a copy of your personal information stored on @site.</p>
                             <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account. Once @site is able to verify your identity, you will be sent a link to download your data in a readable format via a secure transfer. This may take up to 45 days. We'll email you when your data is ready to be downloaded.</p>
                             <form method="post" asp-page-handler="RequestDataAccess" class="prv-inline-form">
+                                <label class="pi-sublabel">Send PIN via</label>
+                                <select name="PrivacyPhoneChannel" class="pi-input" style="max-width:220px;margin-bottom:10px;">
+                                    <option value="sms" selected>SMS</option>
+                                    <option value="whatsapp">WhatsApp</option>
+                                </select>
                                 <button type="submit" class="prv-outline-btn">Request access</button>
                             </form>
                         </div>
                     </details>
 
-                    <details class="prv-accordion">
+                    <details class="prv-accordion" @(Model.PrivacyPinRequestType == "amend" ? "open" : null)>
                         <summary class="prv-accordion-head">Make corrections to your information</summary>
                         <div class="prv-accordion-body">
                             <p>If you have a @site account, you may correct most of your personal information while logged in to your account by accessing the profile section on the settings page. If you need to change the name associated with your account or for help making any other changes, please contact our Service team.</p>
                             <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account.</p>
-                            <form method="post" asp-page-handler="ContactService" class="prv-inline-form">
-                                <button type="submit" class="prv-outline-btn">Contact our service team</button>
+                            <form method="post" asp-page-handler="ContactService" class="prv-form">
+                                <label class="pi-sublabel" for="AmendmentNotes">What needs to be corrected?</label>
+                                <textarea id="AmendmentNotes" name="AmendmentNotes" class="pi-input" rows="3" maxlength="2000" placeholder="Describe the correction (e.g. legal name, date of birth)…">@Model.AmendmentNotes</textarea>
+                                <label class="pi-sublabel" style="margin-top:10px;">Send PIN via</label>
+                                <select name="PrivacyPhoneChannel" class="pi-input" style="max-width:220px;margin-bottom:10px;">
+                                    <option value="sms" selected>SMS</option>
+                                    <option value="whatsapp">WhatsApp</option>
+                                </select>
+                                <button type="submit" class="prv-outline-btn">Submit correction request</button>
                             </form>
                         </div>
                     </details>
 
-                    <details class="prv-accordion">
+                    <details class="prv-accordion" @(Model.PrivacyPinRequestType == "delete" ? "open" : null)>
                         <summary class="prv-accordion-head">Delete your information and account</summary>
                         <div class="prv-accordion-body">
                             <p>If you would like to remove all of your personal information from @site, you must submit a request for your account to be permanently deleted. Please note that deletion cannot be reversed. If you decide to create a new account with @site, your historical data, including appointment history, will not be available in the new account.</p>
+                            <p>Information already shared with a dental practice’s practice-management system may remain with that practice. @site deletes or de-identifies its own copy after verification.</p>
                             <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account.</p>
                             <form method="post" asp-page-handler="DeleteAccount" class="prv-inline-form" onsubmit="return confirm('Are you sure you want to request permanent account deletion? This cannot be undone.');">
+                                <label class="pi-sublabel">Send PIN via</label>
+                                <select name="PrivacyPhoneChannel" class="pi-input" style="max-width:220px;margin-bottom:10px;">
+                                    <option value="sms" selected>SMS</option>
+                                    <option value="whatsapp">WhatsApp</option>
+                                </select>
                                 <button type="submit" class="prv-outline-btn prv-outline-danger">Delete your account</button>
                             </form>
                         </div>
@@ -491,6 +534,11 @@
                             <p>Applicable state health data privacy laws permit residents of certain states to withdraw consent from future collection of their consumer health data. If you have a @site account and would like to withdraw your consent for @site to collect your consumer health data, you must submit a request for your @site account to be permanently deleted. Please note that this cannot be undone. If you decide to create a new account with @site, your historical data, including your appointment history, will not be available in the new account.</p>
                             <p>To keep your data safe, we will need to make sure it's really you making the request. Before your request can be fulfilled, you will be required to verify your identity by logging in and entering a PIN code sent to the mobile device associated with your account.</p>
                             <form method="post" asp-page-handler="DeleteAccount" class="prv-inline-form" onsubmit="return confirm('Are you sure you want to request permanent account deletion? This cannot be undone.');">
+                                <label class="pi-sublabel">Send PIN via</label>
+                                <select name="PrivacyPhoneChannel" class="pi-input" style="max-width:220px;margin-bottom:10px;">
+                                    <option value="sms" selected>SMS</option>
+                                    <option value="whatsapp">WhatsApp</option>
+                                </select>
                                 <button type="submit" class="prv-outline-btn prv-outline-danger">Delete your account</button>
                             </form>
                         </div>

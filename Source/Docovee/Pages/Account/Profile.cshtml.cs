@@ -23,6 +23,8 @@ public class ProfileModel : PageModel
     private readonly IPatientPreferenceService _preferences;
     private readonly IPatientReminderService _reminders;
     private readonly IPatientEmailAuthService _emailAuth;
+    private readonly IPatientPrivacyRightsService _privacyRights;
+    private readonly IAccountAuthService _accountAuth;
 
     public ProfileModel(
         IProfileService profileService,
@@ -34,7 +36,9 @@ public class ProfileModel : PageModel
         IPhoneVerificationService phoneVerification,
         IPatientPreferenceService preferences,
         IPatientReminderService reminders,
-        IPatientEmailAuthService emailAuth)
+        IPatientEmailAuthService emailAuth,
+        IPatientPrivacyRightsService privacyRights,
+        IAccountAuthService accountAuth)
     {
         _profileService = profileService;
         _appointments = appointments;
@@ -46,6 +50,8 @@ public class ProfileModel : PageModel
         _preferences = preferences;
         _reminders = reminders;
         _emailAuth = emailAuth;
+        _privacyRights = privacyRights;
+        _accountAuth = accountAuth;
     }
 
     public PatientProfileDto? Profile { get; set; }
@@ -95,6 +101,20 @@ public class ProfileModel : PageModel
 
     [BindProperty]
     public string? PhoneVerificationCode { get; set; }
+
+    [BindProperty]
+    public string PrivacyPhoneChannel { get; set; } = PhoneVerificationChannels.Sms;
+
+    [BindProperty]
+    public string? AmendmentNotes { get; set; }
+
+    [BindProperty]
+    public string? PendingPrivacyRequestType { get; set; }
+
+    /// <summary>When set, privacy section shows the PIN confirmation form.</summary>
+    public string? PrivacyPinRequestType { get; set; }
+
+    public string? AccessDownloadUrl { get; set; }
 
     [BindProperty]
     public List<PatientPreferenceAnswerInput> PreferenceInput { get; set; } = new();
@@ -321,6 +341,12 @@ public class ProfileModel : PageModel
             return Page();
         }
 
+        var edit = await _profileService.GetPatientForEditAsync(patientId);
+        await _privacyRights.RecordHipaaAuthorizationAsync(
+            patientId,
+            HipaaOptIn.Value,
+            eSignName: edit?.FullName);
+
         return RedirectToPage(new { section = "privacy", privacySaved = true });
     }
 
@@ -404,14 +430,41 @@ public class ProfileModel : PageModel
         return File(System.Text.Encoding.UTF8.GetBytes(json), "application/json", fileName);
     }
 
+    public async Task<IActionResult> OnGetDownloadAccessExportAsync(string token)
+    {
+        var (bytes, fileName, error) = await _privacyRights.GetExportByDownloadTokenAsync(token ?? "");
+        if (bytes == null || fileName == null)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+                return RedirectToPage("Login");
+
+            Section = "privacy";
+            FormError = error ?? "Download failed.";
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return File(bytes, "application/json", fileName);
+    }
+
     public async Task<IActionResult> OnPostRequestDataAccessAsync()
     {
         Section = "privacy";
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
+        var result = await _privacyRights.StartRequestAsync(
+            patientId,
+            DataSubjectRequestTypes.Access,
+            PrivacyPhoneChannel);
         await LoadAsync(patientId);
-        FormSuccess = "Data access requests will be available once identity verification (SMS PIN) is connected. You can already view most of your information under Personal information, Insurance, and Appointment history.";
+        if (result.Success)
+        {
+            FormSuccess = result.Message;
+            PrivacyPinRequestType = DataSubjectRequestTypes.Access;
+        }
+        else
+            FormError = result.Message;
         return Page();
     }
 
@@ -421,8 +474,19 @@ public class ProfileModel : PageModel
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
+        var result = await _privacyRights.StartRequestAsync(
+            patientId,
+            DataSubjectRequestTypes.Amend,
+            PrivacyPhoneChannel,
+            AmendmentNotes);
         await LoadAsync(patientId);
-        FormSuccess = "Please contact support@nuvidoc.com for help updating your account information. Identity verification will be required before changes are made.";
+        if (result.Success)
+        {
+            FormSuccess = result.Message;
+            PrivacyPinRequestType = DataSubjectRequestTypes.Amend;
+        }
+        else
+            FormError = result.Message;
         return Page();
     }
 
@@ -432,8 +496,55 @@ public class ProfileModel : PageModel
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
+        var result = await _privacyRights.StartRequestAsync(
+            patientId,
+            DataSubjectRequestTypes.Delete,
+            PrivacyPhoneChannel);
         await LoadAsync(patientId);
-        FormSuccess = "Account deletion requests will be available once identity verification (SMS PIN) is connected. Deletion is permanent and cannot be reversed.";
+        if (result.Success)
+        {
+            FormSuccess = result.Message;
+            PrivacyPinRequestType = DataSubjectRequestTypes.Delete;
+        }
+        else
+            FormError = result.Message;
+        return Page();
+    }
+
+    [EnableRateLimiting("phoneVerify")]
+    public async Task<IActionResult> OnPostConfirmPrivacyRequestAsync()
+    {
+        Section = "privacy";
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var type = PendingPrivacyRequestType ?? "";
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var result = await _privacyRights.ConfirmRequestAsync(
+            patientId,
+            type,
+            PhoneVerificationCode ?? "",
+            baseUrl);
+
+        if (result.AccountDeleted)
+        {
+            await _accountAuth.LogoutAsync(HttpContext);
+            return Redirect("/?accountDeleted=1");
+        }
+
+        await LoadAsync(patientId);
+        if (result.Success)
+        {
+            FormSuccess = result.Message;
+            AccessDownloadUrl = result.DownloadUrl;
+            PrivacyPinRequestType = null;
+        }
+        else
+        {
+            FormError = result.Message;
+            PrivacyPinRequestType = NormalizePrivacyType(type) ?? type;
+        }
+
         return Page();
     }
 
@@ -522,7 +633,23 @@ public class ProfileModel : PageModel
                 })
                 .ToList();
         }
+
+        if (string.IsNullOrEmpty(PrivacyPinRequestType) && Section == "privacy")
+        {
+            var awaiting = await _privacyRights.GetOpenAwaitingVerificationAsync(patientId);
+            if (awaiting != null)
+                PrivacyPinRequestType = awaiting.RequestType;
+        }
     }
+
+    private static string? NormalizePrivacyType(string? type) =>
+        (type ?? "").Trim().ToLowerInvariant() switch
+        {
+            DataSubjectRequestTypes.Access => DataSubjectRequestTypes.Access,
+            DataSubjectRequestTypes.Amend => DataSubjectRequestTypes.Amend,
+            DataSubjectRequestTypes.Delete => DataSubjectRequestTypes.Delete,
+            _ => null
+        };
 
     private static PatientInsuranceSaveModel MapInsuranceInput(PatientInsuranceProfileDto profile)
     {

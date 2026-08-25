@@ -69,4 +69,6 @@ public static class AuditEntityTypes
     public const string VoiceOutboundCall = "VoiceOutboundCall";
     public const string PatientInsurance = "PatientInsurance";
     public const string DataExport = "DataExport";
+    public const string HipaaAuthorization = "HipaaAuthorization";
+    public const string DataSubjectRequest = "DataSubjectRequest";
 }

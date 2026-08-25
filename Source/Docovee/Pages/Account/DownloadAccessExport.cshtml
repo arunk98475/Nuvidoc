@@ -1,0 +1,13 @@
+@page
+@model Docovee.Pages.Account.DownloadAccessExportModel
+@{
+    ViewData["Title"] = "Download your data";
+}
+<div class="container" style="max-width:560px;margin:48px auto;padding:24px;">
+    <h1>Download your data</h1>
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+        <p><a href="/Account/Profile?section=privacy">Return to Privacy settings</a> to request a new export.</p>
+    }
+</div>
