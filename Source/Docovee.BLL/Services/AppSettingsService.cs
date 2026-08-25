@@ -28,6 +28,10 @@ public interface IAppSettingsService
     Task<SponsorshipBillingSettings> GetSponsorshipBillingSettingsAsync(CancellationToken cancellationToken = default);
     Task<SponsorshipAdminSettings> GetSponsorshipAdminSettingsAsync(CancellationToken cancellationToken = default);
     Task SaveSponsorshipAdminSettingsAsync(SponsorshipAdminSettings settings, CancellationToken cancellationToken = default);
+    Task<PatientBookingReminderSettings> GetPatientBookingReminderSettingsAsync(CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SavePatientBookingReminderSettingsAsync(
+        PatientBookingReminderSettings settings,
+        CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -42,6 +46,12 @@ public class AppSettingsService : IAppSettingsService
     private const int MaxReviewEligibleDays = 90;
     private const int DefaultMinQualityScoreForSponsorship = 40;
     private const int DefaultMinGoogleReviewCountForSponsorship = 5;
+    private const int DefaultBookingReminderIntervalDays = 30;
+    private const int MinBookingReminderIntervalDays = 1;
+    private const int MaxBookingReminderIntervalDays = 90;
+    private const int DefaultBookingReminderStopAfterMonths = 12;
+    private const int MinBookingReminderStopAfterMonths = 1;
+    private const int MaxBookingReminderStopAfterMonths = 24;
 
     private readonly DocoveeDbContext _db;
 
@@ -252,6 +262,63 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.SponsorshipBillingCustomDays, customDays.ToString(), cancellationToken);
         var chargeOnlyIfShowed = interval == SponsorshipBillingInterval.PerBooking && billing.ChargeOnlyIfPatientShowed;
         await SetValueAsync(AppSettingKeys.SponsorshipBillingChargeOnlyIfPatientShowed, chargeOnlyIfShowed ? "true" : "false", cancellationToken);
+    }
+
+    public async Task<PatientBookingReminderSettings> GetPatientBookingReminderSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var keys = new[]
+        {
+            AppSettingKeys.BookingReminderEnabled,
+            AppSettingKeys.BookingReminderIntervalDays,
+            AppSettingKeys.BookingReminderStopAfterMonths,
+            AppSettingKeys.BookingReminderEnableWhatsApp,
+            AppSettingKeys.BookingReminderEnableEmail,
+            AppSettingKeys.BookingReminderEnableSms
+        };
+
+        var rows = await _db.AppSettings.AsNoTracking()
+            .Where(s => keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        string Val(string key) => rows.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
+
+        return new PatientBookingReminderSettings
+        {
+            Enabled = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnabled)),
+            IntervalDays = int.TryParse(Val(AppSettingKeys.BookingReminderIntervalDays), out var interval)
+                ? Math.Clamp(interval, MinBookingReminderIntervalDays, MaxBookingReminderIntervalDays)
+                : DefaultBookingReminderIntervalDays,
+            StopAfterMonths = int.TryParse(Val(AppSettingKeys.BookingReminderStopAfterMonths), out var months)
+                ? Math.Clamp(months, MinBookingReminderStopAfterMonths, MaxBookingReminderStopAfterMonths)
+                : DefaultBookingReminderStopAfterMonths,
+            EnableWhatsApp = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableWhatsApp)),
+            EnableEmail = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableEmail)),
+            EnableSms = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableSms))
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> SavePatientBookingReminderSettingsAsync(
+        PatientBookingReminderSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        var interval = Math.Clamp(settings.IntervalDays, MinBookingReminderIntervalDays, MaxBookingReminderIntervalDays);
+        var months = Math.Clamp(settings.StopAfterMonths, MinBookingReminderStopAfterMonths, MaxBookingReminderStopAfterMonths);
+        var enabled = settings.Enabled;
+        var whatsApp = settings.EnableWhatsApp;
+        var email = settings.EnableEmail;
+        var sms = settings.EnableSms;
+
+        if (enabled && !whatsApp && !email && !sms)
+            return (false, "Turn on at least one channel (WhatsApp, email, or SMS) when reminders are enabled.");
+
+        await SetValueAsync(AppSettingKeys.BookingReminderEnabled, enabled ? "true" : "false", cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderIntervalDays, interval.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderStopAfterMonths, months.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderEnableWhatsApp, whatsApp ? "true" : "false", cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderEnableEmail, email ? "true" : "false", cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderEnableSms, sms ? "true" : "false", cancellationToken);
+        return (true, null);
     }
 
     private static bool ParseBoolSetting(string? value, bool defaultValue = false) =>

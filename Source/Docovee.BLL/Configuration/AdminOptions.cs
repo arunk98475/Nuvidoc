@@ -40,4 +40,11 @@ public static class AppSettingKeys
     public const string SponsorshipBillingCustomDays = "SponsorshipBillingCustomDays";
     /// <summary>When true, per-booking sponsorship is charged only after the patient is marked as showed.</summary>
     public const string SponsorshipBillingChargeOnlyIfPatientShowed = "SponsorshipBillingChargeOnlyIfPatientShowed";
+
+    public const string BookingReminderEnabled = "BookingReminderEnabled";
+    public const string BookingReminderIntervalDays = "BookingReminderIntervalDays";
+    public const string BookingReminderStopAfterMonths = "BookingReminderStopAfterMonths";
+    public const string BookingReminderEnableWhatsApp = "BookingReminderEnableWhatsApp";
+    public const string BookingReminderEnableEmail = "BookingReminderEnableEmail";
+    public const string BookingReminderEnableSms = "BookingReminderEnableSms";
 }

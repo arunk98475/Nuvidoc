@@ -28,6 +28,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<VoiceOutboundCall> VoiceOutboundCalls => Set<VoiceOutboundCall>();
     public DbSet<PatientNotification> PatientNotifications => Set<PatientNotification>();
     public DbSet<PatientAppointmentReminderSend> PatientAppointmentReminderSends => Set<PatientAppointmentReminderSend>();
+    public DbSet<PatientNurtureSend> PatientNurtureSends => Set<PatientNurtureSend>();
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
@@ -343,6 +344,15 @@ public class DocoveeDbContext : DbContext
             entity.HasIndex(e => new { e.AppointmentId, e.ReminderKind }).IsUnique();
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
             entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
+        });
+
+        modelBuilder.Entity<PatientNurtureSend>(entity =>
+        {
+            entity.ToTable("patient_nurture_sends");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Channel).HasMaxLength(20).IsRequired();
+            entity.HasIndex(e => new { e.PatientId, e.StepDay, e.Channel }).IsUnique();
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
         });
 
         modelBuilder.Entity<PmsConnection>(entity =>

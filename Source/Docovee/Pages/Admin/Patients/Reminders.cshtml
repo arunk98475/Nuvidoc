@@ -1,0 +1,69 @@
+@page
+@model Docovee.Pages.Admin.Patients.RemindersModel
+@{
+    ViewData["Title"] = "Booking reminders";
+}
+
+<partial name="_PatientsNav" />
+
+<div class="admin-card">
+    <h1>Booking reminders</h1>
+    <p>Remind registered patients who have not booked a NuviDoc appointment. Useful for longer consideration cycles (for example implants).</p>
+
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert-success">@Model.SuccessMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        <div class="form-group" style="margin-bottom:18px;">
+            <label class="hint">
+                <input type="checkbox" asp-for="Input.Enabled" />
+                Send reminders to patients with no booking
+            </label>
+            <p class="hint">When on, registered patients with no NuviDoc appointment are reminded on the interval below.</p>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.IntervalDays">Send reminders every (days)</label>
+                <input asp-for="Input.IntervalDays" type="number" min="1" max="90" class="form-control" />
+                <p class="hint">First send is this many days after registration, then every this many days.</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.StopAfterMonths">Stop reminders after (months from registration)</label>
+                <input asp-for="Input.StopAfterMonths" type="number" min="1" max="24" class="form-control" />
+                <p class="hint">No further sends after this window from the registration date.</p>
+            </div>
+        </div>
+
+        <h2 class="admin-section-title">Channels</h2>
+        <div class="form-group">
+            <label class="hint">
+                <input type="checkbox" asp-for="Input.EnableWhatsApp" />
+                Enable WhatsApp reminders
+            </label>
+            <p class="hint">Requires a verified phone and Twilio WhatsApp (Content SID for nurture messages).</p>
+        </div>
+        <div class="form-group">
+            <label class="hint">
+                <input type="checkbox" asp-for="Input.EnableEmail" />
+                Enable email reminders
+            </label>
+            <p class="hint">Sent to the patient’s account email address.</p>
+        </div>
+        <div class="form-group">
+            <label class="hint">
+                <input type="checkbox" asp-for="Input.EnableSms" />
+                Enable SMS reminders
+            </label>
+            <p class="hint">Requires a verified phone number.</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save settings</button>
+    </form>
+</div>

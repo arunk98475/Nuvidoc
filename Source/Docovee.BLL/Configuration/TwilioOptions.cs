@@ -42,6 +42,12 @@ public class TwilioOptions
     public string WhatsAppContentSid { get; set; } = "HXb5b62575e6e4ff6129ad7c8efe1f983e";
 
     /// <summary>
+    /// Twilio Content SID for booking-reminder WhatsApp messages (patients with no appointment).
+    /// Template variables: {{1}} = patient first name, {{2}} = short reminder text.
+    /// </summary>
+    public string? WhatsAppNurtureContentSid { get; set; }
+
+    /// <summary>
     /// SMS caller ID for Production verification. Falls back to <see cref="FromNumber"/> when empty.
     /// </summary>
     public string? SmsFromNumber { get; set; }

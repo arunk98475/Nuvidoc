@@ -178,6 +178,7 @@ builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>
 builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
 builder.Services.AddHostedService<Docovee.Services.VoiceCallRetryHostedService>();
 builder.Services.AddHostedService<Docovee.Services.AppointmentReminderHostedService>();
+builder.Services.AddHostedService<Docovee.Services.PatientNurtureHostedService>();
 builder.Services.AddHostedService<Docovee.Services.DoctorQualityScoreHostedService>();
 builder.Services.AddHostedService<Docovee.Services.SponsorshipBillingHostedService>();
 

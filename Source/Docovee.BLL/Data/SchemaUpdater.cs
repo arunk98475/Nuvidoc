@@ -405,6 +405,21 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `patient_nurture_sends` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `StepDay` int NOT NULL,
+                `Channel` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `SentAtUtc` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_patient_nurture_sends_PatientId_StepDay_Channel` (`PatientId`, `StepDay`, `Channel`),
+                KEY `IX_patient_nurture_sends_PatientId` (`PatientId`),
+                CONSTRAINT `FK_nurture_sends_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
         // CMS — editable marketing/SEO pages
         await db.Database.ExecuteSqlRawAsync(
             """

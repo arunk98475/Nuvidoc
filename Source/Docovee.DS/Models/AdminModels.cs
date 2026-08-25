@@ -47,6 +47,17 @@ public class PatientAdminEditModel
     public string? Password { get; set; }
 }
 
+/// <summary>Admin settings for reminders to registered patients who have never booked.</summary>
+public class PatientBookingReminderSettings
+{
+    public bool Enabled { get; set; }
+    public int IntervalDays { get; set; } = 30;
+    public int StopAfterMonths { get; set; } = 12;
+    public bool EnableWhatsApp { get; set; }
+    public bool EnableEmail { get; set; }
+    public bool EnableSms { get; set; }
+}
+
 public class SiteSettingsModel
 {
     public int DoctorSearchResultCount { get; set; } = 10;
