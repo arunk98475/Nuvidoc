@@ -127,6 +127,21 @@ body {
   margin-bottom: 20px;
 }
 
+.admin-card-danger {
+  border-color: #fecaca;
+  background: #fffbfb;
+}
+
+.admin-card-danger .admin-section-title {
+  color: #991b1b;
+}
+
+.btn:disabled,
+button.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .admin-card h1 {
   font-size: 24px;
   font-weight: 600;
@@ -254,7 +269,26 @@ body {
   color: #6b8078;
 }
 
-.actions { display: flex; gap: 8px; }
+.data-table tr.row-closed {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.data-table tr.row-closed td {
+  border-bottom-color: #e5e7eb;
+}
+
+.data-table tr.row-closed strong,
+.data-table tr.row-closed .hint {
+  color: #9ca3af;
+}
+
+.data-table tr.row-closed .doctor-thumb-img {
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .pagination {
   display: flex;
@@ -350,6 +384,19 @@ body {
   padding: 4px 10px;
   border-radius: 4px;
   text-transform: uppercase;
+}
+
+.badge-closed {
+  display: inline-block;
+  background: #6b7280;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  margin-left: 6px;
 }
 
 .provider-id-row {
