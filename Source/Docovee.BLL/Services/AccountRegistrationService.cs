@@ -57,7 +57,8 @@ public class AccountRegistrationService : IAccountRegistrationService
         if (string.IsNullOrWhiteSpace(key))
             return Task.FromResult(false);
 
-        return _db.Patients.AsNoTracking().AnyAsync(p => p.Username == key, cancellationToken);
+        return _db.Patients.AsNoTracking()
+            .AnyAsync(p => p.Username == key && !p.IsDeleted, cancellationToken);
     }
 
     private async Task<AccountRegisterResponse> RegisterPatientAsync(
@@ -75,7 +76,7 @@ public class AccountRegistrationService : IAccountRegistrationService
         if (string.IsNullOrWhiteSpace(request.Phone))
             return Fail(request.AccountType, "Phone number is required.");
 
-        if (await _db.Patients.AnyAsync(p => p.Username == request.Username.Trim(), cancellationToken))
+        if (await _db.Patients.AnyAsync(p => p.Username == request.Username.Trim() && !p.IsDeleted, cancellationToken))
             return Fail(request.AccountType, "Username is already taken.");
 
         var patient = new Patient
@@ -122,7 +123,7 @@ public class AccountRegistrationService : IAccountRegistrationService
             return Fail(request.AccountType, "Zip code is required.");
 
         var username = request.Username.Trim();
-        if (await _db.Doctors.AnyAsync(d => d.Username == username, cancellationToken))
+        if (await _db.Doctors.AnyAsync(d => d.Username == username && !d.IsDeleted, cancellationToken))
             return Fail(request.AccountType, "Username is already taken.");
 
         var state = UsStates.Normalize(request.State)!;

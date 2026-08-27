@@ -42,3 +42,57 @@
         <a asp-page="Index" class="btn btn-secondary">Cancel</a>
     </form>
 </div>
+
+<div class="admin-card admin-card-danger">
+    <h2 class="admin-section-title">Close / remove account</h2>
+    @if (!string.IsNullOrEmpty(Model.AccountMessage))
+    {
+        <div class="@(Model.AccountMessageSuccess ? "alert-success" : "alert-error")">@Model.AccountMessage</div>
+    }
+
+    @if (!Model.Input.IsDeleted)
+    {
+        <p class="hint">Closing disables login only. All profile data is kept until permanent remove. Permanent remove timing is set in appsettings (<code>Account:HardDeleteWaitDays</code>).</p>
+        <form method="post" asp-page-handler="CloseAccount" onsubmit="return confirm('Close this patient account? Login will be disabled. Data is retained until permanent remove.');">
+            <input type="hidden" name="id" value="@Model.Input.Id" />
+            <button type="submit" class="btn btn-secondary">Close account</button>
+        </form>
+    }
+    else
+    {
+        <p class="hint">
+            This account is closed
+            @if (Model.Input.DeletedAtUtc.HasValue)
+            {
+                <text> since @Model.Input.DeletedAtUtc.Value.ToLocalTime().ToString("g").</text>
+            }
+            else
+            {
+                <text>.</text>
+            }
+            Permanent remove wait: <strong>@Model.HardDeleteWaitDays</strong> day(s) from appsettings <code>Account:HardDeleteWaitDays</code> (0 = immediate).
+            Username and password are kept; Activate restores login with the existing credentials.
+        </p>
+        <div class="actions" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+            <form method="post" asp-page-handler="ActivateAccount" onsubmit="return confirm('Activate this patient account? Login will work again with the existing username and password.');">
+                <input type="hidden" name="id" value="@Model.Input.Id" />
+                <button type="submit" class="btn btn-primary">Activate Account</button>
+            </form>
+            @if (Model.CanRemoveAccount)
+            {
+                <form method="post" asp-page-handler="RemoveAccount" onsubmit="return confirm('Permanently remove this patient? This cannot be undone.');">
+                    <input type="hidden" name="id" value="@Model.Input.Id" />
+                    <button type="submit" class="btn btn-danger">Remove this Account</button>
+                </form>
+            }
+            else
+            {
+                <button type="button" class="btn btn-danger" disabled title="Available after the wait period">Remove this Account</button>
+            }
+        </div>
+        @if (!Model.CanRemoveAccount && Model.RemoveAvailableAtUtc.HasValue)
+        {
+            <p class="hint">Remove available after @Model.RemoveAvailableAtUtc.Value.ToLocalTime().ToString("g").</p>
+        }
+    }
+</div>

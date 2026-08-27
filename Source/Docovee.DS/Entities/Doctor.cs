@@ -49,6 +49,8 @@ public class Doctor
     public string? TagLine { get; set; }
     public Gender Gender { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
     /// <summary>Sponsored listings appear in the top search tier; order within the tier uses QualityScore.</summary>
     public bool IsSponsored { get; set; }
     /// <summary>Cached 0–100 merit score used to rank sponsored and organic results.</summary>

@@ -203,7 +203,7 @@ public class DoctorSearchService : IDoctorSearchService
             .ThenInclude(dl => dl.DoctorLanguage)
             .Include(d => d.PatientReviews)
             .Include(d => d.Locations)
-            .Where(d => d.IsActive)
+            .Where(d => d.IsActive && !d.IsDeleted)
             .ToListAsync(cancellationToken);
 
         var byPhone = new Dictionary<string, DS.Entities.Doctor>(StringComparer.Ordinal);
@@ -356,7 +356,7 @@ public class DoctorSearchService : IDoctorSearchService
             .ThenInclude(dl => dl.DoctorLanguage)
             .Include(d => d.PatientReviews)
             .Include(d => d.Locations)
-            .Where(d => d.IsActive)
+            .Where(d => d.IsActive && !d.IsDeleted)
             .ToListAsync(cancellationToken);
 
         return doctors

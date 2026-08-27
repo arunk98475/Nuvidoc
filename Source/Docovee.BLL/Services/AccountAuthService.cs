@@ -97,6 +97,9 @@ public class AccountAuthService : IAccountAuthService
         var patient = await _db.Patients
             .FirstOrDefaultAsync(p => p.Username == username, cancellationToken);
 
+        if (patient != null && patient.IsDeleted)
+            return (false, "Invalid username or password.");
+
         if (patient == null)
         {
             patient = new Patient
@@ -141,6 +144,13 @@ public class AccountAuthService : IAccountAuthService
             return (false, "Invalid username or password.");
         }
 
+        if (patient.IsDeleted || DeletedAccountHelper.IsDeletedUsername(patient.Username))
+        {
+            _lockout.RecordFailure(AuthRoles.Patient, request.Username);
+            await LogAuthFailureAsync(httpContext, AuthRoles.Patient, request.Username, "Invalid username or password (closed account).", cancellationToken);
+            return (false, "Invalid username or password.");
+        }
+
         if (_patientHasher.VerifyHashedPassword(patient, patient.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
         {
             _lockout.RecordFailure(AuthRoles.Patient, request.Username);
@@ -176,10 +186,11 @@ public class AccountAuthService : IAccountAuthService
             return (false, "Invalid username or password.");
         }
 
-        if (!doctor.IsActive)
+        if (doctor.IsDeleted || !doctor.IsActive)
         {
-            await LogAuthFailureAsync(httpContext, AuthRoles.Doctor, request.Username, "Doctor account inactive.", cancellationToken);
-            return (false, "This doctor account is inactive. Contact the administrator.");
+            _lockout.RecordFailure(AuthRoles.Doctor, request.Username);
+            await LogAuthFailureAsync(httpContext, AuthRoles.Doctor, request.Username, "Invalid username or password (closed/inactive).", cancellationToken);
+            return (false, "Invalid username or password.");
         }
 
         if (_doctorHasher.VerifyHashedPassword(doctor, doctor.PasswordHash, request.Password) == PasswordVerificationResult.Failed)

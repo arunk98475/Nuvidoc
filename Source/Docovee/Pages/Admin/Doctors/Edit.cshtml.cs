@@ -1,8 +1,10 @@
+using Docovee.BLL.Configuration;
 using Docovee.BLL.Services;
 using Docovee.DS.Models;
 using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace Docovee.Pages.Admin.Doctors;
 
@@ -10,11 +12,13 @@ public class EditModel : PageModel
 {
     private readonly IAdminDoctorService _doctorService;
     private readonly IPmsCalendarService _pms;
+    private readonly AccountOptions _account;
 
-    public EditModel(IAdminDoctorService doctorService, IPmsCalendarService pms)
+    public EditModel(IAdminDoctorService doctorService, IPmsCalendarService pms, IOptions<AccountOptions> account)
     {
         _doctorService = doctorService;
         _pms = pms;
+        _account = account.Value;
     }
 
     [BindProperty]
@@ -27,8 +31,13 @@ public class EditModel : PageModel
     public bool HasGlobalNexHealthApiKey { get; private set; }
     public string? ErrorMessage { get; set; }
     public string? IntegrationMessage { get; set; }
+    public string? AccountMessage { get; set; }
+    public bool AccountMessageSuccess { get; set; }
     public bool IntegrationSaved { get; set; }
     public bool ScrollToNexHealth { get; private set; }
+    public int HardDeleteWaitDays { get; private set; }
+    public bool CanRemoveAccount { get; private set; }
+    public DateTime? RemoveAvailableAtUtc { get; private set; }
     public IReadOnlyList<PmsProviderOption> ProviderCandidates { get; set; } = Array.Empty<PmsProviderOption>();
 
     public class NexHealthIntegrationInput
@@ -52,6 +61,7 @@ public class EditModel : PageModel
         // After save/test/sync redirects land with a status — keep the panel in view.
         ScrollToNexHealth = saved.HasValue || !string.IsNullOrWhiteSpace(status);
         await LoadNexHealthAsync(id, cancellationToken);
+        LoadAccountDeletionState();
         return Page();
     }
 
@@ -65,8 +75,63 @@ public class EditModel : PageModel
         {
             ErrorMessage = error;
             await LoadNexHealthAsync(id);
+            LoadAccountDeletionState();
             return Page();
         }
+        return RedirectToPage("Index");
+    }
+
+    public async Task<IActionResult> OnPostCloseAccountAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var (success, error) = await _doctorService.SoftDeleteAsync(id, cancellationToken);
+        if (!success)
+        {
+            AccountMessage = error ?? "Unable to close account.";
+            AccountMessageSuccess = false;
+            var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
+            if (doctor == null) return NotFound();
+            Input = doctor;
+            await LoadNexHealthAsync(id, cancellationToken);
+            LoadAccountDeletionState();
+            return Page();
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostActivateAccountAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var (success, error) = await _doctorService.ActivateAsync(id, cancellationToken);
+        if (!success)
+        {
+            AccountMessage = error ?? "Unable to activate account.";
+            AccountMessageSuccess = false;
+            var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
+            if (doctor == null) return NotFound();
+            Input = doctor;
+            await LoadNexHealthAsync(id, cancellationToken);
+            LoadAccountDeletionState();
+            return Page();
+        }
+
+        return RedirectToPage(new { id });
+    }
+
+    public async Task<IActionResult> OnPostRemoveAccountAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var (success, error) = await _doctorService.HardDeleteAsync(id, cancellationToken);
+        if (!success)
+        {
+            AccountMessage = error ?? "Unable to remove account.";
+            AccountMessageSuccess = false;
+            var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
+            if (doctor == null) return NotFound();
+            Input = doctor;
+            await LoadNexHealthAsync(id, cancellationToken);
+            LoadAccountDeletionState();
+            return Page();
+        }
+
         return RedirectToPage("Index");
     }
 
@@ -173,6 +238,13 @@ public class EditModel : PageModel
             ProviderExternalId = NexHealthForm.ProviderId,
             OperatoryId = NexHealthForm.OperatoryId
         }, cancellationToken);
+    }
+
+    private void LoadAccountDeletionState()
+    {
+        HardDeleteWaitDays = Math.Max(0, _account.HardDeleteWaitDays);
+        CanRemoveAccount = DeletedAccountHelper.CanPermanentlyRemove(Input.DeletedAtUtc, HardDeleteWaitDays);
+        RemoveAvailableAtUtc = DeletedAccountHelper.PermanentRemoveAvailableAtUtc(Input.DeletedAtUtc, HardDeleteWaitDays);
     }
 
     private async Task LoadNexHealthAsync(int doctorId, CancellationToken cancellationToken = default)

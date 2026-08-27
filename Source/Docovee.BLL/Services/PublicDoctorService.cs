@@ -32,7 +32,7 @@ public class PublicDoctorService : IPublicDoctorService
         var doctors = await _db.Doctors
             .AsNoTracking()
             .Include(d => d.PatientReviews)
-            .Where(d => d.IsActive)
+            .Where(d => d.IsActive && !d.IsDeleted)
             .OrderByDescending(d => d.GoogleRating)
             .ThenByDescending(d => d.GoogleReviewCount)
             .ThenBy(d => d.Name)
@@ -77,7 +77,7 @@ public class PublicDoctorService : IPublicDoctorService
             .Include(d => d.Media)
             .Include(d => d.DoctorInsurances).ThenInclude(di => di.InsuranceCarrier).ThenInclude(c => c.Plans)
             .Include(d => d.DoctorLanguages).ThenInclude(dl => dl.DoctorLanguage)
-            .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive, cancellationToken);
+            .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive && !d.IsDeleted, cancellationToken);
 
         if (doctor == null)
             return null;

@@ -173,6 +173,8 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "PerVisitFeeCents", "int NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "OverridePerVisitFee", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "BillingCallBlockedNotifiedAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "IsDeleted", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "doctors", "DeletedAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureDoctorBillingChargesTableAsync(db, cancellationToken);
         await EnsureDoctorSponsorshipChargesTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
@@ -381,6 +383,16 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "EmailVerificationExpiresAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PasswordResetTokenHash", "varchar(64) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "PasswordResetExpiresAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "IsDeleted", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "DeletedAtUtc", "datetime(6) NULL", cancellationToken);
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            UPDATE `patients`
+            SET `IsDeleted` = 1,
+                `DeletedAtUtc` = COALESCE(`DeletedAtUtc`, UTC_TIMESTAMP(6))
+            WHERE `IsDeleted` = 0
+              AND `Username` LIKE 'deleted-%@deleted.invalid';
+            """, cancellationToken);
 
         await EnsureColumnAsync(db, "doctors", "EmailVerified", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "doctors", "EmailVerificationTokenHash", "varchar(64) NULL", cancellationToken);

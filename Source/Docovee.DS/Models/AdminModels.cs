@@ -26,6 +26,7 @@ public class PatientAdminDto
     public DateTime CreatedAt { get; set; }
     public string? LatestSpecialty { get; set; }
     public string? MedicalIssuesSummary { get; set; }
+    public bool IsAccountClosed { get; set; }
 }
 
 public class PagedResult<T>
@@ -45,6 +46,8 @@ public class PatientAdminEditModel
     public DateOnly DateOfBirth { get; set; }
     public string Phone { get; set; } = string.Empty;
     public string? Password { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
 }
 
 /// <summary>Admin settings for reminders to registered patients who have never booked.</summary>
@@ -154,6 +157,7 @@ public class DoctorAdminDto
     public int GoogleReviewCount { get; set; }
     public string? PhotoUrl { get; set; }
     public bool IsActive { get; set; }
+    public bool IsDeleted { get; set; }
     public bool IsSponsored { get; set; }
     public int QualityScore { get; set; }
     public int PatientReviewCount { get; set; }
@@ -209,6 +213,8 @@ public class DoctorAdminEditModel
     public string? TagLine { get; set; }
     public string Gender { get; set; } = "Other";
     public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
     public bool OverridePerVisitFee { get; set; }
     /// <summary>USD charged when a NuviDoc patient is marked as showed (maps to PerVisitFeeCents). Used only when OverridePerVisitFee is true.</summary>
     public decimal PerVisitFeeUsd { get; set; }

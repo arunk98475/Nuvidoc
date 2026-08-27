@@ -26,7 +26,9 @@ public interface IAdminDoctorService
     Task<DoctorAdminEditModel?> GetForEditAsync(int id, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> CreateAsync(DoctorAdminEditModel model, IFormFile? photo, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateAsync(DoctorAdminEditModel model, IFormFile? photo, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SoftDeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> ActivateAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> HardDeleteAsync(int id, CancellationToken cancellationToken = default);
     Task<DoctorImportResult> ImportAsync(IFormFile file, IProgress<ImportProgress>? progress = null, CancellationToken cancellationToken = default);
     Task<DoctorImportResult> ImportAsync(Stream fileStream, string fileName, IProgress<ImportProgress>? progress = null, CancellationToken cancellationToken = default);
 }
@@ -40,6 +42,7 @@ public class AdminDoctorService : IAdminDoctorService
     private readonly IDoctorQualityScoreService _qualityScore;
     private readonly IAppSettingsService _appSettings;
     private readonly IStripePaymentMethodService _paymentMethods;
+    private readonly IDoctorAccountDeletionService _accountDeletion;
     private readonly PasswordHasher<Doctor> _passwordHasher = new();
 
     public AdminDoctorService(
@@ -49,7 +52,8 @@ public class AdminDoctorService : IAdminDoctorService
         IDocoveeLogger logger,
         IDoctorQualityScoreService qualityScore,
         IAppSettingsService appSettings,
-        IStripePaymentMethodService paymentMethods)
+        IStripePaymentMethodService paymentMethods,
+        IDoctorAccountDeletionService accountDeletion)
     {
         _db = db;
         _fileService = fileService;
@@ -58,6 +62,7 @@ public class AdminDoctorService : IAdminDoctorService
         _qualityScore = qualityScore;
         _appSettings = appSettings;
         _paymentMethods = paymentMethods;
+        _accountDeletion = accountDeletion;
     }
 
     public async Task<IReadOnlyList<string>> GetSpecialtyOptionsAsync(CancellationToken cancellationToken = default) =>
@@ -95,6 +100,7 @@ public class AdminDoctorService : IAdminDoctorService
                 PhotoUrl = d.PhotoUrl,
                 GmbPhotoLink = d.GmbPhotoLink,
                 IsActive = d.IsActive,
+                IsDeleted = d.IsDeleted,
                 IsSponsored = d.IsSponsored,
                 QualityScore = d.QualityScore,
                 PatientReviewCount = d.PatientReviews.Count
@@ -163,6 +169,7 @@ public class AdminDoctorService : IAdminDoctorService
                     GoogleReviewCount = d.GoogleReviewCount,
                     PhotoUrl = DoctorPhotoHelper.GetDisplayPhotoUrl(d.PhotoUrl, d.GmbPhotoLink),
                     IsActive = d.IsActive,
+                    IsDeleted = d.IsDeleted,
                     IsSponsored = d.IsSponsored,
                     QualityScore = d.QualityScore,
                     PatientReviewCount = d.PatientReviewCount,
@@ -228,6 +235,7 @@ public class AdminDoctorService : IAdminDoctorService
         public string? PhotoUrl { get; init; }
         public string? GmbPhotoLink { get; init; }
         public bool IsActive { get; init; }
+        public bool IsDeleted { get; init; }
         public bool IsSponsored { get; init; }
         public int QualityScore { get; init; }
         public int PatientReviewCount { get; init; }
@@ -344,16 +352,14 @@ public class AdminDoctorService : IAdminDoctorService
         return (true, null);
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
-    {
-        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-        if (doctor == null) return false;
+    public Task<(bool Success, string? Error)> SoftDeleteAsync(int id, CancellationToken cancellationToken = default) =>
+        _accountDeletion.SoftDeleteAsync(id, $"Admin closed doctor account {id} (soft delete)", cancellationToken);
 
-        _db.Doctors.Remove(doctor);
-        await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Admin deleted doctor {Id}", id);
-        return true;
-    }
+    public Task<(bool Success, string? Error)> ActivateAsync(int id, CancellationToken cancellationToken = default) =>
+        _accountDeletion.ActivateAsync(id, cancellationToken);
+
+    public Task<(bool Success, string? Error)> HardDeleteAsync(int id, CancellationToken cancellationToken = default) =>
+        _accountDeletion.HardDeleteAsync(id, cancellationToken);
 
     public Task<DoctorImportResult> ImportAsync(IFormFile file, IProgress<ImportProgress>? progress = null, CancellationToken cancellationToken = default) =>
         ImportAsync(file.OpenReadStream(), file.FileName, progress, cancellationToken);
@@ -587,7 +593,8 @@ public class AdminDoctorService : IAdminDoctorService
 
         var username = model.Username.Trim();
         var taken = await _db.Doctors.AnyAsync(
-            d => d.Username == username && d.Id != model.Id, cancellationToken);
+            d => d.Username == username && d.Id != model.Id && !d.IsDeleted,
+            cancellationToken);
         if (taken)
             return "Username is already taken by another doctor.";
 
@@ -632,6 +639,8 @@ public class AdminDoctorService : IAdminDoctorService
         TagLine = doctor.TagLine,
         Gender = doctor.Gender.ToString(),
         IsActive = doctor.IsActive,
+        IsDeleted = doctor.IsDeleted,
+        DeletedAtUtc = doctor.DeletedAtUtc,
         OverridePerVisitFee = doctor.OverridePerVisitFee,
         PerVisitFeeUsd = CentsToUsd(doctor.PerVisitFeeCents),
         Username = doctor.Username

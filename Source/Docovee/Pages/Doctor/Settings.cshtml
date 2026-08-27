@@ -1419,6 +1419,18 @@
             </section>
 
             <hr class="dp-account-rule" />
+
+            <section class="dp-account-block dp-account-danger">
+                <h2 class="dp-account-label">Delete account</h2>
+                <p class="dp-account-hint">Closing your account disables login and hides your profile from patient search. Appointments and billing records are retained.</p>
+                <form method="post" asp-page-handler="DeleteAccount" class="dp-account-edit-form" onsubmit="return confirm('Are you sure you want to close your account? You will be signed out and will not be able to log in again.');">
+                    <label class="dp-account-sublabel" for="delete-account-password">Confirm with your password</label>
+                    <input id="delete-account-password" name="DeleteAccountPassword" type="password" class="dp-account-input" autocomplete="current-password" />
+                    <button type="submit" class="dp-btn" style="margin-top:10px;background:#dc2626;color:#fff;border-color:#dc2626;">Delete account</button>
+                </form>
+            </section>
+
+            <hr class="dp-account-rule" />
         </div>
     }
     else if (Model.Section == "legal")

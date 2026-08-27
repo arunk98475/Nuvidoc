@@ -22,6 +22,8 @@ public class Patient
     public bool? HipaaDataSharingOptIn { get; set; }
     public bool CookieTrackingOptOut { get; set; }
     public bool AutofillEnabled { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<SearchSession> SearchSessions { get; set; } = new List<SearchSession>();

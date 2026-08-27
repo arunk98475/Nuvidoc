@@ -1,10 +1,12 @@
 using Docovee.BLL.Audit;
+using Docovee.BLL.Configuration;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.DS.Models;
 using Docovee.logging;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Docovee.BLL.Services;
 
@@ -14,7 +16,9 @@ public interface IAdminPatientService
     Task<PatientAdminEditModel?> GetForEditAsync(int id, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> CreateAsync(PatientAdminEditModel model, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateAsync(PatientAdminEditModel model, CancellationToken cancellationToken = default);
-    Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SoftDeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> ActivateAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> HardDeleteAsync(int id, CancellationToken cancellationToken = default);
 }
 
 public class AdminPatientService : IAdminPatientService
@@ -22,13 +26,22 @@ public class AdminPatientService : IAdminPatientService
     private readonly DocoveeDbContext _db;
     private readonly IDocoveeLogger _logger;
     private readonly IAuditTrailService _audit;
+    private readonly IPatientPrivacyRightsService _privacyRights;
+    private readonly AccountOptions _account;
     private readonly PasswordHasher<Patient> _passwordHasher = new();
 
-    public AdminPatientService(DocoveeDbContext db, IDocoveeLogger logger, IAuditTrailService audit)
+    public AdminPatientService(
+        DocoveeDbContext db,
+        IDocoveeLogger logger,
+        IAuditTrailService audit,
+        IPatientPrivacyRightsService privacyRights,
+        IOptions<AccountOptions> account)
     {
         _db = db;
         _logger = logger;
         _audit = audit;
+        _privacyRights = privacyRights;
+        _account = account.Value;
     }
 
     public async Task<PagedResult<PatientAdminDto>> SearchAsync(PatientSearchRequest request, CancellationToken cancellationToken = default)
@@ -77,6 +90,7 @@ public class AdminPatientService : IAdminPatientService
                 p.DateOfBirth,
                 p.Phone,
                 p.CreatedAt,
+                p.IsDeleted,
                 LatestSession = p.SearchSessions
                     .OrderByDescending(s => s.UpdatedAt)
                     .Select(s => new { s.Specialty, s.MedicalIssuesSummary })
@@ -101,7 +115,8 @@ public class AdminPatientService : IAdminPatientService
                 Phone = p.Phone,
                 CreatedAt = p.CreatedAt,
                 LatestSpecialty = p.LatestSession?.Specialty,
-                MedicalIssuesSummary = p.LatestSession?.MedicalIssuesSummary
+                MedicalIssuesSummary = p.LatestSession?.MedicalIssuesSummary,
+                IsAccountClosed = p.IsDeleted
             }).ToList(),
             TotalCount = total,
             Page = page,
@@ -127,13 +142,15 @@ public class AdminPatientService : IAdminPatientService
             Username = patient.Username,
             FullName = patient.FullName,
             DateOfBirth = patient.DateOfBirth,
-            Phone = patient.Phone
+            Phone = patient.Phone,
+            IsDeleted = patient.IsDeleted,
+            DeletedAtUtc = patient.DeletedAtUtc
         };
     }
 
     public async Task<(bool Success, string? Error)> CreateAsync(PatientAdminEditModel model, CancellationToken cancellationToken = default)
     {
-        if (await _db.Patients.AnyAsync(p => p.Username == model.Username, cancellationToken))
+        if (await _db.Patients.AnyAsync(p => p.Username == model.Username && !p.IsDeleted, cancellationToken))
             return (false, "Username is already taken.");
 
         if (string.IsNullOrWhiteSpace(model.Password))
@@ -160,7 +177,7 @@ public class AdminPatientService : IAdminPatientService
         if (patient == null)
             return (false, "Patient not found.");
 
-        if (await _db.Patients.AnyAsync(p => p.Username == model.Username && p.Id != model.Id, cancellationToken))
+        if (await _db.Patients.AnyAsync(p => p.Username == model.Username && p.Id != model.Id && !p.IsDeleted, cancellationToken))
             return (false, "Username is already taken.");
 
         patient.Username = model.Username.Trim();
@@ -176,21 +193,75 @@ public class AdminPatientService : IAdminPatientService
         return (true, null);
     }
 
-    public async Task<bool> DeleteAsync(int id, CancellationToken cancellationToken = default)
+    public Task<(bool Success, string? Error)> SoftDeleteAsync(int id, CancellationToken cancellationToken = default) =>
+        _privacyRights.SoftClosePatientAccountAsync(
+            id,
+            $"Admin closed patient account {id} (soft delete)",
+            cancellationToken);
+
+    public async Task<(bool Success, string? Error)> ActivateAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        if (patient == null)
+            return (false, "Patient not found.");
+
+        var isClosed = patient.IsDeleted;
+        if (!isClosed)
+            return (false, "This patient account is already active.");
+
+        patient.IsDeleted = false;
+        patient.DeletedAtUtc = null;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.LogAsync(_db, new AuditLogRequest
+        {
+            Action = AuditActions.Update,
+            EntityType = AuditEntityTypes.Patient,
+            EntityId = id.ToString(),
+            Summary = "Admin reactivated patient account after soft delete"
+        }, cancellationToken);
+
+        _logger.LogInformation("Admin activated patient {Id}", id);
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> HardDeleteAsync(int id, CancellationToken cancellationToken = default)
     {
         var patient = await _db.Patients
             .Include(p => p.SearchSessions)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
         if (patient == null)
-            return false;
+            return (false, "Patient not found.");
+
+        if (!patient.IsDeleted)
+            return (false, "Close the account before permanently removing it.");
+
+        var waitDays = Math.Max(0, _account.HardDeleteWaitDays);
+        if (!DeletedAccountHelper.CanPermanentlyRemove(patient.DeletedAtUtc, waitDays))
+        {
+            var availableAt = DeletedAccountHelper.PermanentRemoveAvailableAtUtc(patient.DeletedAtUtc, waitDays);
+            return (false, availableAt.HasValue
+                ? $"Permanent remove is available after {availableAt.Value:u} UTC ({waitDays} day(s) after closure)."
+                : "Permanent remove is not available yet.");
+        }
 
         foreach (var session in patient.SearchSessions)
             session.PatientId = null;
 
         _db.Patients.Remove(patient);
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Admin deleted patient {Id}", id);
-        return true;
+
+        await _audit.LogAsync(_db, new AuditLogRequest
+        {
+            Action = AuditActions.Delete,
+            EntityType = AuditEntityTypes.Patient,
+            EntityId = id.ToString(),
+            Summary = "Admin permanently deleted patient (hard delete)"
+        }, cancellationToken);
+
+        _logger.LogInformation("Admin hard-deleted patient {Id}", id);
+        return (true, null);
     }
 }

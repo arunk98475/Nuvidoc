@@ -40,10 +40,4 @@ public class IndexModel : PageModel
             PageSize = 20
         });
     }
-
-    public async Task<IActionResult> OnPostDeleteAsync(int id)
-    {
-        await _patientService.DeleteAsync(id);
-        return RedirectToPage(new { Name, Phone, DateOfBirth, IssueKeyword, PageNum });
-    }
 }

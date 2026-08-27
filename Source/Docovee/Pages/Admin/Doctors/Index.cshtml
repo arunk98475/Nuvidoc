@@ -195,7 +195,7 @@
             <tbody>
                 @foreach (var d in Model.Results.Items)
                 {
-                    <tr>
+                    <tr class="@(d.IsDeleted ? "row-closed" : null)">
                         <td>
                             @if (!string.IsNullOrEmpty(d.PhotoUrl))
                             {
@@ -211,6 +211,10 @@
                         </td>
                         <td>
                             <strong>@d.Name</strong>
+                            @if (d.IsDeleted)
+                            {
+                                <span class="badge-closed">CLOSED</span>
+                            }
                             @if (!string.IsNullOrEmpty(d.PracticeName))
                             {
                                 <br /><span style="font-size:12px;color:#6b8078;">@d.PracticeName</span>
@@ -231,7 +235,16 @@
                             }
                         </td>
                         <td>@d.FreeVisitsRemaining</td>
-                        <td>@(d.IsActive ? "Active" : "Inactive")@(d.IsSponsored ? $" · Sponsored · Q{d.QualityScore}" : $" · Q{d.QualityScore}")</td>
+                        <td>
+                            @if (d.IsDeleted)
+                            {
+                                <text>Closed</text>
+                            }
+                            else
+                            {
+                                @(d.IsActive ? "Active" : "Inactive")@(d.IsSponsored ? $" · Sponsored · Q{d.QualityScore}" : $" · Q{d.QualityScore}")
+                            }
+                        </td>
                         <td>
                             @if (d.IsNexHealthIntegrated)
                             {
@@ -245,10 +258,6 @@
                         <td>
                             <div class="actions">
                                 <a asp-page="Edit" asp-route-id="@d.Id" asp-fragment="nexhealth" class="btn btn-secondary btn-sm">Edit</a>
-                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this doctor?');">
-                                    <input type="hidden" name="id" value="@d.Id" />
-                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                                </form>
                             </div>
                         </td>
                     </tr>

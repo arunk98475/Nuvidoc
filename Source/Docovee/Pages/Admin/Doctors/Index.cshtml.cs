@@ -84,12 +84,6 @@ public class IndexModel : PageModel
         await LoadAdminDoctorSettingsAsync(cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(int id)
-    {
-        await _doctorService.DeleteAsync(id);
-        return RedirectToPage(BuildRouteValues());
-    }
-
     public async Task<IActionResult> OnPostUpdateBillingDefaultsAsync(CancellationToken cancellationToken)
     {
         SpecialtyOptions = await _doctorService.GetSpecialtyOptionsAsync(cancellationToken);

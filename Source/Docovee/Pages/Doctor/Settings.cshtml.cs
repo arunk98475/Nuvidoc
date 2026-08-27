@@ -8,9 +8,11 @@ using Docovee.BLL.Services.Billing;
 using Docovee.DS.Models;
 using Docovee.Integrations.Contracts;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Docovee.Pages.Doctor;
@@ -44,6 +46,10 @@ public class SettingsModel : PageModel
     private readonly IDoctorBillingService _billing;
     private readonly IDoctorSponsorshipService _sponsorship;
     private readonly IDoctorAccountService _doctorAccount;
+    private readonly IDoctorAccountDeletionService _accountDeletion;
+    private readonly IAccountAuthService _accountAuth;
+    private readonly Docovee.DS.DocoveeDbContext _db;
+    private readonly PasswordHasher<Docovee.DS.Entities.Doctor> _doctorPasswordHasher = new();
 
     public SettingsModel(
         IProfileService profileService,
@@ -55,7 +61,10 @@ public class SettingsModel : PageModel
         IOptions<StripeOptions> stripeOptions,
         IDoctorBillingService billing,
         IDoctorSponsorshipService sponsorship,
-        IDoctorAccountService doctorAccount)
+        IDoctorAccountService doctorAccount,
+        IDoctorAccountDeletionService accountDeletion,
+        IAccountAuthService accountAuth,
+        Docovee.DS.DocoveeDbContext db)
     {
         _profileService = profileService;
         _locationService = locationService;
@@ -67,6 +76,9 @@ public class SettingsModel : PageModel
         _billing = billing;
         _sponsorship = sponsorship;
         _doctorAccount = doctorAccount;
+        _accountDeletion = accountDeletion;
+        _accountAuth = accountAuth;
+        _db = db;
     }
 
     public int MaxVideoUploadMb => _uploadOptions.MaxUploadMb;
@@ -117,6 +129,9 @@ public class SettingsModel : PageModel
 
     [BindProperty]
     public string AccountPhoneInput { get; set; } = "";
+
+    [BindProperty]
+    public string? DeleteAccountPassword { get; set; }
     public bool StripeConfigured => _stripeOptions.IsConfigured;
     public string StripePublishableKey => _stripeOptions.PublishableKey;
     public int PerVisitFeeCents { get; private set; }
@@ -424,6 +439,49 @@ public class SettingsModel : PageModel
         AccountMessage = result.Message;
         AccountMessageSuccess = result.Success;
         return await LoadPageAsync(doctorId, "account", cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostDeleteAccountAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        if (string.IsNullOrWhiteSpace(DeleteAccountPassword))
+        {
+            AccountMessage = "Enter your password to confirm account deletion.";
+            AccountMessageSuccess = false;
+            return await LoadPageAsync(doctorId, "account", cancellationToken);
+        }
+
+        var doctor = await _db.Doctors.FirstOrDefaultAsync(d => d.Id == doctorId, cancellationToken);
+        if (doctor == null || string.IsNullOrEmpty(doctor.PasswordHash))
+        {
+            AccountMessage = "Unable to verify your account.";
+            AccountMessageSuccess = false;
+            return await LoadPageAsync(doctorId, "account", cancellationToken);
+        }
+
+        if (_doctorPasswordHasher.VerifyHashedPassword(doctor, doctor.PasswordHash, DeleteAccountPassword)
+            == PasswordVerificationResult.Failed)
+        {
+            AccountMessage = "Incorrect password.";
+            AccountMessageSuccess = false;
+            return await LoadPageAsync(doctorId, "account", cancellationToken);
+        }
+
+        var (success, error) = await _accountDeletion.SoftDeleteAsync(
+            doctorId,
+            "Doctor self-deleted account",
+            cancellationToken);
+        if (!success)
+        {
+            AccountMessage = error ?? "Unable to delete account.";
+            AccountMessageSuccess = false;
+            return await LoadPageAsync(doctorId, "account", cancellationToken);
+        }
+
+        await _accountAuth.LogoutAsync(HttpContext);
+        return Redirect("/?accountDeleted=1");
     }
 
     private async Task<IActionResult> LoadPageAsync(int doctorId, string? section, CancellationToken cancellationToken)

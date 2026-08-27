@@ -48,6 +48,7 @@ public static class DependencyInjection
 
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SectionName));
         services.Configure<AdminOptions>(configuration.GetSection(AdminOptions.SectionName));
+        services.Configure<AccountOptions>(configuration.GetSection(AccountOptions.SectionName));
         services.Configure<SiteOptions>(configuration.GetSection(SiteOptions.SectionName));
         services.Configure<ChatBotOptions>(configuration.GetSection(ChatBotOptions.SectionName));
         services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.SectionName));
@@ -58,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IEmailSender, SesEmailSender>();
         services.AddScoped<IPatientEmailAuthService, PatientEmailAuthService>();
         services.AddScoped<IDoctorAccountService, DoctorAccountService>();
+        services.AddScoped<IDoctorAccountDeletionService, DoctorAccountDeletionService>();
         services.AddSingleton<IBrandingService, BrandingService>();
         services.AddScoped<IPatientPushDispatcher, PatientPushDispatcher>();
 

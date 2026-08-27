@@ -6,7 +6,6 @@ using Docovee.BLL.Configuration;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -51,6 +50,11 @@ public interface IPatientPrivacyRightsService
     Task<DataSubjectRequest?> GetOpenAwaitingVerificationAsync(
         int patientId,
         CancellationToken cancellationToken = default);
+
+    Task<(bool Success, string? Error)> SoftClosePatientAccountAsync(
+        int patientId,
+        string auditSummary,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
@@ -64,7 +68,6 @@ public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
     private readonly SiteOptions _site;
     private readonly EmailOptions _emailOptions;
     private readonly IDocoveeLogger _logger;
-    private readonly PasswordHasher<Patient> _hasher = new();
 
     public PatientPrivacyRightsService(
         DocoveeDbContext db,
@@ -132,7 +135,7 @@ public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
         if (patient == null)
             return Fail("Patient not found.");
 
-        if (IsDeletedAccount(patient))
+        if (patient.IsDeleted)
             return Fail("This account has already been deleted.");
 
         var open = await _db.DataSubjectRequests
@@ -359,14 +362,38 @@ public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
         };
     }
 
+    public async Task<(bool Success, string? Error)> SoftClosePatientAccountAsync(
+        int patientId,
+        string auditSummary,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        if (patient == null)
+            return (false, "Patient not found.");
+
+        if (patient.IsDeleted)
+            return (false, "This patient account is already closed.");
+
+        await SoftClosePatientCoreAsync(patient, cancellationToken);
+
+        await _audit.LogAsync(_db, new AuditLogRequest
+        {
+            Action = AuditActions.Delete,
+            EntityType = AuditEntityTypes.Patient,
+            EntityId = patientId.ToString(),
+            Summary = auditSummary
+        }, cancellationToken);
+
+        _logger.LogInformation("Patient account soft-closed {PatientId}", patientId);
+        return (true, null);
+    }
+
     private async Task<PrivacyRightsResult> CompleteDeleteAsync(
         DataSubjectRequest row,
         CancellationToken cancellationToken)
     {
         var patientId = row.PatientId;
-        var patient = await _db.Patients
-            .Include(p => p.InsuranceCoverages)
-            .FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
+        var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == patientId, cancellationToken);
         if (patient == null)
             return Fail("Patient not found.");
 
@@ -377,78 +404,14 @@ public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
             select r.Id).AnyAsync(cancellationToken)
             || await _db.Appointments.AnyAsync(a => a.PatientId == patientId, cancellationToken);
 
-        // Chat + search session PHI
-        var sessionIds = await _db.SearchSessions
-            .Where(s => s.PatientId == patientId)
-            .Select(s => s.Id)
-            .ToListAsync(cancellationToken);
-        if (sessionIds.Count > 0)
-        {
-            await _db.ChatMessages
-                .Where(m => sessionIds.Contains(m.SearchSessionId))
-                .ExecuteDeleteAsync(cancellationToken);
-            await _db.SearchSessions
-                .Where(s => s.PatientId == patientId)
-                .ExecuteDeleteAsync(cancellationToken);
-        }
-
-        await _db.PatientNotifications
-            .Where(n => n.PatientId == patientId)
-            .ExecuteDeleteAsync(cancellationToken);
-        await _db.PatientAppointmentReminderSends
-            .Where(s => s.PatientId == patientId)
-            .ExecuteDeleteAsync(cancellationToken);
-        await _db.PatientDoctorContactViews
-            .Where(v => v.PatientId == patientId)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        if (patient.InsuranceCoverages.Count > 0)
-        {
-            _db.PatientInsuranceCoverages.RemoveRange(patient.InsuranceCoverages);
-        }
-
-        // De-identify appointments (keep calendar slots for the practice; strip identifiers)
-        var appointments = await _db.Appointments
-            .Where(a => a.PatientId == patientId)
-            .ToListAsync(cancellationToken);
-        foreach (var a in appointments)
-        {
-            a.PatientId = null;
-            a.PatientName = "Deleted Patient";
-            a.PatientPhone = null;
-            a.PatientEmail = null;
-            a.PatientDateOfBirth = null;
-            a.VisitReason = "[redacted]";
-            a.UpdatedAt = DateTime.UtcNow;
-        }
-
-        // Soft-de-identify patient row (keep id for FK history / request trail)
-        patient.FullName = "Deleted Patient";
-        patient.Username = $"deleted-{patientId}@deleted.invalid";
-        patient.PasswordHash = _hasher.HashPassword(patient, Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
-        patient.Phone = "";
-        patient.PhoneVerified = false;
-        patient.PhoneVerificationCodeHash = null;
-        patient.PhoneVerificationExpiresAtUtc = null;
-        patient.EmailVerified = false;
-        patient.EmailVerificationTokenHash = null;
-        patient.EmailVerificationExpiresAtUtc = null;
-        patient.PasswordResetTokenHash = null;
-        patient.PasswordResetExpiresAtUtc = null;
-        patient.PreferenceProfileJson = null;
-        patient.ReminderSettingsJson = null;
-        patient.IdCardPhotoUrl = null;
-        patient.HipaaDataSharingOptIn = false;
-        patient.CookieTrackingOptOut = true;
-        patient.AutofillEnabled = false;
-        patient.DateOfBirth = DateOnly.FromDateTime(DateTime.UnixEpoch);
+        await SoftClosePatientCoreAsync(patient, cancellationToken);
 
         row.Status = DataSubjectRequestStatuses.Completed;
         row.CompletedAtUtc = DateTime.UtcNow;
         row.PmsRemoteCopyNoted = hadPmsRefs;
         row.StaffNotes = hadPmsRefs
-            ? "Local NuviDoc PHI purged/de-identified. PMS / practice chart copies may remain — see Docs/HIPAA_Code_Modifications.md § PMS remote copies."
-            : "Local NuviDoc PHI purged/de-identified. No linked appointments noted for PMS follow-up.";
+            ? "Account closed (soft). Data retained locally until permanent admin remove. PMS / practice chart copies may remain."
+            : "Account closed (soft). Data retained locally until permanent admin remove.";
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -458,22 +421,28 @@ public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
             EntityType = AuditEntityTypes.Patient,
             EntityId = patientId.ToString(),
             Summary = hadPmsRefs
-                ? $"Account deleted/de-identified (request {row.Id}); PMS remote copies noted"
-                : $"Account deleted/de-identified (request {row.Id})"
+                ? $"Account closed (request {row.Id}); PMS remote copies noted"
+                : $"Account closed (request {row.Id})"
         }, cancellationToken);
 
-        _logger.LogInformation("Patient account de-identified after privacy delete request {RequestId}", row.Id);
+        _logger.LogInformation("Patient account soft-closed after privacy delete request {RequestId}", row.Id);
 
         return new PrivacyRightsResult
         {
             Success = true,
-            Message = hadPmsRefs
-                ? "Your NuviDoc account data was deleted. Information already sent to a dental practice’s system may remain with that practice; contact them for their records. You have been signed out."
-                : "Your NuviDoc account and personal information were deleted. You have been signed out.",
+            Message = "Your NuviDoc account has been closed and you have been signed out.",
             RequestId = row.Id,
             RequestType = DataSubjectRequestTypes.Delete,
             AccountDeleted = true
         };
+    }
+
+    /// <summary>Marks the account closed. Does not scrub or remove any stored data.</summary>
+    private async Task SoftClosePatientCoreAsync(Patient patient, CancellationToken cancellationToken)
+    {
+        patient.IsDeleted = true;
+        patient.DeletedAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<string?> BuildAccessExportJsonAsync(int patientId, CancellationToken cancellationToken)
@@ -611,10 +580,6 @@ public sealed class PatientPrivacyRightsService : IPatientPrivacyRightsService
             DataSubjectRequestTypes.Delete => DataSubjectRequestTypes.Delete,
             _ => null
         };
-
-    private static bool IsDeletedAccount(Patient patient) =>
-        patient.Username.StartsWith("deleted-", StringComparison.OrdinalIgnoreCase)
-        && patient.Username.EndsWith("@deleted.invalid", StringComparison.OrdinalIgnoreCase);
 
     private string ResolveBaseUrl(string? publicBaseUrl)
     {
