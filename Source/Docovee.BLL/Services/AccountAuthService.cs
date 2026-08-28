@@ -116,6 +116,7 @@ public class AccountAuthService : IAccountAuthService
             _logger.LogInformation("Patient created via {Provider}", provider);
         }
 
+        await RecordPatientLoginAsync(patient, cancellationToken);
         _lockout.Reset(AuthRoles.Patient, username);
         await SignInAsync(httpContext, patient.Username, AuthRoles.Patient, patient.Id);
         await LogAuthSuccessAsync(httpContext, AuthRoles.Patient, patient.Id.ToString(), patient.Username, cancellationToken);
@@ -159,6 +160,7 @@ public class AccountAuthService : IAccountAuthService
         }
 
         _lockout.Reset(AuthRoles.Patient, request.Username);
+        await RecordPatientLoginAsync(patient, cancellationToken);
         await SignInAsync(httpContext, patient.Username, AuthRoles.Patient, patient.Id);
         await LogAuthSuccessAsync(httpContext, AuthRoles.Patient, patient.Id.ToString(), patient.Username, cancellationToken);
         _logger.LogInformation("Patient logged in");
@@ -302,6 +304,12 @@ public class AccountAuthService : IAccountAuthService
             Summary = $"{role} login failed",
             NewValuesJson = $"{{\"role\":\"{role}\"}}"
         }, cancellationToken);
+    }
+
+    private async Task RecordPatientLoginAsync(Patient patient, CancellationToken cancellationToken)
+    {
+        patient.LastLoginAtUtc = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
     }
 
     private static async Task SignInAsync(HttpContext httpContext, string username, string role, int userId)

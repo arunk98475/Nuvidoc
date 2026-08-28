@@ -32,6 +32,10 @@ public interface IAppSettingsService
     Task<(bool Success, string? Error)> SavePatientBookingReminderSettingsAsync(
         PatientBookingReminderSettings settings,
         CancellationToken cancellationToken = default);
+    Task<PatientAccountLifecycleSettings> GetPatientAccountLifecycleSettingsAsync(CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SavePatientAccountLifecycleSettingsAsync(
+        PatientAccountLifecycleSettings settings,
+        CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -52,6 +56,12 @@ public class AppSettingsService : IAppSettingsService
     private const int DefaultBookingReminderStopAfterMonths = 12;
     private const int MinBookingReminderStopAfterMonths = 1;
     private const int MaxBookingReminderStopAfterMonths = 24;
+    private const int DefaultAutoCloseInactiveMonths = 24;
+    private const int MinAutoCloseInactiveMonths = 1;
+    private const int MaxAutoCloseInactiveMonths = 120;
+    private const int DefaultAutoDeleteClosedMonths = 3;
+    private const int MinAutoDeleteClosedMonths = 1;
+    private const int MaxAutoDeleteClosedMonths = 60;
 
     private readonly DocoveeDbContext _db;
 
@@ -318,6 +328,50 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.BookingReminderEnableWhatsApp, whatsApp ? "true" : "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderEnableEmail, email ? "true" : "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderEnableSms, sms ? "true" : "false", cancellationToken);
+        return (true, null);
+    }
+
+    public async Task<PatientAccountLifecycleSettings> GetPatientAccountLifecycleSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var keys = new[]
+        {
+            AppSettingKeys.PatientAutoCloseInactiveEnabled,
+            AppSettingKeys.PatientAutoCloseInactiveMonths,
+            AppSettingKeys.PatientAutoDeleteClosedEnabled,
+            AppSettingKeys.PatientAutoDeleteClosedMonths
+        };
+
+        var rows = await _db.AppSettings.AsNoTracking()
+            .Where(s => keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        string Val(string key) => rows.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
+
+        return new PatientAccountLifecycleSettings
+        {
+            AutoCloseInactiveEnabled = ParseBoolSetting(Val(AppSettingKeys.PatientAutoCloseInactiveEnabled)),
+            AutoCloseInactiveMonths = int.TryParse(Val(AppSettingKeys.PatientAutoCloseInactiveMonths), out var inactiveMonths)
+                ? Math.Clamp(inactiveMonths, MinAutoCloseInactiveMonths, MaxAutoCloseInactiveMonths)
+                : DefaultAutoCloseInactiveMonths,
+            AutoDeleteClosedEnabled = ParseBoolSetting(Val(AppSettingKeys.PatientAutoDeleteClosedEnabled)),
+            AutoDeleteClosedMonths = int.TryParse(Val(AppSettingKeys.PatientAutoDeleteClosedMonths), out var closedMonths)
+                ? Math.Clamp(closedMonths, MinAutoDeleteClosedMonths, MaxAutoDeleteClosedMonths)
+                : DefaultAutoDeleteClosedMonths
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> SavePatientAccountLifecycleSettingsAsync(
+        PatientAccountLifecycleSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        var inactiveMonths = Math.Clamp(settings.AutoCloseInactiveMonths, MinAutoCloseInactiveMonths, MaxAutoCloseInactiveMonths);
+        var closedMonths = Math.Clamp(settings.AutoDeleteClosedMonths, MinAutoDeleteClosedMonths, MaxAutoDeleteClosedMonths);
+
+        await SetValueAsync(AppSettingKeys.PatientAutoCloseInactiveEnabled, settings.AutoCloseInactiveEnabled ? "true" : "false", cancellationToken);
+        await SetValueAsync(AppSettingKeys.PatientAutoCloseInactiveMonths, inactiveMonths.ToString(), cancellationToken);
+        await SetValueAsync(AppSettingKeys.PatientAutoDeleteClosedEnabled, settings.AutoDeleteClosedEnabled ? "true" : "false", cancellationToken);
+        await SetValueAsync(AppSettingKeys.PatientAutoDeleteClosedMonths, closedMonths.ToString(), cancellationToken);
         return (true, null);
     }
 

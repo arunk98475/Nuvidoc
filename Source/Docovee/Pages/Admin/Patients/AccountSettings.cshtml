@@ -1,0 +1,53 @@
+@page
+@model Docovee.Pages.Admin.Patients.AccountSettingsModel
+@{
+    ViewData["Title"] = "Account settings";
+}
+
+<partial name="_PatientsNav" />
+
+<div class="admin-card">
+    <h1>Patient account settings</h1>
+    <p>Configure automatic account closure for inactive patients and automatic permanent deletion for closed accounts.</p>
+
+    @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+    {
+        <div class="alert-success">@Model.SuccessMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+
+    <form method="post">
+        <div class="form-group" style="margin-bottom:18px;">
+            <label class="hint">
+                <input type="checkbox" asp-for="Input.AutoCloseInactiveEnabled" />
+                Automatically close account if not logged in for continuous
+            </label>
+            <div class="form-grid" style="margin-top:10px;">
+                <div class="form-group">
+                    <label asp-for="Input.AutoCloseInactiveMonths">Months without login</label>
+                    <input asp-for="Input.AutoCloseInactiveMonths" type="number" min="1" max="120" class="form-control" />
+                    <p class="hint">Default 24. Inactivity is measured from last login, or registration date if the patient never logged in. Closing disables login only; data is kept.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:18px;">
+            <label class="hint">
+                <input type="checkbox" asp-for="Input.AutoDeleteClosedEnabled" />
+                Automatically permanently delete account if it stayed closed for
+            </label>
+            <div class="form-grid" style="margin-top:10px;">
+                <div class="form-group">
+                    <label asp-for="Input.AutoDeleteClosedMonths">Months account stays closed</label>
+                    <input asp-for="Input.AutoDeleteClosedMonths" type="number" min="1" max="60" class="form-control" />
+                    <p class="hint">Default 3. Applies to all closed accounts (self-delete, admin close, or auto-inactivity). This is separate from manual admin permanent remove wait (<code>Account:HardDeleteWaitDays</code> in appsettings).</p>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save settings</button>
+    </form>
+</div>

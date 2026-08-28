@@ -25,6 +25,7 @@ public class Patient
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAtUtc { get; set; }
 
     public ICollection<SearchSession> SearchSessions { get; set; } = new List<SearchSession>();
     public ICollection<PatientDoctorContactView> DoctorContactViews { get; set; } = new List<PatientDoctorContactView>();

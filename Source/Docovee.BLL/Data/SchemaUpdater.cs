@@ -385,6 +385,7 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "PasswordResetExpiresAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "IsDeleted", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "DeletedAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "LastLoginAtUtc", "datetime(6) NULL", cancellationToken);
         await db.Database.ExecuteSqlRawAsync(
             """
             UPDATE `patients`

@@ -48,6 +48,7 @@ public class PatientAdminEditModel
     public string? Password { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
+    public DateTime? LastLoginAtUtc { get; set; }
 }
 
 /// <summary>Admin settings for reminders to registered patients who have never booked.</summary>
@@ -59,6 +60,16 @@ public class PatientBookingReminderSettings
     public bool EnableWhatsApp { get; set; }
     public bool EnableEmail { get; set; }
     public bool EnableSms { get; set; }
+}
+
+/// <summary>Admin settings for automatic patient account closure and permanent deletion.</summary>
+public class PatientAccountLifecycleSettings
+{
+    public bool AutoCloseInactiveEnabled { get; set; }
+    public int AutoCloseInactiveMonths { get; set; } = 24;
+
+    public bool AutoDeleteClosedEnabled { get; set; }
+    public int AutoDeleteClosedMonths { get; set; } = 3;
 }
 
 public class SiteSettingsModel

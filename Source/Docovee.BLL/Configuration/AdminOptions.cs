@@ -47,4 +47,9 @@ public static class AppSettingKeys
     public const string BookingReminderEnableWhatsApp = "BookingReminderEnableWhatsApp";
     public const string BookingReminderEnableEmail = "BookingReminderEnableEmail";
     public const string BookingReminderEnableSms = "BookingReminderEnableSms";
+
+    public const string PatientAutoCloseInactiveEnabled = "PatientAutoCloseInactiveEnabled";
+    public const string PatientAutoCloseInactiveMonths = "PatientAutoCloseInactiveMonths";
+    public const string PatientAutoDeleteClosedEnabled = "PatientAutoDeleteClosedEnabled";
+    public const string PatientAutoDeleteClosedMonths = "PatientAutoDeleteClosedMonths";
 }

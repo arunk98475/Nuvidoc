@@ -1,8 +1,11 @@
 @{
     var path = Context.Request.Path.Value ?? "";
     var onReminders = path.StartsWith("/Admin/Patients/Reminders", StringComparison.OrdinalIgnoreCase);
+    var onAccountSettings = path.StartsWith("/Admin/Patients/AccountSettings", StringComparison.OrdinalIgnoreCase);
+    var onList = !onReminders && !onAccountSettings;
 }
 <nav class="admin-subnav" aria-label="Patients section">
-    <a class="@(onReminders ? null : "active")" href="/Admin/Patients">Patient list</a>
+    <a class="@(onList ? "active" : null)" href="/Admin/Patients">Patient list</a>
     <a class="@(onReminders ? "active" : null)" href="/Admin/Patients/Reminders">Booking reminders</a>
+    <a class="@(onAccountSettings ? "active" : null)" href="/Admin/Patients/AccountSettings">Account settings</a>
 </nav>

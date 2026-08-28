@@ -18,7 +18,7 @@ public interface IAdminPatientService
     Task<(bool Success, string? Error)> UpdateAsync(PatientAdminEditModel model, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> SoftDeleteAsync(int id, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> ActivateAsync(int id, CancellationToken cancellationToken = default);
-    Task<(bool Success, string? Error)> HardDeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> HardDeleteAsync(int id, bool bypassWaitPeriod = false, CancellationToken cancellationToken = default);
 }
 
 public class AdminPatientService : IAdminPatientService
@@ -144,7 +144,8 @@ public class AdminPatientService : IAdminPatientService
             DateOfBirth = patient.DateOfBirth,
             Phone = patient.Phone,
             IsDeleted = patient.IsDeleted,
-            DeletedAtUtc = patient.DeletedAtUtc
+            DeletedAtUtc = patient.DeletedAtUtc,
+            LastLoginAtUtc = patient.LastLoginAtUtc
         };
     }
 
@@ -226,7 +227,10 @@ public class AdminPatientService : IAdminPatientService
         return (true, null);
     }
 
-    public async Task<(bool Success, string? Error)> HardDeleteAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<(bool Success, string? Error)> HardDeleteAsync(
+        int id,
+        bool bypassWaitPeriod = false,
+        CancellationToken cancellationToken = default)
     {
         var patient = await _db.Patients
             .Include(p => p.SearchSessions)
@@ -238,13 +242,16 @@ public class AdminPatientService : IAdminPatientService
         if (!patient.IsDeleted)
             return (false, "Close the account before permanently removing it.");
 
-        var waitDays = Math.Max(0, _account.HardDeleteWaitDays);
-        if (!DeletedAccountHelper.CanPermanentlyRemove(patient.DeletedAtUtc, waitDays))
+        if (!bypassWaitPeriod)
         {
-            var availableAt = DeletedAccountHelper.PermanentRemoveAvailableAtUtc(patient.DeletedAtUtc, waitDays);
-            return (false, availableAt.HasValue
-                ? $"Permanent remove is available after {availableAt.Value:u} UTC ({waitDays} day(s) after closure)."
-                : "Permanent remove is not available yet.");
+            var waitDays = Math.Max(0, _account.HardDeleteWaitDays);
+            if (!DeletedAccountHelper.CanPermanentlyRemove(patient.DeletedAtUtc, waitDays))
+            {
+                var availableAt = DeletedAccountHelper.PermanentRemoveAvailableAtUtc(patient.DeletedAtUtc, waitDays);
+                return (false, availableAt.HasValue
+                    ? $"Permanent remove is available after {availableAt.Value:u} UTC ({waitDays} day(s) after closure)."
+                    : "Permanent remove is not available yet.");
+            }
         }
 
         foreach (var session in patient.SearchSessions)
@@ -258,10 +265,12 @@ public class AdminPatientService : IAdminPatientService
             Action = AuditActions.Delete,
             EntityType = AuditEntityTypes.Patient,
             EntityId = id.ToString(),
-            Summary = "Admin permanently deleted patient (hard delete)"
+            Summary = bypassWaitPeriod
+                ? "Auto permanently deleted patient (hard delete)"
+                : "Admin permanently deleted patient (hard delete)"
         }, cancellationToken);
 
-        _logger.LogInformation("Admin hard-deleted patient {Id}", id);
+        _logger.LogInformation("Patient {Id} hard-deleted (bypassWait={BypassWait})", id, bypassWaitPeriod);
         return (true, null);
     }
 }
