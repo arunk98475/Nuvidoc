@@ -122,6 +122,18 @@ public class PublicDoctorProfileDto
     public IReadOnlyList<PublicDoctorReviewDto> Reviews { get; set; } = Array.Empty<PublicDoctorReviewDto>();
     public IReadOnlyList<DoctorMediaDto> Media { get; set; } = Array.Empty<DoctorMediaDto>();
     public IReadOnlyList<string> VisitReasons { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<PublicDoctorLocationDto> Locations { get; set; } = Array.Empty<PublicDoctorLocationDto>();
+}
+
+public class PublicDoctorLocationDto
+{
+    public string? Name { get; set; }
+    public string Address1 { get; set; } = string.Empty;
+    public string? Address2 { get; set; }
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string ZipCode { get; set; } = string.Empty;
+    public bool IsPrimary { get; set; }
 }
 
 public class PublicDoctorInsuranceDto

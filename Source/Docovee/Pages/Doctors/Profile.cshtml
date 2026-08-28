@@ -55,6 +55,33 @@
         || (waitRatedReviews.Count > 0 && goodWaitPct >= 70)
         || visitReasons.Count > 0
         || doctor.AcceptedInsurances.Count > 0;
+    var doctorShortName = DoctorShortName(doctor.Name);
+    var faqLocations = doctor.Locations.Count > 0
+        ? doctor.Locations
+        : (!string.IsNullOrWhiteSpace(doctor.City)
+            ? new List<PublicDoctorLocationDto>
+            {
+                new()
+                {
+                    Address1 = doctor.Address ?? "",
+                    City = doctor.City,
+                    State = doctor.State,
+                    ZipCode = doctor.ZipCode,
+                    IsPrimary = true
+                }
+            }
+            : Array.Empty<PublicDoctorLocationDto>());
+    var faqLocationCities = faqLocations
+        .Select(l => l.City)
+        .Where(c => !string.IsNullOrWhiteSpace(c))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+    var hasNearAvailability = visibleDays.Take(7).Any(d => d.AvailableCount > 0);
+    var faqLanguages = doctor.Languages.Count > 0 ? doctor.Languages : new List<string> { "English" };
+    var faqFeaturedReasons = visitReasons.Take(5).ToList();
+    var faqReviewCount = patientReviewCount > 0 ? patientReviewCount : totalReviews;
+    var faqBedsideScore = AverageRecommendationScore(doctor.Reviews);
+    var faqWaitScore = AverageWaitScore(doctor.Reviews);
     ViewData["Title"] = $"{doctor.Name} — {doctor.Specialty} | {Branding.SiteName}";
 }
 <!DOCTYPE html>
@@ -682,39 +709,150 @@
 
             <section class="zd-section" id="faqs">
                 <h2 class="zd-h2">FAQs</h2>
+
+                <details class="zd-faq">
+                    <summary>How soon can I make an appointment with @doctor.Name?</summary>
+                    <p>
+                        Generally, @doctor.Name has appointments available
+                        @if (hasNearAvailability)
+                        {
+                            <text>within 1 week.</text>
+                        }
+                        else
+                        {
+                            <text>by contacting the office directly.</text>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                        {
+                            <text> Call <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to schedule with @doctorShortName.</text>
+                        }
+                        else
+                        {
+                            <text> See the booking section on this profile for contact options.</text>
+                        }
+                    </p>
+                </details>
+
                 <details class="zd-faq">
                     <summary>Is @doctor.Name accepting new patients?</summary>
-                    @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
-                    {
-                        <p>Contact the office at <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to confirm new patient availability.</p>
-                    }
-                    else
-                    {
-                        <p>Please contact the office to confirm whether new patients are being accepted.</p>
-                    }
+                    <p>
+                        @doctor.Name generally accepts new patients on @Branding.SiteName.
+                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                        {
+                            <text> Call <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to confirm availability and schedule with @doctorShortName.</text>
+                        }
+                        else
+                        {
+                            <text> Contact the office to confirm new patient availability.</text>
+                        }
+                    </p>
                 </details>
+
                 <details class="zd-faq">
-                    <summary>What insurances does this office accept?</summary>
-                    @if (doctor.AcceptedInsurances.Count > 0)
-                    {
-                        <p>This office accepts @string.Join(", ", doctor.AcceptedInsurances.Take(6).Select(i => i.CarrierName))@(doctor.AcceptedInsurances.Count > 6 ? $" and {doctor.AcceptedInsurances.Count - 6} more" : ""). See the Insurances section above for details, or call the office to confirm your plan.</p>
-                    }
-                    else
-                    {
-                        <p>Insurance details are not published yet. Please call the office to confirm coverage.</p>
-                    }
+                    <summary>Does @doctor.Name accept my insurance?</summary>
+                    <p>
+                        Choose your insurance plan in the <a href="#insurances">Insurances section</a> above to verify if @doctorShortName is in-network.
+                        @if (doctor.AcceptedInsurances.Count > 0)
+                        {
+                            <text> This office accepts @string.Join(", ", doctor.AcceptedInsurances.Take(5).Select(i => i.CarrierName))@(doctor.AcceptedInsurances.Count > 5 ? $" and {doctor.AcceptedInsurances.Count - 5} more" : "").</text>
+                        }
+                    </p>
                 </details>
+
                 <details class="zd-faq">
-                    <summary>How do I book an appointment?</summary>
-                    @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
-                    {
-                        <p>Call the office at <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to schedule.</p>
-                    }
-                    else
-                    {
-                        <p>Phone number is not listed yet. Check back shortly for contact details.</p>
-                    }
+                    <summary>Can I make an appointment with @doctor.Name online?</summary>
+                    <p>
+                        You can use @Branding.SiteName to view @doctorShortName's profile and contact the office to schedule.
+                        Online self-scheduling is coming soon.
+                        @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                        {
+                            <text> For now, call <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to book.</text>
+                        }
+                    </p>
                 </details>
+
+                @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
+                {
+                    <details class="zd-faq">
+                        <summary>What practice does @doctor.Name work with?</summary>
+                        <p>@doctor.Name works with @doctor.PracticeName.</p>
+                    </details>
+                }
+
+                @if (faqLocations.Count > 0)
+                {
+                    <details class="zd-faq">
+                        <summary>Where is @doctor.Name's office located?</summary>
+                        @if (faqLocations.Count > 1)
+                        {
+                            <p>
+                                @doctor.Name has @faqLocations.Count office locations@if (faqLocationCities.Count > 0) { <text>, including in @FormatCityList(faqLocationCities)</text> }.
+                                View full addresses in the <a href="#location">Location section</a> on @doctorShortName's profile.
+                            </p>
+                        }
+                        else
+                        {
+                            var loc = faqLocations[0];
+                            var locAddress = string.Join(", ", new[] { loc.Address1, loc.City, loc.State, loc.ZipCode }
+                                .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA"));
+                            <p>
+                                @doctor.Name's office is located@if (!string.IsNullOrWhiteSpace(locAddress)) { <text> at @locAddress</text> }.
+                                See the <a href="#location">Location section</a> for directions and contact details.
+                            </p>
+                        }
+                    </details>
+                }
+
+                @if (faqFeaturedReasons.Count > 0)
+                {
+                    <details class="zd-faq">
+                        <summary>What are common reasons for patients to see @doctor.Name?</summary>
+                        <p>
+                            @doctor.Name frequently sees patients for @string.Join(", ", faqFeaturedReasons).
+                            @if (visitReasons.Count > faqFeaturedReasons.Count)
+                            {
+                                <text> You can see other visit reasons for @doctorShortName on <a href="#reasons">their profile</a>.</text>
+                            }
+                        </p>
+                    </details>
+                }
+
+                <details class="zd-faq">
+                    <summary>What languages does @doctor.Name speak?</summary>
+                    <p>@doctor.Name speaks @string.Join(", ", faqLanguages).</p>
+                </details>
+
+                @if (faqReviewCount > 0 && avgRating > 0)
+                {
+                    <details class="zd-faq">
+                        <summary>How do patients rate @doctor.Name in reviews?</summary>
+                        <p>
+                            @if (patientReviewCount > 0)
+                            {
+                                <text>@faqReviewCount @(faqReviewCount == 1 ? "patient has" : "patients have") reviewed @doctor.Name.</text>
+                            }
+                            else
+                            {
+                                <text>@faqReviewCount Google @(faqReviewCount == 1 ? "review is" : "reviews are") listed for @doctor.Name.</text>
+                            }
+                            The overall rating for this doctor is @avgRating.ToString("0.00")/5.
+                            @if (faqBedsideScore.HasValue)
+                            {
+                                <text> They have a @faqBedsideScore.Value.ToString("0.0")/5 rating for bedside manner</text>
+                                @if (faqWaitScore.HasValue)
+                                {
+                                    <text> and a @faqWaitScore.Value.ToString("0.0")/5 rating for wait time</text>
+                                }
+                                <text>.</text>
+                            }
+                            else if (faqWaitScore.HasValue)
+                            {
+                                <text> They have a @faqWaitScore.Value.ToString("0.0")/5 rating for wait time.</text>
+                            }
+                            You can read individual reviews and ratings in the <a href="#reviews">Reviews section</a>.
+                        </p>
+                    </details>
+                }
             </section>
         </div>
 
@@ -1427,6 +1565,76 @@
     }
     private static string RenderStars(int rating) => RenderStars((decimal)rating);
     private static string RegexPhone(string phone) => new string(phone.Where(char.IsDigit).ToArray());
+
+    private static string DoctorShortName(string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.StartsWith("Dr.", StringComparison.OrdinalIgnoreCase))
+            trimmed = trimmed[3..].TrimStart();
+        else if (trimmed.StartsWith("Dr ", StringComparison.OrdinalIgnoreCase))
+            trimmed = trimmed[3..].TrimStart();
+
+        var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? parts[^1] : trimmed;
+    }
+
+    private static string FormatCityList(IReadOnlyList<string> cities)
+    {
+        if (cities.Count == 0)
+            return "";
+        if (cities.Count == 1)
+            return cities[0];
+        if (cities.Count == 2)
+            return $"{cities[0]} and {cities[1]}";
+        return string.Join(", ", cities.Take(cities.Count - 1)) + ", and " + cities[^1];
+    }
+
+    private static decimal? AverageWaitScore(IEnumerable<PublicDoctorReviewDto> reviews)
+    {
+        var scores = reviews
+            .Select(r => ScoreWaitingTime(r.WaitingTime))
+            .Where(s => s.HasValue)
+            .Select(s => s!.Value)
+            .ToList();
+        return scores.Count > 0 ? Math.Round(scores.Average(), 2) : null;
+    }
+
+    private static decimal? AverageRecommendationScore(IEnumerable<PublicDoctorReviewDto> reviews)
+    {
+        var scores = reviews
+            .Select(r => ScoreRecommendation(r.Recommendation))
+            .Where(s => s.HasValue)
+            .Select(s => s!.Value)
+            .ToList();
+        return scores.Count > 0 ? Math.Round(scores.Average(), 2) : null;
+    }
+
+    private static decimal? ScoreWaitingTime(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "excellent" => 5m,
+            "good" => 4m,
+            "average" => 3m,
+            "bad" => 2m,
+            _ => null
+        };
+    }
+
+    private static decimal? ScoreRecommendation(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "highly recommended" => 5m,
+            "neutral" => 3m,
+            "not recommended" => 1m,
+            _ => null
+        };
+    }
 
     private static string? GetVideoEmbedUrl(string? url)
     {

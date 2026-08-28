@@ -75,6 +75,7 @@ public class PublicDoctorService : IPublicDoctorService
             .AsNoTracking()
             .Include(d => d.PatientReviews)
             .Include(d => d.Media)
+            .Include(d => d.Locations)
             .Include(d => d.DoctorInsurances).ThenInclude(di => di.InsuranceCarrier).ThenInclude(c => c.Plans)
             .Include(d => d.DoctorLanguages).ThenInclude(dl => dl.DoctorLanguage)
             .FirstOrDefaultAsync(d => d.Id == doctorId && d.IsActive && !d.IsDeleted, cancellationToken);
@@ -204,6 +205,23 @@ public class PublicDoctorService : IPublicDoctorService
             .OrderBy(n => n)
             .ToList();
 
+        var locations = doctor.Locations
+            .Where(l => l.IsActive)
+            .OrderByDescending(l => l.IsPrimary)
+            .ThenBy(l => l.SortOrder)
+            .ThenBy(l => l.City)
+            .Select(l => new PublicDoctorLocationDto
+            {
+                Name = l.Name,
+                Address1 = l.Address1,
+                Address2 = l.Address2,
+                City = l.City,
+                State = l.State,
+                ZipCode = l.ZipCode,
+                IsPrimary = l.IsPrimary
+            })
+            .ToList();
+
         return new PublicDoctorProfileDto
         {
             Id = doctor.Id,
@@ -243,7 +261,8 @@ public class PublicDoctorService : IPublicDoctorService
             Languages = languages,
             Reviews = reviews,
             Media = media,
-            VisitReasons = DoctorProfileHelper.GetPublicVisitReasonNames(doctor.OnboardingProfileJson)
+            VisitReasons = DoctorProfileHelper.GetPublicVisitReasonNames(doctor.OnboardingProfileJson),
+            Locations = locations
         };
     }
 
