@@ -135,9 +135,8 @@
 
 .zd-see-reviews {
   color: var(--zd-link);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
-  text-decoration: underline;
 }
 
 .zd-tabs {
@@ -271,6 +270,18 @@
   font-weight: 600;
 }
 
+.zd-out-network {
+  margin: 0 0 8px;
+  color: #b45309;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.zd-ins-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
 .zd-social-proof {
   margin: 0 0 14px !important;
   color: var(--zd-green) !important;
@@ -340,6 +351,10 @@
 }
 
 .zd-reason span { font-weight: 700; }
+
+.zd-reasons:not(.is-expanded) .zd-reason-extra {
+  display: none;
+}
 
 .zd-location {
   display: grid;
