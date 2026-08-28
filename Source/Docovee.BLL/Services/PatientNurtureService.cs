@@ -19,8 +19,6 @@ public interface IPatientNurtureService
 
 public sealed class PatientNurtureService : IPatientNurtureService
 {
-    private static readonly TimeSpan LateGrace = TimeSpan.FromHours(24);
-
     private readonly DocoveeDbContext _db;
     private readonly IAppSettingsService _appSettings;
     private readonly IEmailSender _email;
@@ -116,7 +114,8 @@ public sealed class PatientNurtureService : IPatientNurtureService
                 var dueAt = dueDate.AddHours(9);
                 if (dueAt > now)
                     break;
-                if (now - dueAt > LateGrace)
+
+                if (!StepHasPendingSend(patient.Id, patient.PhoneVerified, patient.Username, stepDay, settings, sentKeys))
                     continue;
 
                 if (settings.EnableSms
@@ -154,6 +153,9 @@ public sealed class PatientNurtureService : IPatientNurtureService
                         sent++;
                     }
                 }
+
+                // One step per patient per cycle so catch-up does not blast multiple overdue reminders at once.
+                break;
             }
         }
 
@@ -355,6 +357,29 @@ public sealed class PatientNurtureService : IPatientNurtureService
         return e164.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase)
             ? e164
             : "whatsapp:" + e164;
+    }
+
+    private static bool StepHasPendingSend(
+        int patientId,
+        bool phoneVerified,
+        string? username,
+        int stepDay,
+        PatientBookingReminderSettings settings,
+        HashSet<(int PatientId, int StepDay, string Channel)> sentKeys)
+    {
+        if (settings.EnableSms
+            && phoneVerified
+            && !sentKeys.Contains((patientId, stepDay, PatientNurtureChannels.Sms)))
+            return true;
+        if (settings.EnableWhatsApp
+            && phoneVerified
+            && !sentKeys.Contains((patientId, stepDay, PatientNurtureChannels.WhatsApp)))
+            return true;
+        if (settings.EnableEmail
+            && HasEmailAddress(username)
+            && !sentKeys.Contains((patientId, stepDay, PatientNurtureChannels.Email)))
+            return true;
+        return false;
     }
 
     private static string FirstName(string? fullName)
