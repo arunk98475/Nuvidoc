@@ -237,13 +237,13 @@ public sealed class PatientNurtureService : IPatientNurtureService
         {
             subject = $"Ready when you are — dental implant consult on {siteName}";
             body =
-                $"{hello}, still thinking about dental implants? When you're ready, {siteName} can help you find a dentist and book a consult. {link} Reply STOP to opt out.";
+                $"{hello}, still thinking about dental implants? When you're ready, {siteName} can help you find a dentist and book a consult. {link}";
         }
         else
         {
             subject = $"Ready to book your visit on {siteName}?";
             body =
-                $"{hello}, you're signed up with {siteName} but haven't booked yet. When you're ready, we can help you find a dentist and schedule. {link} Reply STOP to opt out.";
+                $"{hello}, you're signed up with {siteName} but haven't booked yet. When you're ready, we can help you find a dentist and schedule. {link}";
         }
 
         return (body, subject);
