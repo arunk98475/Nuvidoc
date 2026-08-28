@@ -62,6 +62,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
 
         var patients = await _db.Patients
             .AsNoTracking()
+            .Where(p => !p.IsDeleted)
             .Where(p => p.CreatedAt >= oldestCreatedUtc)
             .Where(p => !_db.Appointments.Any(a =>
                 a.PatientId == p.Id

@@ -62,6 +62,22 @@ public class PatientBookingReminderSettings
     public bool EnableSms { get; set; }
 }
 
+public class PatientBookingReminderRunStatus
+{
+    public DateTime? LastRunUtc { get; set; }
+    public int LastRunSentCount { get; set; }
+}
+
+public class PatientNurtureSendAdminRow
+{
+    public int PatientId { get; set; }
+    public string PatientName { get; set; } = string.Empty;
+    public string PatientUsername { get; set; } = string.Empty;
+    public int StepDay { get; set; }
+    public string Channel { get; set; } = string.Empty;
+    public DateTime SentAtUtc { get; set; }
+}
+
 /// <summary>Admin settings for automatic patient account closure and permanent deletion.</summary>
 public class PatientAccountLifecycleSettings
 {

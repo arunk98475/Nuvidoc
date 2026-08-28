@@ -32,6 +32,12 @@ public interface IAppSettingsService
     Task<(bool Success, string? Error)> SavePatientBookingReminderSettingsAsync(
         PatientBookingReminderSettings settings,
         CancellationToken cancellationToken = default);
+    Task<PatientBookingReminderRunStatus> GetPatientBookingReminderRunStatusAsync(
+        CancellationToken cancellationToken = default);
+    Task RecordPatientBookingReminderRunAsync(
+        DateTime runUtc,
+        int sentCount,
+        CancellationToken cancellationToken = default);
     Task<PatientAccountLifecycleSettings> GetPatientAccountLifecycleSettingsAsync(CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> SavePatientAccountLifecycleSettingsAsync(
         PatientAccountLifecycleSettings settings,
@@ -329,6 +335,46 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.BookingReminderEnableEmail, email ? "true" : "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderEnableSms, sms ? "true" : "false", cancellationToken);
         return (true, null);
+    }
+
+    public async Task<PatientBookingReminderRunStatus> GetPatientBookingReminderRunStatusAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var runUtcRaw = await GetValueAsync(AppSettingKeys.BookingReminderLastRunUtc, cancellationToken);
+        var sentRaw = await GetValueAsync(AppSettingKeys.BookingReminderLastRunSentCount, cancellationToken);
+        DateTime? lastRunUtc = DateTime.TryParse(
+            runUtcRaw,
+            null,
+            System.Globalization.DateTimeStyles.RoundtripKind,
+            out var parsed)
+            ? parsed.ToUniversalTime()
+            : null;
+        _ = int.TryParse(sentRaw, out var sentCount);
+        return new PatientBookingReminderRunStatus
+        {
+            LastRunUtc = lastRunUtc,
+            LastRunSentCount = sentCount
+        };
+    }
+
+    public Task RecordPatientBookingReminderRunAsync(
+        DateTime runUtc,
+        int sentCount,
+        CancellationToken cancellationToken = default)
+    {
+        var utc = runUtc.Kind == DateTimeKind.Utc
+            ? runUtc
+            : runUtc.ToUniversalTime();
+        return RecordPatientBookingReminderRunCoreAsync(utc, Math.Max(0, sentCount), cancellationToken);
+    }
+
+    private async Task RecordPatientBookingReminderRunCoreAsync(
+        DateTime runUtc,
+        int sentCount,
+        CancellationToken cancellationToken)
+    {
+        await SetValueAsync(AppSettingKeys.BookingReminderLastRunUtc, runUtc.ToString("o"), cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderLastRunSentCount, sentCount.ToString(), cancellationToken);
     }
 
     public async Task<PatientAccountLifecycleSettings> GetPatientAccountLifecycleSettingsAsync(

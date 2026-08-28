@@ -31,13 +31,32 @@ public sealed class PatientNurtureHostedService : BackgroundService
         _logger.LogInformation("Patient booking nurture worker started.");
         while (!stoppingToken.IsCancellationRequested)
         {
+            var sent = 0;
             try
             {
                 using var scope = _scopeFactory.CreateScope();
                 var nurture = scope.ServiceProvider.GetRequiredService<IPatientNurtureService>();
-                var sent = await nurture.ProcessDueNurtureRemindersAsync(stoppingToken);
-                if (sent > 0)
-                    _logger.LogInformation("Sent {Count} booking nurture reminder(s).", sent);
+                var appSettings = scope.ServiceProvider.GetRequiredService<IAppSettingsService>();
+                try
+                {
+                    sent = await nurture.ProcessDueNurtureRemindersAsync(stoppingToken);
+                    if (sent > 0)
+                        _logger.LogInformation("Sent {Count} booking nurture reminder(s).", sent);
+                }
+                finally
+                {
+                    try
+                    {
+                        await appSettings.RecordPatientBookingReminderRunAsync(
+                            DateTime.UtcNow,
+                            sent,
+                            stoppingToken);
+                    }
+                    catch (Exception recordEx) when (recordEx is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(recordEx, "Could not record booking reminder last-run status.");
+                    }
+                }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

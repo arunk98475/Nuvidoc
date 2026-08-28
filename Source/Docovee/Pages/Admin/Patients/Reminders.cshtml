@@ -1,7 +1,11 @@
 @page
 @model Docovee.Pages.Admin.Patients.RemindersModel
+@using Docovee.BLL.Services
 @{
     ViewData["Title"] = "Booking reminders";
+    var lastRunPacific = Model.RunStatus.LastRunUtc.HasValue
+        ? ClinicTime.FromUtc(Model.RunStatus.LastRunUtc.Value)
+        : (DateTime?)null;
 }
 
 <partial name="_PatientsNav" />
@@ -66,4 +70,64 @@
 
         <button type="submit" class="btn btn-primary">Save settings</button>
     </form>
+</div>
+
+<div class="admin-card" style="margin-top:24px;">
+    <h2 class="admin-section-title">Worker status</h2>
+    <p class="hint">The booking reminder worker runs about every 20 minutes while the app is running.</p>
+    @if (Model.RunStatus.LastRunUtc.HasValue)
+    {
+        <p>
+            <strong>Last run:</strong>
+            @Model.RunStatus.LastRunUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC
+            (@lastRunPacific!.Value.ToString("yyyy-MM-dd h:mm tt") Pacific)
+        </p>
+        <p><strong>Sent on last run:</strong> @Model.RunStatus.LastRunSentCount reminder@(Model.RunStatus.LastRunSentCount == 1 ? "" : "s")</p>
+    }
+    else
+    {
+        <p>No worker run recorded yet. Start the app and wait for the first cycle (about 45 seconds after startup).</p>
+    }
+</div>
+
+<div class="admin-card" style="margin-top:24px;">
+    <h2 class="admin-section-title">Recent sends</h2>
+    <p class="hint">@Model.TotalSendCount total reminder@(Model.TotalSendCount == 1 ? "" : "s") sent · showing latest @Model.RecentSends.Count</p>
+    @if (Model.RecentSends.Count == 0)
+    {
+        <p>No booking reminders have been sent yet.</p>
+    }
+    else
+    {
+        <div style="overflow-x:auto;">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Sent (UTC)</th>
+                        <th>Patient</th>
+                        <th>Channel</th>
+                        <th>Step (days)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.RecentSends)
+                    {
+                        var sentPacific = ClinicTime.FromUtc(row.SentAtUtc);
+                        <tr>
+                            <td>
+                                @row.SentAtUtc.ToString("yyyy-MM-dd HH:mm:ss") UTC<br />
+                                <small>@sentPacific.ToString("yyyy-MM-dd h:mm tt") Pacific</small>
+                            </td>
+                            <td>
+                                <a href="/Admin/Patients/Edit/@row.PatientId">@row.PatientName</a><br />
+                                <small>@row.PatientUsername</small>
+                            </td>
+                            <td>@row.Channel</td>
+                            <td>@row.StepDay</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 </div>
