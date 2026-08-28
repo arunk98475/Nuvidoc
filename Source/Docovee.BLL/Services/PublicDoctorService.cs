@@ -242,7 +242,8 @@ public class PublicDoctorService : IPublicDoctorService
             AcceptedInsurances = acceptedInsurances,
             Languages = languages,
             Reviews = reviews,
-            Media = media
+            Media = media,
+            VisitReasons = DoctorProfileHelper.GetPublicVisitReasonNames(doctor.OnboardingProfileJson)
         };
     }
 

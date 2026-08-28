@@ -20,22 +20,41 @@
         .ToList();
     var featuredReview = doctor.Reviews.OrderByDescending(r => r.Rating).FirstOrDefault()
         ?? lastGoogleReview;
-    var planCount = doctor.AcceptedInsurances.Sum(i => Math.Max(1, i.Plans.Count));
-    var morePlans = Math.Max(0, planCount - Math.Min(5, doctor.AcceptedInsurances.Count));
     var visibleDays = Model.VisibleBookingDays;
     var firstDay = visibleDays.FirstOrDefault();
     var lastDay = visibleDays.LastOrDefault();
     var dateRangeLabel = firstDay != null && lastDay != null
         ? $"{firstDay.Date:ddd, MMM d} – {lastDay.Date:ddd, MMM d}"
         : "";
-    string[] popularReasons =
-    [
-        "Bridge", "Dental Cleaning", "Dental Consultation", "Dental Surgery",
-        "Pediatric Dentist Consultation", "Periodontal Maintenance", "Retainer Checkup", "Root Canal",
-        "Tooth Jewelery", "Veneer(s)", "Cavities", "Crown", "Filling", "Teeth Whitening",
-        "Dental Implant(s)", "Broken Tooth", "Dental Emergency", "Routine Dental Exam",
-        "Scaling and Root Planing", "Night Guard/Occlusal Guard"
-    ];
+    var visitReasons = doctor.VisitReasons.Count > 0
+        ? doctor.VisitReasons.ToList()
+        : (string.IsNullOrWhiteSpace(doctor.Top3Procedures)
+            ? new List<string>()
+            : doctor.Top3Procedures.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList());
+    var patientReviewCount = doctor.Reviews.Count;
+    var fiveStarCount = doctor.Reviews.Count(r => r.Rating == 5);
+    var fiveStarPct = patientReviewCount > 0
+        ? (int)Math.Round(100.0 * fiveStarCount / patientReviewCount)
+        : 0;
+    var waitRatedReviews = doctor.Reviews.Where(r => !string.IsNullOrWhiteSpace(r.WaitingTime)).ToList();
+    var goodWaitCount = waitRatedReviews.Count(r =>
+        string.Equals(r.WaitingTime, "Excellent", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(r.WaitingTime, "Good", StringComparison.OrdinalIgnoreCase));
+    var goodWaitPct = waitRatedReviews.Count > 0
+        ? (int)Math.Round(100.0 * goodWaitCount / waitRatedReviews.Count)
+        : 0;
+    var serviceOffers = new List<string>();
+    if (doctor.OffersDentalImplants) serviceOffers.Add("Dental implants");
+    if (doctor.OffersTmj) serviceOffers.Add("TMJ treatment");
+    if (doctor.OffersBotox) serviceOffers.Add("Botox");
+    var websiteUrl = doctor.Website;
+    if (!string.IsNullOrWhiteSpace(websiteUrl) && !websiteUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        websiteUrl = "https://" + websiteUrl.TrimStart('/');
+    var hasHighlights = (patientReviewCount > 0 && fiveStarPct >= 80)
+        || (avgRating >= 4.5m && totalReviews > 0)
+        || (waitRatedReviews.Count > 0 && goodWaitPct >= 70)
+        || visitReasons.Count > 0
+        || doctor.AcceptedInsurances.Count > 0;
     ViewData["Title"] = $"{doctor.Name} — {doctor.Specialty} | {Branding.SiteName}";
 }
 <!DOCTYPE html>
@@ -119,6 +138,10 @@
                         @if (!string.IsNullOrWhiteSpace(doctor.PracticeName))
                         {
                             <div class="zd-hero-brand">
+                                @if (!string.IsNullOrWhiteSpace(doctor.PracticeLogoUrl))
+                                {
+                                    <img class="zd-practice-logo" src="@doctor.PracticeLogoUrl" alt="" width="32" height="32" />
+                                }
                                 <span class="zd-practice-name">@doctor.PracticeName</span>
                             </div>
                         }
@@ -187,15 +210,21 @@
                             {
                                 <p class="zd-quote">“@(featuredReview.ReviewText.Length > 140 ? featuredReview.ReviewText[..137] + "…" : featuredReview.ReviewText)”</p>
                             }
-                            <a class="zd-see-reviews" href="#reviews">See all @totalReviews reviews</a>
+                            @if (doctor.GoogleReviewCount > 0)
+                            {
+                                <span class="zd-see-reviews">@doctor.GoogleReviewCount Google Reviews</span>
+                            }
                         </div>
                     </div>
                 }
             </section>
 
             <nav class="zd-tabs" aria-label="Profile sections">
-                <a class="zd-tab is-active" href="#highlights">Highlights</a>
-                <a class="zd-tab" href="#about">About</a>
+                @if (hasHighlights)
+                {
+                    <a class="zd-tab is-active" href="#highlights">Highlights</a>
+                }
+                <a class="zd-tab@(hasHighlights ? "" : " is-active")" href="#about">About</a>
                 @if (hasGallery)
                 {
                     <a class="zd-tab" href="#gallery">Gallery</a>
@@ -206,32 +235,50 @@
                 <a class="zd-tab" href="#faqs">FAQs</a>
             </nav>
 
+            @if (hasHighlights)
+            {
             <section class="zd-section" id="highlights">
                 <ul class="zd-highlights">
-                    @if (avgRating >= 4.5m)
+                    @if (patientReviewCount > 0 && fiveStarPct >= 80)
                     {
                         <li>
                             <span class="zd-hi-ico" aria-hidden="true">🎉</span>
                             <div>
                                 <strong>Highly recommended</strong>
-                                <p>@(totalReviews > 0 ? "100%" : "Most") of patients gave this doctor 5 stars</p>
+                                <p>@fiveStarPct% of @Branding.SiteName patients gave this doctor 5 stars</p>
                             </div>
                         </li>
                     }
-                    <li>
-                        <span class="zd-hi-ico" aria-hidden="true">⏱</span>
-                        <div>
-                            <strong>Excellent wait time</strong>
-                            <p>100% of patients waited less than 30 minutes</p>
-                        </div>
-                    </li>
-                    <li>
-                        <span class="zd-hi-ico" aria-hidden="true">📅</span>
-                        <div>
-                            <strong>New patient appointments</strong>
-                            <p>Appointments available for new patients on @Branding.SiteName</p>
-                        </div>
-                    </li>
+                    else if (avgRating >= 4.5m && totalReviews > 0)
+                    {
+                        <li>
+                            <span class="zd-hi-ico" aria-hidden="true">🎉</span>
+                            <div>
+                                <strong>Highly rated</strong>
+                                <p>@avgRating.ToString("0.0") average from @totalReviews @(doctor.GoogleReviewCount > 0 ? "Google" : "patient") reviews</p>
+                            </div>
+                        </li>
+                    }
+                    @if (waitRatedReviews.Count > 0 && goodWaitPct >= 70)
+                    {
+                        <li>
+                            <span class="zd-hi-ico" aria-hidden="true">⏱</span>
+                            <div>
+                                <strong>Excellent wait time</strong>
+                                <p>@goodWaitPct% of patients rated wait time as excellent or good</p>
+                            </div>
+                        </li>
+                    }
+                    @if (visitReasons.Count > 0)
+                    {
+                        <li>
+                            <span class="zd-hi-ico" aria-hidden="true">📅</span>
+                            <div>
+                                <strong>Visit types offered</strong>
+                                <p>@string.Join(", ", visitReasons.Take(4))@(visitReasons.Count > 4 ? $" +{visitReasons.Count - 4} more" : "")</p>
+                            </div>
+                        </li>
+                    }
                     @if (doctor.AcceptedInsurances.Count > 0)
                     {
                         <li>
@@ -240,9 +287,9 @@
                                 <strong>In-network Insurances</strong>
                                 <p>
                                     @string.Join(", ", doctor.AcceptedInsurances.Take(5).Select(i => i.CarrierName))
-                                    @if (doctor.AcceptedInsurances.Count > 5 || morePlans > 0)
+                                    @if (doctor.AcceptedInsurances.Count > 5)
                                     {
-                                        <a href="#insurances">(@(Math.Max(doctor.AcceptedInsurances.Count - 5, morePlans))) more in-network plans</a>
+                                        <a href="#insurances">(+@(doctor.AcceptedInsurances.Count - 5) more)</a>
                                     }
                                 </p>
                             </div>
@@ -250,25 +297,40 @@
                     }
                 </ul>
             </section>
+            }
 
             <section class="zd-section" id="about">
                 <h2 class="zd-h2">About @doctor.Name</h2>
-                <p class="zd-body zd-about-text" id="zd-about-text">
-                    @doctor.Name is a @doctor.Specialty.ToLowerInvariant()
-                    @if (!string.IsNullOrWhiteSpace(streetCity)) { <text> practicing at @streetCity</text> }.
-                    @if (doctor.YearsOfPractice is > 0)
-                    {
-                        <text> With @doctor.YearsOfPractice years of experience, patients often highlight attentive care and a welcoming office.</text>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(doctor.Niche))
-                    {
-                        <text> @doctor.Niche</text>
-                    }
+                <div class="zd-body zd-about-text" id="zd-about-text">
                     @if (!string.IsNullOrWhiteSpace(doctor.SummaryOfReviews))
                     {
-                        <text> @doctor.SummaryOfReviews</text>
+                        <p>@doctor.SummaryOfReviews</p>
                     }
-                </p>
+                    else if (!string.IsNullOrWhiteSpace(doctor.Niche))
+                    {
+                        <p>@doctor.Niche</p>
+                    }
+                    else if (doctor.YearsOfPractice is > 0)
+                    {
+                        <p>@doctor.Name is a @doctor.Specialty.ToLowerInvariant() with @doctor.YearsOfPractice years of experience.</p>
+                    }
+                    else
+                    {
+                        <p>@doctor.Name is a @doctor.Specialty.ToLowerInvariant()@if (!string.IsNullOrWhiteSpace(streetCity)) { <text> practicing in @streetCity</text> }.</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(doctor.Top3Procedures) && doctor.VisitReasons.Count > 0)
+                    {
+                        <p><strong>Top procedures:</strong> @doctor.Top3Procedures</p>
+                    }
+                    @if (serviceOffers.Count > 0)
+                    {
+                        <p><strong>Services offered:</strong> @string.Join(" · ", serviceOffers)</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(websiteUrl))
+                    {
+                        <p><a class="zd-text-link" href="@websiteUrl" target="_blank" rel="noopener noreferrer">Visit practice website</a></p>
+                    }
+                </div>
                 <button type="button" class="zd-text-btn" id="zd-about-toggle" hidden>show more</button>
 
                 @if (hasVideos)
@@ -407,11 +469,11 @@
 
             <section class="zd-section" id="insurances">
                 <h2 class="zd-h2">Is this doctor in your insurance network?</h2>
-                <p class="zd-label-muted">Enter your insurance carrier and plan</p>
+                <p class="zd-label-muted">Select your insurance carrier, then choose a plan if listed.</p>
                 <div class="zd-ins-field" id="zd-ins-field">
                     <span class="zd-ins-check" id="zd-ins-check" hidden>✓</span>
                     <select id="pp-insurance-carrier" class="zd-ins-select" aria-label="Insurance carrier">
-                        <option value="">Select insurance carrier and plan</option>
+                        <option value="">Select insurance carrier</option>
                         <option value="none">I'm paying without insurance</option>
                         @foreach (var carrier in Model.InsuranceCatalog)
                         {
@@ -419,17 +481,18 @@
                         }
                     </select>
                     <select id="pp-insurance-plan" class="zd-ins-select zd-ins-plan" aria-label="Insurance plan" disabled>
-                        <option value="">Add plan</option>
+                        <option value="">Select plan</option>
                     </select>
                 </div>
                 <p class="zd-in-network" id="pp-network-status" hidden>This dentist is in-network</p>
+                <p class="zd-out-network" id="pp-network-status-out" hidden>This dentist may be out-of-network for this carrier. Call the office to confirm.</p>
+                <p class="zd-muted zd-ins-hint" id="pp-insurance-hint" hidden>No plan list is on file for this carrier. You can still confirm coverage by calling the office.</p>
 
                 <h2 class="zd-h2 zd-h2-spaced">In-network insurances</h2>
                 @if (doctor.AcceptedInsurances.Count > 0)
                 {
-                    <p class="zd-social-proof">99% of patients have successfully booked with these insurances</p>
                     <div class="zd-ins-grid">
-                        @foreach (var ins in doctor.AcceptedInsurances.Take(6))
+                        @foreach (var ins in doctor.AcceptedInsurances)
                         {
                             <div class="zd-ins-item">
                                 <span class="zd-ins-logo" aria-hidden="true">@ins.CarrierName.Substring(0, 1)</span>
@@ -437,10 +500,6 @@
                             </div>
                         }
                     </div>
-                    @if (doctor.AcceptedInsurances.Count > 6 || planCount > 6)
-                    {
-                        <p class="zd-more-plans">+@Math.Max(planCount - 6, doctor.AcceptedInsurances.Count - 6) more in-network plans <a href="#insurances">View All</a></p>
-                    }
                 }
                 else
                 {
@@ -448,27 +507,33 @@
                 }
             </section>
 
+            @if (visitReasons.Count > 0)
+            {
             <section class="zd-section" id="reasons">
-                <h2 class="zd-h2">Popular visit reasons</h2>
+                <h2 class="zd-h2">@(doctor.VisitReasons.Count > 0 ? "Visit types offered" : "Top procedures")</h2>
                 <div class="zd-reasons" id="zd-reasons">
-                    @for (var i = 0; i < popularReasons.Length; i++)
+                    @for (var i = 0; i < visitReasons.Count; i++)
                     {
                         if (i >= 8)
                         {
-                            <div class="zd-reason is-extra" hidden>
-                                <span aria-hidden="true">✓</span> @popularReasons[i]
+                            <div class="zd-reason zd-reason-extra">
+                                <span aria-hidden="true">✓</span> @visitReasons[i]
                             </div>
                         }
                         else
                         {
                             <div class="zd-reason">
-                                <span aria-hidden="true">✓</span> @popularReasons[i]
+                                <span aria-hidden="true">✓</span> @visitReasons[i]
                             </div>
                         }
                     }
                 </div>
-                <button type="button" class="zd-text-link" id="zd-reasons-more">See @(popularReasons.Length - 8)+ more popular visit reasons</button>
+                @if (visitReasons.Count > 8)
+                {
+                    <button type="button" class="zd-text-link" id="zd-reasons-more">See @(visitReasons.Count - 8)+ more visit types</button>
+                }
             </section>
+            }
 
             <section class="zd-section" id="location">
                 <h2 class="zd-h2">Office location</h2>
@@ -593,6 +658,14 @@
                                 </div>
                             </div>
                             <p>“@review.ReviewText”</p>
+                            @if (!string.IsNullOrWhiteSpace(review.WaitingTime))
+                            {
+                                <p class="zd-muted zd-review-meta">Wait time: @review.WaitingTime</p>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(review.Recommendation))
+                            {
+                                <p class="zd-muted zd-review-meta">@review.Recommendation</p>
+                            }
                             @if (!string.IsNullOrWhiteSpace(review.PhotoUrl))
                             {
                                 <button type="button" class="zd-review-photo zd-lightbox-trigger"
@@ -609,9 +682,39 @@
 
             <section class="zd-section" id="faqs">
                 <h2 class="zd-h2">FAQs</h2>
-                <details class="zd-faq"><summary>Is @doctor.Name accepting new patients?</summary><p>Yes — new patient appointments are available. Call the office to schedule.</p></details>
-                <details class="zd-faq"><summary>What insurances does this office accept?</summary><p>See the Insurances section above, or call the office to confirm your plan is in-network.</p></details>
-                <details class="zd-faq"><summary>How do I book an appointment?</summary><p>Online booking is coming soon. For now, call the office directly using the number on this page to schedule for free.</p></details>
+                <details class="zd-faq">
+                    <summary>Is @doctor.Name accepting new patients?</summary>
+                    @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                    {
+                        <p>Contact the office at <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to confirm new patient availability.</p>
+                    }
+                    else
+                    {
+                        <p>Please contact the office to confirm whether new patients are being accepted.</p>
+                    }
+                </details>
+                <details class="zd-faq">
+                    <summary>What insurances does this office accept?</summary>
+                    @if (doctor.AcceptedInsurances.Count > 0)
+                    {
+                        <p>This office accepts @string.Join(", ", doctor.AcceptedInsurances.Take(6).Select(i => i.CarrierName))@(doctor.AcceptedInsurances.Count > 6 ? $" and {doctor.AcceptedInsurances.Count - 6} more" : ""). See the Insurances section above for details, or call the office to confirm your plan.</p>
+                    }
+                    else
+                    {
+                        <p>Insurance details are not published yet. Please call the office to confirm coverage.</p>
+                    }
+                </details>
+                <details class="zd-faq">
+                    <summary>How do I book an appointment?</summary>
+                    @if (!string.IsNullOrWhiteSpace(doctor.OfficePhoneNumber))
+                    {
+                        <p>Call the office at <a href="tel:@RegexPhone(doctor.OfficePhoneNumber)">@doctor.OfficePhoneNumber</a> to schedule.</p>
+                    }
+                    else
+                    {
+                        <p>Phone number is not listed yet. Check back shortly for contact details.</p>
+                    }
+                </details>
             </section>
         </div>
 
@@ -766,6 +869,9 @@
 (function () {
   const doctorId = @doctor.Id;
   const acceptedCarrierIds = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(doctor.AcceptedInsuranceCarrierIds));
+  const acceptedInsurances = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+    doctor.AcceptedInsurances,
+    new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
   const insuranceCatalog = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
     Model.InsuranceCatalog,
     new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase }));
@@ -794,6 +900,8 @@
   const carrierSelectBook = document.getElementById("pp-insurance-carrier-book");
   const planSelectBook = document.getElementById("pp-insurance-plan-book");
   const networkStatus = document.getElementById("pp-network-status");
+  const networkStatusOut = document.getElementById("pp-network-status-out");
+  const insuranceHint = document.getElementById("pp-insurance-hint");
   const bookInsStatus = document.getElementById("zd-book-ins-status");
   const pillText = document.getElementById("zd-ins-pill-text");
   const pillCheck = document.getElementById("zd-ins-pill-check");
@@ -810,13 +918,31 @@
   const dialogAppts = document.getElementById("zd-dialog-appts");
   const dialogMore = document.getElementById("zd-dialog-more");
 
+  function getPlansForCarrier(carrierId) {
+    if (!carrierId || carrierId === "none") return [];
+    const fromDoctor = acceptedInsurances.find(i => String(i.carrierId) === String(carrierId));
+    const doctorPlans = (fromDoctor?.plans || []).map(name => ({ name }));
+    const carrier = insuranceCatalog.find(c => String(c.id) === String(carrierId));
+    const catalogPlans = carrier?.plans || [];
+    const seen = new Set();
+    const merged = [];
+    [...doctorPlans, ...catalogPlans].forEach(p => {
+      const key = String(p.name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      merged.push({ name: p.name });
+    });
+    return merged;
+  }
+
   function fillPlans(select, carrierId, selectedPlan) {
     if (!select) return;
-    const carrier = insuranceCatalog.find(c => String(c.id) === String(carrierId));
-    select.innerHTML = '<option value=\"\">Add plan</option>';
-    select.disabled = true;
-    if (!carrierId || carrierId === "none" || !carrier) return;
-    const plans = carrier.plans || [];
+    const plans = getPlansForCarrier(carrierId);
+    select.innerHTML = "";
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = plans.length ? "Select plan (optional)" : "No plans on file";
+    select.appendChild(empty);
     plans.forEach(p => {
       const opt = document.createElement("option");
       opt.value = p.name;
@@ -824,7 +950,10 @@
       if (selectedPlan && selectedPlan === p.name) opt.selected = true;
       select.appendChild(opt);
     });
-    select.disabled = plans.length === 0;
+    select.disabled = !carrierId || carrierId === "none" || plans.length === 0;
+    if (insuranceHint) {
+      insuranceHint.hidden = !carrierId || carrierId === "none" || plans.length > 0;
+    }
   }
 
   function setCarrierValue(value, source) {
@@ -864,6 +993,8 @@
       if (pillText) pillText.innerHTML = label;
       if (dialogInsText) dialogInsText.textContent = label;
       if (networkStatus) networkStatus.hidden = true;
+      if (networkStatusOut) networkStatusOut.hidden = true;
+      if (insuranceHint) insuranceHint.hidden = true;
       if (bookInsStatus) bookInsStatus.hidden = true;
       if (dialogNetwork) dialogNetwork.hidden = true;
       return;
@@ -886,6 +1017,7 @@
     if (insCheck) insCheck.hidden = !accepted;
     if (dialogInsCheck) dialogInsCheck.hidden = !accepted;
     if (networkStatus) networkStatus.hidden = !accepted;
+    if (networkStatusOut) networkStatusOut.hidden = accepted;
     if (bookInsStatus) bookInsStatus.hidden = !accepted;
     if (dialogNetwork) dialogNetwork.hidden = !accepted;
     if (accepted) {
@@ -925,9 +1057,8 @@
 
   document.getElementById("zd-dialog-ins-btn")?.addEventListener("click", () => {
     bookDialog?.close();
-    if (insPicker) insPicker.hidden = false;
-    carrierSelectBook?.focus();
-    document.getElementById("pp-booking")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById("insurances")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    carrierSelect?.focus();
   });
 
   function syncReason(from, to) {
@@ -1114,7 +1245,7 @@
   };
 
   document.getElementById("zd-reasons-more")?.addEventListener("click", function () {
-    document.querySelectorAll(".zd-reason.is-extra").forEach(el => { el.hidden = false; });
+    document.getElementById("zd-reasons")?.classList.add("is-expanded");
     this.hidden = true;
   });
 

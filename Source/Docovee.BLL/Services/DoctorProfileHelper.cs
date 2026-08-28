@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Docovee.BLL.Data;
 using Docovee.DS.Models;
 
 namespace Docovee.BLL.Services;
@@ -473,5 +474,34 @@ public static class DoctorProfileHelper
         }
 
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    /// <summary>Display names for visit types this practice accepts (from doctor visit-reason preferences).</summary>
+    public static IReadOnlyList<string> GetPublicVisitReasonNames(string? onboardingProfileJson)
+    {
+        var saved = ExtractVisitReasonPreferences(onboardingProfileJson)
+            .ToDictionary(c => c.Key, StringComparer.OrdinalIgnoreCase);
+
+        var names = new List<string>();
+        foreach (var def in DentalVisitReasonCatalog.Categories)
+        {
+            saved.TryGetValue(def.Key, out var pref);
+            var enabled = pref?.Enabled ?? def.DefaultEnabled;
+            if (!enabled)
+                continue;
+
+            var popularSelected = pref?.PopularSelectedKeys;
+            if (popularSelected == null || popularSelected.Count == 0)
+                popularSelected = def.PopularItems.Select(p => p.Key).ToList();
+
+            var selectedSet = popularSelected.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in def.PopularItems)
+            {
+                if (selectedSet.Contains(item.Key))
+                    names.Add(item.Name);
+            }
+        }
+
+        return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 }
