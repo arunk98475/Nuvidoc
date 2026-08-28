@@ -26,17 +26,44 @@
             <div class="alert-error">@Model.ErrorMessage</div>
         }
 
-        <form method="post">
-            <div class="form-group" style="margin-bottom:14px;">
-                <label asp-for="Input.Username">Username</label>
-                <input asp-for="Input.Username" class="form-control" autocomplete="username" />
-            </div>
-            <div class="form-group" style="margin-bottom:20px;">
-                <label asp-for="Input.Password">Password</label>
-                <input asp-for="Input.Password" type="password" class="form-control" autocomplete="current-password" />
-            </div>
-            <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
-        </form>
+        @if (!string.IsNullOrEmpty(Model.InfoMessage))
+        {
+            <div class="alert-success">@Model.InfoMessage</div>
+        }
+
+        @if (Model.ShowOtpStep)
+        {
+            <form method="post" asp-page-handler="VerifyOtp">
+                <input type="hidden" asp-for="OtpSessionToken" />
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label asp-for="OtpCode">Verification code</label>
+                    <input asp-for="OtpCode" class="form-control" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" />
+                    <p class="form-hint" style="margin-top:8px;font-size:13px;color:#666;">Enter the 6-digit code we sent to your configured admin email and/or phone.</p>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-bottom:10px;">Verify and sign in</button>
+            </form>
+            <form method="post" asp-page-handler="ResendOtp" style="margin-bottom:16px;">
+                <input type="hidden" asp-for="OtpSessionToken" />
+                <button type="submit" class="btn btn-secondary" style="width:100%;">Resend code</button>
+            </form>
+            <p style="font-size:13px;color:#666;text-align:center;">
+                <a href="/Account/Admin">Start over</a>
+            </p>
+        }
+        else
+        {
+            <form method="post">
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label asp-for="Input.Username">Username</label>
+                    <input asp-for="Input.Username" class="form-control" autocomplete="username" />
+                </div>
+                <div class="form-group" style="margin-bottom:20px;">
+                    <label asp-for="Input.Password">Password</label>
+                    <input asp-for="Input.Password" type="password" class="form-control" autocomplete="current-password" />
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Sign In</button>
+            </form>
+        }
     </div>
 </body>
 </html>

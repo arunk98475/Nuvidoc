@@ -17,7 +17,15 @@ public class LoginModel : PageModel
     [BindProperty]
     public AdminLoginRequest Input { get; set; } = new();
 
+    [BindProperty]
+    public string? OtpCode { get; set; }
+
+    [BindProperty]
+    public string? OtpSessionToken { get; set; }
+
     public string? ErrorMessage { get; set; }
+    public string? InfoMessage { get; set; }
+    public bool ShowOtpStep { get; set; }
 
     public IActionResult OnGet()
     {
@@ -29,19 +37,51 @@ public class LoginModel : PageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        if (string.IsNullOrWhiteSpace(Input.Username) || string.IsNullOrWhiteSpace(Input.Password))
+        var result = await _adminAuth.StartLoginAsync(Input, HttpContext);
+        if (!result.Success)
         {
-            ErrorMessage = "Username and password are required.";
+            ErrorMessage = result.Error;
             return Page();
         }
 
-        var success = await _adminAuth.LoginAsync(Input, HttpContext);
-        if (!success)
+        if (result.RequiresOtp)
         {
-            ErrorMessage = "Invalid username or password.";
+            ShowOtpStep = true;
+            OtpSessionToken = result.OtpSessionToken;
+            InfoMessage = result.OtpMessage;
             return Page();
         }
 
         return RedirectToPage("/Admin/Dashboard/Index");
+    }
+
+    [EnableRateLimiting("phoneVerify")]
+    public async Task<IActionResult> OnPostVerifyOtpAsync()
+    {
+        ShowOtpStep = true;
+        var result = await _adminAuth.CompleteLoginAsync(OtpSessionToken ?? "", OtpCode ?? "", HttpContext);
+        if (!result.Success)
+        {
+            ErrorMessage = result.Error;
+            return Page();
+        }
+
+        return RedirectToPage("/Admin/Dashboard/Index");
+    }
+
+    [EnableRateLimiting("phoneVerify")]
+    public async Task<IActionResult> OnPostResendOtpAsync()
+    {
+        ShowOtpStep = true;
+        var result = await _adminAuth.ResendOtpAsync(OtpSessionToken ?? "");
+        if (!result.Success)
+        {
+            ErrorMessage = result.Error;
+            return Page();
+        }
+
+        OtpSessionToken = result.OtpSessionToken;
+        InfoMessage = result.OtpMessage;
+        return Page();
     }
 }

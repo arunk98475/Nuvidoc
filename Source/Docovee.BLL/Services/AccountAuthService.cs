@@ -209,40 +209,12 @@ public class AccountAuthService : IAccountAuthService
         return (true, null);
     }
 
-    private async Task<(bool Success, string? Error)> LoginAdminAsync(
+    private Task<(bool Success, string? Error)> LoginAdminAsync(
         AccountLoginRequest request,
         HttpContext httpContext,
-        CancellationToken cancellationToken)
-    {
-        if (TryLockout(AuthRoles.Admin, request.Username, out var lockoutError))
-        {
-            await LogAuthFailureAsync(httpContext, AuthRoles.Admin, request.Username, "Account locked out.", cancellationToken);
-            return (false, lockoutError);
-        }
-
-        var admin = await _db.Admins
-            .FirstOrDefaultAsync(a => a.Username == request.Username, cancellationToken);
-
-        if (admin == null)
-        {
-            _lockout.RecordFailure(AuthRoles.Admin, request.Username);
-            await LogAuthFailureAsync(httpContext, AuthRoles.Admin, request.Username, "Invalid username or password.", cancellationToken);
-            return (false, "Invalid username or password.");
-        }
-
-        if (_adminHasher.VerifyHashedPassword(admin, admin.PasswordHash, request.Password) == PasswordVerificationResult.Failed)
-        {
-            _lockout.RecordFailure(AuthRoles.Admin, request.Username);
-            await LogAuthFailureAsync(httpContext, AuthRoles.Admin, request.Username, "Invalid username or password.", cancellationToken);
-            return (false, LockedMessageOrInvalid(AuthRoles.Admin, request.Username));
-        }
-
-        _lockout.Reset(AuthRoles.Admin, request.Username);
-        await SignInAsync(httpContext, admin.Username, AuthRoles.Admin, admin.Id);
-        await LogAuthSuccessAsync(httpContext, AuthRoles.Admin, admin.Id.ToString(), admin.Username, cancellationToken);
-        _logger.LogInformation("Admin logged in");
-        return (true, null);
-    }
+        CancellationToken cancellationToken) =>
+        Task.FromResult<(bool Success, string? Error)>(
+            (false, "Admin sign-in requires the admin login page at /Account/Admin."));
 
     private bool TryLockout(string role, string username, out string error)
     {

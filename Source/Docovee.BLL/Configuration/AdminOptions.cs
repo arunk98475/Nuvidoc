@@ -5,6 +5,26 @@ public class AdminOptions
     public const string SectionName = "Admin";
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string SMS { get; set; } = string.Empty;
+    public string WhatsApp { get; set; } = string.Empty;
+
+    /// <summary>Legacy appsettings key; used when <see cref="SMS"/> is empty.</summary>
+    public string PhoneNumber { get; set; } = string.Empty;
+
+    /// <summary>Legacy appsettings key; used when <see cref="WhatsApp"/> is empty.</summary>
+    public string WhatsAppNumber { get; set; } = string.Empty;
+
+    public string ResolvedSms =>
+        string.IsNullOrWhiteSpace(SMS) ? PhoneNumber.Trim() : SMS.Trim();
+
+    public string ResolvedWhatsApp =>
+        string.IsNullOrWhiteSpace(WhatsApp) ? WhatsAppNumber.Trim() : WhatsApp.Trim();
+
+    public bool RequiresOtp =>
+        !string.IsNullOrWhiteSpace(Email)
+        || !string.IsNullOrWhiteSpace(ResolvedSms)
+        || !string.IsNullOrWhiteSpace(ResolvedWhatsApp);
 }
 
 public static class AppSettingKeys
