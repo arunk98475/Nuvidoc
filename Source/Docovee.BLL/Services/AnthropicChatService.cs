@@ -69,6 +69,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly TwilioOptions _twilioOptions;
     private readonly IAuditTrailService _audit;
     private readonly IDoctorCallingEligibilityService _callingEligibility;
+    private readonly INuviSignupOtpService _nuviSignupOtp;
     private static readonly AsyncLocal<HashSet<int>?> ChatHistoryAuditedSessions = new();
 
     public AnthropicChatService(
@@ -96,7 +97,8 @@ public class AnthropicChatService : IAnthropicChatService
         IAppSettingsService appSettings,
         IOptions<TwilioOptions> twilioOptions,
         IAuditTrailService audit,
-        IDoctorCallingEligibilityService callingEligibility)
+        IDoctorCallingEligibilityService callingEligibility,
+        INuviSignupOtpService nuviSignupOtp)
     {
         _httpClient = httpClient;
         _db = db;
@@ -123,6 +125,7 @@ public class AnthropicChatService : IAnthropicChatService
         _twilioOptions = twilioOptions.Value;
         _audit = audit;
         _callingEligibility = callingEligibility;
+        _nuviSignupOtp = nuviSignupOtp;
     }
 
     private string TriageSystemPrompt => $"""
@@ -1268,10 +1271,15 @@ public class AnthropicChatService : IAnthropicChatService
                     return BuildResponse(session, context, loginText, stage: NuviConversationStage.AccountCreation, usePasswordInput: true);
                 }
 
-                context.AccountStep = AccountCreationStep.Phone;
-                await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPhoneQuestion, cancellationToken);
-                return BuildResponse(session, context, NuviFlowContent.AccountPhoneQuestion, stage: NuviConversationStage.AccountCreation);
+                var verificationSettings = await _appSettings.GetPatientNuviVerificationSettingsAsync(cancellationToken);
+                if (verificationSettings.EnableEmailVerification)
+                    return await BeginEmailOtpAsync(session, context, cancellationToken);
+
+                return await ContinueAfterEmailVerifiedAsync(session, context, cancellationToken);
             }
+
+            case AccountCreationStep.EmailOtp:
+                return await HandleEmailOtpAsync(session, context, answer, cancellationToken);
 
             case AccountCreationStep.LoginPassword:
                 if (httpContext == null)
@@ -1321,10 +1329,15 @@ public class AnthropicChatService : IAnthropicChatService
                 }
 
                 context.PendingPhone = phone;
-                context.AccountStep = AccountCreationStep.DateOfBirth;
-                await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthQuestion, cancellationToken);
-                return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthQuestion, stage: NuviConversationStage.AccountCreation);
+                var phoneVerificationSettings = await _appSettings.GetPatientNuviVerificationSettingsAsync(cancellationToken);
+                if (phoneVerificationSettings.EnablePhoneVerification)
+                    return await BeginPhoneOtpAsync(session, context, PhoneVerificationChannels.Sms, cancellationToken);
+
+                return await ContinueAfterPhoneVerifiedAsync(session, context, cancellationToken);
             }
+
+            case AccountCreationStep.PhoneOtp:
+                return await HandlePhoneOtpAsync(session, context, answer, cancellationToken);
 
             case AccountCreationStep.DateOfBirth:
             {
@@ -1375,7 +1388,9 @@ public class AnthropicChatService : IAnthropicChatService
                     Email = context.PendingEmail,
                     Phone = context.PendingPhone ?? "",
                     Username = context.PendingEmail ?? "",
-                    Password = context.PendingPassword!
+                    Password = context.PendingPassword!,
+                    EmailVerified = context.EmailVerifiedInSignup,
+                    PhoneVerified = context.PhoneVerifiedInSignup
                 }, cancellationToken);
 
                 if (!registerResult.Success)
@@ -1399,6 +1414,221 @@ public class AnthropicChatService : IAnthropicChatService
             default:
                 return BuildResponse(session, context, "Let's continue — what's your name?", stage: NuviConversationStage.AccountCreation);
         }
+    }
+
+    private async Task<ChatMessageResponse> BeginEmailOtpAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        ClearEmailOtpState(context);
+        var send = await _nuviSignupOtp.SendEmailOtpAsync(context.PendingEmail!, cancellationToken);
+        if (!send.Success)
+        {
+            context.AccountStep = AccountCreationStep.Email;
+            context.PendingEmail = null;
+            context.PendingUsername = null;
+            var failText = NuviFlowContent.AccountEmailOtpSendFailedMessage;
+            await SaveAssistantMessageAsync(session, failText, cancellationToken);
+            return BuildResponse(session, context, failText, stage: NuviConversationStage.AccountCreation);
+        }
+
+        context.PendingEmailOtpHash = send.CodeHash;
+        context.PendingEmailOtpExpiresAtUtc = send.ExpiresAtUtc;
+        context.AccountStep = AccountCreationStep.EmailOtp;
+        var text = NuviFlowContent.AccountEmailOtpQuestion;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation,
+            options: NuviFlowContent.AccountEmailOtpOptions, optionsOnly: false);
+    }
+
+    private async Task<ChatMessageResponse> HandleEmailOtpAsync(
+        SearchSession session, SearchContextData context, string answer, CancellationToken cancellationToken)
+    {
+        if (MatchesOption(NuviFlowContent.AccountEmailOtpOptions, answer)
+            && answer.Equals("Quit", StringComparison.OrdinalIgnoreCase))
+            return await QuitAccountVerificationAsync(session, context, cancellationToken);
+
+        if (MatchesOption(NuviFlowContent.AccountEmailOtpOptions, answer)
+            && answer.Equals("Change Email Address", StringComparison.OrdinalIgnoreCase))
+        {
+            ClearEmailOtpState(context);
+            context.PendingEmail = null;
+            context.PendingUsername = null;
+            context.EmailVerifiedInSignup = false;
+            context.AccountStep = AccountCreationStep.Email;
+            var changeText = NuviFlowContent.AccountEmailRequiredMessage;
+            await SaveAssistantMessageAsync(session, changeText, cancellationToken);
+            return BuildResponse(session, context, changeText, stage: NuviConversationStage.AccountCreation);
+        }
+
+        if (context.PendingEmailOtpExpiresAtUtc.HasValue
+            && context.PendingEmailOtpExpiresAtUtc.Value < DateTime.UtcNow)
+        {
+            ClearEmailOtpState(context);
+            var send = await _nuviSignupOtp.SendEmailOtpAsync(context.PendingEmail!, cancellationToken);
+            if (!send.Success)
+            {
+                context.AccountStep = AccountCreationStep.Email;
+                context.PendingEmail = null;
+                context.PendingUsername = null;
+                var failText = NuviFlowContent.AccountEmailOtpSendFailedMessage;
+                await SaveAssistantMessageAsync(session, failText, cancellationToken);
+                return BuildResponse(session, context, failText, stage: NuviConversationStage.AccountCreation);
+            }
+
+            context.PendingEmailOtpHash = send.CodeHash;
+            context.PendingEmailOtpExpiresAtUtc = send.ExpiresAtUtc;
+            context.AccountStep = AccountCreationStep.EmailOtp;
+            var expiredText = NuviFlowContent.AccountOtpExpiredMessage;
+            await SaveAssistantMessageAsync(session, expiredText, cancellationToken);
+            return BuildResponse(session, context, expiredText, stage: NuviConversationStage.AccountCreation,
+                options: NuviFlowContent.AccountEmailOtpOptions, optionsOnly: false);
+        }
+
+        if (!_nuviSignupOtp.VerifyCode(answer, context.PendingEmailOtpHash, context.PendingEmailOtpExpiresAtUtc))
+        {
+            var invalid = NuviFlowContent.AccountEmailOtpInvalidMessage;
+            await SaveAssistantMessageAsync(session, invalid, cancellationToken);
+            return BuildResponse(session, context, invalid, stage: NuviConversationStage.AccountCreation,
+                options: NuviFlowContent.AccountEmailOtpOptions, optionsOnly: false);
+        }
+
+        ClearEmailOtpState(context);
+        context.EmailVerifiedInSignup = true;
+        return await ContinueAfterEmailVerifiedAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> ContinueAfterEmailVerifiedAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.AccountStep = AccountCreationStep.Phone;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.AccountPhoneQuestion, cancellationToken);
+        return BuildResponse(session, context, NuviFlowContent.AccountPhoneQuestion, stage: NuviConversationStage.AccountCreation);
+    }
+
+    private async Task<ChatMessageResponse> BeginPhoneOtpAsync(
+        SearchSession session,
+        SearchContextData context,
+        string channel,
+        CancellationToken cancellationToken)
+    {
+        ClearPhoneOtpState(context);
+        var send = await _nuviSignupOtp.SendPhoneOtpAsync(context.PendingPhone!, channel, cancellationToken);
+        if (!send.Success)
+        {
+            context.AccountStep = AccountCreationStep.Phone;
+            context.PendingPhone = null;
+            var failText = NuviFlowContent.AccountPhoneOtpSendFailedMessage;
+            await SaveAssistantMessageAsync(session, failText, cancellationToken);
+            return BuildResponse(session, context, failText, stage: NuviConversationStage.AccountCreation);
+        }
+
+        context.PendingPhoneOtpHash = send.CodeHash;
+        context.PendingPhoneOtpExpiresAtUtc = send.ExpiresAtUtc;
+        context.AccountStep = AccountCreationStep.PhoneOtp;
+        var text = NuviFlowContent.AccountPhoneOtpQuestion;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation,
+            options: NuviFlowContent.AccountPhoneOtpOptions, optionsOnly: false);
+    }
+
+    private async Task<ChatMessageResponse> HandlePhoneOtpAsync(
+        SearchSession session, SearchContextData context, string answer, CancellationToken cancellationToken)
+    {
+        if (MatchesOption(NuviFlowContent.AccountPhoneOtpOptions, answer)
+            && answer.Equals("Quit", StringComparison.OrdinalIgnoreCase))
+            return await QuitAccountVerificationAsync(session, context, cancellationToken);
+
+        if (MatchesOption(NuviFlowContent.AccountPhoneOtpOptions, answer)
+            && answer.Equals("Change Phone number", StringComparison.OrdinalIgnoreCase))
+        {
+            ClearPhoneOtpState(context);
+            context.PendingPhone = null;
+            context.PhoneVerifiedInSignup = false;
+            context.AccountStep = AccountCreationStep.Phone;
+            var changeText = NuviFlowContent.AccountPhoneQuestion;
+            await SaveAssistantMessageAsync(session, changeText, cancellationToken);
+            return BuildResponse(session, context, changeText, stage: NuviConversationStage.AccountCreation);
+        }
+
+        if (MatchesOption(NuviFlowContent.AccountPhoneOtpOptions, answer)
+            && answer.Equals("WhatsApp Me Otp", StringComparison.OrdinalIgnoreCase))
+        {
+            return await BeginPhoneOtpAsync(session, context, PhoneVerificationChannels.WhatsApp, cancellationToken);
+        }
+
+        if (context.PendingPhoneOtpExpiresAtUtc.HasValue
+            && context.PendingPhoneOtpExpiresAtUtc.Value < DateTime.UtcNow)
+        {
+            ClearPhoneOtpState(context);
+            var send = await _nuviSignupOtp.SendPhoneOtpAsync(
+                context.PendingPhone!, PhoneVerificationChannels.Sms, cancellationToken);
+            if (!send.Success)
+            {
+                context.AccountStep = AccountCreationStep.Phone;
+                context.PendingPhone = null;
+                var failText = NuviFlowContent.AccountPhoneOtpSendFailedMessage;
+                await SaveAssistantMessageAsync(session, failText, cancellationToken);
+                return BuildResponse(session, context, failText, stage: NuviConversationStage.AccountCreation);
+            }
+
+            context.PendingPhoneOtpHash = send.CodeHash;
+            context.PendingPhoneOtpExpiresAtUtc = send.ExpiresAtUtc;
+            context.AccountStep = AccountCreationStep.PhoneOtp;
+            var expiredText = NuviFlowContent.AccountOtpExpiredMessage;
+            await SaveAssistantMessageAsync(session, expiredText, cancellationToken);
+            return BuildResponse(session, context, expiredText, stage: NuviConversationStage.AccountCreation,
+                options: NuviFlowContent.AccountPhoneOtpOptions, optionsOnly: false);
+        }
+
+        if (!_nuviSignupOtp.VerifyCode(answer, context.PendingPhoneOtpHash, context.PendingPhoneOtpExpiresAtUtc))
+        {
+            var invalid = NuviFlowContent.AccountPhoneOtpInvalidMessage;
+            await SaveAssistantMessageAsync(session, invalid, cancellationToken);
+            return BuildResponse(session, context, invalid, stage: NuviConversationStage.AccountCreation,
+                options: NuviFlowContent.AccountPhoneOtpOptions, optionsOnly: false);
+        }
+
+        ClearPhoneOtpState(context);
+        context.PhoneVerifiedInSignup = true;
+        return await ContinueAfterPhoneVerifiedAsync(session, context, cancellationToken);
+    }
+
+    private async Task<ChatMessageResponse> ContinueAfterPhoneVerifiedAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.AccountStep = AccountCreationStep.DateOfBirth;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.AccountDateOfBirthQuestion, cancellationToken);
+        return BuildResponse(session, context, NuviFlowContent.AccountDateOfBirthQuestion, stage: NuviConversationStage.AccountCreation);
+    }
+
+    private async Task<ChatMessageResponse> QuitAccountVerificationAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        ClearEmailOtpState(context);
+        ClearPhoneOtpState(context);
+        context.PendingEmail = null;
+        context.PendingUsername = null;
+        context.PendingPhone = null;
+        context.PendingPassword = null;
+        context.EmailVerifiedInSignup = false;
+        context.PhoneVerifiedInSignup = false;
+        context.IsExistingAccountLogin = false;
+        context.AccountStep = AccountCreationStep.Name;
+        var text = NuviFlowContent.AccountVerificationQuitMessage;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(session, context, text, stage: NuviConversationStage.AccountCreation);
+    }
+
+    private static void ClearEmailOtpState(SearchContextData context)
+    {
+        context.PendingEmailOtpHash = null;
+        context.PendingEmailOtpExpiresAtUtc = null;
+    }
+
+    private static void ClearPhoneOtpState(SearchContextData context)
+    {
+        context.PendingPhoneOtpHash = null;
+        context.PendingPhoneOtpExpiresAtUtc = null;
     }
 
     private async Task<ChatMessageResponse> BeginPostAccountFlowAsync(

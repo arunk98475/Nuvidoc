@@ -78,4 +78,9 @@ public static class AppSettingKeys
     public const string PatientAutoCloseInactiveMonths = "PatientAutoCloseInactiveMonths";
     public const string PatientAutoDeleteClosedEnabled = "PatientAutoDeleteClosedEnabled";
     public const string PatientAutoDeleteClosedMonths = "PatientAutoDeleteClosedMonths";
+
+    /// <summary>When true, Nuvi sends an email OTP during new-patient signup after email is entered.</summary>
+    public const string EnableNuviEmailVerificationForNewPatients = "EnableNuviEmailVerificationForNewPatients";
+    /// <summary>When true, Nuvi sends an SMS OTP during new-patient signup after phone is entered.</summary>
+    public const string EnableNuviPhoneVerificationForNewPatients = "EnableNuviPhoneVerificationForNewPatients";
 }

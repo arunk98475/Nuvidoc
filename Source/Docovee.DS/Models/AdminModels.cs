@@ -88,6 +88,13 @@ public class PatientAccountLifecycleSettings
     public int AutoDeleteClosedMonths { get; set; } = 3;
 }
 
+/// <summary>Admin settings for Nuvi chat OTP verification during new-patient signup.</summary>
+public class PatientNuviVerificationSettings
+{
+    public bool EnableEmailVerification { get; set; }
+    public bool EnablePhoneVerification { get; set; }
+}
+
 public class SiteSettingsModel
 {
     public int DoctorSearchResultCount { get; set; } = 10;

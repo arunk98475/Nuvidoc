@@ -451,6 +451,16 @@ body.pl-open {
   text-decoration: none;
 }
 
+.pl-social-btn.disabled,
+.pl-social-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  background: #f5f5f5;
+  border-color: #bbb;
+  color: #666;
+}
+
 .pl-social-icon {
   position: absolute;
   left: 14px;
