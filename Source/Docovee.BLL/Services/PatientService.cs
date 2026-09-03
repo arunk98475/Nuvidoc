@@ -65,7 +65,9 @@ public class PatientService : IPatientService
             Username = username,
             FullName = request.FullName,
             DateOfBirth = request.DateOfBirth.Value,
-            Phone = phone
+            Phone = phone,
+            EmailVerified = request.EmailVerified,
+            PhoneVerified = request.PhoneVerified
         };
         patient.PasswordHash = _passwordHasher.HashPassword(patient, request.Password);
 

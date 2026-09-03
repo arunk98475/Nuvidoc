@@ -61,7 +61,9 @@ public enum AccountCreationStep
 {
     Name,
     Email,
+    EmailOtp,
     Phone,
+    PhoneOtp,
     DateOfBirth,
     Password,
     ConfirmPassword,
@@ -105,6 +107,14 @@ public class SearchContextData
     public string? PendingEmail { get; set; }
     public string? PendingPhone { get; set; }
     public string? PendingPassword { get; set; }
+    /// <summary>SHA-256 hex hash of the email OTP pending during Nuvi signup.</summary>
+    public string? PendingEmailOtpHash { get; set; }
+    public DateTime? PendingEmailOtpExpiresAtUtc { get; set; }
+    public bool EmailVerifiedInSignup { get; set; }
+    /// <summary>SHA-256 hex hash of the phone OTP pending during Nuvi signup.</summary>
+    public string? PendingPhoneOtpHash { get; set; }
+    public DateTime? PendingPhoneOtpExpiresAtUtc { get; set; }
+    public bool PhoneVerifiedInSignup { get; set; }
     public bool IsExistingAccountLogin { get; set; }
     public bool SkipAccountCreation { get; set; }
     public string? LastKnownLocation { get; set; }

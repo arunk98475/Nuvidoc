@@ -14,16 +14,23 @@ public class AccountSettingsModel : PageModel
     [BindProperty]
     public PatientAccountLifecycleSettings Input { get; set; } = new();
 
+    [BindProperty]
+    public PatientNuviVerificationSettings Verification { get; set; } = new();
+
     public string? SuccessMessage { get; set; }
     public string? ErrorMessage { get; set; }
+    public string? VerificationSuccessMessage { get; set; }
+    public string? VerificationErrorMessage { get; set; }
 
     public async Task OnGetAsync()
     {
         Input = await _settings.GetPatientAccountLifecycleSettingsAsync();
+        Verification = await _settings.GetPatientNuviVerificationSettingsAsync();
     }
 
-    public async Task<IActionResult> OnPostAsync()
+    public async Task<IActionResult> OnPostLifecycleAsync()
     {
+        Verification = await _settings.GetPatientNuviVerificationSettingsAsync();
         var (success, error) = await _settings.SavePatientAccountLifecycleSettingsAsync(Input);
         if (!success)
         {
@@ -33,6 +40,21 @@ public class AccountSettingsModel : PageModel
 
         SuccessMessage = "Patient account settings saved.";
         Input = await _settings.GetPatientAccountLifecycleSettingsAsync();
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostVerificationAsync()
+    {
+        Input = await _settings.GetPatientAccountLifecycleSettingsAsync();
+        var (success, error) = await _settings.SavePatientNuviVerificationSettingsAsync(Verification);
+        if (!success)
+        {
+            VerificationErrorMessage = error ?? "Could not save verification settings.";
+            return Page();
+        }
+
+        VerificationSuccessMessage = "Nuvi verification settings saved.";
+        Verification = await _settings.GetPatientNuviVerificationSettingsAsync();
         return Page();
     }
 }

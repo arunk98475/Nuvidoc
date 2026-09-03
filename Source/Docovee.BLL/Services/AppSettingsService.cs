@@ -43,6 +43,10 @@ public interface IAppSettingsService
     Task<(bool Success, string? Error)> SavePatientAccountLifecycleSettingsAsync(
         PatientAccountLifecycleSettings settings,
         CancellationToken cancellationToken = default);
+    Task<PatientNuviVerificationSettings> GetPatientNuviVerificationSettingsAsync(CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SavePatientNuviVerificationSettingsAsync(
+        PatientNuviVerificationSettings settings,
+        CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -431,6 +435,43 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.PatientAutoCloseInactiveMonths, inactiveMonths.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.PatientAutoDeleteClosedEnabled, settings.AutoDeleteClosedEnabled ? "true" : "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.PatientAutoDeleteClosedMonths, closedMonths.ToString(), cancellationToken);
+        return (true, null);
+    }
+
+    public async Task<PatientNuviVerificationSettings> GetPatientNuviVerificationSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var keys = new[]
+        {
+            AppSettingKeys.EnableNuviEmailVerificationForNewPatients,
+            AppSettingKeys.EnableNuviPhoneVerificationForNewPatients
+        };
+
+        var rows = await _db.AppSettings.AsNoTracking()
+            .Where(s => keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        string Val(string key) => rows.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
+
+        return new PatientNuviVerificationSettings
+        {
+            EnableEmailVerification = ParseBoolSetting(Val(AppSettingKeys.EnableNuviEmailVerificationForNewPatients)),
+            EnablePhoneVerification = ParseBoolSetting(Val(AppSettingKeys.EnableNuviPhoneVerificationForNewPatients))
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> SavePatientNuviVerificationSettingsAsync(
+        PatientNuviVerificationSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        await SetValueAsync(
+            AppSettingKeys.EnableNuviEmailVerificationForNewPatients,
+            settings.EnableEmailVerification ? "true" : "false",
+            cancellationToken);
+        await SetValueAsync(
+            AppSettingKeys.EnableNuviPhoneVerificationForNewPatients,
+            settings.EnablePhoneVerification ? "true" : "false",
+            cancellationToken);
         return (true, null);
     }
 

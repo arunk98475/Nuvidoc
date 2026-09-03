@@ -19,7 +19,7 @@
         <div class="alert-error">@Model.ErrorMessage</div>
     }
 
-    <form method="post">
+    <form method="post" asp-page-handler="Lifecycle">
         <div class="form-group" style="margin-bottom:18px;">
             <label class="hint">
                 <input type="checkbox" asp-for="Input.AutoCloseInactiveEnabled" />
@@ -49,5 +49,39 @@
         </div>
 
         <button type="submit" class="btn btn-primary">Save settings</button>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top:24px;">
+    <h1>Nuvi verification for new patients</h1>
+    <p>When enabled, Nuvi asks new patients to confirm their contact details with a one-time code during chat signup.</p>
+
+    @if (!string.IsNullOrEmpty(Model.VerificationSuccessMessage))
+    {
+        <div class="alert-success">@Model.VerificationSuccessMessage</div>
+    }
+    @if (!string.IsNullOrEmpty(Model.VerificationErrorMessage))
+    {
+        <div class="alert-error">@Model.VerificationErrorMessage</div>
+    }
+
+    <form method="post" asp-page-handler="Verification">
+        <div class="form-group" style="margin-bottom:18px;">
+            <label class="hint">
+                <input type="checkbox" asp-for="Verification.EnableEmailVerification" />
+                Enable Nuvi email verification for new patients
+            </label>
+            <p class="hint">When checked, after a new patient enters an email in Nuvi, a code is sent to that address and Nuvi asks for the OTP (chips: Change Email Address, Quit).</p>
+        </div>
+
+        <div class="form-group" style="margin-bottom:18px;">
+            <label class="hint">
+                <input type="checkbox" asp-for="Verification.EnablePhoneVerification" />
+                Enable Nuvi Phone number verification for new patients
+            </label>
+            <p class="hint">When checked, after a new patient enters a phone number in Nuvi, a code is sent by SMS and Nuvi asks for the OTP (chips: Change Phone number, WhatsApp Me Otp, Quit).</p>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save verification settings</button>
     </form>
 </div>

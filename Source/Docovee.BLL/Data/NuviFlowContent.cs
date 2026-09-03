@@ -324,6 +324,66 @@ public static class NuviFlowContent
 
 
 
+    public const string AccountEmailOtpQuestion =
+
+        "Please enter the otp I send to your email";
+
+
+
+    public const string AccountPhoneOtpQuestion =
+
+        "Please enter the otp I send to your Phone number";
+
+
+
+    public const string AccountEmailOtpInvalidMessage =
+
+        "That code didn't match. Please enter the otp I sent to your email, or choose an option below.";
+
+
+
+    public const string AccountPhoneOtpInvalidMessage =
+
+        "That code didn't match. Please enter the otp I sent to your phone, or choose an option below.";
+
+
+
+    public const string AccountOtpExpiredMessage =
+
+        "That code expired. I'll send a new one — please enter the new otp when it arrives.";
+
+
+
+    public const string AccountVerificationQuitMessage =
+
+        "No problem — I've stopped for now. When you're ready, what's your name?";
+
+
+
+    public const string AccountEmailOtpSendFailedMessage =
+
+        "I couldn't send a verification code to that email right now. Please try a different email, or quit and try again later.";
+
+
+
+    public const string AccountPhoneOtpSendFailedMessage =
+
+        "I couldn't send a verification code to that phone number right now. Please try a different number, or quit and try again later.";
+
+
+
+    public static readonly string[] AccountEmailOtpOptions =
+
+        ["Change Email Address", "Quit"];
+
+
+
+    public static readonly string[] AccountPhoneOtpOptions =
+
+        ["Change Phone number", "WhatsApp Me Otp", "Quit"];
+
+
+
     public const string DeepDiveWelcomeSuffix =
 
         "now that I know what you're dealing with — let me get to know what matters most to YOU in a doctor.";
