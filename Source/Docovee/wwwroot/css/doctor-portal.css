@@ -445,6 +445,24 @@ body:has(.dp-content-practice) {
   font-size: 18px;
   color: var(--dp-ink);
   background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dp-practice-input:hover,
+.dp-practice-textarea:hover {
+  border-color: #b5b5b5;
+}
+
+.dp-practice-input:focus,
+.dp-practice-textarea:focus {
+  outline: none;
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.2);
+}
+
+.dp-practice-input::placeholder,
+.dp-practice-textarea::placeholder {
+  color: #9a9a9a;
 }
 
 .dp-practice-textarea {
@@ -3086,6 +3104,92 @@ body.dp-drawer-open {
     width: 100%;
     justify-content: flex-start;
   }
+
+  .dp-insurance-table-wrap {
+    border-top: none;
+    background: transparent;
+  }
+
+  .dp-insurance-table,
+  .dp-insurance-table thead,
+  .dp-insurance-table tbody,
+  .dp-insurance-table th,
+  .dp-insurance-table td,
+  .dp-insurance-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .dp-insurance-table thead {
+    display: none;
+  }
+
+  .dp-insurance-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dp-insurance-row {
+    background: #fff;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-sizing: border-box;
+  }
+
+  .dp-insurance-table td {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+    white-space: normal;
+  }
+
+  .dp-insurance-table td:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .dp-insurance-table td:first-child {
+    padding-top: 0;
+  }
+
+  .dp-insurance-table td::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--dp-muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .dp-insurance-empty-row td {
+    display: block;
+    border: 1px solid #e6e6e6;
+    border-radius: 12px;
+    background: #fff;
+    padding: 16px;
+  }
+
+  .dp-insurance-empty-row td::before {
+    content: none;
+  }
+
+  .dp-insurance-actions-col {
+    width: auto;
+    text-align: left;
+    padding-right: 0 !important;
+  }
+
+  .dp-insurance-actions-col .dp-locations-menu {
+    justify-content: flex-start;
+  }
+
+  .dp-insurance-no-results {
+    margin-top: 12px;
+  }
 }
 
 /* Select Insurance page */
@@ -4329,5 +4433,230 @@ body.dp-drawer-open {
   align-items: center;
   gap: 14px;
   margin-top: 14px;
+}
+
+/* Procedure fees */
+.dp-fees {
+  max-width: 960px;
+}
+
+.dp-fees-add {
+  margin-bottom: 1.5rem;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--dp-rule, #e6e6e6);
+  border-radius: 12px;
+}
+
+.dp-fees-add-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.dp-fees-add-grid .dp-practice-field {
+  margin-bottom: 0;
+}
+
+.dp-fees-add-action {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 150px;
+}
+
+.dp-fees-action-spacer {
+  visibility: hidden;
+  user-select: none;
+}
+
+.dp-fees-add-action .dp-btn {
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.dp-fees-table-wrap {
+  overflow-x: visible;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.dp-fees-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--dp-rule, #e6e6e6);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dp-fees-table th,
+.dp-fees-table td {
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--dp-rule, #e6e6e6);
+}
+
+.dp-fees-table th {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dp-muted, #6b6b6b);
+  background: #fafafa;
+}
+
+.dp-fees-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.dp-fees-row-input {
+  font-size: 15px !important;
+  padding: 10px 12px !important;
+}
+
+.dp-fees-fee-input {
+  max-width: 140px;
+}
+
+.dp-fees-updated {
+  white-space: nowrap;
+  color: var(--dp-muted, #6b6b6b);
+  font-size: 14px;
+}
+
+.dp-fees-actions-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.dp-fees-row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .dp-fees-add-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dp-fees-add-action {
+    justify-content: stretch;
+  }
+
+  .dp-fees-add-action .dp-btn {
+    width: 100%;
+  }
+
+  .dp-fees-action-spacer {
+    display: none;
+  }
+
+  .dp-fees-fee-input {
+    max-width: none;
+  }
+
+  .dp-fees-table-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dp-fees-table,
+  .dp-fees-table thead,
+  .dp-fees-table tbody,
+  .dp-fees-table th,
+  .dp-fees-table td,
+  .dp-fees-table tr {
+    display: block;
+    width: 100%;
+  }
+
+  .dp-fees-table {
+    border: none;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .dp-fees-table thead {
+    display: none;
+  }
+
+  .dp-fees-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dp-fees-row {
+    background: #fff;
+    border: 1px solid var(--dp-rule, #e6e6e6);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-sizing: border-box;
+  }
+
+  .dp-fees-table td {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .dp-fees-table td:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .dp-fees-table td:first-child {
+    padding-top: 0;
+  }
+
+  .dp-fees-table td::before {
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--dp-muted, #6b6b6b);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .dp-fees-empty-row td {
+    display: block;
+    border: 1px solid var(--dp-rule, #e6e6e6);
+    border-radius: 12px;
+    background: #fff;
+    padding: 16px;
+  }
+
+  .dp-fees-empty-row td::before {
+    content: none;
+  }
+
+  .dp-fees-actions-col {
+    width: auto;
+    white-space: normal;
+  }
+
+  .dp-fees-row-actions {
+    justify-content: stretch;
+  }
+
+  .dp-fees-row-actions .dp-btn,
+  .dp-fees-row-actions form {
+    flex: 1 1 0;
+  }
+
+  .dp-fees-row-actions form .dp-btn {
+    width: 100%;
+  }
 }
 

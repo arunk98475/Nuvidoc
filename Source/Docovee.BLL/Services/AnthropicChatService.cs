@@ -978,7 +978,34 @@ public class AnthropicChatService : IAnthropicChatService
         if (!string.IsNullOrWhiteSpace(context.CostPreference))
             return false;
 
+        if (!IsCashOrUninsuredForBudgetPreference(context))
+            return false;
+
         return await _appSettings.GetEnableProcedureCostConsiderationAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Meeting requirement: ask budget / cheapest-vs-best-match mainly for cash / uninsured
+    /// (and financing) patients — not when private insurance contracts dominate pricing.
+    /// </summary>
+    private static bool IsCashOrUninsuredForBudgetPreference(SearchContextData context)
+    {
+        if (IsInsuredCategory(context.InsuranceCategory))
+            return false;
+
+        if (string.Equals(context.InsuranceCategory, "self-pay", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var payer = context.ImplantPayerType?.Trim() ?? string.Empty;
+        if (string.Equals(payer, ImplantPayerCashCard, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(payer, ImplantPayerMonthlyFinancing, StringComparison.OrdinalIgnoreCase)
+            || payer.Contains("cash", StringComparison.OrdinalIgnoreCase)
+            || payer.Contains("financ", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Unsure / unset category after a non-insurance payer path — treat as cash-sensitive.
+        return !IsInsuredCategory(context.InsuranceCategory)
+               && !string.IsNullOrWhiteSpace(context.ImplantPayerType);
     }
 
     private async Task<ChatMessageResponse> ContinueAfterImplantQualificationAsync(
