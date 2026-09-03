@@ -120,7 +120,29 @@ public static class NuviFlowContent
 
         "Thanks for sharing that. Right now we only book implant patients who can start soon and have a way to pay privately or with financing.";
 
+    public const string ImplantCostExpectationsMessage =
+        "Dental implants usually go from anywhere between $3–6K per tooth. It greatly depends on the use of dental insurance, the coverage within your policy, if a tooth needs to be taken out, and if bone grafting is needed. There are several things at play. What needs to happen is a dental consultation where the doctor can take X-rays and put together a plan for you to know exactly what the cost would be.\n\n" +
+        "For a full arch, things will start around $14–16K and go up to $20–25K — once again, it greatly depends on the case, what materials are being used, and what is needed for your case specifically. A consultation is needed.\n\n" +
+        "For the initial consultation cost (exam, X-rays, and possible CT scan), each office is different. If you have insurance, it will most likely be covered 100% for exam and X-rays (not always the CT). We can get you booked and the office will reach out to confirm any and all questions and give you more answers about the process and cost.\n\n" +
+        "Most dental practices do have payment plans — so we can get you in on low monthly payments depending on your credit score. If it is above 650, generally speaking you will be accepted; 700+ is very strong. Below 650 you may need a co-signer, which can be a friend or a family member — anyone that is willing to vouch for you. This is something that will be worked out in your consultation with the practice.";
 
+    public const string ImplantCostExpectationsContinue = "Continue";
+    public const string ImplantCostExpectationsDecline = "I am not willing to do now";
+
+    public static readonly string[] ImplantCostExpectationsOptions =
+        [ImplantCostExpectationsContinue, ImplantCostExpectationsDecline];
+
+    public const string ImplantCostExpectationsDeclinedMessage =
+        "No problem — when you're ready to take the next step, I'm here to help you find and book the right implant dentist.";
+
+    public const string CostPreferenceQuestion =
+        "When matching you with practices, should I prioritize the most affordable fees, or the best overall match for your needs?";
+
+    public const string CostPreferenceCheapest = "Most affordable / cheapest";
+    public const string CostPreferenceBestMatch = "Best overall match";
+
+    public static readonly string[] CostPreferenceOptions =
+        [CostPreferenceCheapest, CostPreferenceBestMatch];
 
     public const string LogisticsLocationQuestion =
 

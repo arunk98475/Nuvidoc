@@ -91,4 +91,5 @@ public class Doctor
     public ICollection<DoctorDoctorLanguage> DoctorLanguages { get; set; } = new List<DoctorDoctorLanguage>();
     public ICollection<DoctorLocation> Locations { get; set; } = new List<DoctorLocation>();
     public ICollection<DoctorMedia> Media { get; set; } = new List<DoctorMedia>();
+    public ICollection<DoctorPracticeFee> PracticeFees { get; set; } = new List<DoctorPracticeFee>();
 }

@@ -177,6 +177,7 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "doctors", "DeletedAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureDoctorBillingChargesTableAsync(db, cancellationToken);
         await EnsureDoctorSponsorshipChargesTableAsync(db, cancellationToken);
+        await EnsureDoctorPracticeFeesTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);
@@ -837,6 +838,27 @@ public static class SchemaUpdater
                 KEY `IX_doctor_sponsorship_charges_AppointmentId` (`AppointmentId`),
                 KEY `IX_doctor_sponsorship_charges_StripePaymentIntentId` (`StripePaymentIntentId`),
                 CONSTRAINT `FK_doctor_sponsorship_charges_doctors_DoctorId`
+                    FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+    }
+
+    private static async Task EnsureDoctorPracticeFeesTableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `doctor_practice_fees` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `DoctorId` int NOT NULL,
+                `ProcedureName` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `ProcedureFeeCents` int NOT NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                `UpdatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_doctor_practice_fees_DoctorId` (`DoctorId`),
+                CONSTRAINT `FK_doctor_practice_fees_doctors_DoctorId`
                     FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);

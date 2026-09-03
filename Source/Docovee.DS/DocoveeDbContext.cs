@@ -39,6 +39,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorMedia> DoctorMedia => Set<DoctorMedia>();
     public DbSet<DoctorBillingCharge> DoctorBillingCharges => Set<DoctorBillingCharge>();
     public DbSet<DoctorSponsorshipCharge> DoctorSponsorshipCharges => Set<DoctorSponsorshipCharge>();
+    public DbSet<DoctorPracticeFee> DoctorPracticeFees => Set<DoctorPracticeFee>();
     public DbSet<HipaaAuthorization> HipaaAuthorizations => Set<HipaaAuthorization>();
     public DbSet<DataSubjectRequest> DataSubjectRequests => Set<DataSubjectRequest>();
 
@@ -283,6 +284,15 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.AppointmentNotificationEmail).HasMaxLength(200);
             entity.HasIndex(e => new { e.DoctorId, e.SortOrder });
             entity.HasOne(e => e.Doctor).WithMany(d => d.Locations).HasForeignKey(e => e.DoctorId);
+        });
+
+        modelBuilder.Entity<DoctorPracticeFee>(entity =>
+        {
+            entity.ToTable("doctor_practice_fees");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ProcedureName).HasMaxLength(200).IsRequired();
+            entity.HasIndex(e => e.DoctorId);
+            entity.HasOne(e => e.Doctor).WithMany(d => d.PracticeFees).HasForeignKey(e => e.DoctorId);
         });
 
         modelBuilder.Entity<Appointment>(entity =>

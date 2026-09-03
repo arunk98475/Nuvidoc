@@ -13,6 +13,8 @@ public class DoctorSearchRequest
     public string? AvailabilityPreference { get; set; }
     public string? PreferredLanguage { get; set; }
     public string? AdditionalPreference { get; set; }
+    /// <summary>cheapest | best_match — when cheapest, rank by minimum practice procedure fee.</summary>
+    public string? CostPreference { get; set; }
 }
 
 public class DoctorDto
@@ -157,4 +159,21 @@ public class DoctorQaItemVm
 public class DoctorQaPageModel
 {
     public IReadOnlyList<DoctorQaItemVm> Items { get; set; } = Array.Empty<DoctorQaItemVm>();
+}
+
+public class DoctorPracticeFeeDto
+{
+    public int Id { get; set; }
+    public int DoctorId { get; set; }
+    public string ProcedureName { get; set; } = string.Empty;
+    public int ProcedureFeeCents { get; set; }
+    public decimal FeeUsd => ProcedureFeeCents / 100m;
+    public DateTime UpdatedAt { get; set; }
+}
+
+public class DoctorPracticeFeeInput
+{
+    public int Id { get; set; }
+    public string ProcedureName { get; set; } = string.Empty;
+    public decimal FeeUsd { get; set; }
 }

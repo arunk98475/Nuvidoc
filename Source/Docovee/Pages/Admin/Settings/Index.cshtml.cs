@@ -87,6 +87,7 @@ public class IndexModel : PageModel
         Input.DoctorSearchResultCount = posted.DoctorSearchResultCount;
         Input.MaxAiQuestions = posted.MaxAiQuestions;
         Input.ReviewEligibleDaysAfterConfirmed = posted.ReviewEligibleDaysAfterConfirmed;
+        Input.EnableProcedureCostConsideration = posted.EnableProcedureCostConsideration;
         return Page();
     }
 

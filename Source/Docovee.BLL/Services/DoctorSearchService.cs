@@ -20,19 +20,22 @@ public class DoctorSearchService : IDoctorSearchService
     private readonly IAppSettingsService _appSettings;
     private readonly IAnthropicMatchingService _matchingService;
     private readonly IDoctorCallingEligibilityService _callingEligibility;
+    private readonly IDoctorPracticeFeeService _practiceFees;
 
     public DoctorSearchService(
         DocoveeDbContext db,
         IDocoveeLogger logger,
         IAppSettingsService appSettings,
         IAnthropicMatchingService matchingService,
-        IDoctorCallingEligibilityService callingEligibility)
+        IDoctorCallingEligibilityService callingEligibility,
+        IDoctorPracticeFeeService practiceFees)
     {
         _db = db;
         _logger = logger;
         _appSettings = appSettings;
         _matchingService = matchingService;
         _callingEligibility = callingEligibility;
+        _practiceFees = practiceFees;
     }
 
     public async Task<IReadOnlyList<DoctorDto>> SearchAsync(DoctorSearchRequest request, CancellationToken cancellationToken = default)
@@ -118,7 +121,7 @@ public class DoctorSearchService : IDoctorSearchService
         var originLat = request.Latitude ?? session.Latitude;
         var originLng = request.Longitude ?? session.Longitude;
 
-        var ranked = filtered
+        var scored = filtered
             .Select(d =>
             {
                 rankingMap.TryGetValue(d.Id, out var rank);
@@ -150,14 +153,42 @@ public class DoctorSearchService : IDoctorSearchService
 
                 var dto = MapDoctor(d, originLat, originLng, score, reason);
                 var combined = CombinedRankScore(dto.IsSponsored, dto.MatchScore, dto.QualityScore);
-                return (dto, combined);
+                return (dto, combined, doctorId: d.Id);
             })
+            .ToList();
+
+        var preferCheapest = string.Equals(request.CostPreference, "cheapest", StringComparison.OrdinalIgnoreCase);
+        IReadOnlyDictionary<int, int> minFees = new Dictionary<int, int>();
+        if (preferCheapest)
+        {
+            minFees = await _practiceFees.GetMinFeeCentsByDoctorIdsAsync(
+                scored.Select(x => x.doctorId),
+                cancellationToken);
+        }
+
+        var ranked = scored
             .OrderByDescending(x => x.dto.IsSponsored)
+            .ThenBy(x => preferCheapest
+                ? (minFees.TryGetValue(x.doctorId, out var fee) ? fee : int.MaxValue)
+                : 0)
             .ThenByDescending(x => x.combined)
             .ThenBy(x => x.dto.DistanceMiles ?? double.MaxValue)
             .ThenByDescending(x => x.dto.GoogleRating)
             .ThenByDescending(x => x.dto.Id)
             .ToList();
+
+        if (preferCheapest && minFees.Count > 0)
+        {
+            foreach (var item in ranked)
+            {
+                if (!minFees.TryGetValue(item.doctorId, out var feeCents))
+                    continue;
+                var feeNote = $"From ${(feeCents / 100m):0.##}+ listed fees";
+                item.dto.MatchReason = string.IsNullOrWhiteSpace(item.dto.MatchReason)
+                    ? feeNote
+                    : $"{item.dto.MatchReason}; {feeNote}";
+            }
+        }
 
         var eligibleIds = await _callingEligibility.FilterEligibleDoctorIdsAsync(
             ranked.Select(x => x.dto.Id),

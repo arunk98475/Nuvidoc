@@ -15,6 +15,7 @@ public interface IAppSettingsService
     Task<int> GetReviewEligibleDaysAfterConfirmedAsync(CancellationToken cancellationToken = default);
     Task<SiteSettingsModel> GetSiteSettingsAsync(CancellationToken cancellationToken = default);
     Task SaveSiteSettingsAsync(SiteSettingsModel settings, CancellationToken cancellationToken = default);
+    Task<bool> GetEnableProcedureCostConsiderationAsync(CancellationToken cancellationToken = default);
     Task<int> GetDefaultPerVisitFeeCentsAsync(CancellationToken cancellationToken = default);
     Task<int> GetFreeVisitCountAsync(CancellationToken cancellationToken = default);
     Task<bool> GetVisitBillingChargeOnlyIfPatientShowedAsync(CancellationToken cancellationToken = default);
@@ -105,6 +106,7 @@ public class AppSettingsService : IAppSettingsService
             AppSettingKeys.PromotedDoctorIds,
             AppSettingKeys.MaxAiQuestions,
             AppSettingKeys.ReviewEligibleDaysAfterConfirmed,
+            AppSettingKeys.EnableProcedureCostConsideration,
             AppSettingKeys.FooterFacebookUrl,
             AppSettingKeys.FooterInstagramUrl,
             AppSettingKeys.FooterTwitterUrl,
@@ -132,6 +134,7 @@ public class AppSettingsService : IAppSettingsService
                 ? Math.Clamp(mq, MinAiQuestions, MaxAiQuestionsLimit) : DefaultMaxAiQuestions,
             ReviewEligibleDaysAfterConfirmed = int.TryParse(Val(AppSettingKeys.ReviewEligibleDaysAfterConfirmed), out var rd)
                 ? Math.Clamp(rd, MinReviewEligibleDays, MaxReviewEligibleDays) : DefaultReviewEligibleDays,
+            EnableProcedureCostConsideration = ParseBoolSetting(Val(AppSettingKeys.EnableProcedureCostConsideration)),
             FacebookUrl = Val(AppSettingKeys.FooterFacebookUrl),
             InstagramUrl = Val(AppSettingKeys.FooterInstagramUrl),
             TwitterUrl = Val(AppSettingKeys.FooterTwitterUrl),
@@ -154,6 +157,10 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.PromotedDoctorIds, settings.PromotedDoctorIds?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.MaxAiQuestions, maxQuestions.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.ReviewEligibleDaysAfterConfirmed, reviewDays.ToString(), cancellationToken);
+        await SetValueAsync(
+            AppSettingKeys.EnableProcedureCostConsideration,
+            settings.EnableProcedureCostConsideration ? "true" : "false",
+            cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterFacebookUrl, NormalizeUrl(settings.FacebookUrl), cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterInstagramUrl, NormalizeUrl(settings.InstagramUrl), cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterTwitterUrl, NormalizeUrl(settings.TwitterUrl), cancellationToken);
@@ -164,6 +171,12 @@ public class AppSettingsService : IAppSettingsService
         await SetValueAsync(AppSettingKeys.FooterPrivacyPdfUrl, settings.PrivacyPdfUrl?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterConsumerHealthPdfUrl, settings.ConsumerHealthPdfUrl?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.FooterPrivacyChoicesPdfUrl, settings.PrivacyChoicesPdfUrl?.Trim() ?? string.Empty, cancellationToken);
+    }
+
+    public async Task<bool> GetEnableProcedureCostConsiderationAsync(CancellationToken cancellationToken = default)
+    {
+        var value = await GetValueAsync(AppSettingKeys.EnableProcedureCostConsideration, cancellationToken);
+        return ParseBoolSetting(value);
     }
 
     public async Task<int> GetDefaultPerVisitFeeCentsAsync(CancellationToken cancellationToken = default)

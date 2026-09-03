@@ -11,12 +11,18 @@ namespace Docovee.Pages.Admin.Doctors;
 public class EditModel : PageModel
 {
     private readonly IAdminDoctorService _doctorService;
+    private readonly IDoctorPracticeFeeService _practiceFeeService;
     private readonly IPmsCalendarService _pms;
     private readonly AccountOptions _account;
 
-    public EditModel(IAdminDoctorService doctorService, IPmsCalendarService pms, IOptions<AccountOptions> account)
+    public EditModel(
+        IAdminDoctorService doctorService,
+        IDoctorPracticeFeeService practiceFeeService,
+        IPmsCalendarService pms,
+        IOptions<AccountOptions> account)
     {
         _doctorService = doctorService;
+        _practiceFeeService = practiceFeeService;
         _pms = pms;
         _account = account.Value;
     }
@@ -27,9 +33,15 @@ public class EditModel : PageModel
     [BindProperty]
     public NexHealthIntegrationInput NexHealthForm { get; set; } = new();
 
+    [BindProperty]
+    public DoctorPracticeFeeInput PracticeFeeForm { get; set; } = new();
+
     public PmsConnectionSettingsDto? NexHealthConnection { get; set; }
+    public IReadOnlyList<DoctorPracticeFeeDto> PracticeFees { get; private set; } = Array.Empty<DoctorPracticeFeeDto>();
     public bool HasGlobalNexHealthApiKey { get; private set; }
     public string? ErrorMessage { get; set; }
+    public string? PracticeFeeMessage { get; set; }
+    public bool PracticeFeeSaved { get; set; }
     public string? IntegrationMessage { get; set; }
     public string? AccountMessage { get; set; }
     public bool AccountMessageSuccess { get; set; }
@@ -58,9 +70,18 @@ public class EditModel : PageModel
         Input = doctor;
         IntegrationSaved = saved == true;
         IntegrationMessage = status;
+        if (saved == true && !string.IsNullOrWhiteSpace(status)
+            && status.Contains("Procedure fee", StringComparison.OrdinalIgnoreCase))
+        {
+            PracticeFeeSaved = true;
+            PracticeFeeMessage = status;
+            IntegrationSaved = false;
+            IntegrationMessage = null;
+        }
         // After save/test/sync redirects land with a status — keep the panel in view.
-        ScrollToNexHealth = saved.HasValue || !string.IsNullOrWhiteSpace(status);
-        await LoadNexHealthAsync(id, cancellationToken);
+        ScrollToNexHealth = (saved.HasValue || !string.IsNullOrWhiteSpace(status))
+            && !(PracticeFeeSaved);
+        await LoadSidePanelsAsync(id, cancellationToken);
         LoadAccountDeletionState();
         return Page();
     }
@@ -74,11 +95,77 @@ public class EditModel : PageModel
         if (!success)
         {
             ErrorMessage = error;
-            await LoadNexHealthAsync(id);
+            await LoadSidePanelsAsync(id);
             LoadAccountDeletionState();
             return Page();
         }
         return RedirectToPage("Index");
+    }
+
+    public async Task<IActionResult> OnPostAddProcedureFeeAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
+        if (doctor == null) return NotFound();
+        Input = doctor;
+
+        var (success, error) = await _practiceFeeService.AddAsync(
+            id,
+            PracticeFeeForm.ProcedureName,
+            PracticeFeeForm.FeeUsd,
+            cancellationToken);
+        if (!success)
+        {
+            PracticeFeeMessage = error;
+            PracticeFeeSaved = false;
+            await LoadSidePanelsAsync(id, cancellationToken);
+            LoadAccountDeletionState();
+            return Page();
+        }
+
+        return RedirectToPage(new { id, saved = true, status = "Procedure fee added." });
+    }
+
+    public async Task<IActionResult> OnPostUpdateProcedureFeeAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
+        if (doctor == null) return NotFound();
+        Input = doctor;
+
+        var (success, error) = await _practiceFeeService.UpdateAsync(
+            id,
+            PracticeFeeForm.Id,
+            PracticeFeeForm.ProcedureName,
+            PracticeFeeForm.FeeUsd,
+            cancellationToken);
+        if (!success)
+        {
+            PracticeFeeMessage = error;
+            PracticeFeeSaved = false;
+            await LoadSidePanelsAsync(id, cancellationToken);
+            LoadAccountDeletionState();
+            return Page();
+        }
+
+        return RedirectToPage(new { id, saved = true, status = "Procedure fee updated." });
+    }
+
+    public async Task<IActionResult> OnPostDeleteProcedureFeeAsync(int id, int feeId, CancellationToken cancellationToken = default)
+    {
+        var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
+        if (doctor == null) return NotFound();
+        Input = doctor;
+
+        var (success, error) = await _practiceFeeService.DeleteAsync(id, feeId, cancellationToken);
+        if (!success)
+        {
+            PracticeFeeMessage = error;
+            PracticeFeeSaved = false;
+            await LoadSidePanelsAsync(id, cancellationToken);
+            LoadAccountDeletionState();
+            return Page();
+        }
+
+        return RedirectToPage(new { id, saved = true, status = "Procedure fee deleted." });
     }
 
     public async Task<IActionResult> OnPostCloseAccountAsync(int id, CancellationToken cancellationToken = default)
@@ -91,7 +178,7 @@ public class EditModel : PageModel
             var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
             if (doctor == null) return NotFound();
             Input = doctor;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             LoadAccountDeletionState();
             return Page();
         }
@@ -109,7 +196,7 @@ public class EditModel : PageModel
             var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
             if (doctor == null) return NotFound();
             Input = doctor;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             LoadAccountDeletionState();
             return Page();
         }
@@ -127,7 +214,7 @@ public class EditModel : PageModel
             var doctor = await _doctorService.GetForEditAsync(id, cancellationToken);
             if (doctor == null) return NotFound();
             Input = doctor;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             LoadAccountDeletionState();
             return Page();
         }
@@ -146,7 +233,7 @@ public class EditModel : PageModel
         {
             ErrorMessage = error;
             ScrollToNexHealth = true;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             return Page();
         }
 
@@ -164,7 +251,7 @@ public class EditModel : PageModel
         {
             ErrorMessage = saveError;
             ScrollToNexHealth = true;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             return Page();
         }
 
@@ -192,7 +279,7 @@ public class EditModel : PageModel
         {
             ErrorMessage = saveError;
             ScrollToNexHealth = true;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             return Page();
         }
 
@@ -200,7 +287,7 @@ public class EditModel : PageModel
         {
             IntegrationMessage = "Enter an NPI number to look up the NexHealth provider ID.";
             ScrollToNexHealth = true;
-            await LoadNexHealthAsync(id, cancellationToken);
+            await LoadSidePanelsAsync(id, cancellationToken);
             NexHealthForm.Npi = null;
             return Page();
         }
@@ -214,7 +301,7 @@ public class EditModel : PageModel
         IntegrationMessage = message;
         ProviderCandidates = candidates;
         ScrollToNexHealth = true;
-        await LoadNexHealthAsync(id, cancellationToken);
+        await LoadSidePanelsAsync(id, cancellationToken);
         NexHealthForm.Npi = NexHealthForm.Npi?.Trim();
         return Page();
     }
@@ -247,6 +334,12 @@ public class EditModel : PageModel
         RemoveAvailableAtUtc = DeletedAccountHelper.PermanentRemoveAvailableAtUtc(Input.DeletedAtUtc, HardDeleteWaitDays);
     }
 
+    private async Task LoadSidePanelsAsync(int doctorId, CancellationToken cancellationToken = default)
+    {
+        await LoadNexHealthAsync(doctorId, cancellationToken);
+        await LoadPracticeFeesAsync(doctorId, cancellationToken);
+    }
+
     private async Task LoadNexHealthAsync(int doctorId, CancellationToken cancellationToken = default)
     {
         HasGlobalNexHealthApiKey = _pms.HasGlobalNexHealthApiKey;
@@ -259,5 +352,10 @@ public class EditModel : PageModel
             NexHealthForm.ProviderId = NexHealthConnection.ProviderExternalId;
             NexHealthForm.OperatoryId = NexHealthConnection.OperatoryId;
         }
+    }
+
+    private async Task LoadPracticeFeesAsync(int doctorId, CancellationToken cancellationToken = default)
+    {
+        PracticeFees = await _practiceFeeService.ListAsync(doctorId, cancellationToken);
     }
 }

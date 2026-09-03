@@ -28,6 +28,7 @@ public class SettingsModel : PageModel
         "media",
         "visit-reasons",
         "insurance",
+        "procedure-fees",
         "working-hours",
         "booking-link",
         "integrations",
@@ -39,6 +40,7 @@ public class SettingsModel : PageModel
     private readonly IProfileService _profileService;
     private readonly IDoctorLocationService _locationService;
     private readonly IDoctorInsuranceService _insuranceService;
+    private readonly IDoctorPracticeFeeService _practiceFeeService;
     private readonly IDoctorMediaService _mediaService;
     private readonly IPmsCalendarService _pms;
     private readonly UploadOptions _uploadOptions;
@@ -55,6 +57,7 @@ public class SettingsModel : PageModel
         IProfileService profileService,
         IDoctorLocationService locationService,
         IDoctorInsuranceService insuranceService,
+        IDoctorPracticeFeeService practiceFeeService,
         IDoctorMediaService mediaService,
         IPmsCalendarService pms,
         IOptions<UploadOptions> uploadOptions,
@@ -69,6 +72,7 @@ public class SettingsModel : PageModel
         _profileService = profileService;
         _locationService = locationService;
         _insuranceService = insuranceService;
+        _practiceFeeService = practiceFeeService;
         _mediaService = mediaService;
         _pms = pms;
         _uploadOptions = uploadOptions.Value;
@@ -101,6 +105,9 @@ public class SettingsModel : PageModel
     public AddDoctorInsurancesInput InsuranceForm { get; set; } = new();
 
     [BindProperty]
+    public DoctorPracticeFeeInput PracticeFeeForm { get; set; } = new();
+
+    [BindProperty]
     public WorkingHoursInput WorkingHoursForm { get; set; } = new();
 
     public string Section { get; private set; } = "practice";
@@ -110,6 +117,7 @@ public class SettingsModel : PageModel
     public IReadOnlyList<VisitReasonCategoryViewModel> VisitReasonCategories { get; private set; } = Array.Empty<VisitReasonCategoryViewModel>();
     public IReadOnlyList<DoctorInsuranceRowDto> InsuranceRows { get; private set; } = Array.Empty<DoctorInsuranceRowDto>();
     public IReadOnlyList<InsuranceCarrierDto> AvailableCarriers { get; private set; } = Array.Empty<InsuranceCarrierDto>();
+    public IReadOnlyList<DoctorPracticeFeeDto> PracticeFees { get; private set; } = Array.Empty<DoctorPracticeFeeDto>();
     public WorkingHoursPageModel? WorkingHours { get; private set; }
     public IReadOnlyList<DoctorMediaDto> MediaItems { get; private set; } = Array.Empty<DoctorMediaDto>();
     public IReadOnlyList<string> TimeOptions { get; private set; } = BuildTimeOptions();
@@ -367,6 +375,60 @@ public class SettingsModel : PageModel
         return RedirectToPage(new { section = "insurance", saved = true });
     }
 
+    public async Task<IActionResult> OnPostAddProcedureFeeAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _practiceFeeService.AddAsync(
+            doctorId,
+            PracticeFeeForm.ProcedureName,
+            PracticeFeeForm.FeeUsd,
+            cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "procedure-fees", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "procedure-fees", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostUpdateProcedureFeeAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _practiceFeeService.UpdateAsync(
+            doctorId,
+            PracticeFeeForm.Id,
+            PracticeFeeForm.ProcedureName,
+            PracticeFeeForm.FeeUsd,
+            cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "procedure-fees", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "procedure-fees", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostDeleteProcedureFeeAsync(int feeId, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return RedirectToPage("/Account/Login");
+
+        var (success, error) = await _practiceFeeService.DeleteAsync(doctorId, feeId, cancellationToken);
+        if (!success)
+        {
+            ErrorMessage = error;
+            return await LoadPageAsync(doctorId, "procedure-fees", cancellationToken);
+        }
+
+        return RedirectToPage(new { section = "procedure-fees", saved = true });
+    }
+
     public async Task<IActionResult> OnPostWorkingHoursAsync(CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
@@ -508,6 +570,7 @@ public class SettingsModel : PageModel
             "locations" => "Locations",
             "visit-reasons" => "Visit reasons",
             "insurance" => "Insurance",
+            "procedure-fees" => "Procedure fees",
             "working-hours" => "Working hours",
             "booking-link" => BookingLinkCreateStep ? "Create a Booking Link" : "Booking Link",
             "integrations" => "Integrations",
@@ -561,6 +624,9 @@ public class SettingsModel : PageModel
             InsuranceRows = await _insuranceService.GetDoctorInsurancesAsync(doctorId, cancellationToken);
             AvailableCarriers = await _insuranceService.GetAvailableCarriersAsync(doctorId, cancellationToken);
         }
+
+        if (Section == "procedure-fees")
+            PracticeFees = await _practiceFeeService.ListAsync(doctorId, cancellationToken);
 
         if (Section == "working-hours")
         {

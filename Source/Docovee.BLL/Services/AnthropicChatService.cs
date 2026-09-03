@@ -30,9 +30,13 @@ public class AnthropicChatService : IAnthropicChatService
     private const int MaxDeepDiveQuestions = 10;
     private const int LogisticsStepNewLocation = 11;
     private const int ImplantQualStepInsurancePlan = 5;
+    private const int ImplantQualStepCostPreference = 6;
+    private const int ImplantQualStepCostExpectations = 7;
     private const string ImplantPayerPrivateInsurance = "Private dental insurance";
     private const string ImplantPayerCashCard = "Cash/card";
     private const string ImplantPayerMonthlyFinancing = "Monthly financing";
+    private const string CostPreferenceCheapestValue = "cheapest";
+    private const string CostPreferenceBestMatchValue = "best_match";
     private const string RedactedPasswordPlaceholder = "[password hidden]";
     private static readonly DateOnly PlaceholderDateOfBirth = new(1990, 1, 1);
 
@@ -61,6 +65,7 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IAppointmentRescheduleService _appointmentReschedule;
     private readonly IZipGeocodeService _zipGeocode;
     private readonly IInsurancePlanResolutionService _insurancePlanResolution;
+    private readonly IAppSettingsService _appSettings;
     private readonly TwilioOptions _twilioOptions;
     private readonly IAuditTrailService _audit;
     private readonly IDoctorCallingEligibilityService _callingEligibility;
@@ -88,6 +93,7 @@ public class AnthropicChatService : IAnthropicChatService
         IAppointmentRescheduleService appointmentReschedule,
         IZipGeocodeService zipGeocode,
         IInsurancePlanResolutionService insurancePlanResolution,
+        IAppSettingsService appSettings,
         IOptions<TwilioOptions> twilioOptions,
         IAuditTrailService audit,
         IDoctorCallingEligibilityService callingEligibility)
@@ -113,6 +119,7 @@ public class AnthropicChatService : IAnthropicChatService
         _appointmentReschedule = appointmentReschedule;
         _zipGeocode = zipGeocode;
         _insurancePlanResolution = insurancePlanResolution;
+        _appSettings = appSettings;
         _twilioOptions = twilioOptions.Value;
         _audit = audit;
         _callingEligibility = callingEligibility;
@@ -449,7 +456,7 @@ public class AnthropicChatService : IAnthropicChatService
             await PrepareImplantSessionAsync(session, context, cancellationToken);
             context.ImplantIntentQualified = true;
             context.Stage = NuviConversationStage.ImplantQualification;
-            return await AskImplantQualificationQuestionAsync(session, context, 1, cancellationToken);
+            return await AskImplantQualificationQuestionAsync(session, context, ImplantQualStepCostExpectations, cancellationToken);
         }
 
         var reprompt = "Please choose Yes or No.";
@@ -492,7 +499,7 @@ public class AnthropicChatService : IAnthropicChatService
             {
                 context.ImplantIntentQualified = true;
                 context.Stage = NuviConversationStage.ImplantQualification;
-                return await AskImplantQualificationQuestionAsync(session, context, 1, cancellationToken);
+                return await AskImplantQualificationQuestionAsync(session, context, ImplantQualStepCostExpectations, cancellationToken);
             }
 
             return await BeginImplantQualificationAsync(session, context, cancellationToken);
@@ -758,6 +765,8 @@ public class AnthropicChatService : IAnthropicChatService
             3 => (NuviFlowContent.ImplantQualificationQuestion4, NuviFlowContent.ImplantQualificationQuestion4Options),
             4 => (NuviFlowContent.ImplantQualificationQuestion5, NuviFlowContent.ImplantQualificationQuestion5Options),
             ImplantQualStepInsurancePlan => (NuviFlowContent.LogisticsInsurancePlanQuestion, NuviFlowContent.LogisticsInsurancePlanOptions),
+            ImplantQualStepCostPreference => (NuviFlowContent.CostPreferenceQuestion, NuviFlowContent.CostPreferenceOptions),
+            ImplantQualStepCostExpectations => (NuviFlowContent.ImplantCostExpectationsMessage, NuviFlowContent.ImplantCostExpectationsOptions),
             _ => (NuviFlowContent.ImplantQualificationQuestion1, GetImplantQualificationQuestion1Options(context))
         };
 
@@ -811,6 +820,22 @@ public class AnthropicChatService : IAnthropicChatService
                 context.ImplantIntentQualified = IsImplantQualificationPassAnswer(answer);
                 if (context.ImplantIntentQualified == false)
                     return await DisqualifyImplantLeadAsync(session, context, cancellationToken);
+
+                return await AskImplantQualificationQuestionAsync(session, context, ImplantQualStepCostExpectations, cancellationToken);
+
+            case ImplantQualStepCostExpectations:
+                if (!MatchesOption(NuviFlowContent.ImplantCostExpectationsOptions, answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the options below.",
+                        NuviFlowContent.ImplantCostExpectationsOptions,
+                        cancellationToken);
+                }
+
+                if (string.Equals(answer, NuviFlowContent.ImplantCostExpectationsDecline, StringComparison.OrdinalIgnoreCase))
+                    return await DeclineAfterCostExpectationsAsync(session, context, cancellationToken);
 
                 return await AskImplantQualificationQuestionAsync(session, context, 1, cancellationToken);
 
@@ -910,6 +935,26 @@ public class AnthropicChatService : IAnthropicChatService
                     ? await CompleteImplantQualificationAndBeginLogisticsAsync(session, context, cancellationToken)
                     : await DisqualifyImplantLeadAsync(session, context, cancellationToken);
 
+            case ImplantQualStepCostPreference:
+                if (!MatchesOption(NuviFlowContent.CostPreferenceOptions, answer))
+                {
+                    return await RepromptImplantQualificationAsync(
+                        session,
+                        context,
+                        "Please choose one of the options below.",
+                        NuviFlowContent.CostPreferenceOptions,
+                        cancellationToken);
+                }
+
+                context.CostPreference = string.Equals(
+                    answer,
+                    NuviFlowContent.CostPreferenceCheapest,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? CostPreferenceCheapestValue
+                    : CostPreferenceBestMatchValue;
+                context.ImplantQualificationComplete = true;
+                return await BeginLogisticsAsync(session, context, string.Empty, cancellationToken);
+
             default:
                 context.ImplantQualStep = 0;
                 return await BeginImplantQualificationAsync(session, context, cancellationToken);
@@ -921,8 +966,19 @@ public class AnthropicChatService : IAnthropicChatService
         SearchContextData context,
         CancellationToken cancellationToken)
     {
+        if (await ShouldAskCostPreferenceAsync(context, cancellationToken))
+            return await AskImplantQualificationQuestionAsync(session, context, ImplantQualStepCostPreference, cancellationToken);
+
         context.ImplantQualificationComplete = true;
         return await BeginLogisticsAsync(session, context, string.Empty, cancellationToken);
+    }
+
+    private async Task<bool> ShouldAskCostPreferenceAsync(SearchContextData context, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(context.CostPreference))
+            return false;
+
+        return await _appSettings.GetEnableProcedureCostConsiderationAsync(cancellationToken);
     }
 
     private async Task<ChatMessageResponse> ContinueAfterImplantQualificationAsync(
@@ -1012,6 +1068,21 @@ public class AnthropicChatService : IAnthropicChatService
             session,
             context,
             NuviFlowContent.ImplantQualificationDisqualifiedMessage,
+            stage: NuviConversationStage.Complete,
+            flowComplete: true);
+    }
+
+    private async Task<ChatMessageResponse> DeclineAfterCostExpectationsAsync(
+        SearchSession session,
+        SearchContextData context,
+        CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.Complete;
+        await SaveAssistantMessageAsync(session, NuviFlowContent.ImplantCostExpectationsDeclinedMessage, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            NuviFlowContent.ImplantCostExpectationsDeclinedMessage,
             stage: NuviConversationStage.Complete,
             flowComplete: true);
     }
@@ -2803,7 +2874,8 @@ public class AnthropicChatService : IAnthropicChatService
             CommunicationStyle = session.CommunicationStyle,
             AvailabilityPreference = session.AvailabilityPreference,
             PreferredLanguage = context.LanguagePreference,
-            AdditionalPreference = context.WildcardConcern
+            AdditionalPreference = context.WildcardConcern,
+            CostPreference = context.CostPreference
         }, cancellationToken);
 
         return results;
@@ -3846,6 +3918,7 @@ public class AnthropicChatService : IAnthropicChatService
         context.ImplantTimingQualified = null;
         context.ImplantPayerType = null;
         context.ImplantFinancingQualified = null;
+        context.CostPreference = null;
         context.ImplantQualificationComplete = false;
         context.LogisticsStep = 0;
         context.VisitPreference = null;

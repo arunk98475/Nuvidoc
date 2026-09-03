@@ -94,6 +94,8 @@ public class SiteSettingsModel
     public string PromotedDoctorIds { get; set; } = string.Empty;
     public int MaxAiQuestions { get; set; } = 3;
     public int ReviewEligibleDaysAfterConfirmed { get; set; } = 1;
+    /// <summary>When true, Nuvi asks cheapest vs best-match and search may use practice fees.</summary>
+    public bool EnableProcedureCostConsideration { get; set; }
 
     public string FacebookUrl { get; set; } = string.Empty;
     public string InstagramUrl { get; set; } = string.Empty;

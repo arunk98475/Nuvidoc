@@ -87,6 +87,8 @@ public class SearchContextData
     public bool? ImplantTimingQualified { get; set; }
     public string? ImplantPayerType { get; set; }
     public bool? ImplantFinancingQualified { get; set; }
+    /// <summary>cheapest | best_match — set when procedure cost consideration is enabled.</summary>
+    public string? CostPreference { get; set; }
     /// <summary>True once implant screening has been passed and logistics may proceed.</summary>
     public bool ImplantQualificationComplete { get; set; }
     public string? VisitPreference { get; set; }

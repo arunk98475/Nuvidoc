@@ -9,12 +9,16 @@
 <div class="dp-content@(Model.Section == "practice" || Model.Section == "visit-reasons" || Model.Section == "working-hours" || Model.Section == "account" ? " dp-content-practice" : "")">
     @if (Model.Section != "practice" && Model.Section != "visit-reasons" && Model.Section != "working-hours" && Model.Section != "booking-link" && Model.Section != "account")
     {
-        <div class="dp-page-head@(Model.Section == "locations" || Model.Section == "insurance" || Model.Section == "legal" ? " dp-locations-head" : "")">
+        <div class="dp-page-head@(Model.Section == "locations" || Model.Section == "insurance" || Model.Section == "procedure-fees" || Model.Section == "legal" ? " dp-locations-head" : "")">
             <div>
                 <h1>@Model.SectionTitle</h1>
                 @if (Model.Section == "insurance")
                 {
                     <p class="dp-page-sub">Manage the insurances your practice is in-network with. Click on a carrier to view and make edits.</p>
+                }
+                else if (Model.Section == "procedure-fees")
+                {
+                    <p class="dp-page-sub">List cash prices for procedures patients may ask about (for example dental implants). Nuvi can use these when cost matching is enabled.</p>
                 }
                 else if (Model.Section != "locations" && Model.Section != "legal")
                 {
@@ -795,6 +799,83 @@
                 <footer class="dp-location-modal-foot">
                     <button type="button" class="dp-btn dp-btn-primary" id="dp-insurance-adv-done">Done</button>
                 </footer>
+            </div>
+        </div>
+    }
+    else if (Model.Section == "procedure-fees")
+    {
+        <div class="dp-insurance">
+            @if (Model.Saved)
+            {
+                <div class="dp-location-alert is-success">Procedure fees updated.</div>
+            }
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="dp-location-alert is-error">@Model.ErrorMessage</div>
+            }
+
+            <form method="post" asp-page-handler="AddProcedureFee" class="dp-practice-form" style="margin-bottom:1.5rem;">
+                <div class="form-grid" style="display:grid;grid-template-columns:2fr 1fr auto;gap:12px;align-items:end;">
+                    <div class="form-group">
+                        <label asp-for="PracticeFeeForm.ProcedureName">Procedure name</label>
+                        <input asp-for="PracticeFeeForm.ProcedureName" class="form-control" placeholder="e.g. Dental Implant" maxlength="200" required />
+                    </div>
+                    <div class="form-group">
+                        <label asp-for="PracticeFeeForm.FeeUsd">Fee (USD)</label>
+                        <input asp-for="PracticeFeeForm.FeeUsd" type="number" min="0" step="0.01" class="form-control" placeholder="300.00" required />
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="dp-btn dp-btn-primary">Add procedure</button>
+                    </div>
+                </div>
+            </form>
+
+            <div class="dp-insurance-table-wrap">
+                <table class="dp-insurance-table">
+                    <thead>
+                        <tr>
+                            <th>Procedure</th>
+                            <th>Fee</th>
+                            <th>Updated</th>
+                            <th class="dp-insurance-actions-col"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.PracticeFees.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="4" class="dp-locations-empty">No procedure fees yet. Add one above.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var fee in Model.PracticeFees)
+                            {
+                                <tr>
+                                    <td>
+                                        <form method="post" asp-page-handler="UpdateProcedureFee" id="fee-edit-@fee.Id" class="form-grid" style="display:grid;grid-template-columns:1fr;gap:8px;">
+                                            <input type="hidden" name="PracticeFeeForm.Id" value="@fee.Id" />
+                                            <input name="PracticeFeeForm.ProcedureName" value="@fee.ProcedureName" class="form-control" maxlength="200" required />
+                                        </form>
+                                    </td>
+                                    <td>
+                                        <input form="fee-edit-@fee.Id" name="PracticeFeeForm.FeeUsd" type="number" min="0" step="0.01" value="@fee.FeeUsd.ToString("0.00")" class="form-control" required />
+                                    </td>
+                                    <td>@fee.UpdatedAt.ToString("yyyy-MM-dd")</td>
+                                    <td class="dp-insurance-actions-col">
+                                        <div style="display:flex;gap:8px;justify-content:flex-end;">
+                                            <button type="submit" form="fee-edit-@fee.Id" class="dp-btn">Save</button>
+                                            <form method="post" asp-page-handler="DeleteProcedureFee">
+                                                <input type="hidden" name="feeId" value="@fee.Id" />
+                                                <button type="submit" class="dp-btn" onclick="return confirm('Delete this procedure fee?');">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
     }

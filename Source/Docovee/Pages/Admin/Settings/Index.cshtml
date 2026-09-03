@@ -36,6 +36,13 @@
                 <p class="hint">In Appointment History, the review form appears only after the doctor confirms the visit and this many days have passed since the appointment date (0–90).</p>
             </div>
             <div class="form-group">
+                <label asp-for="Input.EnableProcedureCostConsideration">
+                    <input asp-for="Input.EnableProcedureCostConsideration" type="checkbox" />
+                    Enable procedure cost consideration
+                </label>
+                <p class="hint">When enabled, Nuvi asks whether to prioritize the cheapest practice fees or the best overall match, and search may use doctor procedure fees.</p>
+            </div>
+            <div class="form-group">
                 <label asp-for="Input.PromotedDoctorIds">Promoted doctor IDs (coming soon)</label>
                 <input asp-for="Input.PromotedDoctorIds" class="form-control" placeholder="e.g. 1,3,5" disabled />
                 <p class="hint">Reserved for Phase II — doctors shown at top of search results.</p>
