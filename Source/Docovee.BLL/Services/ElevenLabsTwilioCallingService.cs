@@ -341,28 +341,55 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
 
     /// <summary>
     /// Full opener sent as {{first_message}} — set the ElevenLabs agent first message to that variable only.
-    /// Keep short: no booking window, slot time, or availability details in the opener.
+    /// Book opener matches client script: introduce Nuvi, patient nearby, implant consult, screening questions.
     /// </summary>
     private static string BuildFirstMessage(string intent, IReadOnlyDictionary<string, string> vars)
     {
-        var patientName = vars.TryGetValue("patient_name", out var pn) ? pn : "a patient";
+        var patientName = vars.TryGetValue("patient_name", out var pn) && !string.IsNullOrWhiteSpace(pn)
+            ? pn.Trim()
+            : "a patient";
         var isCancel = string.Equals(intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
         var isReschedule = string.Equals(intent, VoiceOutboundCallIntents.Reschedule, StringComparison.OrdinalIgnoreCase);
 
         if (isCancel)
         {
             return
-                $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request to cancel a dental appointment. Do you have a moment?";
+                $"Hi, I'm Nuvi. I'm calling on behalf of {patientName}. I'm helping them cancel a dental appointment. Do you have a moment?";
         }
 
         if (isReschedule)
         {
             return
-                $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request to reschedule a dental appointment. Do you have a moment?";
+                $"Hi, I'm Nuvi. I'm calling on behalf of {patientName}. I'm helping them reschedule a dental appointment. Do you have a moment?";
         }
 
+        var consultPhrase = BuildBookConsultPhrase(vars);
         return
-            $"Hi, this is Nuvi calling on behalf of {patientName}. I'm helping them request a dental appointment. Do you have a moment?";
+            $"Hi, I'm Nuvi. I'm calling on behalf of {patientName}. They live nearby and are looking for {consultPhrase}. I have a few questions to see if your office might be a good fit.";
+    }
+
+    /// <summary>
+    /// Prefer visit reason when it already describes the consult; otherwise default to implant consultation.
+    /// </summary>
+    private static string BuildBookConsultPhrase(IReadOnlyDictionary<string, string> vars)
+    {
+        var reason = vars.TryGetValue("visit_reason", out var vr) ? vr?.Trim() : null;
+        if (string.IsNullOrWhiteSpace(reason)
+            || string.Equals(reason, "dental appointment", StringComparison.OrdinalIgnoreCase))
+        {
+            return "a consultation for dental implants";
+        }
+
+        if (reason.Contains("consult", StringComparison.OrdinalIgnoreCase)
+            || reason.Contains("implant", StringComparison.OrdinalIgnoreCase))
+        {
+            return reason.StartsWith("a ", StringComparison.OrdinalIgnoreCase)
+                   || reason.StartsWith("an ", StringComparison.OrdinalIgnoreCase)
+                ? reason
+                : $"a consultation for {reason}";
+        }
+
+        return $"a consultation for {reason}";
     }
 
     /// <summary>Clinic-local "now" in US Pacific (PST/PDT). Server local time (e.g. IST) is ignored.</summary>
