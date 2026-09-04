@@ -38,14 +38,17 @@ public class PublicDoctorService : IPublicDoctorService
             .ThenBy(d => d.Name)
             .ToListAsync(cancellationToken);
 
-        var dental = doctors
+        // Homepage is Houston-first — never feature out-of-market doctors (e.g. Phoenix, Dallas).
+        var houston = doctors.Where(IsHoustonAreaDoctor).ToList();
+
+        var dental = houston
             .Where(d => IsDentalSpecialty(d.Specialty))
             .Take(take)
             .ToList();
 
-        // Fall back if the network is not yet dentist-seeded.
+        // Fall back within Houston only if the network is not yet dentist-seeded.
         if (dental.Count == 0)
-            dental = doctors.Take(take).ToList();
+            dental = houston.Take(take).ToList();
 
         return dental
             .Select((doctor, index) => MapFeatured(doctor, index == 1))
@@ -64,6 +67,48 @@ public class PublicDoctorService : IPublicDoctorService
             || s.Contains("endodont")
             || s.Contains("prosthodont")
             || s.Contains("hygien");
+    }
+
+    /// <summary>Houston + common surrounding cities / ZIPs (770–775).</summary>
+    private static bool IsHoustonAreaDoctor(Doctor doctor)
+    {
+        var city = (doctor.City ?? string.Empty).ToLowerInvariant();
+        var location = (doctor.Location ?? string.Empty).ToLowerInvariant();
+        var address = (doctor.Address ?? string.Empty).ToLowerInvariant();
+
+        if (city.Contains("houston") || location.Contains("houston") || address.Contains("houston"))
+            return true;
+
+        var zip = ExtractZip(doctor.ZipCode);
+        if (zip != null && IsHoustonAreaZip(zip))
+            return true;
+
+        var state = (doctor.State ?? string.Empty).Trim();
+        if (state.Equals("TX", StringComparison.OrdinalIgnoreCase)
+            && (city.Contains("katy") || city.Contains("sugar land") || city.Contains("pasadena")
+                || city.Contains("pearland") || city.Contains("baytown") || city.Contains("spring")
+                || city.Contains("cypress") || city.Contains("humble") || city.Contains("missouri city")))
+            return true;
+
+        return false;
+    }
+
+    private static bool IsHoustonAreaZip(string zip) =>
+        zip.StartsWith("770", StringComparison.Ordinal)
+        || zip.StartsWith("772", StringComparison.Ordinal)
+        || zip.StartsWith("773", StringComparison.Ordinal)
+        || zip.StartsWith("774", StringComparison.Ordinal)
+        || zip.StartsWith("775", StringComparison.Ordinal);
+
+    private static string? ExtractZip(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var match = System.Text.RegularExpressions.Regex.Match(value, @"\b(\d{5})(?:-\d{4})?\b");
+        if (!match.Success)
+            return null;
+        var zip = match.Groups[1].Value;
+        return zip is "00000" ? null : zip;
     }
 
     public async Task<PublicDoctorProfileDto?> GetPublicProfileAsync(
