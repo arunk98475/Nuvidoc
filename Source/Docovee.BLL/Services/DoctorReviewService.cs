@@ -18,6 +18,7 @@ public interface IDoctorReviewService
         string? waitingTime,
         string? recommendation,
         string? photoUrl = null,
+        int? appointmentId = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -130,6 +131,7 @@ public class DoctorReviewService : IDoctorReviewService
         string? waitingTime,
         string? recommendation,
         string? photoUrl = null,
+        int? appointmentId = null,
         CancellationToken cancellationToken = default)
     {
         var patient = await _db.Patients.AsNoTracking()
@@ -141,30 +143,35 @@ public class DoctorReviewService : IDoctorReviewService
                 r => r.PatientId == patientId && r.DoctorId == doctorId, cancellationToken))
             return (false, "You have already reviewed this doctor.");
 
-        var reviewEligibleDays = await _appSettings.GetReviewEligibleDaysAfterConfirmedAsync(cancellationToken);
-        var appointments = await _db.Appointments.AsNoTracking()
+        var feedbackEnabled = await _appSettings.GetFeedbackRequestEnabledAsync(cancellationToken);
+        var feedbackHours = await _appSettings.GetFeedbackRequestHoursAfterBookingAsync(cancellationToken);
+
+        var appointmentsQuery = _db.Appointments.AsNoTracking()
             .Where(a => a.DoctorId == doctorId
                 && (a.PatientId == patientId
-                    || (a.PatientId == null && a.PatientEmail == patient.Username)))
-            .ToListAsync(cancellationToken);
+                    || (a.PatientId == null && a.PatientEmail == patient.Username)));
+        if (appointmentId.HasValue)
+            appointmentsQuery = appointmentsQuery.Where(a => a.Id == appointmentId.Value);
 
+        var appointments = await appointmentsQuery.ToListAsync(cancellationToken);
         var hasEligibleAppointment = appointments.Any(a =>
-            AppointmentStatuses.CanPatientLeaveReview(
+            AppointmentStatuses.CanPatientLeaveFeedback(
                 a.Status,
+                a.CreatedAt,
                 a.StartsAt,
-                reviewEligibleDays,
+                feedbackEnabled,
+                feedbackHours,
                 hasExistingReview: false));
 
         if (!hasEligibleAppointment)
         {
-            var hasConfirmed = appointments.Any(a => AppointmentStatuses.IsConfirmedWithDoctor(a.Status));
-            if (!hasConfirmed)
+            if (feedbackEnabled)
             {
-                return (false, "You can leave a review after your doctor confirms an appointment.");
+                return (false,
+                    $"You can leave feedback {feedbackHours} hour{(feedbackHours == 1 ? "" : "s")} after booking this appointment.");
             }
 
-            return (false,
-                $"You can leave a review {reviewEligibleDays} day{(reviewEligibleDays == 1 ? "" : "s")} after a confirmed appointment with this doctor.");
+            return (false, "You can leave a review after your confirmed visit date.");
         }
 
         return await AddReviewAsync(new DoctorReviewRequest

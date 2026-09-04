@@ -629,6 +629,7 @@ public class AppointmentService : IAppointmentService
                 DoctorState = d.State,
                 a.VisitReason,
                 a.StartsAt,
+                a.CreatedAt,
                 a.Status
             }).ToListAsync(cancellationToken);
 
@@ -654,6 +655,7 @@ public class AppointmentService : IAppointmentService
                     .Where(p => !string.IsNullOrWhiteSpace(p) && p != "NA")),
                 VisitReason = r.VisitReason,
                 StartsAt = r.StartsAt,
+                CreatedAt = r.CreatedAt,
                 Status = r.Status,
                 HasReview = review != null,
                 ReviewRating = review?.Rating,

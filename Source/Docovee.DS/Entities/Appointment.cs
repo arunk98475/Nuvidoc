@@ -134,23 +134,50 @@ public static class AppointmentStatuses
     public static bool IsConfirmedWithDoctor(string? status) =>
         string.Equals(Normalize(status), Confirmed, StringComparison.OrdinalIgnoreCase);
 
-    public static bool CanPatientLeaveReview(
+    public static bool IsPatientNoShow(string? status) =>
+        string.Equals(Normalize(status), PatientNoShow, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Patient can leave a review or report no-show once the feedback window opens.
+    /// When feedback requests are enabled, that is CreatedAt + hoursAfterBooking.
+    /// When disabled, once the visit start date is today/past and status is Confirmed or Completed.
+    /// </summary>
+    public static bool CanPatientLeaveFeedback(
         string? status,
+        DateTime createdAtUtc,
         DateTime startsAt,
-        int daysAfterConfirmed,
-        bool hasExistingReview)
+        bool feedbackRequestEnabled,
+        int hoursAfterBooking,
+        bool hasExistingReview,
+        DateTime? utcNow = null)
     {
         if (hasExistingReview)
             return false;
-        if (!IsConfirmedWithDoctor(status))
+        if (IsCanceled(status) || IsPatientNoShow(status))
             return false;
 
-        var eligibleFrom = startsAt.Date.AddDays(Math.Max(0, daysAfterConfirmed));
-        return DateTime.Today >= eligibleFrom;
+        var now = utcNow ?? DateTime.UtcNow;
+        if (feedbackRequestEnabled)
+        {
+            var hours = Math.Max(1, hoursAfterBooking);
+            return now >= createdAtUtc.ToUniversalTime().AddHours(hours);
+        }
+
+        var s = Normalize(status);
+        if (s is not (Confirmed or Completed))
+            return false;
+        return startsAt.Date <= DateTime.Today;
     }
 
-    public static DateOnly GetReviewAvailableOn(DateTime startsAt, int daysAfterConfirmed) =>
-        DateOnly.FromDateTime(startsAt.Date.AddDays(Math.Max(0, daysAfterConfirmed)));
+    public static DateTime? GetFeedbackAvailableAtUtc(
+        DateTime createdAtUtc,
+        bool feedbackRequestEnabled,
+        int hoursAfterBooking)
+    {
+        if (!feedbackRequestEnabled)
+            return null;
+        return createdAtUtc.ToUniversalTime().AddHours(Math.Max(1, hoursAfterBooking));
+    }
 }
 
 public static class AppointmentSources

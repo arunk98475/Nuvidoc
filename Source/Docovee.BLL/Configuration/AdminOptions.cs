@@ -32,7 +32,10 @@ public static class AppSettingKeys
     public const string DoctorSearchResultCount = "DoctorSearchResultCount";
     public const string PromotedDoctorIds = "PromotedDoctorIds";
     public const string MaxAiQuestions = "MaxAiQuestions";
-    public const string ReviewEligibleDaysAfterConfirmed = "ReviewEligibleDaysAfterConfirmed";
+    /// <summary>When true, send post-booking WhatsApp/SMS feedback requests after N hours.</summary>
+    public const string FeedbackRequestEnabled = "FeedbackRequestEnabled";
+    /// <summary>Hours after appointment CreatedAt before sending the feedback request.</summary>
+    public const string FeedbackRequestHoursAfterBooking = "FeedbackRequestHoursAfterBooking";
     /// <summary>When true, Nuvi asks budget preference and search may rank by practice procedure fees.</summary>
     public const string EnableProcedureCostConsideration = "EnableProcedureCostConsideration";
     /// <summary>One-time flag: Houston dentist homepage + SEO landing pages seeded.</summary>

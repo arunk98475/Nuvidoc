@@ -13,7 +13,7 @@ namespace Docovee.Pages.Account;
 public class AppointmentsModel : PageModel
 {
     private readonly IProfileService _profileService;
-    private readonly IDoctorReviewService _reviewService;
+    private readonly IAppointmentFeedbackService _feedback;
     private readonly IAppointmentService _appointments;
     private readonly IPatientNotificationService _notifications;
     private readonly IAppSettingsService _appSettings;
@@ -21,14 +21,14 @@ public class AppointmentsModel : PageModel
 
     public AppointmentsModel(
         IProfileService profileService,
-        IDoctorReviewService reviewService,
+        IAppointmentFeedbackService feedback,
         IAppointmentService appointments,
         IPatientNotificationService notifications,
         IAppSettingsService appSettings,
         IDoctorFileService fileService)
     {
         _profileService = profileService;
-        _reviewService = reviewService;
+        _feedback = feedback;
         _appointments = appointments;
         _notifications = notifications;
         _appSettings = appSettings;
@@ -39,13 +39,16 @@ public class AppointmentsModel : PageModel
     public IReadOnlyList<PatientAppointmentDto> PastAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
     public IReadOnlyList<PatientAppointmentDto> UpcomingAppointments { get; set; } = Array.Empty<PatientAppointmentDto>();
     public int UnreadNotificationCount { get; private set; }
-    public int ReviewEligibleDaysAfterConfirmed { get; private set; } = 1;
+    public bool FeedbackRequestEnabled { get; private set; } = true;
+    public int FeedbackRequestHoursAfterBooking { get; private set; } = 24;
     public bool ReviewSubmitted { get; set; }
+    public bool NoShowSubmitted { get; set; }
     public string? ReviewError { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(bool reviewSubmitted = false)
+    public async Task<IActionResult> OnGetAsync(bool reviewSubmitted = false, bool noShowSubmitted = false)
     {
         ReviewSubmitted = reviewSubmitted;
+        NoShowSubmitted = noShowSubmitted;
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
             return RedirectToPage("Login");
 
@@ -54,7 +57,24 @@ public class AppointmentsModel : PageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnPostReportNoShowAsync(int appointmentId)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var patientId))
+            return RedirectToPage("Login");
+
+        var (success, error) = await _feedback.ReportNoShowAsPatientAsync(patientId, appointmentId);
+        if (!success)
+        {
+            ReviewError = error;
+            await LoadAsync(patientId);
+            return Page();
+        }
+
+        return RedirectToPage(new { noShowSubmitted = true });
+    }
+
     public async Task<IActionResult> OnPostSubmitReviewAsync(
+        int appointmentId,
         int doctorId,
         int rating,
         string reviewText,
@@ -77,8 +97,15 @@ public class AppointmentsModel : PageModel
             }
         }
 
-        var (success, error) = await _reviewService.AddReviewForPatientAsync(
-            patientId, doctorId, rating, reviewText, waitingTime, recommendation, photoUrl);
+        var (success, error) = await _feedback.SubmitReviewAsPatientAsync(
+            patientId,
+            appointmentId,
+            doctorId,
+            rating,
+            reviewText,
+            waitingTime,
+            recommendation,
+            photoUrl);
 
         if (!success)
         {
@@ -96,7 +123,8 @@ public class AppointmentsModel : PageModel
         if (Profile == null) return;
 
         var all = await _appointments.GetForPatientAsync(patientId);
-        ReviewEligibleDaysAfterConfirmed = await _appSettings.GetReviewEligibleDaysAfterConfirmedAsync();
+        FeedbackRequestEnabled = await _appSettings.GetFeedbackRequestEnabledAsync();
+        FeedbackRequestHoursAfterBooking = await _appSettings.GetFeedbackRequestHoursAfterBookingAsync();
         var startOfToday = DateTime.Today;
 
         UpcomingAppointments = all
@@ -112,26 +140,32 @@ public class AppointmentsModel : PageModel
                         || a.Status == AppointmentStatuses.Completed
                         || AppointmentStatuses.IsCanceled(a.Status)
                         || AppointmentStatuses.Normalize(a.Status) == AppointmentStatuses.PatientNoShow)
-            .Select(a => ApplyReviewEligibility(a, ReviewEligibleDaysAfterConfirmed))
+            .Select(a => ApplyFeedbackEligibility(a))
             .OrderByDescending(a => a.StartsAt)
             .ToList();
 
         UnreadNotificationCount = await _notifications.CountUnreadAsync(patientId);
     }
 
-    private static PatientAppointmentDto ApplyReviewEligibility(
-        PatientAppointmentDto appointment,
-        int reviewEligibleDaysAfterConfirmed)
+    private PatientAppointmentDto ApplyFeedbackEligibility(PatientAppointmentDto appointment)
     {
-        appointment.CanLeaveReview = AppointmentStatuses.CanPatientLeaveReview(
+        var canLeave = AppointmentStatuses.CanPatientLeaveFeedback(
             appointment.Status,
+            appointment.CreatedAt,
             appointment.StartsAt,
-            reviewEligibleDaysAfterConfirmed,
+            FeedbackRequestEnabled,
+            FeedbackRequestHoursAfterBooking,
             appointment.HasReview);
-        appointment.ReviewAvailableOn = appointment.HasReview
-            || !AppointmentStatuses.IsConfirmedWithDoctor(appointment.Status)
-            ? null
-            : AppointmentStatuses.GetReviewAvailableOn(appointment.StartsAt, reviewEligibleDaysAfterConfirmed);
+
+        appointment.CanLeaveReview = canLeave
+            && !AppointmentStatuses.IsPatientNoShow(appointment.Status)
+            && !AppointmentStatuses.IsCanceled(appointment.Status);
+        appointment.CanReportNoShow = canLeave
+            && AppointmentStatuses.CanMarkNoShow(appointment.Status);
+        appointment.FeedbackAvailableAtUtc = AppointmentStatuses.GetFeedbackAvailableAtUtc(
+            appointment.CreatedAt,
+            FeedbackRequestEnabled,
+            FeedbackRequestHoursAfterBooking);
         return appointment;
     }
 

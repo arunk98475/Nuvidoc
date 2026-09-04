@@ -12,15 +12,18 @@ public class IntegrationsWebhookController : ControllerBase
 {
     private readonly IPmsCalendarService _pms;
     private readonly IVoiceCallBookingService _voiceBookings;
+    private readonly IAppointmentFeedbackService _feedback;
     private readonly ILogger<IntegrationsWebhookController> _logger;
 
     public IntegrationsWebhookController(
         IPmsCalendarService pms,
         IVoiceCallBookingService voiceBookings,
+        IAppointmentFeedbackService feedback,
         ILogger<IntegrationsWebhookController> logger)
     {
         _pms = pms;
         _voiceBookings = voiceBookings;
+        _feedback = feedback;
         _logger = logger;
     }
 
@@ -73,6 +76,47 @@ public class IntegrationsWebhookController : ControllerBase
             _logger.LogWarning(ex, "ElevenLabs webhook processing failed");
             return StatusCode(500, new { success = false, error = "Webhook processing failed." });
         }
+    }
+
+    /// <summary>
+    /// Twilio WhatsApp inbound webhook for post-booking feedback survey replies.
+    /// Configure on the WhatsApp sender: When a message comes in →
+    /// {PublicBaseUrl}/api/integrations/twilio/whatsapp
+    /// </summary>
+    [HttpPost("twilio/whatsapp")]
+    [AllowAnonymous]
+    public async Task<IActionResult> TwilioWhatsApp(CancellationToken cancellationToken)
+    {
+        var form = await Request.ReadFormAsync(cancellationToken);
+        var from = form["From"].ToString();
+        var body = form["Body"].ToString();
+        var buttonPayload = form["ButtonPayload"].ToString();
+        var listId = form["ListId"].ToString();
+        if (string.IsNullOrWhiteSpace(listId))
+            listId = form["ButtonPayload"].ToString();
+
+        _logger.LogInformation(
+            "Twilio WhatsApp inbound. From={From}, ListId={ListId}, HasBody={HasBody}",
+            from,
+            string.IsNullOrWhiteSpace(listId) ? "(none)" : listId,
+            !string.IsNullOrWhiteSpace(body));
+
+        try
+        {
+            await _feedback.HandleInboundWhatsAppAsync(
+                from,
+                body,
+                buttonPayload,
+                listId,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Twilio WhatsApp feedback handling failed");
+        }
+
+        // Empty TwiML / 200 so Twilio does not retry.
+        return Content("<Response></Response>", "text/xml");
     }
 
     [HttpPost("sync")]

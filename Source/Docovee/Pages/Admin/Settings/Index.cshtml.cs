@@ -86,7 +86,8 @@ public class IndexModel : PageModel
         Input.PlayStoreUrl = posted.PlayStoreUrl;
         Input.DoctorSearchResultCount = posted.DoctorSearchResultCount;
         Input.MaxAiQuestions = posted.MaxAiQuestions;
-        Input.ReviewEligibleDaysAfterConfirmed = posted.ReviewEligibleDaysAfterConfirmed;
+        Input.FeedbackRequestEnabled = posted.FeedbackRequestEnabled;
+        Input.FeedbackRequestHoursAfterBooking = posted.FeedbackRequestHoursAfterBooking;
         Input.EnableProcedureCostConsideration = posted.EnableProcedureCostConsideration;
         return Page();
     }

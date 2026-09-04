@@ -29,6 +29,7 @@ public class DocoveeDbContext : DbContext
     public DbSet<PatientNotification> PatientNotifications => Set<PatientNotification>();
     public DbSet<PatientAppointmentReminderSend> PatientAppointmentReminderSends => Set<PatientAppointmentReminderSend>();
     public DbSet<PatientNurtureSend> PatientNurtureSends => Set<PatientNurtureSend>();
+    public DbSet<AppointmentFeedbackRequest> AppointmentFeedbackRequests => Set<AppointmentFeedbackRequest>();
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
     public DbSet<PmsExternalRef> PmsExternalRefs => Set<PmsExternalRef>();
@@ -363,6 +364,26 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Channel).HasMaxLength(20).IsRequired();
             entity.HasIndex(e => new { e.PatientId, e.StepDay, e.Channel }).IsUnique();
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+        });
+
+        modelBuilder.Entity<AppointmentFeedbackRequest>(entity =>
+        {
+            entity.ToTable("appointment_feedback_requests");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Channel).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Stage).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.WaitingTime).HasMaxLength(50);
+            entity.Property(e => e.Recommendation).HasMaxLength(50);
+            entity.Property(e => e.ReviewText).HasMaxLength(2000);
+            entity.Property(e => e.WhatsAppTo).HasMaxLength(40);
+            entity.Property(e => e.LastOutboundMessageSid).HasMaxLength(64);
+            entity.Property(e => e.LastError).HasMaxLength(500);
+            entity.HasIndex(e => e.AppointmentId).IsUnique();
+            entity.HasIndex(e => new { e.Stage, e.ScheduledAtUtc });
+            entity.HasIndex(e => e.WhatsAppTo);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
         });
 
         modelBuilder.Entity<PmsConnection>(entity =>

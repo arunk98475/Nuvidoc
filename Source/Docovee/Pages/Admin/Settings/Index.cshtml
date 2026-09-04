@@ -6,7 +6,7 @@
 
 <div class="admin-card">
     <h1>Site Settings</h1>
-    <p>Configure search behavior, footer links, app stores, and legal PDFs.</p>
+    <p>Configure search behavior, post-booking feedback, footer links, app stores, and legal PDFs.</p>
 
     @if (!string.IsNullOrEmpty(Model.SuccessMessage))
     {
@@ -31,11 +31,6 @@
                 <p class="hint">How many follow-up / polling questions the AI may ask (2–5).</p>
             </div>
             <div class="form-group">
-                <label asp-for="Input.ReviewEligibleDaysAfterConfirmed">Days before patient can review</label>
-                <input asp-for="Input.ReviewEligibleDaysAfterConfirmed" type="number" min="0" max="90" class="form-control" />
-                <p class="hint">In Appointment History, the review form appears only after the doctor confirms the visit and this many days have passed since the appointment date (0–90).</p>
-            </div>
-            <div class="form-group">
                 <label asp-for="Input.EnableProcedureCostConsideration">
                     <input asp-for="Input.EnableProcedureCostConsideration" type="checkbox" />
                     Enable procedure cost consideration
@@ -46,6 +41,23 @@
                 <label asp-for="Input.PromotedDoctorIds">Promoted doctor IDs (coming soon)</label>
                 <input asp-for="Input.PromotedDoctorIds" class="form-control" placeholder="e.g. 1,3,5" disabled />
                 <p class="hint">Reserved for Phase II — doctors shown at top of search results.</p>
+            </div>
+        </div>
+
+        <h2 class="admin-section-title">Post-booking feedback</h2>
+        <p class="hint" style="margin-top:-8px;margin-bottom:14px;">WhatsApp feedback survey after a booking. If WhatsApp is unavailable, the patient gets an SMS link to Appointment History.</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="Input.FeedbackRequestEnabled">
+                    <input asp-for="Input.FeedbackRequestEnabled" type="checkbox" />
+                    Enable feedback requests
+                </label>
+                <p class="hint">When enabled, patients receive a feedback request after the delay below.</p>
+            </div>
+            <div class="form-group">
+                <label asp-for="Input.FeedbackRequestHoursAfterBooking">Hours after booking to send</label>
+                <input asp-for="Input.FeedbackRequestHoursAfterBooking" type="number" min="1" max="720" class="form-control" />
+                <p class="hint">Sends this many hours after the appointment is booked (1–720). Also controls when Appointment History shows the review / “I did not attend” options.</p>
             </div>
         </div>
 

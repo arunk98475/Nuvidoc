@@ -434,6 +434,38 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
 
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `appointment_feedback_requests` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `AppointmentId` int NOT NULL,
+                `PatientId` int NULL,
+                `DoctorId` int NOT NULL,
+                `ScheduledAtUtc` datetime(6) NOT NULL,
+                `SentAtUtc` datetime(6) NULL,
+                `Channel` varchar(20) CHARACTER SET utf8mb4 NOT NULL,
+                `Stage` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `Rating` int NULL,
+                `WaitingTime` varchar(50) CHARACTER SET utf8mb4 NULL,
+                `Recommendation` varchar(50) CHARACTER SET utf8mb4 NULL,
+                `ReviewText` varchar(2000) CHARACTER SET utf8mb4 NULL,
+                `WhatsAppTo` varchar(40) CHARACTER SET utf8mb4 NULL,
+                `LastOutboundMessageSid` varchar(64) CHARACTER SET utf8mb4 NULL,
+                `LastError` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `CreatedAtUtc` datetime(6) NOT NULL,
+                `UpdatedAtUtc` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_appointment_feedback_requests_AppointmentId` (`AppointmentId`),
+                KEY `IX_appointment_feedback_requests_Stage_Scheduled` (`Stage`, `ScheduledAtUtc`),
+                KEY `IX_appointment_feedback_requests_WhatsAppTo` (`WhatsAppTo`),
+                KEY `IX_appointment_feedback_requests_PatientId` (`PatientId`),
+                KEY `IX_appointment_feedback_requests_DoctorId` (`DoctorId`),
+                CONSTRAINT `FK_feedback_requests_appointments` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_feedback_requests_patients` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE SET NULL,
+                CONSTRAINT `FK_feedback_requests_doctors` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+
         // CMS — editable marketing/SEO pages
         await db.Database.ExecuteSqlRawAsync(
             """

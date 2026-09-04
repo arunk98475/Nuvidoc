@@ -12,7 +12,8 @@ public interface IAppSettingsService
 {
     Task<int> GetDoctorSearchResultCountAsync(CancellationToken cancellationToken = default);
     Task<int> GetMaxAiQuestionsAsync(CancellationToken cancellationToken = default);
-    Task<int> GetReviewEligibleDaysAfterConfirmedAsync(CancellationToken cancellationToken = default);
+    Task<bool> GetFeedbackRequestEnabledAsync(CancellationToken cancellationToken = default);
+    Task<int> GetFeedbackRequestHoursAfterBookingAsync(CancellationToken cancellationToken = default);
     Task<SiteSettingsModel> GetSiteSettingsAsync(CancellationToken cancellationToken = default);
     Task SaveSiteSettingsAsync(SiteSettingsModel settings, CancellationToken cancellationToken = default);
     Task<bool> GetEnableProcedureCostConsiderationAsync(CancellationToken cancellationToken = default);
@@ -56,9 +57,9 @@ public class AppSettingsService : IAppSettingsService
     private const int DefaultMaxAiQuestions = 3;
     private const int MinAiQuestions = 2;
     private const int MaxAiQuestionsLimit = 5;
-    private const int DefaultReviewEligibleDays = 1;
-    private const int MinReviewEligibleDays = 0;
-    private const int MaxReviewEligibleDays = 90;
+    private const int DefaultFeedbackHoursAfterBooking = 24;
+    private const int MinFeedbackHoursAfterBooking = 1;
+    private const int MaxFeedbackHoursAfterBooking = 720;
     private const int DefaultMinQualityScoreForSponsorship = 40;
     private const int DefaultMinGoogleReviewCountForSponsorship = 5;
     private const int DefaultBookingReminderIntervalDays = 30;
@@ -94,12 +95,18 @@ public class AppSettingsService : IAppSettingsService
         return DefaultMaxAiQuestions;
     }
 
-    public async Task<int> GetReviewEligibleDaysAfterConfirmedAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> GetFeedbackRequestEnabledAsync(CancellationToken cancellationToken = default)
     {
-        var value = await GetValueAsync(AppSettingKeys.ReviewEligibleDaysAfterConfirmed, cancellationToken);
-        if (int.TryParse(value, out var days))
-            return Math.Clamp(days, MinReviewEligibleDays, MaxReviewEligibleDays);
-        return DefaultReviewEligibleDays;
+        var value = await GetValueAsync(AppSettingKeys.FeedbackRequestEnabled, cancellationToken);
+        return ParseBoolSetting(value, defaultValue: true);
+    }
+
+    public async Task<int> GetFeedbackRequestHoursAfterBookingAsync(CancellationToken cancellationToken = default)
+    {
+        var value = await GetValueAsync(AppSettingKeys.FeedbackRequestHoursAfterBooking, cancellationToken);
+        if (int.TryParse(value, out var hours))
+            return Math.Clamp(hours, MinFeedbackHoursAfterBooking, MaxFeedbackHoursAfterBooking);
+        return DefaultFeedbackHoursAfterBooking;
     }
 
     public async Task<SiteSettingsModel> GetSiteSettingsAsync(CancellationToken cancellationToken = default)
@@ -109,7 +116,8 @@ public class AppSettingsService : IAppSettingsService
             AppSettingKeys.DoctorSearchResultCount,
             AppSettingKeys.PromotedDoctorIds,
             AppSettingKeys.MaxAiQuestions,
-            AppSettingKeys.ReviewEligibleDaysAfterConfirmed,
+            AppSettingKeys.FeedbackRequestEnabled,
+            AppSettingKeys.FeedbackRequestHoursAfterBooking,
             AppSettingKeys.EnableProcedureCostConsideration,
             AppSettingKeys.FooterFacebookUrl,
             AppSettingKeys.FooterInstagramUrl,
@@ -136,8 +144,10 @@ public class AppSettingsService : IAppSettingsService
             PromotedDoctorIds = Val(AppSettingKeys.PromotedDoctorIds),
             MaxAiQuestions = int.TryParse(Val(AppSettingKeys.MaxAiQuestions), out var mq)
                 ? Math.Clamp(mq, MinAiQuestions, MaxAiQuestionsLimit) : DefaultMaxAiQuestions,
-            ReviewEligibleDaysAfterConfirmed = int.TryParse(Val(AppSettingKeys.ReviewEligibleDaysAfterConfirmed), out var rd)
-                ? Math.Clamp(rd, MinReviewEligibleDays, MaxReviewEligibleDays) : DefaultReviewEligibleDays,
+            FeedbackRequestEnabled = ParseBoolSetting(Val(AppSettingKeys.FeedbackRequestEnabled), defaultValue: true),
+            FeedbackRequestHoursAfterBooking = int.TryParse(Val(AppSettingKeys.FeedbackRequestHoursAfterBooking), out var fh)
+                ? Math.Clamp(fh, MinFeedbackHoursAfterBooking, MaxFeedbackHoursAfterBooking)
+                : DefaultFeedbackHoursAfterBooking,
             EnableProcedureCostConsideration = ParseBoolSetting(Val(AppSettingKeys.EnableProcedureCostConsideration)),
             FacebookUrl = Val(AppSettingKeys.FooterFacebookUrl),
             InstagramUrl = Val(AppSettingKeys.FooterInstagramUrl),
@@ -156,11 +166,18 @@ public class AppSettingsService : IAppSettingsService
     {
         var count = Math.Clamp(settings.DoctorSearchResultCount, 1, MaxResultCount);
         var maxQuestions = Math.Clamp(settings.MaxAiQuestions, MinAiQuestions, MaxAiQuestionsLimit);
-        var reviewDays = Math.Clamp(settings.ReviewEligibleDaysAfterConfirmed, MinReviewEligibleDays, MaxReviewEligibleDays);
+        var feedbackHours = Math.Clamp(
+            settings.FeedbackRequestHoursAfterBooking,
+            MinFeedbackHoursAfterBooking,
+            MaxFeedbackHoursAfterBooking);
         await SetValueAsync(AppSettingKeys.DoctorSearchResultCount, count.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.PromotedDoctorIds, settings.PromotedDoctorIds?.Trim() ?? string.Empty, cancellationToken);
         await SetValueAsync(AppSettingKeys.MaxAiQuestions, maxQuestions.ToString(), cancellationToken);
-        await SetValueAsync(AppSettingKeys.ReviewEligibleDaysAfterConfirmed, reviewDays.ToString(), cancellationToken);
+        await SetValueAsync(
+            AppSettingKeys.FeedbackRequestEnabled,
+            settings.FeedbackRequestEnabled ? "true" : "false",
+            cancellationToken);
+        await SetValueAsync(AppSettingKeys.FeedbackRequestHoursAfterBooking, feedbackHours.ToString(), cancellationToken);
         await SetValueAsync(
             AppSettingKeys.EnableProcedureCostConsideration,
             settings.EnableProcedureCostConsideration ? "true" : "false",

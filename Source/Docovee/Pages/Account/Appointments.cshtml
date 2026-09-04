@@ -47,6 +47,10 @@
     {
         <div class="alert-success">Thank you — your review has been submitted.</div>
     }
+    @if (Model.NoShowSubmitted)
+    {
+        <div class="alert-success">Thanks for letting us know you did not attend.</div>
+    }
     @if (!string.IsNullOrEmpty(Model.ReviewError))
     {
         <div class="alert-error">@Model.ReviewError</div>
@@ -54,7 +58,7 @@
 
     <div class="pat-panel-head">
         <h1>Appointment History</h1>
-        <p>Past visits — leave a review after your doctor confirms the appointment and @Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") have passed.</p>
+        <p>Share feedback after your visit, or let us know if you did not attend.</p>
     </div>
 
     @if (Model.PastAppointments.Count == 0)
@@ -86,7 +90,11 @@
 
                     @if (!Docovee.DS.Entities.AppointmentStatuses.IsCanceled(a.Status))
                     {
-                        if (a.HasReview)
+                        if (Docovee.DS.Entities.AppointmentStatuses.IsPatientNoShow(a.Status))
+                        {
+                            <p class="pi-hint" style="margin:0;">You reported that you did not attend this visit.</p>
+                        }
+                        else if (a.HasReview)
                         {
                             <div class="patient-review-submitted">
                                 <div class="patient-review-stars">@string.Concat(Enumerable.Repeat("★", a.ReviewRating ?? 0))@string.Concat(Enumerable.Repeat("☆", 5 - (a.ReviewRating ?? 0)))</div>
@@ -104,9 +112,19 @@
                                 <div class="profile-list-meta">Submitted @a.ReviewedAt?.ToString("MMM d, yyyy")</div>
                             </div>
                         }
-                        else if (a.CanLeaveReview)
+                        else if (a.CanLeaveReview || a.CanReportNoShow)
                         {
+                            @if (a.CanReportNoShow)
+                            {
+                                <form method="post" asp-page-handler="ReportNoShow" class="patient-review-form" style="margin-bottom:12px;">
+                                    <input type="hidden" name="appointmentId" value="@a.Id" />
+                                    <button type="submit" class="btn-secondary btn-sm">I did not attend</button>
+                                </form>
+                            }
+                            @if (a.CanLeaveReview)
+                            {
                             <form method="post" asp-page-handler="SubmitReview" class="patient-review-form" enctype="multipart/form-data">
+                                <input type="hidden" name="appointmentId" value="@a.Id" />
                                 <input type="hidden" name="doctorId" value="@a.DoctorId" />
                                 <label class="review-label">Review @a.DoctorName</label>
                                 <div class="review-rating-row">
@@ -147,13 +165,14 @@
                                 <input id="review-photo-@a.Id" type="file" name="ReviewPhoto" accept="image/*" class="review-photo-input" />
                                 <button type="submit" class="btn-primary btn-sm">Submit review</button>
                             </form>
+                            }
                         }
-                        else if (Docovee.DS.Entities.AppointmentStatuses.IsConfirmedWithDoctor(a.Status)
-                                 && a.ReviewAvailableOn is DateOnly availableOn
-                                 && availableOn > DateOnly.FromDateTime(DateTime.Today))
+                        else if (a.FeedbackAvailableAtUtc is DateTime availableAt
+                                 && availableAt > DateTime.UtcNow)
                         {
                             <p class="pi-hint" style="margin:0;">
-                                Review available on @availableOn.ToString("MMM d, yyyy") (@Model.ReviewEligibleDaysAfterConfirmed day@(Model.ReviewEligibleDaysAfterConfirmed == 1 ? "" : "s") after your confirmed visit).
+                                Feedback available after @availableAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+                                (@Model.FeedbackRequestHoursAfterBooking hour@(Model.FeedbackRequestHoursAfterBooking == 1 ? "" : "s") after booking).
                             </p>
                         }
                     }

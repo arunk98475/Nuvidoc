@@ -47,6 +47,18 @@ public class TwilioOptions
     /// </summary>
     public string? WhatsAppNurtureContentSid { get; set; }
 
+    /// <summary>List-picker: rate visit / I did not attend. Vars: {{1}} doctor, {{2}} booked time.</summary>
+    public string? WhatsAppFeedbackRatingContentSid { get; set; }
+
+    /// <summary>List-picker: waiting time (Excellent/Good/Average/Bad).</summary>
+    public string? WhatsAppFeedbackWaitingContentSid { get; set; }
+
+    /// <summary>List-picker: recommend doctor (Highly Recommended/Neutral/Not Recommended).</summary>
+    public string? WhatsAppFeedbackRecommendContentSid { get; set; }
+
+    /// <summary>Text prompt asking the patient to share a free-text review.</summary>
+    public string? WhatsAppFeedbackCommentContentSid { get; set; }
+
     /// <summary>
     /// SMS caller ID for Production verification. Falls back to <see cref="FromNumber"/> when empty.
     /// </summary>

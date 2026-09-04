@@ -120,6 +120,7 @@ public static class DependencyInjection
         services.AddScoped<IPatientNotificationService, PatientNotificationService>();
         services.AddScoped<IPatientReminderService, PatientReminderService>();
         services.AddScoped<IPatientNurtureService, PatientNurtureService>();
+        services.AddScoped<IAppointmentFeedbackService, AppointmentFeedbackService>();
         services.AddScoped<IPatientAccountLifecycleService, PatientAccountLifecycleService>();
         services.AddScoped<IVoiceCallBookingService, VoiceCallBookingService>();
         services.AddScoped<IVoiceCallCascadeService, VoiceCallCascadeService>();

@@ -100,7 +100,10 @@ public class SiteSettingsModel
     public int DoctorSearchResultCount { get; set; } = 10;
     public string PromotedDoctorIds { get; set; } = string.Empty;
     public int MaxAiQuestions { get; set; } = 3;
-    public int ReviewEligibleDaysAfterConfirmed { get; set; } = 1;
+    /// <summary>When true, WhatsApp/SMS feedback is sent after booking.</summary>
+    public bool FeedbackRequestEnabled { get; set; } = true;
+    /// <summary>Hours after booking CreatedAt before the feedback request is sent.</summary>
+    public int FeedbackRequestHoursAfterBooking { get; set; } = 24;
     /// <summary>When true, Nuvi asks cheapest vs best-match and search may use practice fees.</summary>
     public bool EnableProcedureCostConsideration { get; set; }
 

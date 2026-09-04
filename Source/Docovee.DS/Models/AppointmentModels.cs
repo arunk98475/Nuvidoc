@@ -50,10 +50,12 @@ public class PatientAppointmentDto
     public string? DoctorLocation { get; set; }
     public string VisitReason { get; set; } = string.Empty;
     public DateTime StartsAt { get; set; }
+    public DateTime CreatedAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool HasReview { get; set; }
     public bool CanLeaveReview { get; set; }
-    public DateOnly? ReviewAvailableOn { get; set; }
+    public bool CanReportNoShow { get; set; }
+    public DateTime? FeedbackAvailableAtUtc { get; set; }
     public int? ReviewRating { get; set; }
     public string? ReviewText { get; set; }
     public string? ReviewWaitingTime { get; set; }

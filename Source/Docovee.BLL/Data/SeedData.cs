@@ -185,12 +185,21 @@ public static class SeedData
             });
         }
 
-        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.ReviewEligibleDaysAfterConfirmed))
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.FeedbackRequestEnabled))
         {
             context.AppSettings.Add(new AppSetting
             {
-                Key = AppSettingKeys.ReviewEligibleDaysAfterConfirmed,
-                Value = "1"
+                Key = AppSettingKeys.FeedbackRequestEnabled,
+                Value = "true"
+            });
+        }
+
+        if (!await context.AppSettings.AnyAsync(s => s.Key == AppSettingKeys.FeedbackRequestHoursAfterBooking))
+        {
+            context.AppSettings.Add(new AppSetting
+            {
+                Key = AppSettingKeys.FeedbackRequestHoursAfterBooking,
+                Value = "24"
             });
         }
 
