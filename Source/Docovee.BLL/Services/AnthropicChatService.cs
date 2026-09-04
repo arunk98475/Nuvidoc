@@ -2652,12 +2652,12 @@ public class AnthropicChatService : IAnthropicChatService
     {
         context.Stage = NuviConversationStage.CallingOffices;
         var doctors = await LoadMatchedDoctorsInRankOrderAsync(session, context, cancellationToken);
-        var bookingWindow = BuildPacificBookingWindow(context.UrgencyPreference);
+        var bookingWindow = BuildClinicBookingWindow(context.UrgencyPreference);
         var urgencyWindow = bookingWindow.Phrase;
         var agentDateTime = bookingWindow.Phrase;
         var preferredTimeWindow = context.CallPreference == CallOfficePreference.DateAndTime
-            ? "prefer a specific date and time that works within the booking window (Pacific Time)"
-            : "any available time during office hours (Pacific Time)";
+            ? "prefer a specific date and time that works within the booking window"
+            : "any available time during office hours";
         var callPreferenceLabel = context.CallPreference == CallOfficePreference.DateAndTime
             ? "date_and_time"
             : context.CallPreference == CallOfficePreference.Dentist
@@ -2928,17 +2928,17 @@ public class AnthropicChatService : IAnthropicChatService
         };
 
     private static string FormatUrgencyBookingWindow(string? urgencyPreference) =>
-        BuildPacificBookingWindow(urgencyPreference).Phrase;
+        BuildClinicBookingWindow(urgencyPreference).Phrase;
 
     /// <summary>
     /// Phrase injected into ElevenLabs {{date_time}} / preferred_date for the office call.
-    /// Uses explicit Pacific calendar dates so the agent can request real availability.
+    /// Uses explicit clinic calendar dates so the agent can request real availability.
     /// ASAP → next 7 days; Within a month → 30 days; No rush → 120 days; Just exploring → 180 days.
     /// </summary>
     private static string FormatAgentDateTimePhrase(string? urgencyPreference) =>
-        BuildPacificBookingWindow(urgencyPreference).Phrase;
+        BuildClinicBookingWindow(urgencyPreference).Phrase;
 
-    private static (string Phrase, string StartDate, string EndDate) BuildPacificBookingWindow(string? urgencyPreference)
+    private static (string Phrase, string StartDate, string EndDate) BuildClinicBookingWindow(string? urgencyPreference)
     {
         var u = (urgencyPreference ?? string.Empty).Trim().ToLowerInvariant();
         var start = ElevenLabsTwilioCallingService.GetClinicNow().Date;
@@ -2973,7 +2973,7 @@ public class AnthropicChatService : IAnthropicChatService
 
         var end = start.AddDays(days);
         var phrase =
-            $"{label}: any day from {start:dddd, MMMM d, yyyy} through {end:dddd, MMMM d, yyyy} (Pacific Time)";
+            $"{label}: any day from {start:dddd, MMMM d, yyyy} through {end:dddd, MMMM d, yyyy}";
         return (phrase, start.ToString("yyyy-MM-dd"), end.ToString("yyyy-MM-dd"));
     }
 

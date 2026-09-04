@@ -217,11 +217,11 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         var isCancel = string.Equals(intent, VoiceOutboundCallIntents.Cancel, StringComparison.OrdinalIgnoreCase);
         var isReschedule = string.Equals(intent, VoiceOutboundCallIntents.Reschedule, StringComparison.OrdinalIgnoreCase);
 
-        var nowPacific = GetClinicNow();
-        vars["current_date"] = nowPacific.ToString("dddd, MMMM d, yyyy");
-        vars["current_datetime"] = nowPacific.ToString("yyyy-MM-dd HH:mm");
-        vars["current_timezone"] = "America/Los_Angeles (US Pacific Time)";
-        vars["today"] = nowPacific.ToString("yyyy-MM-dd");
+        var nowClinic = GetClinicNow();
+        vars["current_date"] = nowClinic.ToString("dddd, MMMM d, yyyy");
+        vars["current_datetime"] = nowClinic.ToString("yyyy-MM-dd HH:mm");
+        vars["current_timezone"] = "America/Chicago";
+        vars["today"] = nowClinic.ToString("yyyy-MM-dd");
 
         // Minimum necessary: generic label unless IncludePhi is explicitly enabled.
         vars["patient_name"] = includePhi
@@ -275,7 +275,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             var cancelSlot = FirstNonEmpty(
                 request.AppointmentDateTime,
                 !string.IsNullOrWhiteSpace(request.AppointmentDate) && !string.IsNullOrWhiteSpace(request.AppointmentTime)
-                    ? $"{request.AppointmentDate} at {request.AppointmentTime} Pacific"
+                    ? $"{request.AppointmentDate} at {request.AppointmentTime}"
                     : null);
             vars["appointment_datetime"] = cancelSlot;
             vars["date_time"] = cancelSlot;
@@ -291,7 +291,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             var currentSlot = FirstNonEmpty(
                 request.AppointmentDateTime,
                 !string.IsNullOrWhiteSpace(request.AppointmentDate) && !string.IsNullOrWhiteSpace(request.AppointmentTime)
-                    ? $"{request.AppointmentDate} at {request.AppointmentTime} Pacific"
+                    ? $"{request.AppointmentDate} at {request.AppointmentTime}"
                     : null);
             vars["appointment_datetime"] = currentSlot;
 
@@ -304,11 +304,11 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             vars["availability_window"] = window;
             vars["preferred_time_window"] = FirstNonEmpty(
                 request.PreferredTimeWindow,
-                "any available time during office hours (Pacific Time)");
+                "any available time during office hours");
             AddVar(vars, "booking_window_start", request.BookingWindowStart);
             AddVar(vars, "booking_window_end", request.BookingWindowEnd);
             vars["appointment_datetime_format"] =
-                "When rescheduled, report the exact new confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00).";
+                "When rescheduled, report the exact new confirmed slot as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). Do not mention a timezone.";
         }
         else
         {
@@ -319,7 +319,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
 
             var timeWindow = FirstNonEmpty(
                 request.PreferredTimeWindow,
-                "any available time during office hours (Pacific Time)");
+                "any available time during office hours");
 
             vars["date_time"] = dateTime;
             vars["preferred_date"] = dateTime;
@@ -329,7 +329,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             AddVar(vars, "booking_window_start", request.BookingWindowStart);
             AddVar(vars, "booking_window_end", request.BookingWindowEnd);
             vars["appointment_datetime_format"] =
-                "When booked, report the exact confirmed slot in Pacific Time as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). If a range like 9-10 AM was confirmed, use the start time and mention the end in confirmation_notes.";
+                "When booked, report the exact confirmed slot as yyyy-MM-dd HH:mm (example: 2026-08-12 09:00). If a range like 9-10 AM was confirmed, use the start time and mention the end in confirmation_notes. Do not mention a timezone.";
 
             if (includePhi)
                 AddVar(vars, "call_preference", request.CallPreference);
@@ -392,18 +392,16 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         return $"a consultation for {reason}";
     }
 
-    /// <summary>Clinic-local "now" in US Pacific (PST/PDT). Server local time (e.g. IST) is ignored.</summary>
+    /// <summary>Clinic-local "now" in US Central (CST/CDT). Uses <see cref="ClinicTime"/>.</summary>
     internal static DateTime GetClinicNow()
     {
         try
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(
-                OperatingSystem.IsWindows() ? "Pacific Standard Time" : "America/Los_Angeles");
-            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            return ClinicTime.Now;
         }
         catch
         {
-            return DateTime.UtcNow.AddHours(-8); // PST fallback approx
+            return DateTime.UtcNow.AddHours(-5); // CDT fallback approx
         }
     }
 

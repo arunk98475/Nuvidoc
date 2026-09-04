@@ -259,11 +259,11 @@ public sealed class VoiceCallCascadeService : IVoiceCallCascadeService
 
         var retryDelay = TimeSpan.FromSeconds(Math.Max(0, _elevenLabs.CallRetryDelaySeconds));
 
-        var bookingWindow = AppointmentRescheduleService.BuildPacificBookingWindow(context.UrgencyPreference);
+        var bookingWindow = AppointmentRescheduleService.BuildClinicBookingWindow(context.UrgencyPreference);
         var urgencyWindow = bookingWindow.Phrase;
         var preferredTimeWindow = context.CallPreference == CallOfficePreference.DateAndTime
-            ? "prefer a specific date and time that works within the booking window (Pacific Time)"
-            : "any available time during office hours (Pacific Time)";
+            ? "prefer a specific date and time that works within the booking window"
+            : "any available time during office hours";
         var callPreferenceLabel = context.CallPreference == CallOfficePreference.DateAndTime
             ? "date_and_time"
             : context.CallPreference == CallOfficePreference.Dentist

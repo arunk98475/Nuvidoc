@@ -28,13 +28,13 @@ public sealed class NuviOutboundCallRequest
     public string? AvailabilityWindow { get; init; }
     public string? PreferredDate { get; init; }
     public string? PreferredTimeWindow { get; init; }
-    /// <summary>Inclusive window start (yyyy-MM-dd, Pacific).</summary>
+    /// <summary>Inclusive window start (yyyy-MM-dd, clinic local).</summary>
     public string? BookingWindowStart { get; init; }
-    /// <summary>Inclusive window end (yyyy-MM-dd, Pacific).</summary>
+    /// <summary>Inclusive window end (yyyy-MM-dd, clinic local).</summary>
     public string? BookingWindowEnd { get; init; }
     /// <summary>Existing appointment id (cancel calls).</summary>
     public int? AppointmentId { get; init; }
-    /// <summary>yyyy-MM-dd Pacific (cancel calls).</summary>
+    /// <summary>yyyy-MM-dd clinic local (cancel calls).</summary>
     public string? AppointmentDate { get; init; }
     /// <summary>Start clock time with AM/PM (cancel calls).</summary>
     public string? AppointmentTime { get; init; }

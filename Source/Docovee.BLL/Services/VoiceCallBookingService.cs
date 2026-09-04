@@ -74,7 +74,7 @@ public sealed class PatientNotificationDto
     public int? DoctorId { get; init; }
     public bool IsRead { get; init; }
     public DateTime CreatedAt { get; init; }
-    /// <summary>Linked appointment start (Pacific wall-clock).</summary>
+    /// <summary>Linked appointment start (clinic wall-clock).</summary>
     public DateTime? AppointmentStartsAt { get; init; }
     /// <summary>Display end of slot (start + 1 hour when not captured).</summary>
     public DateTime? AppointmentEndsAt { get; set; }
@@ -613,7 +613,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
 
         // Reject past appointment times even if the agent marked the call as booked.
-        // Compare in US Pacific (clinic) time — server may run in another timezone (e.g. IST).
+        // Compare in US Central (clinic) time — server may run in another timezone (e.g. IST).
         var clinicNow = ElevenLabsTwilioCallingService.GetClinicNow();
         if (outcome.IsBooked && outcome.StartsAt is DateTime proposed
             && NormalizeToClinicLocal(proposed) < clinicNow.AddMinutes(-1))
@@ -1488,7 +1488,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         // ElevenLabs format examples (preferred):
         //   status + appointment_date + appointment_time
         // Legacy still accepted: appointment_start_time / appointment_end_time / appointment_datetime
-        // All Nuvi times are Pacific (PST/PDT) wall-clock.
+        // All Nuvi times are Central (CST/CDT) wall-clock.
         if (data.TryGetProperty("analysis", out var analysis2)
             && analysis2.TryGetProperty("data_collection_results", out var dcr))
         {
@@ -2366,7 +2366,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         var appointmentDate = slotStart.ToString("yyyy-MM-dd");
         var appointmentTime = slotStart.ToString("h:mm tt");
         var appointmentDateTime =
-            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime} Pacific";
+            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime}";
         var patientName = string.IsNullOrWhiteSpace(call.PatientName) ? "Patient" : call.PatientName;
         var isCancel = IsCancelIntent(call.CallIntent);
         DateOnly? patientDob = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(appointment.PatientDateOfBirth);
@@ -2406,7 +2406,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         else
         {
             var urgency = await ResolveRescheduleUrgencyPreferenceAsync(call, cancellationToken);
-            var window = AppointmentRescheduleService.BuildPacificBookingWindow(urgency);
+            var window = AppointmentRescheduleService.BuildClinicBookingWindow(urgency);
             request = new NuviOutboundCallRequest
             {
                 Intent = VoiceOutboundCallIntents.Reschedule,
@@ -2428,7 +2428,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
                 AvailabilityWindow = window.Phrase,
                 BookingWindowStart = window.StartDate,
                 BookingWindowEnd = window.EndDate,
-                PreferredTimeWindow = "any available time during office hours (Pacific Time)",
+                PreferredTimeWindow = "any available time during office hours",
                 CallContext =
                     $"Reschedule appointment #{appointment.Id} for {patientName}. Current slot {appointmentDateTime}. New window: {window.Phrase}.",
                 SessionKey = call.SessionKey.ToString()
@@ -3016,7 +3016,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
             return false;
 
         var original = NormalizeSpokenDateTimeText(raw.Trim().Trim('"'));
-        // Nuvi speaks PST only — keep range end when present ("9AM-10AM").
+        // Keep range end when present ("9AM-10AM").
         TryExtractTimeRange(original, out var rangeStartToken, out var rangeEndToken);
         var text = rangeStartToken != null
             ? System.Text.RegularExpressions.Regex.Replace(
@@ -3091,7 +3091,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         if (string.IsNullOrWhiteSpace(text) || IsTimeOnly(text))
             return false;
 
-        // Offset/Z → convert instant to Pacific wall-clock. No-offset → treat as PST already.
+        // Offset/Z → convert instant to clinic wall-clock. No-offset → treat as clinic-local already.
         foreach (var culture in new[] { CultureInfo.InvariantCulture, new CultureInfo("en-US") })
         {
             if (DateTimeOffset.TryParse(
@@ -3268,7 +3268,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     }
 
     /// <summary>
-    /// Store appointments as Pacific wall-clock (Unspecified). Nuvi replies are PST-only.
+    /// Store appointments as clinic wall-clock (Unspecified). Nuvi replies omit timezone labels.
     /// </summary>
     private static DateTime NormalizeToClinicLocal(DateTime value)
     {
@@ -3294,8 +3294,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
     {
         try
         {
-            return TimeZoneInfo.FindSystemTimeZoneById(
-                OperatingSystem.IsWindows() ? "Pacific Standard Time" : "America/Los_Angeles");
+            return ClinicTime.Zone;
         }
         catch
         {
@@ -3355,13 +3354,13 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         return false;
     }
 
-    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM (PST)" — start time only (no end).</summary>
+    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM" — start time only (no end, no timezone).</summary>
     public static string FormatPstSlot(DateTime startsAt, DateTime endsAt)
     {
         _ = endsAt;
         var date = startsAt.ToString("ddd, MMM d", CultureInfo.InvariantCulture);
         var start = startsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
-        return $"{date} · {start} (PST)";
+        return $"{date} · {start}";
     }
 
     private static Dictionary<string, string> ExtractDynamicVariables(JsonElement data)
@@ -3475,7 +3474,7 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         {
             const string system = """
                 You extract dental appointment booking results from phone-call transcripts and analysis.
-                All times are US Pacific wall-clock (no timezone conversion).
+                All times are US Central wall-clock (no timezone conversion; do not name a timezone).
                 Reply with ONLY compact JSON (no markdown):
                 {"status":"booked"|"no_slot"|"declined"|"unknown","appointment_date":"yyyy-MM-dd"|null,"appointment_time":"h:mm AM/PM"|null}
                 Rules:

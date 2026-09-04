@@ -114,7 +114,7 @@ public sealed class AppointmentCancelService : IAppointmentCancelService
         var appointmentDate = slotStart.ToString("yyyy-MM-dd");
         var appointmentTime = slotStart.ToString("h:mm tt");
         var appointmentDateTime =
-            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime} Pacific";
+            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime}";
 
         var (chatSessionId, sessionKey) = await ResolveChatSessionAsync(
             patientId, appointment.SearchSessionId, currentSearchSessionId, cancellationToken);

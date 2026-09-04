@@ -2,7 +2,7 @@ using Docovee.BLL.Services;
 
 namespace Docovee.Services;
 
-/// <summary>Sends 7-day / 3-day / 1-day / same-day appointment reminders in Pacific time.</summary>
+/// <summary>Sends 7-day / 3-day / 1-day / same-day appointment reminders in Central time.</summary>
 public sealed class AppointmentReminderHostedService : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(1);

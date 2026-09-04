@@ -93,12 +93,12 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
         if (string.IsNullOrWhiteSpace(dialNumber) || !_voiceCalling.IsConfigured)
             return Fail("Voice calling isn't available right now. Please contact the office directly to reschedule.");
 
-        var window = BuildPacificBookingWindow(urgencyPreference);
+        var window = BuildClinicBookingWindow(urgencyPreference);
         var slotStart = appointment.StartsAt;
         var appointmentDate = slotStart.ToString("yyyy-MM-dd");
         var appointmentTime = slotStart.ToString("h:mm tt");
         var appointmentDateTime =
-            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime} Pacific";
+            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime}";
 
         var (chatSessionId, sessionKey) = await ResolveChatSessionAsync(
             patientId, appointment.SearchSessionId, currentSearchSessionId, cancellationToken);
@@ -132,7 +132,7 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
             AvailabilityWindow = window.Phrase,
             BookingWindowStart = window.StartDate,
             BookingWindowEnd = window.EndDate,
-            PreferredTimeWindow = "any available time during office hours (Pacific Time)",
+            PreferredTimeWindow = "any available time during office hours",
             CallContext =
                 $"Reschedule appointment #{appointmentId} for {patientName}. Current slot {appointmentDateTime}. New window: {window.Phrase}.",
             SessionKey = sessionKey.ToString()
@@ -178,7 +178,7 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
     }
 
     /// <summary>Same window rules as booking chat (ASAP=7d, month=30d, no rush=120d, exploring=180d).</summary>
-    internal static (string Phrase, string StartDate, string EndDate) BuildPacificBookingWindow(string? urgencyPreference)
+    internal static (string Phrase, string StartDate, string EndDate) BuildClinicBookingWindow(string? urgencyPreference)
     {
         var u = (urgencyPreference ?? string.Empty).Trim().ToLowerInvariant();
         var start = ElevenLabsTwilioCallingService.GetClinicNow().Date;
@@ -213,7 +213,7 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
 
         var end = start.AddDays(days);
         var phrase =
-            $"{label}: any day from {start:dddd, MMMM d, yyyy} through {end:dddd, MMMM d, yyyy} (Pacific Time)";
+            $"{label}: any day from {start:dddd, MMMM d, yyyy} through {end:dddd, MMMM d, yyyy}";
         return (phrase, start.ToString("yyyy-MM-dd"), end.ToString("yyyy-MM-dd"));
     }
 

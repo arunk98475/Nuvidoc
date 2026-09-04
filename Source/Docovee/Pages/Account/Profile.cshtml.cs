@@ -667,13 +667,13 @@ public class ProfileModel : PageModel
         InsuranceProfile.Coverages.FirstOrDefault(c =>
             string.Equals(c.Type, type, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM (PST)" — start time only (no end).</summary>
+    /// <summary>e.g. "Mon, Aug 10 · 9:00 AM" — start time only (no end, no timezone).</summary>
     public static string FormatPstSlot(DateTime startsAt, DateTime endsAt)
     {
         _ = endsAt;
         var date = startsAt.ToString("ddd, MMM d", System.Globalization.CultureInfo.InvariantCulture);
         var start = startsAt.ToString("h:mm tt", System.Globalization.CultureInfo.InvariantCulture);
-        return $"{date} · {start} (PST)";
+        return $"{date} · {start}";
     }
 
     private static string NormalizeSection(string? section) =>

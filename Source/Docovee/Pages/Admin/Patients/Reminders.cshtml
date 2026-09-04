@@ -3,7 +3,7 @@
 @using Docovee.BLL.Services
 @{
     ViewData["Title"] = "Booking reminders";
-    var lastRunPacific = Model.RunStatus.LastRunUtc.HasValue
+    var lastRunClinic = Model.RunStatus.LastRunUtc.HasValue
         ? ClinicTime.FromUtc(Model.RunStatus.LastRunUtc.Value)
         : (DateTime?)null;
 }
@@ -80,7 +80,7 @@
         <p>
             <strong>Last run:</strong>
             @Model.RunStatus.LastRunUtc.Value.ToString("yyyy-MM-dd HH:mm:ss") UTC
-            (@lastRunPacific!.Value.ToString("yyyy-MM-dd h:mm tt") Pacific)
+            (@lastRunClinic!.Value.ToString("yyyy-MM-dd h:mm tt") Central)
         </p>
         <p><strong>Sent on last run:</strong> @Model.RunStatus.LastRunSentCount reminder@(Model.RunStatus.LastRunSentCount == 1 ? "" : "s")</p>
     }
@@ -112,11 +112,11 @@
                 <tbody>
                     @foreach (var row in Model.RecentSends)
                     {
-                        var sentPacific = ClinicTime.FromUtc(row.SentAtUtc);
+                        var sentClinic = ClinicTime.FromUtc(row.SentAtUtc);
                         <tr>
                             <td>
                                 @row.SentAtUtc.ToString("yyyy-MM-dd HH:mm:ss") UTC<br />
-                                <small>@sentPacific.ToString("yyyy-MM-dd h:mm tt") Pacific</small>
+                                <small>@sentClinic.ToString("yyyy-MM-dd h:mm tt") Central</small>
                             </td>
                             <td>
                                 <a href="/Admin/Patients/Edit/@row.PatientId">@row.PatientName</a><br />

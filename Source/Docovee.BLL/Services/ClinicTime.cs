@@ -1,10 +1,10 @@
 namespace Docovee.BLL.Services;
 
-/// <summary>Clinic-local time is always US Pacific (PST/PDT).</summary>
+/// <summary>Clinic-local time is US Central (CST/CDT) — Houston / America/Chicago.</summary>
 public static class ClinicTime
 {
     public static TimeZoneInfo Zone { get; } = TimeZoneInfo.FindSystemTimeZoneById(
-        OperatingSystem.IsWindows() ? "Pacific Standard Time" : "America/Los_Angeles");
+        OperatingSystem.IsWindows() ? "Central Standard Time" : "America/Chicago");
 
     public static DateTime Now => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Zone);
 
