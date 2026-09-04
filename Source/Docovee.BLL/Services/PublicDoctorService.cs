@@ -8,6 +8,8 @@ namespace Docovee.BLL.Services;
 public interface IPublicDoctorService
 {
     Task<IReadOnlyList<FeaturedDoctorCardDto>> GetFeaturedAsync(int count = 3, CancellationToken cancellationToken = default);
+    Task<(int ImplantSpecialistCount, decimal AverageGoogleRating)> GetHomeTrustStatsAsync(
+        CancellationToken cancellationToken = default);
     Task<PublicDoctorProfileDto?> GetPublicProfileAsync(
         int doctorId,
         bool liveGoogleReviews = false,
@@ -53,6 +55,24 @@ public class PublicDoctorService : IPublicDoctorService
         return dental
             .Select((doctor, index) => MapFeatured(doctor, index == 1))
             .ToList();
+    }
+
+    public async Task<(int ImplantSpecialistCount, decimal AverageGoogleRating)> GetHomeTrustStatsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var active = _db.Doctors.AsNoTracking()
+            .Where(d => d.IsActive && !d.IsDeleted);
+
+        var implantCount = await active.CountAsync(d => d.OffersDentalImplants, cancellationToken);
+        if (implantCount == 0)
+            implantCount = await active.CountAsync(cancellationToken);
+
+        var avg = await active
+            .Where(d => d.GoogleRating > 0)
+            .Select(d => (decimal?)d.GoogleRating)
+            .AverageAsync(cancellationToken);
+
+        return (implantCount, avg.HasValue ? Math.Round(avg.Value, 1) : 0m);
     }
 
     private static bool IsDentalSpecialty(string? specialty)

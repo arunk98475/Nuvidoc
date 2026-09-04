@@ -133,7 +133,7 @@
 
 @if (!(User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient)))
 {
-    <partial name="Shared/_HomeMarketing" model="new Docovee.Pages.Shared.HomeMarketingModel { FeaturedDoctors = Model.FeaturedDoctors, Home = Model.Home }" />
+    <partial name="Shared/_HomeMarketing" model="new Docovee.Pages.Shared.HomeMarketingModel { FeaturedDoctors = Model.FeaturedDoctors, Home = Model.Home, ImplantSpecialistCount = Model.ImplantSpecialistCount, AverageGoogleRating = Model.AverageGoogleRating }" />
 
 }
 

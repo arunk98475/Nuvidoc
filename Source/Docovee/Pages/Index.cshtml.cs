@@ -32,10 +32,14 @@ namespace Docovee.Pages
         public int PatientNotifyCount { get; private set; }
         public IReadOnlyList<FeaturedDoctorCardDto> FeaturedDoctors { get; private set; } = Array.Empty<FeaturedDoctorCardDto>();
         public HomePageContentModel Home { get; private set; } = new();
+        public int ImplantSpecialistCount { get; private set; }
+        public decimal AverageGoogleRating { get; private set; }
 
         public async Task OnGetAsync(CancellationToken cancellationToken)
         {
             FeaturedDoctors = await _publicDoctorService.GetFeaturedAsync(3, cancellationToken);
+            (ImplantSpecialistCount, AverageGoogleRating) =
+                await _publicDoctorService.GetHomeTrustStatsAsync(cancellationToken);
 
             var saved = await _homePage.GetForEditAsync(cancellationToken);
             Home = HomePageContentService.Resolve(saved, _branding.SiteName, _branding.ChatBotName);

@@ -7,8 +7,14 @@
 
 <section class="hp-stats" aria-label="Trust statistics">
     <div class="hp-stats-inner">
-        <div class="hp-stat"><div class="hp-stat-num">500+</div><div class="hp-stat-label">Implant specialists</div></div>
-        <div class="hp-stat"><div class="hp-stat-num">4.9★</div><div class="hp-stat-label">Average rating</div></div>
+        <div class="hp-stat">
+            <div class="hp-stat-num">@(Model.ImplantSpecialistCount > 0 ? $"{Model.ImplantSpecialistCount}+" : "—")</div>
+            <div class="hp-stat-label">Implant specialists</div>
+        </div>
+        <div class="hp-stat">
+            <div class="hp-stat-num">@(Model.AverageGoogleRating > 0 ? $"{Model.AverageGoogleRating:0.0}★" : "—")</div>
+            <div class="hp-stat-label">Average rating</div>
+        </div>
         <div class="hp-stat"><div class="hp-stat-num">24hr</div><div class="hp-stat-label">Consultation booking</div></div>
         <div class="hp-stat"><div class="hp-stat-num">$0</div><div class="hp-stat-label">Matching fee</div></div>
     </div>
