@@ -37,9 +37,9 @@ public class CreateModel : ContentFormModel
             MetaDescription = Input.MetaDescription?.Trim(),
             Excerpt    = Input.Excerpt?.Trim(),
             BodyHtml   = Input.BodyHtml?.Trim(),
-            VideoEmbedUrl = Input.VideoEmbedUrl?.Trim(),
+            VideoEmbedUrl = VideoEmbedHelper.ToEmbedUrl(Input.VideoEmbedUrl),
             ImageUrl   = imageUrl,
-            IsPublished = Input.IsPublished,
+            IsPublished = false,
         };
 
         await _content.CreateAsync(page);

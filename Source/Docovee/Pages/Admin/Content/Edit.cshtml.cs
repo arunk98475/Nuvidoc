@@ -28,7 +28,6 @@ public class EditModel : ContentFormModel
             BodyHtml        = page.BodyHtml,
             VideoEmbedUrl   = page.VideoEmbedUrl,
             ImageUrl        = page.ImageUrl,
-            IsPublished     = page.IsPublished,
         };
         return Page();
     }
@@ -59,9 +58,8 @@ public class EditModel : ContentFormModel
         page.MetaDescription = Input.MetaDescription?.Trim();
         page.Excerpt         = Input.Excerpt?.Trim();
         page.BodyHtml        = Input.BodyHtml?.Trim();
-        page.VideoEmbedUrl   = Input.VideoEmbedUrl?.Trim();
+        page.VideoEmbedUrl   = VideoEmbedHelper.ToEmbedUrl(Input.VideoEmbedUrl);
         page.ImageUrl        = imageUrl;
-        page.IsPublished     = Input.IsPublished;
 
         await _content.UpdateAsync(page);
         return RedirectToPage("Index");

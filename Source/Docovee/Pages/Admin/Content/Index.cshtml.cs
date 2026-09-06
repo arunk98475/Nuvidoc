@@ -23,6 +23,20 @@ public class IndexModel : PageModel
             : all.Where(p => p.PageType == TypeFilter).ToList();
     }
 
+    public async Task<IActionResult> OnPostPublishAsync(int id)
+    {
+        var page = await _content.GetByIdAsync(id);
+        if (page is null) return NotFound();
+
+        if (!page.IsPublished)
+        {
+            page.IsPublished = true;
+            await _content.UpdateAsync(page);
+        }
+
+        return RedirectToPage();
+    }
+
     public async Task<IActionResult> OnPostDeleteAsync(int id)
     {
         await _content.DeleteAsync(id);

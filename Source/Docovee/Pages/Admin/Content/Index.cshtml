@@ -76,6 +76,17 @@
                         <td>
                             <div class="actions">
                                 <a asp-page="Edit" asp-route-id="@p.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Publish" style="display:inline;">
+                                    <input type="hidden" name="id" value="@p.Id" />
+                                    @if (p.IsPublished)
+                                    {
+                                        <button type="submit" class="btn btn-primary btn-sm" disabled>Publish</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="submit" class="btn btn-primary btn-sm">Publish</button>
+                                    }
+                                </form>
                                 <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete &quot;@p.Title&quot;? This cannot be undone.');">
                                     <input type="hidden" name="id" value="@p.Id" />
                                     <button type="submit" class="btn btn-danger btn-sm">Delete</button>

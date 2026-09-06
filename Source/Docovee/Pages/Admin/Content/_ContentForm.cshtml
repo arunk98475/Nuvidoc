@@ -14,22 +14,13 @@
 
     <div class="admin-card">
         <h2 class="cms-section-title">Page info</h2>
-        <div class="form-grid">
-            <div class="form-group">
-                <label asp-for="Input.PageType">Page type</label>
-                <select asp-for="Input.PageType" class="form-control">
-                    <option value="blog">Blog post</option>
-                    <option value="service">Service / SEO page</option>
-                </select>
-                <p class="hint">Blog posts appear at /blog/{slug}. Service pages appear at /services/{slug}.</p>
-            </div>
-            <div class="form-group">
-                <label asp-for="Input.IsPublished">Status</label>
-                <select asp-for="Input.IsPublished" class="form-control">
-                    <option value="false">Draft (not visible to public)</option>
-                    <option value="true">Published (live on website)</option>
-                </select>
-            </div>
+        <div class="form-group">
+            <label asp-for="Input.PageType">Page type</label>
+            <select asp-for="Input.PageType" class="form-control">
+                <option value="blog">Blog post</option>
+                <option value="service">Service / SEO page</option>
+            </select>
+            <p class="hint">Blog posts appear at /blog/{slug}. Service pages appear at /services/{slug}. New pages are saved as drafts.</p>
         </div>
 
         <div class="form-group">
@@ -84,8 +75,8 @@
         <h2 class="cms-section-title">Video embed (optional)</h2>
         <div class="form-group">
             <label asp-for="Input.VideoEmbedUrl">YouTube / Vimeo URL</label>
-            <input asp-for="Input.VideoEmbedUrl" class="form-control" placeholder="https://www.youtube.com/embed/..." />
-            <p class="hint">Paste the embed URL (not the share URL). It will appear above the body content.</p>
+            <input asp-for="Input.VideoEmbedUrl" class="form-control" placeholder="https://www.youtube.com/watch?v=..." />
+            <p class="hint">Paste a watch, share, shorts, or embed link. It will appear above the body content.</p>
         </div>
     </div>
 

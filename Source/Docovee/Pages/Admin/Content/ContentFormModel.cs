@@ -78,5 +78,4 @@ public class ContentPageInput
     public string? BodyHtml       { get; set; }
     public string? VideoEmbedUrl  { get; set; }
     public string? ImageUrl       { get; set; }
-    public bool   IsPublished     { get; set; }
 }

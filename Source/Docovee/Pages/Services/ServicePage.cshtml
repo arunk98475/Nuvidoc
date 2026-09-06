@@ -37,8 +37,9 @@
 
         @if (!string.IsNullOrWhiteSpace(p.VideoEmbedUrl))
         {
+            var videoSrc = Docovee.BLL.Services.VideoEmbedHelper.ToEmbedUrl(p.VideoEmbedUrl) ?? p.VideoEmbedUrl;
             <div class="cms-video-wrap">
-                <iframe src="@p.VideoEmbedUrl" title="@p.Title" allowfullscreen loading="lazy"></iframe>
+                <iframe src="@videoSrc" title="@p.Title" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
             </div>
         }
 
@@ -46,14 +47,6 @@
             @Html.Raw(p.BodyHtml ?? "")
         </div>
     </article>
-
-    <aside class="cms-article-sidebar">
-        <div class="cms-sidebar-cta">
-            <h3>Find a Houston dentist</h3>
-            <p>Let Nuvi match you with the right dentist — for free.</p>
-            <a href="/" class="cms-sidebar-btn">Find my dentist →</a>
-        </div>
-    </aside>
 </div>
 @await Component.InvokeAsync("SiteFooter")
 </body>
