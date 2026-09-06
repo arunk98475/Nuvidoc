@@ -4,6 +4,12 @@
   max-width: 1100px;
   margin: 0 auto;
   padding: 40px 20px 80px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cms-article-shell {
+  min-width: 0;
 }
 
 .cms-list-header {
@@ -94,11 +100,24 @@
 }
 
 /* ── Article page ── */
+.cms-article-viewbox {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
 .cms-article {
   background: #fff;
   border: 1px solid #e5e3df;
   border-radius: 12px;
   padding: 40px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .cms-breadcrumb {
@@ -116,6 +135,7 @@
   letter-spacing: -0.02em;
   line-height: 1.25;
   margin-bottom: 8px;
+  overflow-wrap: anywhere;
 }
 
 .cms-article-meta {
@@ -126,6 +146,8 @@
 
 .cms-article-hero-img {
   width: 100%;
+  max-width: 100%;
+  height: auto;
   max-height: 420px;
   object-fit: cover;
   border-radius: 8px;
@@ -134,6 +156,8 @@
 
 .cms-video-wrap {
   position: relative;
+  width: 100%;
+  max-width: 100%;
   padding-bottom: 56.25%;
   height: 0;
   margin-bottom: 28px;
@@ -154,6 +178,12 @@
   line-height: 1.7;
   font-size: 16px;
   color: #1a1a1a;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .cms-article-body h2 { font-size: 24px; font-weight: 700; margin: 28px 0 12px; }
@@ -164,11 +194,41 @@
 .cms-article-body li { margin-bottom: 6px; }
 .cms-article-body a  { color: #1557d6; }
 .cms-article-body strong { font-weight: 700; }
-.cms-article-body img { max-width: 100%; border-radius: 6px; margin: 12px 0; }
+.cms-article-body img,
+.cms-article-body video,
+.cms-article-body iframe {
+  max-width: 100%;
+  height: auto;
+}
+.cms-article-body img { border-radius: 6px; margin: 12px 0; }
+.cms-article-body table {
+  width: 100%;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+}
 .cms-article-body blockquote {
   border-left: 3px solid #e5e3df;
   margin: 20px 0;
   padding: 8px 20px;
   color: #555;
   font-style: italic;
+}
+
+@media (max-width: 640px) {
+  .cms-shell {
+    padding: 20px 12px 56px;
+  }
+
+  .cms-article {
+    padding: 20px 16px;
+    border-radius: 8px;
+  }
+
+  .cms-article-title {
+    font-size: 24px;
+  }
+
+  .cms-article-body h2 { font-size: 20px; }
+  .cms-article-body h3 { font-size: 17px; }
 }

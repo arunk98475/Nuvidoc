@@ -24,29 +24,31 @@
 <partial name="Shared/_PublicNav" />
 
 <div class="cms-shell cms-article-shell">
-    <article class="cms-article">
-        <header class="cms-article-header">
-            <div class="cms-breadcrumb"><a href="/services">Services</a> <span>›</span> <span>@p.Title</span></div>
-            <h1 class="cms-article-title">@p.Title</h1>
-        </header>
+    <div class="cms-article-viewbox">
+        <article class="cms-article">
+            <header class="cms-article-header">
+                <div class="cms-breadcrumb"><a href="/services">Services</a> <span>›</span> <span>@p.Title</span></div>
+                <h1 class="cms-article-title">@p.Title</h1>
+            </header>
 
-        @if (!string.IsNullOrWhiteSpace(p.ImageUrl))
-        {
-            <img src="@p.ImageUrl" alt="@p.Title" class="cms-article-hero-img" />
-        }
+            @if (!string.IsNullOrWhiteSpace(p.ImageUrl))
+            {
+                <img src="@p.ImageUrl" alt="@p.Title" class="cms-article-hero-img" />
+            }
 
-        @if (!string.IsNullOrWhiteSpace(p.VideoEmbedUrl))
-        {
-            var videoSrc = Docovee.BLL.Services.VideoEmbedHelper.ToEmbedUrl(p.VideoEmbedUrl) ?? p.VideoEmbedUrl;
-            <div class="cms-video-wrap">
-                <iframe src="@videoSrc" title="@p.Title" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+            @if (!string.IsNullOrWhiteSpace(p.VideoEmbedUrl))
+            {
+                var videoSrc = Docovee.BLL.Services.VideoEmbedHelper.ToEmbedUrl(p.VideoEmbedUrl) ?? p.VideoEmbedUrl;
+                <div class="cms-video-wrap">
+                    <iframe src="@videoSrc" title="@p.Title" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>
+                </div>
+            }
+
+            <div class="cms-article-body">
+                @Html.Raw(p.BodyHtml ?? "")
             </div>
-        }
-
-        <div class="cms-article-body">
-            @Html.Raw(p.BodyHtml ?? "")
-        </div>
-    </article>
+        </article>
+    </div>
 </div>
 @await Component.InvokeAsync("SiteFooter")
 </body>
