@@ -285,6 +285,47 @@
                         }
                     </section>
                 }
+
+                <section class="dp-practice-block dp-practice-block-divider" id="dp-practice-languages">
+                    <header class="dp-practice-section-head">
+                        <h2>Languages</h2>
+                        <p>Add languages you speak other than English. Type a name and press Add — we’ll normalize it for patient matching.</p>
+                    </header>
+
+                    <div class="dp-languages-widget" id="dp-languages-widget"
+                         data-add-url="@Url.Page(null, "AddLanguage", new { section = "practice" })"
+                         data-remove-url="@Url.Page(null, "RemoveLanguage", new { section = "practice" })">
+                        @Html.AntiForgeryToken()
+
+                        <ul class="dp-language-list" id="dp-language-list" aria-label="Languages you speak">
+                            @if (Model.DoctorLanguages.Count == 0)
+                            {
+                                <li class="dp-language-empty" id="dp-language-empty">No languages added yet.</li>
+                            }
+                            else
+                            {
+                                @foreach (var lang in Model.DoctorLanguages)
+                                {
+                                    <li class="dp-language-item" data-language-id="@lang.Id">
+                                        <span class="dp-language-name">@lang.Name</span>
+                                        <button type="button" class="dp-language-remove" aria-label="Remove @lang.Name">Remove</button>
+                                    </li>
+                                }
+                            }
+                        </ul>
+
+                        <div class="dp-language-add-row">
+                            <input type="text"
+                                   id="dp-language-input"
+                                   class="dp-practice-input"
+                                   maxlength="100"
+                                   placeholder="e.g. Spanish, Mandarin, español"
+                                   autocomplete="off" />
+                            <button type="button" class="dp-btn dp-btn-primary" id="dp-language-add-btn">Add</button>
+                        </div>
+                        <p class="dp-practice-hint dp-language-status" id="dp-language-status" aria-live="polite" hidden></p>
+                    </div>
+                </section>
                 </div>
             </div>
         </div>
@@ -1554,6 +1595,164 @@
 {
     <script src="https://cdn.jsdelivr.net/npm/plyr@3.8.4/dist/plyr.min.js" crossorigin="anonymous"></script>
     <script src="~/js/plyr-init.js" asp-append-version="true"></script>
+    <script>
+    (function () {
+      const widget = document.getElementById("dp-languages-widget");
+      if (!widget) return;
+
+      const listEl = document.getElementById("dp-language-list");
+      const inputEl = document.getElementById("dp-language-input");
+      const addBtn = document.getElementById("dp-language-add-btn");
+      const statusEl = document.getElementById("dp-language-status");
+      const addUrl = widget.getAttribute("data-add-url");
+      const removeUrl = widget.getAttribute("data-remove-url");
+      const token = widget.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
+
+      function setStatus(text, kind) {
+        if (!statusEl) return;
+        if (!text) {
+          statusEl.hidden = true;
+          statusEl.textContent = "";
+          statusEl.classList.remove("is-error", "is-busy");
+          return;
+        }
+        statusEl.hidden = false;
+        statusEl.textContent = text;
+        statusEl.classList.toggle("is-error", kind === "error");
+        statusEl.classList.toggle("is-busy", kind === "busy");
+      }
+
+      function ensureEmptyState() {
+        const items = listEl.querySelectorAll(".dp-language-item");
+        let empty = document.getElementById("dp-language-empty");
+        if (items.length === 0) {
+          if (!empty) {
+            empty = document.createElement("li");
+            empty.className = "dp-language-empty";
+            empty.id = "dp-language-empty";
+            empty.textContent = "No languages added yet.";
+            listEl.appendChild(empty);
+          }
+        } else if (empty) {
+          empty.remove();
+        }
+      }
+
+      function appendLanguage(id, name) {
+        const existing = listEl.querySelector('.dp-language-item[data-language-id="' + id + '"]');
+        if (existing) {
+          existing.querySelector(".dp-language-name").textContent = name;
+          ensureEmptyState();
+          return;
+        }
+
+        document.getElementById("dp-language-empty")?.remove();
+        const li = document.createElement("li");
+        li.className = "dp-language-item";
+        li.setAttribute("data-language-id", id);
+
+        const span = document.createElement("span");
+        span.className = "dp-language-name";
+        span.textContent = name;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "dp-language-remove";
+        btn.setAttribute("aria-label", "Remove " + name);
+        btn.textContent = "Remove";
+
+        li.appendChild(span);
+        li.appendChild(btn);
+        listEl.appendChild(li);
+      }
+
+      async function postForm(url, fields) {
+        const body = new URLSearchParams();
+        if (token) body.set("__RequestVerificationToken", token);
+        Object.keys(fields || {}).forEach(function (key) {
+          body.set(key, fields[key]);
+        });
+        const res = await fetch(url, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "RequestVerificationToken": token,
+            "Accept": "application/json"
+          },
+          body: body.toString()
+        });
+        const data = await res.json().catch(function () { return {}; });
+        if (!res.ok && !data.error) {
+          throw new Error("Request failed");
+        }
+        return data;
+      }
+
+      async function addLanguage() {
+        const value = (inputEl.value || "").trim();
+        if (!value) {
+          inputEl.focus();
+          setStatus("Type a language name first.", "error");
+          return;
+        }
+
+        addBtn.disabled = true;
+        inputEl.disabled = true;
+        setStatus("Detecting language…", "busy");
+
+        try {
+          const data = await postForm(addUrl, { LanguageInput: value });
+          if (!data.success || !data.language) {
+            setStatus(data.error || "Could not add that language.", "error");
+            return;
+          }
+          appendLanguage(data.language.id, data.language.name);
+          inputEl.value = "";
+          setStatus("Added " + data.language.name + ".", null);
+          inputEl.focus();
+        } catch (e) {
+          setStatus("Could not add language. Try again.", "error");
+        } finally {
+          addBtn.disabled = false;
+          inputEl.disabled = false;
+        }
+      }
+
+      async function removeLanguage(item) {
+        const id = item.getAttribute("data-language-id");
+        if (!id) return;
+        const name = item.querySelector(".dp-language-name")?.textContent || "language";
+        setStatus("Removing…", "busy");
+        try {
+          const data = await postForm(removeUrl, { languageId: id });
+          if (!data.success) {
+            setStatus(data.error || "Could not remove language.", "error");
+            return;
+          }
+          item.remove();
+          ensureEmptyState();
+          setStatus("Removed " + name + ".", null);
+        } catch (e) {
+          setStatus("Could not remove language. Try again.", "error");
+        }
+      }
+
+      addBtn?.addEventListener("click", addLanguage);
+      inputEl?.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addLanguage();
+        }
+      });
+      listEl?.addEventListener("click", function (e) {
+        const btn = e.target.closest(".dp-language-remove");
+        if (!btn) return;
+        const item = btn.closest(".dp-language-item");
+        if (item) removeLanguage(item);
+      });
+    })();
+    </script>
 }
 <script>
 (function () {

@@ -42,6 +42,7 @@ public class SettingsModel : PageModel
     private readonly IDoctorInsuranceService _insuranceService;
     private readonly IDoctorPracticeFeeService _practiceFeeService;
     private readonly IDoctorMediaService _mediaService;
+    private readonly IDoctorLanguageService _languageService;
     private readonly IPmsCalendarService _pms;
     private readonly UploadOptions _uploadOptions;
     private readonly StripeOptions _stripeOptions;
@@ -59,6 +60,7 @@ public class SettingsModel : PageModel
         IDoctorInsuranceService insuranceService,
         IDoctorPracticeFeeService practiceFeeService,
         IDoctorMediaService mediaService,
+        IDoctorLanguageService languageService,
         IPmsCalendarService pms,
         IOptions<UploadOptions> uploadOptions,
         IOptions<StripeOptions> stripeOptions,
@@ -74,6 +76,7 @@ public class SettingsModel : PageModel
         _insuranceService = insuranceService;
         _practiceFeeService = practiceFeeService;
         _mediaService = mediaService;
+        _languageService = languageService;
         _pms = pms;
         _uploadOptions = uploadOptions.Value;
         _stripeOptions = stripeOptions.Value;
@@ -110,6 +113,9 @@ public class SettingsModel : PageModel
     [BindProperty]
     public WorkingHoursInput WorkingHoursForm { get; set; } = new();
 
+    [BindProperty]
+    public string? LanguageInput { get; set; }
+
     public string Section { get; private set; } = "practice";
     public string SectionTitle { get; private set; } = "Practice profile";
     public DoctorProfileDto? Profile { get; private set; }
@@ -120,6 +126,7 @@ public class SettingsModel : PageModel
     public IReadOnlyList<DoctorPracticeFeeDto> PracticeFees { get; private set; } = Array.Empty<DoctorPracticeFeeDto>();
     public WorkingHoursPageModel? WorkingHours { get; private set; }
     public IReadOnlyList<DoctorMediaDto> MediaItems { get; private set; } = Array.Empty<DoctorMediaDto>();
+    public IReadOnlyList<DoctorLanguageDto> DoctorLanguages { get; private set; } = Array.Empty<DoctorLanguageDto>();
     public IReadOnlyList<string> TimeOptions { get; private set; } = BuildTimeOptions();
     public string LocationsJson { get; private set; } = "[]";
     public IReadOnlyList<(string Code, string Name)> StateOptions => UsStates.All;
@@ -193,6 +200,38 @@ public class SettingsModel : PageModel
         }
 
         return RedirectToPage(new { section = "practice", saved = true });
+    }
+
+    public async Task<IActionResult> OnPostAddLanguageAsync(CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return new JsonResult(new { success = false, error = "Not signed in." }) { StatusCode = 401 };
+
+        var (success, error, language) = await _languageService.AddDoctorLanguageFromTextAsync(
+            doctorId,
+            LanguageInput ?? "",
+            cancellationToken);
+
+        if (!success || language == null)
+            return new JsonResult(new { success = false, error = error ?? "Could not add language." });
+
+        return new JsonResult(new
+        {
+            success = true,
+            language = new { id = language.Id, name = language.Name }
+        });
+    }
+
+    public async Task<IActionResult> OnPostRemoveLanguageAsync(int languageId, CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return new JsonResult(new { success = false, error = "Not signed in." }) { StatusCode = 401 };
+
+        var (success, error) = await _languageService.RemoveDoctorLanguageAsync(doctorId, languageId, cancellationToken);
+        if (!success)
+            return new JsonResult(new { success = false, error = error ?? "Could not remove language." });
+
+        return new JsonResult(new { success = true });
     }
 
     public async Task<IActionResult> OnPostAddMediaAsync(string mediaType, string? caption, CancellationToken cancellationToken = default)
@@ -607,6 +646,8 @@ public class SettingsModel : PageModel
         {
             MediaItems = await _mediaService.GetForDoctorAsync(doctorId, cancellationToken);
             VideoBytesUsed = await _mediaService.GetVideoBytesUsedAsync(doctorId, cancellationToken);
+            DoctorLanguages = await _languageService.GetDoctorLanguagesAsync(doctorId, cancellationToken);
+            LanguageInput = null;
         }
 
         if (Section == "locations")

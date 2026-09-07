@@ -15,6 +15,15 @@ public interface IAnthropicValidationService
         string? validationHint,
         string? conversationContext = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Extracts a standardized spoken-language name from free-form text
+    /// (e.g. "espanol" → "Spanish"). Prefer catalog matches when clear.
+    /// </summary>
+    Task<PollingValidationResult> ExtractLanguageNameAsync(
+        string answer,
+        IReadOnlyList<string>? knownLanguages = null,
+        CancellationToken cancellationToken = default);
 }
 
 public class PollingValidationResult
@@ -66,6 +75,38 @@ public class AnthropicValidationService : IAnthropicValidationService
         }
 
         return FallbackValidate(question, answer, validationHint);
+    }
+
+    public async Task<PollingValidationResult> ExtractLanguageNameAsync(
+        string answer,
+        IReadOnlyList<string>? knownLanguages = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(answer))
+            return Invalid("Please type a language name.");
+
+        var trimmed = answer.Trim();
+        if (IsGibberish(trimmed))
+            return Invalid("I didn't catch a language name — try something like Spanish or Mandarin.");
+
+        var catalogMatch = TryMatchKnownLanguage(trimmed, knownLanguages);
+        if (catalogMatch != null)
+        {
+            return new PollingValidationResult
+            {
+                IsValid = true,
+                NormalizedAnswer = catalogMatch
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.ApiKey) && !string.IsNullOrWhiteSpace(_options.Model))
+        {
+            var aiResult = await ExtractLanguageWithAiAsync(trimmed, knownLanguages, cancellationToken);
+            if (aiResult != null)
+                return aiResult;
+        }
+
+        return FallbackExtractLanguage(trimmed, knownLanguages);
     }
 
     private async Task<PollingValidationResult?> ValidateWithAiAsync(
@@ -130,6 +171,143 @@ public class AnthropicValidationService : IAnthropicValidationService
             _logger.LogError(ex, "Error validating polling answer with AI");
             return null;
         }
+    }
+
+    private async Task<PollingValidationResult?> ExtractLanguageWithAiAsync(
+        string answer,
+        IReadOnlyList<string>? knownLanguages,
+        CancellationToken cancellationToken)
+    {
+        var catalog = knownLanguages is { Count: > 0 }
+            ? string.Join(", ", knownLanguages)
+            : "(none provided)";
+
+        var systemPrompt = """
+            You extract a spoken language name for a healthcare doctor profile.
+
+            Rules:
+            - Accept informal answers, misspellings, native-language names, and short phrases
+              (e.g. "espanol", "I speak Mandarin", "français" → French).
+            - Return the standard English language name when possible (Spanish, Mandarin, Korean, etc.).
+            - If the answer clearly matches a catalog language, use the catalog form exactly.
+            - Accept real languages even if they are not in the catalog.
+            - Reject gibberish, unrelated answers, or answers that do not name a language.
+
+            Respond with ONLY JSON:
+            {"valid": true, "normalizedAnswer": "Spanish"}
+            or
+            {"valid": false, "reprompt": "friendly one-sentence message asking for a language name"}
+            """;
+
+        var userPrompt = new StringBuilder();
+        userPrompt.AppendLine($"Catalog languages (prefer exact match when clearly the same): {catalog}");
+        userPrompt.AppendLine($"Input: {answer}");
+
+        try
+        {
+            var payload = AnthropicApiHelper.BuildPayload(
+                _options,
+                maxTokens: 200,
+                system: systemPrompt,
+                messages: new[] { new { role = "user", content = userPrompt.ToString() } });
+
+            using var httpRequest = AnthropicApiHelper.CreateMessageRequest(_options, payload);
+            var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+            var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Anthropic language extraction failed with status {Status}", (int)response.StatusCode);
+                return null;
+            }
+
+            var text = AnthropicApiHelper.ExtractTextContent(responseBody);
+            if (string.IsNullOrWhiteSpace(text))
+                text = "{}";
+
+            var parsed = ParseAiValidationJson(text, "Which language do you speak?");
+            if (parsed == null)
+                return null;
+
+            if (!parsed.IsValid || string.IsNullOrWhiteSpace(parsed.NormalizedAnswer))
+                return parsed;
+
+            var catalogMatch = TryMatchKnownLanguage(parsed.NormalizedAnswer, knownLanguages);
+            return new PollingValidationResult
+            {
+                IsValid = true,
+                NormalizedAnswer = catalogMatch ?? TitleCaseLanguage(parsed.NormalizedAnswer)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting language name with AI");
+            return null;
+        }
+    }
+
+    private static PollingValidationResult FallbackExtractLanguage(
+        string answer,
+        IReadOnlyList<string>? knownLanguages)
+    {
+        var catalogMatch = TryMatchKnownLanguage(answer, knownLanguages);
+        if (catalogMatch != null)
+        {
+            return new PollingValidationResult
+            {
+                IsValid = true,
+                NormalizedAnswer = catalogMatch
+            };
+        }
+
+        var cleaned = Regex.Replace(answer, @"[^\p{L}\s\-']", " ").Trim();
+        cleaned = Regex.Replace(cleaned, @"\s+", " ");
+        if (cleaned.Length is < 2 or > 40)
+            return Invalid("Please type a language name, for example Spanish or Mandarin.");
+
+        var words = cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 4)
+            return Invalid("Please type just the language name, for example Spanish or Mandarin.");
+
+        return new PollingValidationResult
+        {
+            IsValid = true,
+            NormalizedAnswer = TitleCaseLanguage(cleaned)
+        };
+    }
+
+    private static string? TryMatchKnownLanguage(string input, IReadOnlyList<string>? knownLanguages)
+    {
+        if (knownLanguages == null || knownLanguages.Count == 0 || string.IsNullOrWhiteSpace(input))
+            return null;
+
+        var trimmed = input.Trim();
+        var exact = knownLanguages.FirstOrDefault(l =>
+            l.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+        if (exact != null)
+            return exact;
+
+        foreach (var lang in knownLanguages.OrderByDescending(l => l.Length))
+        {
+            if (trimmed.Contains(lang, StringComparison.OrdinalIgnoreCase))
+                return lang;
+        }
+
+        return null;
+    }
+
+    private static string TitleCaseLanguage(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+            return trimmed;
+
+        return string.Join(' ', trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word =>
+            {
+                if (word.Length == 1)
+                    return word.ToUpperInvariant();
+                return char.ToUpperInvariant(word[0]) + word[1..].ToLowerInvariant();
+            }));
     }
 
     private static PollingValidationResult? ParseAiValidationJson(string text, string question)
