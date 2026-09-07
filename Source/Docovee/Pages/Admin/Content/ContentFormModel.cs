@@ -30,6 +30,12 @@ public abstract class ContentFormModel : PageModel
         if (string.IsNullOrWhiteSpace(Input.Title))  { error = "Title is required.";   return false; }
         if (string.IsNullOrWhiteSpace(Input.Slug))   { error = "Slug is required.";    return false; }
 
+        if (!string.IsNullOrEmpty(Input.Excerpt) && Input.Excerpt.Length > 155)
+        {
+            error = "Excerpt must be 155 characters or fewer.";
+            return false;
+        }
+
         var slug = Input.Slug.Trim().ToLowerInvariant();
         if (!System.Text.RegularExpressions.Regex.IsMatch(slug, @"^[a-z0-9][a-z0-9\-]*[a-z0-9]$") && slug.Length > 1)
         {

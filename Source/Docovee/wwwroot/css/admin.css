@@ -516,6 +516,16 @@ button.btn:disabled {
   align-items: center;
 }
 
+.cms-input-error {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.cms-char-counter.cms-char-over {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 .dash-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

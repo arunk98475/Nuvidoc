@@ -48,7 +48,8 @@
 
         <div class="form-group">
             <label asp-for="Input.Excerpt">Excerpt</label>
-            <textarea asp-for="Input.Excerpt" class="form-control" rows="3" placeholder="Short summary shown on listing pages"></textarea>
+            <textarea asp-for="Input.Excerpt" id="excerpt-input" class="form-control" rows="3" placeholder="Short summary shown on listing pages" aria-describedby="excerpt-counter"></textarea>
+            <p class="hint cms-char-counter" id="excerpt-counter"><span id="excerpt-count">0</span>/155 characters</p>
         </div>
     </div>
 
@@ -87,18 +88,23 @@
     </div>
 
     <div class="admin-card cms-form-footer">
-        <button type="submit" class="btn btn-primary">@Model.SubmitLabel</button>
+        <button type="submit" class="btn btn-primary" id="cms-save-btn">@Model.SubmitLabel</button>
         <a asp-page="Index" class="btn btn-secondary">Cancel</a>
     </div>
 </form>
 
-@section Scripts {
+@* Scripts must be inline (not @section) — this file is rendered as a partial. *@
 <script>
 (function () {
     const typeSelect = document.querySelector('[name="Input.PageType"]');
     const slugInput = document.getElementById('slug-input');
     const baseLabel = document.getElementById('slug-base-label');
     const titleInput = document.querySelector('[name="Input.Title"]');
+    const excerptInput = document.getElementById('excerpt-input');
+    const excerptCount = document.getElementById('excerpt-count');
+    const excerptCounter = document.getElementById('excerpt-counter');
+    const saveBtn = document.getElementById('cms-save-btn');
+    const excerptLimit = 155;
 
     function updateBase() {
         if (typeSelect && baseLabel) {
@@ -121,6 +127,20 @@
             slugInput.value = slugify(this.value);
         });
     }
+
+    function updateExcerptLimit() {
+        if (!excerptInput || !saveBtn) return;
+        const len = excerptInput.value.length;
+        const over = len > excerptLimit;
+        if (excerptCount) excerptCount.textContent = String(len);
+        excerptInput.classList.toggle('cms-input-error', over);
+        if (excerptCounter) excerptCounter.classList.toggle('cms-char-over', over);
+        saveBtn.disabled = over;
+    }
+
+    if (excerptInput) {
+        excerptInput.addEventListener('input', updateExcerptLimit);
+        updateExcerptLimit();
+    }
 })();
 </script>
-}
