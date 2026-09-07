@@ -16,9 +16,9 @@ public class IndexModel : PageModel
     public async Task OnGetAsync() =>
         Languages = await _languageService.GetAllAsync();
 
-    public async Task<IActionResult> OnPostDeleteAsync(int id)
+    public async Task<IActionResult> OnGetDoctorsAsync(int id)
     {
-        await _languageService.DeleteAsync(id);
-        return RedirectToPage();
+        var doctors = await _languageService.GetDoctorsSpeakingAsync(id);
+        return new JsonResult(doctors);
     }
 }

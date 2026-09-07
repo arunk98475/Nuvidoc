@@ -10,6 +10,9 @@ public interface IDoctorLanguageService
 {
     Task<IReadOnlyList<string>> GetActiveNamesAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<DoctorLanguageDto>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DoctorLanguageSpeakerDto>> GetDoctorsSpeakingAsync(
+        int languageId,
+        CancellationToken cancellationToken = default);
     Task<DoctorLanguageEditModel?> GetForEditAsync(int id, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> CreateAsync(DoctorLanguageEditModel model, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> UpdateAsync(DoctorLanguageEditModel model, CancellationToken cancellationToken = default);
@@ -44,7 +47,25 @@ public class DoctorLanguageService : IDoctorLanguageService
                 Id = l.Id,
                 Name = l.Name,
                 SortOrder = l.SortOrder,
-                IsActive = l.IsActive
+                IsActive = l.IsActive,
+                DoctorCount = l.Doctors.Count(d => !d.Doctor.IsDeleted)
+            })
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<DoctorLanguageSpeakerDto>> GetDoctorsSpeakingAsync(
+        int languageId,
+        CancellationToken cancellationToken = default) =>
+        await _db.DoctorDoctorLanguages.AsNoTracking()
+            .Where(ddl => ddl.DoctorLanguageId == languageId && !ddl.Doctor.IsDeleted)
+            .OrderBy(ddl => ddl.Doctor.Name)
+            .Select(ddl => new DoctorLanguageSpeakerDto
+            {
+                Id = ddl.Doctor.Id,
+                Name = ddl.Doctor.Name,
+                PracticeName = ddl.Doctor.PracticeName,
+                Specialty = ddl.Doctor.Specialty,
+                City = ddl.Doctor.City,
+                State = ddl.Doctor.State
             })
             .ToListAsync(cancellationToken);
 

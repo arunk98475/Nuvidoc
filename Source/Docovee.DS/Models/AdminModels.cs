@@ -320,6 +320,17 @@ public class DoctorLanguageDto
     public string Name { get; set; } = string.Empty;
     public int SortOrder { get; set; }
     public bool IsActive { get; set; }
+    public int DoctorCount { get; set; }
+}
+
+public class DoctorLanguageSpeakerDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? PracticeName { get; set; }
+    public string Specialty { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
 }
 
 public class DoctorLanguageEditModel

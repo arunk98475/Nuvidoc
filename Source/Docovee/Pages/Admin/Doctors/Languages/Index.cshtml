@@ -8,45 +8,153 @@
 
 <div class="admin-card">
     <h1>Doctor Languages</h1>
-    <p>Languages patients can choose during deep-dive matching. Assign languages to doctors from their profile when available.</p>
-    <a asp-page="Create" class="btn btn-primary">+ Add Language</a>
+    <p>Languages used during deep-dive matching. Select a language to see which doctors speak it.</p>
 </div>
 
-<div class="admin-card">
-    @if (Model.Languages.Count == 0)
-    {
-        <p>No languages configured.</p>
-    }
-    else
-    {
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Order</th>
-                    <th>Language</th>
-                    <th>Active</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var lang in Model.Languages)
-                {
+<div class="lang-split">
+    <div class="admin-card lang-split-list">
+        @if (Model.Languages.Count == 0)
+        {
+            <p>No languages configured.</p>
+        }
+        else
+        {
+            <table class="data-table lang-table">
+                <thead>
                     <tr>
-                        <td>@lang.SortOrder</td>
-                        <td>@lang.Name</td>
-                        <td>@(lang.IsActive ? "Yes" : "No")</td>
-                        <td>
-                            <div class="actions">
-                                <a asp-page="Edit" asp-route-id="@lang.Id" class="btn btn-secondary btn-sm">Edit</a>
-                                <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Delete this language?');">
-                                    <input type="hidden" name="id" value="@lang.Id" />
-                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                                </form>
-                            </div>
-                        </td>
+                        <th>Order</th>
+                        <th>Language</th>
+                        <th>Active</th>
+                        <th>Doctors</th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    }
+                </thead>
+                <tbody>
+                    @foreach (var lang in Model.Languages)
+                    {
+                        <tr class="lang-row"
+                            data-language-id="@lang.Id"
+                            data-language-name="@lang.Name"
+                            tabindex="0"
+                            role="button"
+                            aria-label="Show doctors who speak @lang.Name">
+                            <td>@lang.SortOrder</td>
+                            <td>@lang.Name</td>
+                            <td>@(lang.IsActive ? "Yes" : "No")</td>
+                            <td>@lang.DoctorCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="admin-card lang-split-detail" id="lang-detail-panel">
+        <h2 id="lang-detail-title">Doctors</h2>
+        <p id="lang-detail-hint" class="lang-detail-hint">Click a language on the left to see doctors who speak it.</p>
+        <div id="lang-detail-status" class="lang-detail-status" hidden></div>
+        <ul id="lang-doctor-list" class="lang-doctor-list" hidden></ul>
+    </div>
 </div>
+
+@section Scripts {
+<script>
+(function () {
+  var rows = document.querySelectorAll(".lang-row");
+  var titleEl = document.getElementById("lang-detail-title");
+  var hintEl = document.getElementById("lang-detail-hint");
+  var statusEl = document.getElementById("lang-detail-status");
+  var listEl = document.getElementById("lang-doctor-list");
+  var selectedId = null;
+
+  function setSelected(row) {
+    rows.forEach(function (r) { r.classList.remove("is-selected"); });
+    if (row) row.classList.add("is-selected");
+  }
+
+  function showStatus(text, isError) {
+    listEl.hidden = true;
+    listEl.innerHTML = "";
+    hintEl.hidden = true;
+    statusEl.hidden = false;
+    statusEl.textContent = text;
+    statusEl.classList.toggle("is-error", !!isError);
+  }
+
+  function renderDoctors(languageName, doctors) {
+    statusEl.hidden = true;
+    hintEl.hidden = true;
+    titleEl.textContent = languageName + " — doctors";
+    listEl.innerHTML = "";
+
+    if (!doctors || doctors.length === 0) {
+      showStatus("No doctors are linked to this language yet.");
+      return;
+    }
+
+    doctors.forEach(function (d) {
+      var li = document.createElement("li");
+      var link = document.createElement("a");
+      link.href = "/Admin/Doctors/Edit/" + d.id;
+      link.className = "lang-doctor-link";
+
+      var name = document.createElement("strong");
+      name.textContent = d.name || ("Doctor #" + d.id);
+      link.appendChild(name);
+
+      var meta = document.createElement("span");
+      meta.className = "lang-doctor-meta";
+      var parts = [];
+      if (d.practiceName) parts.push(d.practiceName);
+      if (d.specialty) parts.push(d.specialty);
+      var loc = [d.city, d.state].filter(Boolean).join(", ");
+      if (loc) parts.push(loc);
+      meta.textContent = parts.join(" · ");
+      link.appendChild(meta);
+
+      li.appendChild(link);
+      listEl.appendChild(li);
+    });
+
+    listEl.hidden = false;
+  }
+
+  function loadDoctors(row) {
+    var id = row.getAttribute("data-language-id");
+    var name = row.getAttribute("data-language-name") || "Language";
+    if (!id || id === selectedId) return;
+
+    selectedId = id;
+    setSelected(row);
+    titleEl.textContent = name + " — doctors";
+    showStatus("Loading…");
+
+    fetch("/Admin/Doctors/Languages?handler=Doctors&id=" + encodeURIComponent(id), {
+      headers: { "Accept": "application/json" },
+      credentials: "same-origin"
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Request failed");
+        return res.json();
+      })
+      .then(function (data) {
+        if (selectedId !== id) return;
+        renderDoctors(name, data);
+      })
+      .catch(function () {
+        if (selectedId !== id) return;
+        showStatus("Could not load doctors for this language.", true);
+      });
+  }
+
+  rows.forEach(function (row) {
+    row.addEventListener("click", function () { loadDoctors(row); });
+    row.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        loadDoctors(row);
+      }
+    });
+  });
+})();
+</script>
+}
