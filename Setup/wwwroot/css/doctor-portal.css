@@ -560,6 +560,76 @@ body:has(.dp-content-practice) {
   height: 16px;
 }
 
+.dp-language-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 1px solid var(--dp-border, #e5ebe8);
+  border-radius: 12px;
+  background: #fff;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.dp-language-empty {
+  padding: 14px 16px;
+  color: var(--dp-muted);
+  font-size: 14px;
+}
+
+.dp-language-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--dp-border, #e5ebe8);
+}
+
+.dp-language-item:last-child {
+  border-bottom: none;
+}
+
+.dp-language-name {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.dp-language-remove {
+  border: none;
+  background: transparent;
+  color: #b42318;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.dp-language-remove:hover {
+  text-decoration: underline;
+}
+
+.dp-language-add-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dp-language-add-row .dp-practice-input {
+  flex: 1;
+}
+
+.dp-language-status {
+  margin-top: 10px;
+}
+
+.dp-language-status.is-error {
+  color: #b42318;
+}
+
+.dp-language-status.is-busy {
+  color: var(--dp-muted);
+}
+
 .dp-practice-count {
   margin-top: 8px;
   font-size: 14px;
