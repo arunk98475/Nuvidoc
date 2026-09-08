@@ -26,6 +26,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/docovee.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/doctor-portal.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
@@ -34,7 +35,7 @@
 <div class="dp-shell">
     <aside class="dp-sidebar" aria-label="Doctor portal navigation">
         <a class="dp-logo" href="/Doctor">
-            <img class="dp-logo-mark" src="~/images/favicon_large.png" asp-append-version="true" alt="" width="32" height="32" />
+            <img class="dp-logo-mark" src="~/images/logo-mark.png" asp-append-version="true" alt="" width="32" height="32" decoding="async" />
             <span>@Branding.SiteName</span>
         </a>
 

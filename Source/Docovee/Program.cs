@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using System.Threading.RateLimiting;
 using System.Xml.Linq;
 
@@ -101,6 +102,11 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     // IIS / reverse proxy terminates TLS; clear defaults so forwarded headers are honored.
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
+});
+
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
 });
 
 builder.Services.AddAuthorization(options =>
@@ -243,6 +249,8 @@ Console.WriteLine("[NuviDoc] Web server starting — open http://localhost:5274,
 
 app.UseForwardedHeaders();
 
+app.UseResponseCompression();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
@@ -250,7 +258,31 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        var requestPath = ctx.Context.Request.Path.Value ?? "";
+        // User uploads can be replaced in place — do not immutable-cache them.
+        if (requestPath.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var path = ctx.File.Name;
+        if (path.EndsWith(".css", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".woff", StringComparison.OrdinalIgnoreCase)
+            || path.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.CacheControl = "public,max-age=31536000,immutable";
+        }
+    }
+});
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();

@@ -3,7 +3,10 @@
     var brand = Branding.SiteName;
     var privacyHref = string.IsNullOrWhiteSpace(Model.PrivacyPdfUrl) ? "/Privacy" : Model.PrivacyPdfUrl;
 }
-<link rel="stylesheet" href="~/css/site-footer.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/site-footer.css" asp-append-version="true" media="print" onload="this.media='all'" />
+<noscript>
+    <link rel="stylesheet" href="~/css/site-footer.css" asp-append-version="true" />
+</noscript>
 <footer class="sf" role="contentinfo">
     <nav class="sf-menu" aria-label="Footer">
         <div class="sf-inner sf-menu-inner">
