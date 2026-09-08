@@ -1,0 +1,141 @@
+@page
+@model Docovee.Pages.Admin.BlogGeneration.IndexModel
+@using Docovee.DS.Entities
+@{
+    ViewData["Title"] = "Blog Generation";
+}
+
+<div class="admin-card">
+    <h1>Blog Generation</h1>
+    <p>Queue topics for Claude. Every N days the next pending topic becomes one draft blog. Review, regenerate, then publish.</p>
+    @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+    {
+        <div class="alert-success">@Model.SuccessMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+</div>
+
+<div class="admin-card">
+    <h2 class="cms-section-title">Schedule</h2>
+    <form method="post" asp-page-handler="SaveSettings">
+        @Html.AntiForgeryToken()
+        <div class="form-group">
+            <label class="cms-check-label">
+                <input asp-for="Enabled" type="checkbox" />
+                Enable automatic generation
+            </label>
+        </div>
+        <div class="form-group">
+            <label asp-for="IntervalDays">Interval (days)</label>
+            <input asp-for="IntervalDays" class="form-control" type="number" min="1" max="365" style="max-width:120px;" />
+            <p class="hint">One pending topic is generated per interval. Last run (UTC): @(Model.Settings.LastRunUtc?.ToString("u") ?? "never"). Next due: @(Model.NextDueUtc?.ToString("u") ?? "—").</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Save schedule</button>
+    </form>
+    <form method="post" asp-page-handler="GenerateNow" style="margin-top:12px;">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn">Generate next topic now</button>
+        <p class="hint">Ignores the interval; still processes only the next Pending topic and sends email + dashboard alert.</p>
+    </form>
+</div>
+
+<div class="admin-card">
+    <h2 class="cms-section-title">Add topic</h2>
+    <form method="post" asp-page-handler="AddTopic">
+        @Html.AntiForgeryToken()
+        <div class="form-group" style="margin-bottom:10px">
+            <label asp-for="NewTopic">Topic</label>
+            <input asp-for="NewTopic" class="form-control" placeholder="e.g. How dental implants work for Houston patients" maxlength="500" />
+        </div>
+        <button type="submit" class="btn btn-primary">Add to queue</button>
+    </form>
+</div>
+
+<div class="admin-card">
+    <h2 class="cms-section-title">Topic queue</h2>
+    @if (Model.Topics.Count == 0)
+    {
+        <p style="color:#6b8078;padding:12px 0;">No topics yet.</p>
+    }
+    else
+    {
+        <table class="data-table data-table-stack">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Topic</th>
+                    <th>Status</th>
+                    <th>Draft</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var t in Model.Topics)
+            {
+                <tr>
+                    <td data-label="#">@t.SortOrder</td>
+                    <td data-label="Topic">
+                        <strong>@t.Topic</strong>
+                        @if (!string.IsNullOrWhiteSpace(t.LastError))
+                        {
+                            <div class="hint" style="color:#a33;">@t.LastError</div>
+                        }
+                    </td>
+                    <td data-label="Status">
+                        <span class="cms-badge">@t.Status</span>
+                        @if (t.GeneratedAtUtc.HasValue)
+                        {
+                            <div class="hint">@t.GeneratedAtUtc.Value.ToString("u")</div>
+                        }
+                    </td>
+                    <td data-label="Draft">
+                        @if (t.ContentPage is not null)
+                        {
+                            <a href="/Admin/BlogGeneration/Review/@t.Id">@t.ContentPage.Title</a>
+                            @if (t.ContentPage.IsPublished)
+                            {
+                                <span class="hint"> (published)</span>
+                            }
+                            else
+                            {
+                                <span class="hint"> (draft)</span>
+                            }
+                        }
+                        else
+                        {
+                            <span class="hint">—</span>
+                        }
+                    </td>
+                    <td data-label="Actions" class="cms-actions">
+                        <div class="actions">
+                        @if (t.ContentPageId.HasValue)
+                        {
+                            <a class="btn" href="/Admin/BlogGeneration/Review/@t.Id">Review</a>
+                        }
+                        @if (t.Status == BlogGenerationTopicStatuses.Failed || t.Status == BlogGenerationTopicStatuses.Pending)
+                        {
+                            <form method="post" asp-page-handler="Retry" style="display:inline;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button type="submit" class="btn">@(t.Status == BlogGenerationTopicStatuses.Failed ? "Retry" : "Generate")</button>
+                            </form>
+                        }
+                        @if (t.Status != BlogGenerationTopicStatuses.Generated)
+                        {
+                            <form method="post" asp-page-handler="Delete" style="display:inline;" onsubmit="return confirm('Remove this topic?');">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button type="submit" class="btn">Delete</button>
+                            </form>
+                        }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+</div>

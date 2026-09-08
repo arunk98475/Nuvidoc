@@ -183,6 +183,7 @@ builder.Services.AddHostedService<Docovee.Services.AppointmentFeedbackHostedServ
 builder.Services.AddHostedService<Docovee.Services.PatientAccountLifecycleHostedService>();
 builder.Services.AddHostedService<Docovee.Services.DoctorQualityScoreHostedService>();
 builder.Services.AddHostedService<Docovee.Services.SponsorshipBillingHostedService>();
+builder.Services.AddHostedService<Docovee.Services.BlogGenerationHostedService>();
 
 var isDevelopment = builder.Environment.IsDevelopment();
 var authBuilder = builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

@@ -86,6 +86,10 @@ public static class DependencyInjection
         {
             client.Timeout = TimeSpan.FromSeconds(90);
         });
+        services.AddHttpClient<IBlogGenerationService, BlogGenerationService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(120);
+        });
         services.AddHttpClient<INuviVoiceCallingService, ElevenLabsTwilioCallingService>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(60);

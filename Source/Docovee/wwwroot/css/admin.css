@@ -260,6 +260,8 @@ button.btn:disabled {
   padding: 12px;
   text-align: left;
   border-bottom: 1px solid #e8edeb;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .data-table th {
@@ -267,6 +269,59 @@ button.btn:disabled {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #6b8078;
+}
+
+@media (max-width: 768px) {
+  .data-table.data-table-stack thead {
+    display: none;
+  }
+
+  .data-table.data-table-stack,
+  .data-table.data-table-stack tbody,
+  .data-table.data-table-stack tr,
+  .data-table.data-table-stack td {
+    display: block;
+    width: 100%;
+  }
+
+  .data-table.data-table-stack tr {
+    border: 1px solid #e8edeb;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #fff;
+  }
+
+  .data-table.data-table-stack td {
+    border-bottom: none;
+    padding: 8px 0;
+    display: grid;
+    grid-template-columns: minmax(72px, 30%) 1fr;
+    gap: 8px 12px;
+    align-items: start;
+  }
+
+  .data-table.data-table-stack td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b8078;
+    padding-top: 2px;
+  }
+
+  .data-table.data-table-stack td .actions,
+  .data-table.data-table-stack td.cms-actions .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .data-table.data-table-stack .cms-slug-link,
+  .data-table.data-table-stack .cms-slug-draft {
+    word-break: break-all;
+  }
 }
 
 .data-table tr.row-closed {

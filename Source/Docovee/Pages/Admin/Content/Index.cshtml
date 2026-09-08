@@ -31,7 +31,7 @@
     }
     else
     {
-        <table class="data-table">
+        <table class="data-table data-table-stack">
             <thead>
                 <tr>
                     <th>Title</th>
@@ -46,9 +46,9 @@
                 @foreach (var p in Model.Pages)
                 {
                     <tr>
-                        <td><strong>@p.Title</strong></td>
-                        <td><span class="cms-badge cms-badge-@p.PageType">@p.PageType</span></td>
-                        <td>
+                        <td data-label="Title"><strong>@p.Title</strong></td>
+                        <td data-label="Type"><span class="cms-badge cms-badge-@p.PageType">@p.PageType</span></td>
+                        <td data-label="Slug">
                             @{
                                 var publicBase = p.PageType == "service" ? "services" : p.PageType;
                                 var publicPath = $"/{publicBase}/{p.Slug}";
@@ -62,7 +62,7 @@
                                 <span class="cms-slug-draft">@publicPath</span>
                             }
                         </td>
-                        <td>
+                        <td data-label="Status">
                             @if (p.IsPublished)
                             {
                                 <span class="cms-status cms-status-live">Live</span>
@@ -72,8 +72,8 @@
                                 <span class="cms-status cms-status-draft">Draft</span>
                             }
                         </td>
-                        <td style="font-size:13px;color:#6b8078;">@p.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</td>
-                        <td>
+                        <td data-label="Updated" style="font-size:13px;color:#6b8078;">@p.UpdatedAtUtc.ToLocalTime().ToString("MMM d, yyyy")</td>
+                        <td data-label="Actions">
                             <div class="actions">
                                 <a asp-page="Edit" asp-route-id="@p.Id" class="btn btn-secondary btn-sm">Edit</a>
                                 <form method="post" asp-page-handler="Publish" style="display:inline;">

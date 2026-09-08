@@ -48,6 +48,11 @@ public interface IAppSettingsService
     Task<(bool Success, string? Error)> SavePatientNuviVerificationSettingsAsync(
         PatientNuviVerificationSettings settings,
         CancellationToken cancellationToken = default);
+    Task<BlogGenerationSettings> GetBlogGenerationSettingsAsync(CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Error)> SaveBlogGenerationSettingsAsync(
+        BlogGenerationSettings settings,
+        CancellationToken cancellationToken = default);
+    Task RecordBlogGenerationRunAsync(DateTime runUtc, CancellationToken cancellationToken = default);
 }
 
 public class AppSettingsService : IAppSettingsService
@@ -490,6 +495,72 @@ public class AppSettingsService : IAppSettingsService
             settings.EnablePhoneVerification ? "true" : "false",
             cancellationToken);
         return (true, null);
+    }
+
+    public async Task<BlogGenerationSettings> GetBlogGenerationSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        const int defaultIntervalDays = 7;
+        var keys = new[]
+        {
+            AppSettingKeys.BlogGenerationEnabled,
+            AppSettingKeys.BlogGenerationIntervalDays,
+            AppSettingKeys.BlogGenerationLastRunUtc
+        };
+
+        var rows = await _db.AppSettings.AsNoTracking()
+            .Where(s => keys.Contains(s.Key))
+            .ToListAsync(cancellationToken);
+
+        string Val(string key) => rows.FirstOrDefault(s => s.Key == key)?.Value ?? string.Empty;
+
+        var intervalRaw = Val(AppSettingKeys.BlogGenerationIntervalDays);
+        var interval = int.TryParse(intervalRaw, out var d) ? d : defaultIntervalDays;
+        if (interval < 1) interval = 1;
+        if (interval > 365) interval = 365;
+
+        DateTime? lastRun = null;
+        var lastRunRaw = Val(AppSettingKeys.BlogGenerationLastRunUtc);
+        if (!string.IsNullOrWhiteSpace(lastRunRaw)
+            && DateTime.TryParse(lastRunRaw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+        {
+            lastRun = parsed.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
+                : parsed.ToUniversalTime();
+        }
+
+        return new BlogGenerationSettings
+        {
+            Enabled = ParseBoolSetting(Val(AppSettingKeys.BlogGenerationEnabled)),
+            IntervalDays = interval,
+            LastRunUtc = lastRun
+        };
+    }
+
+    public async Task<(bool Success, string? Error)> SaveBlogGenerationSettingsAsync(
+        BlogGenerationSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        var interval = settings.IntervalDays;
+        if (interval < 1 || interval > 365)
+            return (false, "Interval days must be between 1 and 365.");
+
+        await SetValueAsync(
+            AppSettingKeys.BlogGenerationEnabled,
+            settings.Enabled ? "true" : "false",
+            cancellationToken);
+        await SetValueAsync(
+            AppSettingKeys.BlogGenerationIntervalDays,
+            interval.ToString(),
+            cancellationToken);
+        return (true, null);
+    }
+
+    public Task RecordBlogGenerationRunAsync(DateTime runUtc, CancellationToken cancellationToken = default)
+    {
+        if (runUtc.Kind != DateTimeKind.Utc)
+            runUtc = DateTime.SpecifyKind(runUtc, DateTimeKind.Utc);
+        return SetValueAsync(AppSettingKeys.BlogGenerationLastRunUtc, runUtc.ToString("o"), cancellationToken);
     }
 
     private static bool ParseBoolSetting(string? value, bool defaultValue = false) =>

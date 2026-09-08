@@ -1,4 +1,7 @@
+using Docovee.BLL.Services;
 using Docovee.DS;
+using Docovee.DS.Entities;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,8 +10,13 @@ namespace Docovee.Pages.Admin.Dashboard;
 public class IndexModel : PageModel
 {
     private readonly DocoveeDbContext _db;
+    private readonly IBlogGenerationService _blogGen;
 
-    public IndexModel(DocoveeDbContext db) => _db = db;
+    public IndexModel(DocoveeDbContext db, IBlogGenerationService blogGen)
+    {
+        _db = db;
+        _blogGen = blogGen;
+    }
 
     public int DoctorCount { get; private set; }
     public int PatientCount { get; private set; }
@@ -16,6 +24,8 @@ public class IndexModel : PageModel
     public int BookingsThisWeek { get; private set; }
     public DateOnly WeekStart { get; private set; }
     public DateOnly WeekEnd { get; private set; }
+    public IReadOnlyList<AdminNotification> UnreadNotifications { get; private set; } =
+        Array.Empty<AdminNotification>();
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -28,6 +38,13 @@ public class IndexModel : PageModel
         BookingCount = await _db.Appointments.CountAsync(cancellationToken);
         BookingsThisWeek = await _db.Appointments
             .CountAsync(a => a.CreatedAt >= weekStartUtc && a.CreatedAt < weekEndUtc, cancellationToken);
+        UnreadNotifications = await _blogGen.GetUnreadAdminNotificationsAsync(cancellationToken);
+    }
+
+    public async Task<IActionResult> OnPostMarkReadAsync(int id, CancellationToken cancellationToken)
+    {
+        await _blogGen.MarkAdminNotificationReadAsync(id, cancellationToken);
+        return RedirectToPage();
     }
 
     private static (DateTime WeekStartUtc, DateTime WeekEndUtc, DateTime WeekStartLocal, DateTime WeekEndLocal)

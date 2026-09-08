@@ -178,6 +178,8 @@ public static class SchemaUpdater
         await EnsureDoctorBillingChargesTableAsync(db, cancellationToken);
         await EnsureDoctorSponsorshipChargesTableAsync(db, cancellationToken);
         await EnsureDoctorPracticeFeesTableAsync(db, cancellationToken);
+        await EnsureBlogGenerationTopicsTableAsync(db, cancellationToken);
+        await EnsureAdminNotificationsTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);
@@ -892,6 +894,51 @@ public static class SchemaUpdater
                 KEY `IX_doctor_practice_fees_DoctorId` (`DoctorId`),
                 CONSTRAINT `FK_doctor_practice_fees_doctors_DoctorId`
                     FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+    }
+
+    private static async Task EnsureBlogGenerationTopicsTableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `blog_generation_topics` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Topic` varchar(500) CHARACTER SET utf8mb4 NOT NULL,
+                `CustomPrompt` longtext CHARACTER SET utf8mb4 NULL,
+                `SortOrder` int NOT NULL DEFAULT 0,
+                `Status` varchar(20) CHARACTER SET utf8mb4 NOT NULL DEFAULT 'Pending',
+                `ContentPageId` int NULL,
+                `LastError` varchar(2000) CHARACTER SET utf8mb4 NULL,
+                `CreatedAtUtc` datetime(6) NOT NULL,
+                `GeneratedAtUtc` datetime(6) NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_blog_generation_topics_Status_SortOrder` (`Status`, `SortOrder`),
+                KEY `IX_blog_generation_topics_ContentPageId` (`ContentPageId`),
+                CONSTRAINT `FK_blog_generation_topics_content_pages_ContentPageId`
+                    FOREIGN KEY (`ContentPageId`) REFERENCES `content_pages` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """, cancellationToken);
+    }
+
+    private static async Task EnsureAdminNotificationsTableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `admin_notifications` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `Type` varchar(60) CHARACTER SET utf8mb4 NOT NULL,
+                `Title` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
+                `Message` varchar(1000) CHARACTER SET utf8mb4 NOT NULL,
+                `LinkUrl` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `IsRead` tinyint(1) NOT NULL DEFAULT 0,
+                `CreatedAtUtc` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_admin_notifications_IsRead_CreatedAtUtc` (`IsRead`, `CreatedAtUtc`)
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
     }

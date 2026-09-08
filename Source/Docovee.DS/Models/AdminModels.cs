@@ -88,6 +88,14 @@ public class PatientAccountLifecycleSettings
     public int AutoDeleteClosedMonths { get; set; } = 3;
 }
 
+/// <summary>Admin settings for scheduled Claude blog generation queue.</summary>
+public class BlogGenerationSettings
+{
+    public bool Enabled { get; set; }
+    public int IntervalDays { get; set; } = 7;
+    public DateTime? LastRunUtc { get; set; }
+}
+
 /// <summary>Admin settings for Nuvi chat OTP verification during new-patient signup.</summary>
 public class PatientNuviVerificationSettings
 {

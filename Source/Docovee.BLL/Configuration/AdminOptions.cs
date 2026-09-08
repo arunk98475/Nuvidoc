@@ -86,4 +86,9 @@ public static class AppSettingKeys
     public const string EnableNuviEmailVerificationForNewPatients = "EnableNuviEmailVerificationForNewPatients";
     /// <summary>When true, Nuvi sends an SMS OTP during new-patient signup after phone is entered.</summary>
     public const string EnableNuviPhoneVerificationForNewPatients = "EnableNuviPhoneVerificationForNewPatients";
+
+    public const string BlogGenerationEnabled = "BlogGenerationEnabled";
+    public const string BlogGenerationIntervalDays = "BlogGenerationIntervalDays";
+    /// <summary>UTC timestamp (round-trip) of the last successful blog generation.</summary>
+    public const string BlogGenerationLastRunUtc = "BlogGenerationLastRunUtc";
 }

@@ -1,0 +1,95 @@
+@page "{id:int}"
+@model Docovee.Pages.Admin.BlogGeneration.ReviewModel
+@{
+    ViewData["Title"] = "Review blog draft";
+    var draft = Model.Topic!.ContentPage!;
+}
+
+<div class="admin-card">
+    <div class="cms-index-head">
+        <div>
+            <h1>Review blog draft</h1>
+            <p>Topic: <strong>@Model.Topic.Topic</strong>
+                @if (draft.IsPublished)
+                {
+                    <span> · <a href="/blog/@draft.Slug" target="_blank" rel="noopener">View live</a></span>
+                }
+            </p>
+        </div>
+        <a href="/Admin/BlogGeneration" class="btn">Back to queue</a>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Model.SuccessMessage))
+    {
+        <div class="alert-success">@Model.SuccessMessage</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert-error">@Model.ErrorMessage</div>
+    }
+</div>
+
+<form method="post">
+    @Html.AntiForgeryToken()
+
+    <div class="admin-card">
+        <h2 class="cms-section-title">Prompt (regenerate)</h2>
+        <div class="form-group">
+            <label asp-for="CustomPrompt">Custom instructions</label>
+            <textarea asp-for="CustomPrompt" class="form-control" rows="4" placeholder="Optional: tone, length, keywords, sections to include…"></textarea>
+            <p class="hint">Editing the prompt and regenerating updates this draft only — no email is sent.</p>
+        </div>
+        <button type="submit" formaction="?handler=Regenerate" class="btn" formnovalidate>Regenerate with Claude</button>
+    </div>
+
+    <div class="admin-card">
+        <h2 class="cms-section-title">SEO &amp; content</h2>
+        <div class="form-group">
+            <label asp-for="Title">Title <span class="cms-required">*</span></label>
+            <input asp-for="Title" class="form-control" />
+        </div>
+        <div class="form-group">
+            <label asp-for="Slug">URL slug <span class="cms-required">*</span></label>
+            <div class="cms-slug-preview-row">
+                <span class="cms-slug-base">/blog/</span>
+                <input asp-for="Slug" class="form-control" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label asp-for="MetaDescription">Meta description (SEO)</label>
+            <input asp-for="MetaDescription" class="form-control" maxlength="500" />
+        </div>
+        <div class="form-group">
+            <label asp-for="Excerpt">Excerpt</label>
+            <textarea asp-for="Excerpt" class="form-control" rows="2" maxlength="155"></textarea>
+            <p class="hint">Max 155 characters.</p>
+        </div>
+        <div class="form-group">
+            <label asp-for="BodyHtml">Body HTML</label>
+            <textarea asp-for="BodyHtml" class="form-control" rows="18" style="font-family:Consolas,monospace;font-size:13px;"></textarea>
+        </div>
+    </div>
+
+    <div class="admin-card">
+        <button type="submit" formaction="?handler=Save" class="btn">Save draft</button>
+        @if (!draft.IsPublished)
+        {
+            <button type="submit" formaction="?handler=Publish" class="btn btn-primary" onclick="return confirm('Publish this blog post?');">Accept &amp; Publish</button>
+        }
+        else
+        {
+            <button type="submit" formaction="?handler=Publish" class="btn btn-primary">Save &amp; keep published</button>
+        }
+        @if (draft.Id > 0)
+        {
+            <a class="btn" href="/Admin/Content/Edit/@draft.Id">Open in Content Pages</a>
+        }
+    </div>
+</form>
+
+@if (!string.IsNullOrWhiteSpace(Model.BodyHtml))
+{
+    <div class="admin-card">
+        <h2 class="cms-section-title">Preview</h2>
+        <div class="cms-body-preview">@Html.Raw(Model.BodyHtml)</div>
+    </div>
+}

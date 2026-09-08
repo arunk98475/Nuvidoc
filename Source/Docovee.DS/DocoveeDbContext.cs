@@ -36,6 +36,8 @@ public class DocoveeDbContext : DbContext
     public DbSet<PatientInsuranceCoverage> PatientInsuranceCoverages => Set<PatientInsuranceCoverage>();
     public DbSet<AuditTrail> AuditTrails => Set<AuditTrail>();
     public DbSet<ContentPage> ContentPages => Set<ContentPage>();
+    public DbSet<BlogGenerationTopic> BlogGenerationTopics => Set<BlogGenerationTopic>();
+    public DbSet<AdminNotification> AdminNotifications => Set<AdminNotification>();
     public DbSet<HomePageContent> HomePageContents => Set<HomePageContent>();
     public DbSet<DoctorMedia> DoctorMedia => Set<DoctorMedia>();
     public DbSet<DoctorBillingCharge> DoctorBillingCharges => Set<DoctorBillingCharge>();
@@ -484,6 +486,30 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.VideoEmbedUrl).HasColumnType("text");
             entity.HasIndex(e => e.Slug).IsUnique();
             entity.HasIndex(e => new { e.PageType, e.IsPublished });
+        });
+
+        modelBuilder.Entity<BlogGenerationTopic>(entity =>
+        {
+            entity.ToTable("blog_generation_topics");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Topic).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.CustomPrompt).HasColumnType("longtext");
+            entity.Property(e => e.Status).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.LastError).HasMaxLength(2000);
+            entity.HasIndex(e => new { e.Status, e.SortOrder });
+            entity.HasOne(e => e.ContentPage).WithMany().HasForeignKey(e => e.ContentPageId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AdminNotification>(entity =>
+        {
+            entity.ToTable("admin_notifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Type).HasMaxLength(60).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(e => e.LinkUrl).HasMaxLength(500);
+            entity.HasIndex(e => new { e.IsRead, e.CreatedAtUtc });
         });
 
         modelBuilder.Entity<AuditTrail>(entity =>

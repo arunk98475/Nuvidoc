@@ -8,6 +8,34 @@
     <h1>Admin Dashboard</h1>
     <p>Snapshot of doctors, patients, and bookings across NuviDoc.</p>
 
+    @if (Model.UnreadNotifications.Count > 0)
+    {
+        <div class="admin-notifications" style="margin:16px 0;">
+            <h2 class="cms-section-title">Notifications</h2>
+            <ul style="list-style:none;padding:0;margin:0;">
+            @foreach (var n in Model.UnreadNotifications)
+            {
+                <li style="padding:10px 12px;margin-bottom:8px;background:#eef6f2;border:1px solid #d4ddd9;border-radius:6px;">
+                    <strong>@n.Title</strong>
+                    <div class="hint">@n.Message</div>
+                    <div style="margin-top:8px;">
+                        @if (!string.IsNullOrWhiteSpace(n.LinkUrl))
+                        {
+                            <a class="btn btn-primary" href="@n.LinkUrl">Open</a>
+                        }
+                        <form method="post" asp-page-handler="MarkRead" style="display:inline;">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" value="@n.Id" />
+                            <button type="submit" class="btn">Dismiss</button>
+                        </form>
+                        <span class="hint">@n.CreatedAtUtc.ToString("u")</span>
+                    </div>
+                </li>
+            }
+            </ul>
+        </div>
+    }
+
     <div class="dash-stats">
         <a href="/Admin/Doctors" class="dash-stat">
             <span class="dash-stat-label">Doctors</span>
