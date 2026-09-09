@@ -181,7 +181,8 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddDocoveeBll(builder.Configuration);
 builder.Services.AddScoped<IPatientPushChannel, SignalRPatientPushChannel>();
 builder.Services.AddHostedService<Docovee.Services.DatabaseStartupHostedService>();
-builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
+// Frozen: PMS inbound sync not used in current Nuvi call-and-book flow.
+// builder.Services.AddHostedService<Docovee.Services.PmsInboundSyncHostedService>();
 builder.Services.AddHostedService<Docovee.Services.VoiceCallRetryHostedService>();
 builder.Services.AddHostedService<Docovee.Services.AppointmentReminderHostedService>();
 builder.Services.AddHostedService<Docovee.Services.PatientNurtureHostedService>();
