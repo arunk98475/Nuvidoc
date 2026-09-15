@@ -691,7 +691,7 @@
                     {
                         <div class="pi-row">
                             <div class="pi-row-body">
-                                <div class="pi-label">@ProfileModel.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1))</div>
+                                <div class="pi-label">@(a.StartsAt is DateTime s ? ProfileModel.FormatPstSlot(s, s.AddHours(1)) : "Pending office booking")</div>
                                 <div class="pi-value">@a.DoctorName</div>
                                 <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
                                 <p class="pi-hint">@a.VisitReason · @ProfileModel.StatusLabel(a.Status)</p>

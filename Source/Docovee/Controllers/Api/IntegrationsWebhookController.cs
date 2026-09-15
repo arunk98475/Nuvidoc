@@ -10,15 +10,18 @@ namespace Docovee.Controllers.Api;
 public class IntegrationsWebhookController : ControllerBase
 {
     private readonly IVoiceCallBookingService _voiceBookings;
+    private readonly IPatientWhatsAppNurtureService _whatsAppNurture;
     private readonly IAppointmentFeedbackService _feedback;
     private readonly ILogger<IntegrationsWebhookController> _logger;
 
     public IntegrationsWebhookController(
         IVoiceCallBookingService voiceBookings,
+        IPatientWhatsAppNurtureService whatsAppNurture,
         IAppointmentFeedbackService feedback,
         ILogger<IntegrationsWebhookController> logger)
     {
         _voiceBookings = voiceBookings;
+        _whatsAppNurture = whatsAppNurture;
         _feedback = feedback;
         _logger = logger;
     }
@@ -101,12 +104,21 @@ public class IntegrationsWebhookController : ControllerBase
 
         try
         {
-            await _feedback.HandleInboundWhatsAppAsync(
+            var handledByNurture = await _whatsAppNurture.HandleInboundWhatsAppAsync(
                 from,
                 body,
                 buttonPayload,
                 listId,
                 cancellationToken);
+            if (!handledByNurture)
+            {
+                await _feedback.HandleInboundWhatsAppAsync(
+                    from,
+                    body,
+                    buttonPayload,
+                    listId,
+                    cancellationToken);
+            }
         }
         catch (Exception ex)
         {

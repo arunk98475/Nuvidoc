@@ -145,7 +145,8 @@ public class AdminPatientService : IAdminPatientService
             Phone = patient.Phone,
             IsDeleted = patient.IsDeleted,
             DeletedAtUtc = patient.DeletedAtUtc,
-            LastLoginAtUtc = patient.LastLoginAtUtc
+            LastLoginAtUtc = patient.LastLoginAtUtc,
+            NurtureStopped = patient.NurtureStopped
         };
     }
 
@@ -185,6 +186,7 @@ public class AdminPatientService : IAdminPatientService
         patient.FullName = model.FullName.Trim();
         patient.DateOfBirth = model.DateOfBirth;
         patient.Phone = model.Phone.Trim();
+        patient.NurtureStopped = model.NurtureStopped;
 
         if (!string.IsNullOrWhiteSpace(model.Password))
             patient.PasswordHash = _passwordHasher.HashPassword(patient, model.Password);

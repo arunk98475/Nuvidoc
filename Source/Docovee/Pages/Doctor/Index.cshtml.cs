@@ -74,7 +74,7 @@ public class IndexModel : PageModel
         bool NotCancelled(DoctorAppointmentDto a) => !AppointmentStatuses.IsCanceled(a.Status);
 
         AppointmentsThisWeek = nuvidoc.Count(a =>
-            NotCancelled(a) && a.StartsAt >= weekStart && a.StartsAt < weekEnd);
+            NotCancelled(a) && a.StartsAt is DateTime ws && ws >= weekStart && ws < weekEnd);
 
         TotalBookings = nuvidoc.Count(a =>
             NotCancelled(a)
@@ -84,19 +84,19 @@ public class IndexModel : PageModel
 
         ConfirmedAppointments = nuvidoc.Count(a =>
             string.Equals(AppointmentStatuses.Normalize(a.Status), AppointmentStatuses.Confirmed, StringComparison.OrdinalIgnoreCase)
-            && a.StartsAt >= today);
+            && a.StartsAt is DateTime confStart && confStart >= today);
 
         CompletedAppointments = nuvidoc.Count(a =>
             string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase));
 
         AppointmentsToday = nuvidoc.Count(a =>
-            NotCancelled(a) && a.StartsAt.Date == today);
+            NotCancelled(a) && a.StartsAt is DateTime todayStart && todayStart.Date == today);
 
         BookingsThisMonth = nuvidoc.Count(a =>
-            NotCancelled(a) && a.StartsAt >= monthStart && a.StartsAt < nextMonth);
+            NotCancelled(a) && a.StartsAt is DateTime mStart && mStart >= monthStart && mStart < nextMonth);
 
         BookingsLastMonth = nuvidoc.Count(a =>
-            NotCancelled(a) && a.StartsAt >= lastMonthStart && a.StartsAt < monthStart);
+            NotCancelled(a) && a.StartsAt is DateTime lmStart && lmStart >= lastMonthStart && lmStart < monthStart);
 
         CancelledThisMonth = nuvidoc.Count(a =>
             AppointmentStatuses.IsCanceled(a.Status)
@@ -115,15 +115,16 @@ public class IndexModel : PageModel
         UpcomingThisWeek = nuvidoc
             .Where(a =>
                 NotCancelled(a)
-                && a.StartsAt >= today
-                && a.StartsAt < weekEnd)
+                && a.StartsAt is DateTime us
+                && us >= today
+                && us < weekEnd)
             .OrderBy(a => a.StartsAt)
             .Take(8)
             .Select(a => new UpcomingAppointmentRow
             {
                 PatientName = a.PatientName,
                 VisitReason = a.VisitReason,
-                StartsAt = a.StartsAt,
+                StartsAt = a.StartsAt!.Value,
                 Status = a.Status,
                 StatusLabel = StatusLabel(a.Status),
                 StatusTone = StatusTone(a.Status)
@@ -131,7 +132,8 @@ public class IndexModel : PageModel
             .ToList();
 
         RecentNotifications = nuvidoc
-            .Where(a => a.Status is AppointmentStatuses.New or AppointmentStatuses.Reschedule or AppointmentStatuses.Cancelled)
+            .Where(a => a.Status is AppointmentStatuses.New or AppointmentStatuses.Reschedule or AppointmentStatuses.Cancelled
+                || (AppointmentStatuses.IsUnconfirmed(a.Status) && a.StartsAt is null))
             .OrderByDescending(a => a.UpdatedAt)
             .Take(5)
             .Select(a => new InboxPulseRow
@@ -139,7 +141,7 @@ public class IndexModel : PageModel
                 AppointmentId = a.Id,
                 PatientName = a.PatientName,
                 VisitReason = a.VisitReason,
-                StartsAt = a.StartsAt,
+                StartsAt = a.StartsAt ?? a.UpdatedAt,
                 UpdatedAt = a.UpdatedAt,
                 StatusLabel = StatusLabel(a.Status),
                 StatusTone = StatusTone(a.Status)

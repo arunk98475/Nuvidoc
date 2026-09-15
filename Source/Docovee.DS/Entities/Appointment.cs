@@ -11,7 +11,8 @@ public class Appointment
     public string? PatientPhone { get; set; }
     public string? PatientEmail { get; set; }
     public string VisitReason { get; set; } = string.Empty;
-    public DateTime StartsAt { get; set; }
+    /// <summary>Null for unbooked Nuvi lead-handoff rows until the doctor allocates a slot.</summary>
+    public DateTime? StartsAt { get; set; }
     public string Status { get; set; } = AppointmentStatuses.Unconfirmed;
     public string Source { get; set; } = AppointmentSources.PublicProfile;
     public int? SearchSessionId { get; set; }
@@ -145,7 +146,7 @@ public static class AppointmentStatuses
     public static bool CanPatientLeaveFeedback(
         string? status,
         DateTime createdAtUtc,
-        DateTime startsAt,
+        DateTime? startsAt,
         bool feedbackRequestEnabled,
         int hoursAfterBooking,
         bool hasExistingReview,
@@ -154,6 +155,8 @@ public static class AppointmentStatuses
         if (hasExistingReview)
             return false;
         if (IsCanceled(status) || IsPatientNoShow(status))
+            return false;
+        if (startsAt is null)
             return false;
 
         var now = utcNow ?? DateTime.UtcNow;
@@ -166,7 +169,7 @@ public static class AppointmentStatuses
         var s = Normalize(status);
         if (s is not (Confirmed or Completed))
             return false;
-        return startsAt.Date <= DateTime.Today;
+        return startsAt.Value.Date <= DateTime.Today;
     }
 
     public static DateTime? GetFeedbackAvailableAtUtc(
@@ -184,6 +187,7 @@ public static class AppointmentSources
 {
     public const string PublicProfile = "PublicProfile";
     public const string NuviChat = "NuviChat";
+    public const string NuviLeadHandoff = "NuviLeadHandoff";
     public const string PmsInbound = "PmsInbound";
     public const string PmsBookedDisplayLabel = "PMS Booked";
 
@@ -191,4 +195,7 @@ public static class AppointmentSources
         string.Equals(source, PmsInbound, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsNuvidocBooking(string? source) => !IsPmsInbound(source);
+
+    public static bool IsLeadHandoff(string? source) =>
+        string.Equals(source, NuviLeadHandoff, StringComparison.OrdinalIgnoreCase);
 }

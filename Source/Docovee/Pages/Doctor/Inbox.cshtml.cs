@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Docovee.BLL.Auth;
 using Docovee.BLL.Services;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 namespace Docovee.Pages.Doctor;
 
 [Authorize(Roles = AuthRoles.Doctor)]
+[IgnoreAntiforgeryToken]
 public class InboxModel : PageModel
 {
     private readonly IAppointmentService _appointments;
@@ -33,13 +35,13 @@ public class InboxModel : PageModel
 
         var all = await _appointments.GetForDoctorAsync(doctorId, cancellationToken: cancellationToken);
         all = all.Where(a => AppointmentSources.IsNuvidocBooking(a.Source)).ToList();
-        NewCount = all.Count(a => AppointmentStatuses.IsUnconfirmed(a.Status));
+        NewCount = all.Count(a => AppointmentStatuses.IsUnconfirmed(a.Status) || a.StartsAt is null);
         RescheduleCount = all.Count(a => AppointmentStatuses.IsRescheduled(a.Status));
         CancelledCount = all.Count(a => AppointmentStatuses.IsCanceled(a.Status));
 
         IEnumerable<DoctorAppointmentDto> filtered = Filter switch
         {
-            "new" => all.Where(a => AppointmentStatuses.IsUnconfirmed(a.Status)),
+            "new" => all.Where(a => AppointmentStatuses.IsUnconfirmed(a.Status) || a.StartsAt is null),
             "reschedule" => all.Where(a => AppointmentStatuses.IsRescheduled(a.Status)),
             "cancelled" => all.Where(a => AppointmentStatuses.IsCanceled(a.Status)),
             _ => all
@@ -49,11 +51,104 @@ public class InboxModel : PageModel
         {
             filtered = filtered.Where(a =>
                 a.PatientName.Contains(Search, StringComparison.OrdinalIgnoreCase)
+                || (a.PatientPhone?.Contains(Search, StringComparison.OrdinalIgnoreCase) ?? false)
                 || (a.VisitReason?.Contains(Search, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         Appointments = filtered.ToList();
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostCreateBookingAsync(
+        [FromForm] int appointmentId,
+        [FromForm] string date,
+        [FromForm] string timeLabel,
+        CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return new JsonResult(new { success = false, error = "Not signed in." });
+
+        if (!TryParseSlot(date, timeLabel, out var startsAt, out var error))
+            return new JsonResult(new { success = false, error });
+
+        var result = await _appointments.SetSlotAsDoctorAsync(
+            doctorId, appointmentId, startsAt, isReschedule: false, cancellationToken);
+        if (!result.Success)
+            return new JsonResult(new { success = false, error = result.Error });
+
+        return new JsonResult(new
+        {
+            success = true,
+            startsAt = result.Appointment!.StartsAt?.ToString("MMM d, yyyy · h:mm tt"),
+            status = result.Appointment.Status,
+            statusLabel = AppointmentStatuses.DisplayLabel(result.Appointment.Status)
+        });
+    }
+
+    public async Task<IActionResult> OnPostRescheduleAsync(
+        [FromForm] int appointmentId,
+        [FromForm] string date,
+        [FromForm] string timeLabel,
+        CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return new JsonResult(new { success = false, error = "Not signed in." });
+
+        if (!TryParseSlot(date, timeLabel, out var startsAt, out var error))
+            return new JsonResult(new { success = false, error });
+
+        var result = await _appointments.SetSlotAsDoctorAsync(
+            doctorId, appointmentId, startsAt, isReschedule: true, cancellationToken);
+        if (!result.Success)
+            return new JsonResult(new { success = false, error = result.Error });
+
+        return new JsonResult(new
+        {
+            success = true,
+            startsAt = result.Appointment!.StartsAt?.ToString("MMM d, yyyy · h:mm tt"),
+            status = result.Appointment.Status,
+            statusLabel = AppointmentStatuses.DisplayLabel(result.Appointment.Status)
+        });
+    }
+
+    public async Task<IActionResult> OnPostCancelAsync(
+        [FromForm] int appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var doctorId))
+            return new JsonResult(new { success = false, error = "Not signed in." });
+
+        var result = await _appointments.CancelAsDoctorAsync(doctorId, appointmentId, cancellationToken);
+        if (!result.Success)
+            return new JsonResult(new { success = false, error = result.Error });
+
+        return new JsonResult(new
+        {
+            success = true,
+            startsAt = result.Appointment!.StartsAt?.ToString("MMM d, yyyy · h:mm tt"),
+            status = result.Appointment.Status,
+            statusLabel = AppointmentStatuses.DisplayLabel(result.Appointment.Status)
+        });
+    }
+
+    private static bool TryParseSlot(string? date, string? timeLabel, out DateTime startsAt, out string? error)
+    {
+        startsAt = default;
+        error = null;
+        if (!DateOnly.TryParse(date, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+        {
+            error = "Invalid date.";
+            return false;
+        }
+
+        if (!AppointmentService.TryParseTimeLabel(timeLabel, out var time))
+        {
+            error = "Invalid time.";
+            return false;
+        }
+
+        startsAt = d.ToDateTime(time);
+        return true;
     }
 
     public static string RelativeTime(DateTime utcOrUnspecified)

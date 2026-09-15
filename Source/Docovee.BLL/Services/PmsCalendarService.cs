@@ -380,7 +380,7 @@ public sealed class PmsCalendarService : IPmsCalendarService
                     Email = appointment.PatientEmail,
                     DateOfBirth = appointment.PatientDateOfBirth
                 },
-                StartsAt = appointment.StartsAt,
+                StartsAt = appointment.StartsAt ?? DateTime.UtcNow,
                 DurationMinutes = 40,
                 VisitReason = appointment.VisitReason,
                 Note = $"NuviDoc appointment #{appointment.Id}",

@@ -583,11 +583,12 @@ public class ProfileModel : PageModel
         var all = await _appointments.GetForPatientAsync(patientId);
         var startOfToday = DateTime.Today;
         UpcomingAppointments = all
-            .Where(a => a.StartsAt >= startOfToday
+            .Where(a => (a.StartsAt is null || a.StartsAt >= startOfToday)
                         && !AppointmentStatuses.IsCanceled(a.Status)
                         && a.Status != AppointmentStatuses.Completed
                         && AppointmentStatuses.Normalize(a.Status) != AppointmentStatuses.PatientNoShow)
-            .OrderBy(a => a.StartsAt)
+            .OrderBy(a => a.StartsAt == null ? 0 : 1)
+            .ThenBy(a => a.StartsAt)
             .ToList();
 
         Notifications = await _notifications.GetForPatientAsync(patientId);

@@ -67,6 +67,9 @@ public class AnthropicChatService : IAnthropicChatService
     private readonly IInsurancePlanResolutionService _insurancePlanResolution;
     private readonly IAppSettingsService _appSettings;
     private readonly TwilioOptions _twilioOptions;
+    private readonly LeadHandoffOptions _leadHandoffOptions;
+    private readonly VoiceOptions _voiceOptions;
+    private readonly ILeadHandoffService _leadHandoff;
     private readonly IAuditTrailService _audit;
     private readonly IDoctorCallingEligibilityService _callingEligibility;
     private readonly INuviSignupOtpService _nuviSignupOtp;
@@ -96,6 +99,9 @@ public class AnthropicChatService : IAnthropicChatService
         IInsurancePlanResolutionService insurancePlanResolution,
         IAppSettingsService appSettings,
         IOptions<TwilioOptions> twilioOptions,
+        IOptions<LeadHandoffOptions> leadHandoffOptions,
+        IOptions<VoiceOptions> voiceOptions,
+        ILeadHandoffService leadHandoff,
         IAuditTrailService audit,
         IDoctorCallingEligibilityService callingEligibility,
         INuviSignupOtpService nuviSignupOtp)
@@ -123,6 +129,9 @@ public class AnthropicChatService : IAnthropicChatService
         _insurancePlanResolution = insurancePlanResolution;
         _appSettings = appSettings;
         _twilioOptions = twilioOptions.Value;
+        _leadHandoffOptions = leadHandoffOptions.Value;
+        _voiceOptions = voiceOptions.Value;
+        _leadHandoff = leadHandoff;
         _audit = audit;
         _callingEligibility = callingEligibility;
         _nuviSignupOtp = nuviSignupOtp;
@@ -277,7 +286,11 @@ public class AnthropicChatService : IAnthropicChatService
             context.SelectedDoctorId = request.SelectedDoctorId;
 
         if (request.SelectedDoctorIds?.Count > 0)
-            context.CallDoctorIds = request.SelectedDoctorIds;
+        {
+            // One office at a time — keep only the first selection for attribution/billing.
+            context.CallDoctorIds = request.SelectedDoctorIds.Take(1).ToList();
+            context.SelectedDoctorId ??= context.CallDoctorIds[0];
+        }
 
         if (request.Action == "book" && context.SelectedDoctorId.HasValue)
             context.BookingConfirmed = true;
@@ -494,6 +507,23 @@ public class AnthropicChatService : IAnthropicChatService
         string message,
         CancellationToken cancellationToken)
     {
+        // Welcome already asked implant Q1 on the page — Yes/No is that answer.
+        if (IsGuestImplantWelcomeNo(message))
+            return await EndGuestImplantWelcomeAsync(session, context, cancellationToken);
+
+        if (IsGuestImplantWelcomeYes(message)
+            || string.Equals(
+                message.Trim(),
+                "Implants / missing teeth / denture replacement",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            await PrepareImplantSessionAsync(session, context, cancellationToken);
+            context.ImplantIntentQualified = true;
+            context.Stage = NuviConversationStage.ImplantQualification;
+            return await AskImplantQualificationQuestionAsync(
+                session, context, ImplantQualStepCostExpectations, cancellationToken);
+        }
+
         if (IsImplantConcern(message))
         {
             await PrepareImplantSessionAsync(session, context, cancellationToken);
@@ -502,7 +532,8 @@ public class AnthropicChatService : IAnthropicChatService
             {
                 context.ImplantIntentQualified = true;
                 context.Stage = NuviConversationStage.ImplantQualification;
-                return await AskImplantQualificationQuestionAsync(session, context, ImplantQualStepCostExpectations, cancellationToken);
+                return await AskImplantQualificationQuestionAsync(
+                    session, context, ImplantQualStepCostExpectations, cancellationToken);
             }
 
             return await BeginImplantQualificationAsync(session, context, cancellationToken);
@@ -2194,6 +2225,12 @@ public class AnthropicChatService : IAnthropicChatService
         string concern,
         CancellationToken cancellationToken)
     {
+        if (IsNegativeAnswer(concern))
+        {
+            context.DeepDiveFollowUp = DeepDiveFollowUpStep.None;
+            return await RecordPollingAnswerAndCompleteAsync(session, context, current, "No", cancellationToken);
+        }
+
         if (string.IsNullOrWhiteSpace(concern) || concern.Length < 2)
         {
             return BuildDeepDivePollingResponse(session, context,
@@ -2268,16 +2305,37 @@ public class AnthropicChatService : IAnthropicChatService
         IReadOnlyList<string>? languageOptions = null,
         bool awaitingLanguageSelection = false,
         bool awaitingWildcardConcern = false,
-        string? inputPlaceholder = null) =>
-        BuildResponse(session, context, text, stage: NuviConversationStage.DeepDive,
+        string? inputPlaceholder = null)
+    {
+        IReadOnlyList<string>? options;
+        bool? optionsOnly = null;
+
+        if (awaitingWildcardConcern)
+        {
+            // Free-text follow-up after Yes — unlock input; keep No to skip.
+            options = ["No"];
+            optionsOnly = false;
+        }
+        else if (languageOptions != null)
+        {
+            options = null;
+        }
+        else
+        {
+            options = GetPollingQuestionOptions(current);
+        }
+
+        return BuildResponse(session, context, text, stage: NuviConversationStage.DeepDive,
             awaitingPolling: true,
             pollingQuestionId: current.Id,
-            options: languageOptions == null ? GetPollingQuestionOptions(current) : null,
+            options: options,
             languageOptions: languageOptions,
             awaitingLanguageSelection: awaitingLanguageSelection,
             awaitingWildcardConcern: awaitingWildcardConcern,
             pollingQuestionKind: GetPollingQuestionKind(current),
-            inputPlaceholder: inputPlaceholder);
+            inputPlaceholder: inputPlaceholder,
+            optionsOnly: optionsOnly);
+    }
 
     private static bool IsAffirmativeAnswer(string answer)
     {
@@ -2526,89 +2584,24 @@ public class AnthropicChatService : IAnthropicChatService
                         optionsOnly: true);
                 }
 
-                context.CallingStep = CallingConsentStep.AskMoreQuestions;
-                var askMore = NuviFlowContent.CallOfficesAskQuestionsPrompt;
-                await SaveAssistantMessageAsync(session, askMore, cancellationToken);
-                return BuildResponse(session, context, askMore,
-                    stage: NuviConversationStage.CallingConsent,
-                    options: NuviFlowContent.CallOfficesAskQuestionsOptions,
-                    optionsOnly: true);
+                ApplySelectedOfficeForHandoff(context);
+                return await StartCallingOfficesAsync(session, context, cancellationToken);
 
+            // Legacy mid-session steps: skip prompts and hand off the selected office.
             case CallingConsentStep.AskMoreQuestions:
+            case CallingConsentStep.AskAllOrTop:
                 if (IsNegativeAnswer(message) || IsCallDecline(message))
                 {
                     context.CallScope = CallOfficeScope.TopOne;
+                    context.CallDoctorIds = null;
                     return await StartCallingOfficesAsync(session, context, cancellationToken);
                 }
 
-                if (!IsAffirmativeAnswer(message) && !IsCallAccept(message))
-                {
-                    var reprompt = NuviFlowContent.CallOfficesAskQuestionsPrompt;
-                    await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
-                    return BuildResponse(session, context, reprompt,
-                        stage: NuviConversationStage.CallingConsent,
-                        options: NuviFlowContent.CallOfficesAskQuestionsOptions,
-                        optionsOnly: true);
-                }
-
-                context.CallingStep = CallingConsentStep.AskAllOrTop;
-                var allOrTop = NuviFlowContent.CallOfficesAllOrTopQuestion;
-                await SaveAssistantMessageAsync(session, allOrTop, cancellationToken);
-                return BuildResponse(session, context, allOrTop,
-                    stage: NuviConversationStage.CallingConsent,
-                    options: NuviFlowContent.CallOfficesAllOrTopOptions,
-                    optionsOnly: true);
-
-            case CallingConsentStep.AskAllOrTop:
-                if (IsTopOneScope(message))
-                {
-                    context.CallScope = CallOfficeScope.TopOne;
-                    return await StartCallingOfficesAsync(session, context, cancellationToken);
-                }
-
-                if (IsAllScope(message))
-                {
-                    context.CallScope = CallOfficeScope.All;
-                    context.CallingStep = CallingConsentStep.AskPreference;
-                    var preferenceQ = NuviFlowContent.CallOfficesPreferenceQuestion;
-                    await SaveAssistantMessageAsync(session, preferenceQ, cancellationToken);
-                    return BuildResponse(session, context, preferenceQ,
-                        stage: NuviConversationStage.CallingConsent,
-                        options: NuviFlowContent.CallOfficesPreferenceOptions,
-                        optionsOnly: true);
-                }
-
-                if (IsSelectedScope(message))
-                {
-                    if (context.CallDoctorIds == null || context.CallDoctorIds.Count == 0)
-                    {
-                        var noSelText = "Please check at least one doctor in the list, then tap SELECTED.";
-                        await SaveAssistantMessageAsync(session, noSelText, cancellationToken);
-                        return BuildResponse(session, context, noSelText,
-                            stage: NuviConversationStage.CallingConsent,
-                            options: NuviFlowContent.CallOfficesAllOrTopOptions,
-                            optionsOnly: true);
-                    }
-                    context.CallScope = CallOfficeScope.Selected;
-                    context.CallingStep = CallingConsentStep.AskPreference;
-                    var selPreferenceQ = NuviFlowContent.CallOfficesPreferenceQuestion;
-                    await SaveAssistantMessageAsync(session, selPreferenceQ, cancellationToken);
-                    return BuildResponse(session, context, selPreferenceQ,
-                        stage: NuviConversationStage.CallingConsent,
-                        options: NuviFlowContent.CallOfficesPreferenceOptions,
-                        optionsOnly: true);
-                }
-
-                {
-                    var reprompt = NuviFlowContent.CallOfficesAllOrTopQuestion;
-                    await SaveAssistantMessageAsync(session, reprompt, cancellationToken);
-                    return BuildResponse(session, context, reprompt,
-                        stage: NuviConversationStage.CallingConsent,
-                        options: NuviFlowContent.CallOfficesAllOrTopOptions,
-                        optionsOnly: true);
-                }
+                ApplySelectedOfficeForHandoff(context);
+                return await StartCallingOfficesAsync(session, context, cancellationToken);
 
             case CallingConsentStep.AskPreference:
+                // Preference step kept for legacy voice path only; lead handoff skips it.
                 if (IsDentistPreference(message))
                 {
                     context.CallPreference = CallOfficePreference.Dentist;
@@ -2647,9 +2640,126 @@ public class AnthropicChatService : IAnthropicChatService
         return await StartCallingOfficesAsync(session, context, cancellationToken);
     }
 
+    private async Task<ChatMessageResponse> StartLeadHandoffAsync(
+        SearchSession session, SearchContextData context, CancellationToken cancellationToken)
+    {
+        context.Stage = NuviConversationStage.CallingOffices;
+        var doctors = await LoadMatchedDoctorsInRankOrderAsync(session, context, cancellationToken);
+        // Always one office at a time for attribution and billing.
+        if (doctors.Count > 1)
+            doctors = doctors.Take(1).ToList();
+
+        if (doctors.Count == 0)
+        {
+            var emptyText = "I don't have a matched office to connect you with yet. Tap refresh to start a new search whenever you're ready.";
+            context.Stage = NuviConversationStage.Confirmation;
+            context.CallingStep = CallingConsentStep.None;
+            await SaveAssistantMessageAsync(session, emptyText, cancellationToken);
+            return BuildResponse(session, context, emptyText, stage: NuviConversationStage.Confirmation, flowComplete: true);
+        }
+
+        var targets = new List<LeadHandoffDoctorTarget>();
+        foreach (var dto in doctors)
+        {
+            var doctor = await _db.Doctors.AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == dto.Id, cancellationToken);
+            if (doctor == null)
+                continue;
+
+            var phone = doctor.OfficePhoneNumber;
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                phone = await _db.DoctorLocations.AsNoTracking()
+                    .Where(l => l.DoctorId == doctor.Id && l.PhoneNumber != null && l.PhoneNumber != "")
+                    .Select(l => l.PhoneNumber)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            if (string.IsNullOrWhiteSpace(phone) && !LeadHandoffService.LooksLikeEmail(doctor.Username))
+                continue;
+
+            targets.Add(new LeadHandoffDoctorTarget
+            {
+                DoctorId = doctor.Id,
+                DoctorName = doctor.Name,
+                PracticeName = doctor.PracticeName,
+                OfficePhone = phone,
+                UsernameEmail = doctor.Username
+            });
+        }
+
+        if (targets.Count == 0)
+        {
+            var noContact =
+                "I found your matches, but none of them have an office phone or email on file yet — so I can't share your info automatically. You can tap a doctor card to view their profile.";
+            context.Stage = NuviConversationStage.Confirmation;
+            context.CallingStep = CallingConsentStep.None;
+            await SaveAssistantMessageAsync(session, noContact, cancellationToken);
+            return BuildResponse(session, context, noContact, stage: NuviConversationStage.Confirmation, flowComplete: true);
+        }
+
+        var chiefComplaint = await GetInitialHealthConcernAsync(session.Id, cancellationToken);
+        var timingNote = FormatUrgencyBookingWindow(context.UrgencyPreference);
+
+        var batch = await _leadHandoff.HandoffAsync(new LeadHandoffRequest
+        {
+            SearchSessionId = session.Id,
+            SessionKey = session.SessionKey,
+            PatientId = session.PatientId,
+            PatientName = GetDisplayName(context),
+            PatientPhone = context.PendingPhone,
+            PatientEmail = context.PendingEmail,
+            VisitReason = string.IsNullOrWhiteSpace(chiefComplaint) ? "dental appointment" : chiefComplaint,
+            PreferredTimingNote = timingNote,
+            Doctors = targets
+        }, cancellationToken);
+
+        string text;
+        if (batch.Success)
+        {
+            var lines = new List<string>
+            {
+                "Great — I've shared your info with the office and sent you their contact details by text/email."
+            };
+            foreach (var r in batch.Results.Where(x => x.AppointmentId is > 0))
+            {
+                var label = string.IsNullOrWhiteSpace(r.PracticeName) ? r.DoctorName : r.PracticeName!;
+                var phone = string.IsNullOrWhiteSpace(r.OfficePhone) ? "see your message" : r.OfficePhone!;
+                lines.Add($"• {label} — {phone}");
+            }
+            lines.Add("They may call you, or you can call them. I'll follow up if nothing happens yet.");
+            text = string.Join("\n", lines);
+            context.SelectedDoctorId = batch.Results.FirstOrDefault()?.DoctorId;
+        }
+        else
+        {
+            text = "I wasn't able to complete the handoff just now. You can tap a doctor card for their phone number, or try again in a moment.";
+        }
+
+        context.Stage = NuviConversationStage.Confirmation;
+        context.BookingConfirmed = batch.Success;
+        context.CallingStep = CallingConsentStep.None;
+        await SaveAssistantMessageAsync(session, text, cancellationToken);
+        return BuildResponse(
+            session,
+            context,
+            text,
+            stage: NuviConversationStage.Confirmation,
+            flowComplete: true,
+            callingDoctorId: batch.Results.FirstOrDefault()?.DoctorId,
+            callingDoctorName: batch.Results.FirstOrDefault()?.DoctorName);
+    }
+
     private async Task<ChatMessageResponse> StartCallingOfficesAsync(
         SearchSession session, SearchContextData context, CancellationToken cancellationToken)
     {
+        if (_leadHandoffOptions.Enabled)
+            return await StartLeadHandoffAsync(session, context, cancellationToken);
+
+        // Voice calling reserved for future; lead handoff is SMS/email.
+        if (!_voiceOptions.OutboundCallsEnabled)
+            return await StartLeadHandoffAsync(session, context, cancellationToken);
+
         context.Stage = NuviConversationStage.CallingOffices;
         var doctors = await LoadMatchedDoctorsInRankOrderAsync(session, context, cancellationToken);
         var bookingWindow = BuildClinicBookingWindow(context.UrgencyPreference);
@@ -2897,12 +3007,17 @@ public class AnthropicChatService : IAnthropicChatService
         if (context.MatchedDoctorIds == null || context.MatchedDoctorIds.Count == 0)
             return doctors;
 
-        // Filter to only the selected doctors when that scope is chosen.
+        // Filter to only the selected doctor when that scope is chosen (one at a time).
         if (context.CallScope == CallOfficeScope.Selected
             && context.CallDoctorIds?.Count > 0)
         {
-            var selectedSet = new HashSet<int>(context.CallDoctorIds);
-            doctors = doctors.Where(d => selectedSet.Contains(d.Id)).ToList();
+            var selectedId = context.CallDoctorIds[0];
+            doctors = doctors.Where(d => d.Id == selectedId).ToList();
+        }
+        else if (context.CallScope == CallOfficeScope.All)
+        {
+            // Multi-office connect is disabled — use top match only.
+            context.CallScope = CallOfficeScope.TopOne;
         }
 
         var order = context.MatchedDoctorIds
@@ -2917,15 +3032,29 @@ public class AnthropicChatService : IAnthropicChatService
     private static (string Prompt, IReadOnlyList<string> Options) GetCallingConsentPrompt(SearchContextData context) =>
         context.CallingStep switch
         {
-            CallingConsentStep.AskMoreQuestions =>
-                (NuviFlowContent.CallOfficesAskQuestionsPrompt, NuviFlowContent.CallOfficesAskQuestionsOptions),
-            CallingConsentStep.AskAllOrTop =>
-                (NuviFlowContent.CallOfficesAllOrTopQuestion, NuviFlowContent.CallOfficesAllOrTopOptions),
             CallingConsentStep.AskPreference =>
                 (NuviFlowContent.CallOfficesPreferenceQuestion, NuviFlowContent.CallOfficesPreferenceOptions),
             _ =>
                 (NuviFlowContent.CallOfficesPermissionQuestion, NuviFlowContent.CallOfficesPermissionOptions)
         };
+
+    /// <summary>
+    /// Uses the radio-selected office when present; otherwise falls back to the top match.
+    /// </summary>
+    private static void ApplySelectedOfficeForHandoff(SearchContextData context)
+    {
+        var oneId = context.SelectedDoctorId ?? context.CallDoctorIds?.FirstOrDefault();
+        if (oneId is > 0)
+        {
+            context.CallScope = CallOfficeScope.Selected;
+            context.CallDoctorIds = [oneId.Value];
+            context.SelectedDoctorId = oneId.Value;
+            return;
+        }
+
+        context.CallScope = CallOfficeScope.TopOne;
+        context.CallDoctorIds = null;
+    }
 
     private static string FormatUrgencyBookingWindow(string? urgencyPreference) =>
         BuildClinicBookingWindow(urgencyPreference).Phrase;
@@ -3004,8 +3133,10 @@ public class AnthropicChatService : IAnthropicChatService
     private static bool IsSelectedScope(string message)
     {
         var lower = message.Trim().ToLowerInvariant();
-        return lower is "selected" or "selected only" or "only selected";
+        return lower is "selected" or "selected only" or "only selected" or "this one" or "this";
     }
+
+    private static bool IsThisOneScope(string message) => IsSelectedScope(message);
 
     private static bool IsDentistPreference(string message)
     {
@@ -3641,9 +3772,7 @@ public class AnthropicChatService : IAnthropicChatService
         "Dental implants",
         "Teeth cleaning",
         "Invisalign",
-        "Emergency dental",
-        NuviFlowContent.CancelBookingChip,
-        NuviFlowContent.RescheduleBookingChip
+        "Emergency dental"
     ];
 
     private async Task<ChatMessageResponse> BeginRescheduleBookingAsync(
@@ -3663,7 +3792,8 @@ public class AnthropicChatService : IAnthropicChatService
         var all = await _appointments.GetForPatientAsync(patientId, cancellationToken);
         var startOfToday = DateTime.Today;
         var upcoming = all
-            .Where(a => a.StartsAt >= startOfToday
+            .Where(a => a.StartsAt is DateTime start
+                        && start >= startOfToday
                         && AppointmentStatuses.IsActive(a.Status)
                         && a.Status != AppointmentStatuses.Completed)
             .OrderBy(a => a.StartsAt)
@@ -3912,7 +4042,8 @@ public class AnthropicChatService : IAnthropicChatService
     {
         var choices = upcoming.Select(a =>
         {
-            var slot = VoiceCallBookingService.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1));
+            var start = a.StartsAt!.Value;
+            var slot = VoiceCallBookingService.FormatPstSlot(start, start.AddHours(1));
             var doctor = string.IsNullOrWhiteSpace(a.DoctorName) ? "your dentist" : a.DoctorName.Trim();
             return new CancelAppointmentChoice
             {
@@ -3964,7 +4095,8 @@ public class AnthropicChatService : IAnthropicChatService
         var all = await _appointments.GetForPatientAsync(patientId, cancellationToken);
         var startOfToday = DateTime.Today;
         var upcoming = all
-            .Where(a => a.StartsAt >= startOfToday
+            .Where(a => a.StartsAt is DateTime start
+                        && start >= startOfToday
                         && AppointmentStatuses.IsActive(a.Status)
                         && a.Status != AppointmentStatuses.Completed)
             .OrderBy(a => a.StartsAt)
@@ -3987,7 +4119,8 @@ public class AnthropicChatService : IAnthropicChatService
 
         var choices = upcoming.Select(a =>
         {
-            var slot = VoiceCallBookingService.FormatPstSlot(a.StartsAt, a.StartsAt.AddHours(1));
+            var start = a.StartsAt!.Value;
+            var slot = VoiceCallBookingService.FormatPstSlot(start, start.AddHours(1));
             var doctor = string.IsNullOrWhiteSpace(a.DoctorName) ? "your dentist" : a.DoctorName.Trim();
             return new CancelAppointmentChoice
             {
@@ -4674,6 +4807,10 @@ public class AnthropicChatService : IAnthropicChatService
     {
         if (IsCancelBookingChip(answer) || IsRescheduleBookingChip(answer))
             return false;
+
+        if (IsYesAnswer(answer)
+            || string.Equals(answer.Trim(), "Yes", StringComparison.OrdinalIgnoreCase))
+            return true;
 
         if (string.Equals(answer, "Implants / missing teeth / denture replacement", StringComparison.OrdinalIgnoreCase))
             return true;

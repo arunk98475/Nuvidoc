@@ -444,12 +444,14 @@ public sealed class DoctorBillingService : IDoctorBillingService
 
         static bool IsBookingInRange(
             DateTime createdAt,
-            DateTime startsAt,
+            DateTime? startsAt,
             DateTime from,
             DateTime toExclusive)
         {
+            if (startsAt is null)
+                return false;
             // Prefer booking time; fall back to start if CreatedAt is unset/min.
-            var bookedAt = createdAt > DateTime.MinValue.AddYears(1) ? createdAt : startsAt;
+            var bookedAt = createdAt > DateTime.MinValue.AddYears(1) ? createdAt : startsAt.Value;
             return bookedAt >= from && bookedAt < toExclusive;
         }
 
@@ -464,9 +466,11 @@ public sealed class DoctorBillingService : IDoctorBillingService
 
         var completed = appointments.Count(a =>
             string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase)
+            && a.StartsAt != null
             && a.StartsAt >= periodStart && a.StartsAt < periodEnd);
         var completedPrior = appointments.Count(a =>
             string.Equals(a.Status, AppointmentStatuses.Completed, StringComparison.OrdinalIgnoreCase)
+            && a.StartsAt != null
             && a.StartsAt >= priorStart && a.StartsAt < priorEndExclusive);
 
         var marketplace = periodBookings.Count(a =>

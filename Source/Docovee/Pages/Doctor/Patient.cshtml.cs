@@ -23,7 +23,7 @@ public class PatientModel : PageModel
         if (appointment == null)
             return NotFound();
 
-        var week = DateOnly.FromDateTime(appointment.StartsAt).ToString("yyyy-MM-dd");
+        var week = DateOnly.FromDateTime(appointment.StartsAt ?? DateTime.Today).ToString("yyyy-MM-dd");
         return Redirect($"/Doctor/Calendar?week={week}&appointmentId={appointmentId}");
     }
 }

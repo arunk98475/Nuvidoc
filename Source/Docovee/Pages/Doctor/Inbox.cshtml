@@ -4,6 +4,12 @@
     ViewData["Title"] = "Inbox";
     ViewData["Nav"] = "inbox";
     var f = Model.Filter ?? "all";
+    var timeSlots = new[]
+    {
+        "8:00 AM","8:40 AM","9:20 AM","10:00 AM","10:40 AM","11:20 AM",
+        "12:00 PM","12:40 PM","1:20 PM","2:00 PM","2:40 PM","3:20 PM",
+        "4:00 PM","4:40 PM","5:20 PM","6:00 PM"
+    };
 }
 
 <div class="dp-split">
@@ -38,26 +44,28 @@
                 <input type="hidden" name="filter" value="@Model.Filter" />
             }
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input type="search" name="q" value="@Model.Search" placeholder="Search by patient name" />
+            <input type="search" name="q" value="@Model.Search" placeholder="Search by patient name or phone" />
         </form>
 
         <div class="dp-table-wrap">
-            <table class="dp-table">
+            <table class="dp-table" id="dp-inbox-table">
                 <thead>
                     <tr>
                         <th>Last updated</th>
                         <th>Patient</th>
+                        <th>Phone</th>
                         <th>Appointment date</th>
                         <th>Reason</th>
                         <th>Notifications</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                 @if (Model.Appointments.Count == 0)
                 {
                     <tr>
-                        <td colspan="5" style="padding:28px 16px;color:var(--dp-muted);text-align:center;">
-                            No bookings yet. When a patient requests a visit from your public profile, it will show up here.
+                        <td colspan="7" style="padding:28px 16px;color:var(--dp-muted);text-align:center;">
+                            No leads or bookings yet. When Nuvi shares a patient with your office, or a patient requests a visit from your public profile, it will show up here.
                         </td>
                     </tr>
                 }
@@ -65,19 +73,43 @@
                 {
                     foreach (var a in Model.Appointments)
                     {
-                        var apptWeek = a.StartsAt.Date.AddDays(-(int)a.StartsAt.DayOfWeek).ToString("yyyy-MM-dd");
-                        <tr class="dp-inbox-row" onclick="window.location='/Doctor/Calendar?week=@apptWeek&amp;appointmentId=@a.Id'" style="cursor:pointer;">
+                        var isCanceled = AppointmentStatuses.IsCanceled(a.Status);
+                        var hasSlot = a.StartsAt.HasValue;
+                        var apptWeek = hasSlot
+                            ? a.StartsAt!.Value.Date.AddDays(-(int)a.StartsAt.Value.DayOfWeek).ToString("yyyy-MM-dd")
+                            : DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek).ToString("yyyy-MM-dd");
+                        <tr class="dp-inbox-row"
+                            data-appointment-id="@a.Id"
+                            data-has-slot="@(hasSlot ? "1" : "0")"
+                            data-canceled="@(isCanceled ? "1" : "0")"
+                            data-starts-at="@(hasSlot ? a.StartsAt!.Value.ToString("yyyy-MM-dd") : "")"
+                            data-time-label="@(hasSlot ? a.StartsAt!.Value.ToString("h:mm tt") : "")"
+                            onclick="window.location='/Doctor/Calendar?week=@apptWeek&amp;appointmentId=@a.Id'"
+                            style="cursor:pointer;">
                             <td>@InboxModel.RelativeTime(a.UpdatedAt)</td>
-                            <td>
-                                <div>@a.PatientName</div>
-                                @if (!string.IsNullOrWhiteSpace(a.PatientPhone))
+                            <td>@a.PatientName</td>
+                            <td class="dp-inbox-phone">@(string.IsNullOrWhiteSpace(a.PatientPhone) ? "—" : a.PatientPhone)</td>
+                            <td class="dp-inbox-starts">@(hasSlot ? a.StartsAt!.Value.ToString("MMM d, yyyy · h:mm tt") : "—")</td>
+                            <td>@a.VisitReason</td>
+                            <td><span class="dp-tag @InboxModel.StatusCss(a.Status) dp-inbox-status">@InboxModel.StatusLabel(a.Status)</span></td>
+                            <td class="dp-inbox-actions" onclick="event.stopPropagation();">
+                                @if (isCanceled)
                                 {
-                                    <div style="font-size:12px;color:var(--dp-muted);">@a.PatientPhone</div>
+                                    <span style="color:var(--dp-muted);font-size:13px;">Canceled</span>
+                                }
+                                else if (!hasSlot)
+                                {
+                                    <button type="button" class="dp-btn dp-btn-sm dp-inbox-action"
+                                            data-mode="create"
+                                            data-appointment-id="@a.Id">Create Booking</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="dp-btn dp-btn-sm dp-inbox-action"
+                                            data-mode="reschedule"
+                                            data-appointment-id="@a.Id">Reschedule/Cancel</button>
                                 }
                             </td>
-                            <td>@a.StartsAt.ToString("MMM d, yyyy · h:mm tt")</td>
-                            <td>@a.VisitReason</td>
-                            <td><span class="dp-tag @InboxModel.StatusCss(a.Status)">@InboxModel.StatusLabel(a.Status)</span></td>
                         </tr>
                     }
                 }
@@ -90,3 +122,178 @@
         </div>
     </div>
 </div>
+
+<dialog id="dp-inbox-book-dialog" class="dp-inbox-dialog">
+    <form method="dialog" id="dp-inbox-book-form" class="dp-inbox-dialog-inner">
+        <h2 id="dp-inbox-dialog-title">Create Booking</h2>
+        <p id="dp-inbox-dialog-sub" style="color:var(--dp-muted);margin:0 0 12px;">Pick a date and time for this patient.</p>
+        <input type="hidden" id="dp-inbox-appointment-id" />
+        <input type="hidden" id="dp-inbox-mode" />
+        <label class="dp-inbox-field">
+            <span>Date</span>
+            <input type="date" id="dp-inbox-date" required />
+        </label>
+        <label class="dp-inbox-field">
+            <span>Time</span>
+            <select id="dp-inbox-time" required>
+                @foreach (var t in timeSlots)
+                {
+                    <option value="@t">@t</option>
+                }
+            </select>
+        </label>
+        <p id="dp-inbox-dialog-error" style="color:#b91c1c;font-size:13px;display:none;"></p>
+        <div class="dp-inbox-dialog-actions">
+            <button type="button" class="dp-btn dp-btn-sm" id="dp-inbox-dialog-close">Close</button>
+            <button type="button" class="dp-btn dp-btn-sm" id="dp-inbox-dialog-cancel" style="display:none;background:#fef3c7;">Cancel booking</button>
+            <button type="submit" class="dp-btn dp-btn-sm" id="dp-inbox-dialog-save" style="background:var(--dp-accent,#0f766e);color:#fff;">Save</button>
+        </div>
+    </form>
+</dialog>
+
+<style>
+.dp-inbox-dialog { border: none; border-radius: 12px; padding: 0; max-width: 420px; width: calc(100vw - 32px); box-shadow: 0 20px 50px rgba(0,0,0,.18); }
+.dp-inbox-dialog::backdrop { background: rgba(15,23,42,.35); }
+.dp-inbox-dialog-inner { padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.dp-inbox-dialog-inner h2 { margin: 0; font-size: 1.15rem; }
+.dp-inbox-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.dp-inbox-field input, .dp-inbox-field select { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; }
+.dp-inbox-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
+</style>
+
+@section Scripts {
+<script>
+(function () {
+  const dialog = document.getElementById('dp-inbox-book-dialog');
+  const form = document.getElementById('dp-inbox-book-form');
+  const title = document.getElementById('dp-inbox-dialog-title');
+  const errEl = document.getElementById('dp-inbox-dialog-error');
+  const cancelBtn = document.getElementById('dp-inbox-dialog-cancel');
+  const idInput = document.getElementById('dp-inbox-appointment-id');
+  const modeInput = document.getElementById('dp-inbox-mode');
+  const dateInput = document.getElementById('dp-inbox-date');
+  const timeInput = document.getElementById('dp-inbox-time');
+  const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value
+    || document.querySelector('meta[name="RequestVerificationToken"]')?.content
+    || '';
+
+  function antiforgeryHeaders(fd) {
+    if (token) fd.append('__RequestVerificationToken', token);
+    return fd;
+  }
+
+  function showError(msg) {
+    errEl.textContent = msg || 'Something went wrong.';
+    errEl.style.display = 'block';
+  }
+
+  function openDialog(btn) {
+    const mode = btn.getAttribute('data-mode');
+    const id = btn.getAttribute('data-appointment-id');
+    const row = btn.closest('tr');
+    idInput.value = id;
+    modeInput.value = mode;
+    errEl.style.display = 'none';
+    title.textContent = mode === 'create' ? 'Create Booking' : 'Reschedule / Cancel';
+    cancelBtn.style.display = mode === 'reschedule' ? '' : 'none';
+    const existingDate = row?.getAttribute('data-starts-at') || '';
+    const existingTime = row?.getAttribute('data-time-label') || '';
+    dateInput.value = existingDate || new Date().toISOString().slice(0, 10);
+    if (existingTime) {
+      for (const opt of timeInput.options) {
+        if (opt.value.toLowerCase() === existingTime.toLowerCase()) {
+          timeInput.value = opt.value;
+          break;
+        }
+      }
+    }
+    dialog.showModal();
+  }
+
+  document.querySelectorAll('.dp-inbox-action').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openDialog(btn);
+    });
+  });
+
+  document.getElementById('dp-inbox-dialog-close')?.addEventListener('click', () => dialog.close());
+
+  async function postHandler(handler, body) {
+    const fd = antiforgeryHeaders(body);
+    const res = await fetch('/Doctor/Inbox?handler=' + handler, {
+      method: 'POST',
+      body: fd,
+      headers: { 'RequestVerificationToken': token }
+    });
+    return res.json();
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errEl.style.display = 'none';
+    const mode = modeInput.value;
+    const handler = mode === 'create' ? 'CreateBooking' : 'Reschedule';
+    const fd = new FormData();
+    fd.append('appointmentId', idInput.value);
+    fd.append('date', dateInput.value);
+    fd.append('timeLabel', timeInput.value);
+    try {
+      const data = await postHandler(handler, fd);
+      if (!data.success) {
+        showError(data.error);
+        return;
+      }
+      const row = document.querySelector('tr[data-appointment-id="' + idInput.value + '"]');
+      if (row) {
+        row.setAttribute('data-has-slot', '1');
+        row.setAttribute('data-starts-at', dateInput.value);
+        row.setAttribute('data-time-label', timeInput.value);
+        const startsCell = row.querySelector('.dp-inbox-starts');
+        if (startsCell) startsCell.textContent = data.startsAt || '—';
+        const statusEl = row.querySelector('.dp-inbox-status');
+        if (statusEl) statusEl.textContent = data.statusLabel || data.status || '';
+        const actions = row.querySelector('.dp-inbox-actions');
+        if (actions) {
+          actions.innerHTML = '<button type="button" class="dp-btn dp-btn-sm dp-inbox-action" data-mode="reschedule" data-appointment-id="' + idInput.value + '">Reschedule/Cancel</button>';
+          actions.querySelector('.dp-inbox-action')?.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            openDialog(ev.currentTarget);
+          });
+        }
+      }
+      dialog.close();
+    } catch (err) {
+      showError('Request failed.');
+    }
+  });
+
+  cancelBtn?.addEventListener('click', async () => {
+    if (!confirm('Cancel this booking?')) return;
+    errEl.style.display = 'none';
+    const fd = new FormData();
+    fd.append('appointmentId', idInput.value);
+    try {
+      const data = await postHandler('Cancel', fd);
+      if (!data.success) {
+        showError(data.error);
+        return;
+      }
+      const row = document.querySelector('tr[data-appointment-id="' + idInput.value + '"]');
+      if (row) {
+        row.setAttribute('data-canceled', '1');
+        const statusEl = row.querySelector('.dp-inbox-status');
+        if (statusEl) statusEl.textContent = data.statusLabel || 'Practice canceled';
+        const actions = row.querySelector('.dp-inbox-actions');
+        if (actions) actions.innerHTML = '<span style="color:var(--dp-muted);font-size:13px;">Canceled</span>';
+      }
+      dialog.close();
+    } catch (err) {
+      showError('Request failed.');
+    }
+  });
+})();
+</script>
+}

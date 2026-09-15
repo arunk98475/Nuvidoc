@@ -22,6 +22,8 @@ public class Patient
     public bool? HipaaDataSharingOptIn { get; set; }
     public bool CookieTrackingOptOut { get; set; }
     public bool AutofillEnabled { get; set; }
+    /// <summary>When true, booking/cultivation nurture messages are not sent.</summary>
+    public bool NurtureStopped { get; set; }
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -111,11 +111,6 @@
                 <button class="chip" onclick="sendChip(this)">Am I a candidate?</button>
                 <button class="chip" onclick="sendChip(this)">Full mouth implants</button>
                 <button class="chip" onclick="sendChip(this)">Implants vs dentures</button>
-                @if (User.Identity?.IsAuthenticated == true && User.IsInRole(AuthRoles.Patient))
-                {
-                    <button class="chip" onclick="sendChip(this)">Cancel Booking</button>
-                    <button class="chip" onclick="sendChip(this)">Reschedule Booking</button>
-                }
             </div>
             <div class="chat-input-area" id="chat-input-area">
                 <textarea class="chat-input" id="chat-input" name="chat-message" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Tell @Branding.ChatBotName what's going on..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>

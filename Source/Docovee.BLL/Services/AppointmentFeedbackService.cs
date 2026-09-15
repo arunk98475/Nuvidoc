@@ -243,7 +243,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
         CancellationToken cancellationToken)
     {
         var doctorName = appointment.Doctor?.Name ?? "your doctor";
-        var bookedTime = appointment.StartsAt.ToString("MMM d, yyyy 'at' h:mm tt", CultureInfo.InvariantCulture);
+        var bookedTime = appointment.StartsAt?.ToString("MMM d, yyyy 'at' h:mm tt", CultureInfo.InvariantCulture) ?? "your visit";
         var phone = appointment.PatientPhone;
         if (string.IsNullOrWhiteSpace(phone) && appointment.PatientId.HasValue)
         {

@@ -31,6 +31,7 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
     private readonly INuviVoiceCallingService _voiceCalling;
     private readonly IVoiceCallBookingService _voiceBookings;
     private readonly TwilioOptions _twilio;
+    private readonly VoiceOptions _voice;
     private readonly IDocoveeLogger _logger;
 
     public AppointmentRescheduleService(
@@ -38,12 +39,14 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
         INuviVoiceCallingService voiceCalling,
         IVoiceCallBookingService voiceBookings,
         IOptions<TwilioOptions> twilio,
+        IOptions<VoiceOptions> voice,
         IDocoveeLogger logger)
     {
         _db = db;
         _voiceCalling = voiceCalling;
         _voiceBookings = voiceBookings;
         _twilio = twilio.Value;
+        _voice = voice.Value;
         _logger = logger;
     }
 
@@ -90,15 +93,18 @@ public sealed class AppointmentRescheduleService : IAppointmentRescheduleService
         var officePhone = ElevenLabsTwilioCallingService.ToE164(doctor.OfficePhoneNumber);
         var dialNumber = !string.IsNullOrWhiteSpace(overrideTo) ? overrideTo! : officePhone;
 
-        if (string.IsNullOrWhiteSpace(dialNumber) || !_voiceCalling.IsConfigured)
-            return Fail("Voice calling isn't available right now. Please contact the office directly to reschedule.");
+        // Voice calling reserved for future; lead handoff is SMS/email.
+        if (!_voice.OutboundCallsEnabled || string.IsNullOrWhiteSpace(dialNumber) || !_voiceCalling.IsConfigured)
+            return Fail("Please contact the office directly to reschedule, or ask them to update your booking in their NuviDoc inbox.");
 
         var window = BuildClinicBookingWindow(urgencyPreference);
         var slotStart = appointment.StartsAt;
-        var appointmentDate = slotStart.ToString("yyyy-MM-dd");
-        var appointmentTime = slotStart.ToString("h:mm tt");
+        if (slotStart is null)
+            return Fail("This appointment has no scheduled time yet. Please contact the office to schedule.");
+        var appointmentDate = slotStart.Value.ToString("yyyy-MM-dd");
+        var appointmentTime = slotStart.Value.ToString("h:mm tt");
         var appointmentDateTime =
-            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime}";
+            $"{slotStart.Value:dddd, MMMM d, yyyy} at {appointmentTime}";
 
         var (chatSessionId, sessionKey) = await ResolveChatSessionAsync(
             patientId, appointment.SearchSessionId, currentSearchSessionId, cancellationToken);

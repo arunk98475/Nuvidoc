@@ -25,10 +25,12 @@ public class DocoveeDbContext : DbContext
     public DbSet<DoctorDoctorLanguage> DoctorDoctorLanguages => Set<DoctorDoctorLanguage>();
     public DbSet<PatientDoctorContactView> PatientDoctorContactViews => Set<PatientDoctorContactView>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<LeadHandoff> LeadHandoffs => Set<LeadHandoff>();
     public DbSet<VoiceOutboundCall> VoiceOutboundCalls => Set<VoiceOutboundCall>();
     public DbSet<PatientNotification> PatientNotifications => Set<PatientNotification>();
     public DbSet<PatientAppointmentReminderSend> PatientAppointmentReminderSends => Set<PatientAppointmentReminderSend>();
     public DbSet<PatientNurtureSend> PatientNurtureSends => Set<PatientNurtureSend>();
+    public DbSet<PatientWhatsAppNurture> PatientWhatsAppNurtures => Set<PatientWhatsAppNurture>();
     public DbSet<AppointmentFeedbackRequest> AppointmentFeedbackRequests => Set<AppointmentFeedbackRequest>();
     public DbSet<DoctorLocation> DoctorLocations => Set<DoctorLocation>();
     public DbSet<PmsConnection> PmsConnections => Set<PmsConnection>();
@@ -314,6 +316,20 @@ public class DocoveeDbContext : DbContext
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
         });
 
+        modelBuilder.Entity<LeadHandoff>(entity =>
+        {
+            entity.ToTable("lead_handoffs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ErrorNotes).HasMaxLength(2000);
+            entity.HasIndex(e => new { e.SearchSessionId, e.DoctorId });
+            entity.HasIndex(e => e.PatientId);
+            entity.HasIndex(e => e.AppointmentId);
+            entity.HasOne(e => e.SearchSession).WithMany().HasForeignKey(e => e.SearchSessionId);
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
+        });
+
         modelBuilder.Entity<VoiceOutboundCall>(entity =>
         {
             entity.ToTable("voice_outbound_calls");
@@ -366,6 +382,23 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.Channel).HasMaxLength(20).IsRequired();
             entity.HasIndex(e => new { e.PatientId, e.StepDay, e.Channel }).IsUnique();
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+        });
+
+        modelBuilder.Entity<PatientWhatsAppNurture>(entity =>
+        {
+            entity.ToTable("patient_whatsapp_nurtures");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Stage).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.WhatsAppTo).HasMaxLength(40);
+            entity.Property(e => e.ExperienceText).HasMaxLength(2000);
+            entity.Property(e => e.LastOutboundMessageSid).HasMaxLength(64);
+            entity.Property(e => e.LastError).HasMaxLength(500);
+            entity.HasIndex(e => e.AppointmentId).IsUnique();
+            entity.HasIndex(e => e.WhatsAppTo);
+            entity.HasIndex(e => new { e.Stage, e.NextFollowUpAtUtc });
+            entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
+            entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
+            entity.HasOne(e => e.Doctor).WithMany().HasForeignKey(e => e.DoctorId);
         });
 
         modelBuilder.Entity<AppointmentFeedbackRequest>(entity =>

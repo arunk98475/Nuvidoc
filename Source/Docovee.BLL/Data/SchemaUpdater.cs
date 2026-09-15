@@ -182,6 +182,9 @@ public static class SchemaUpdater
         await EnsureAdminNotificationsTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "patients", "PreferenceProfileJson", "TEXT NULL", cancellationToken);
         await EnsureColumnAsync(db, "appointments", "PatientDateOfBirth", "date NULL", cancellationToken);
+        await EnsureAppointmentsStartsAtNullableAsync(db, cancellationToken);
+        await EnsureLeadHandoffsTableAsync(db, cancellationToken);
+        await EnsurePatientWhatsAppNurturesTableAsync(db, cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "WaitingTime", "varchar(50) NULL", cancellationToken);
         await EnsureColumnAsync(db, "doctor_patient_reviews", "Recommendation", "varchar(50) NULL", cancellationToken);
 
@@ -209,7 +212,7 @@ public static class SchemaUpdater
                 `PatientPhone` varchar(30) CHARACTER SET utf8mb4 NULL,
                 `PatientEmail` varchar(200) CHARACTER SET utf8mb4 NULL,
                 `VisitReason` varchar(200) CHARACTER SET utf8mb4 NOT NULL,
-                `StartsAt` datetime(6) NOT NULL,
+                `StartsAt` datetime(6) NULL,
                 `Status` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
                 `Source` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
                 `SearchSessionId` int NULL,
@@ -389,6 +392,7 @@ public static class SchemaUpdater
         await EnsureColumnAsync(db, "patients", "IsDeleted", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await EnsureColumnAsync(db, "patients", "DeletedAtUtc", "datetime(6) NULL", cancellationToken);
         await EnsureColumnAsync(db, "patients", "LastLoginAtUtc", "datetime(6) NULL", cancellationToken);
+        await EnsureColumnAsync(db, "patients", "NurtureStopped", "tinyint(1) NOT NULL DEFAULT 0", cancellationToken);
         await db.Database.ExecuteSqlRawAsync(
             """
             UPDATE `patients`
@@ -716,6 +720,93 @@ public static class SchemaUpdater
         {
             Log($"patients.Phone widen skipped — {ex.Message}");
         }
+    }
+
+    private static async Task EnsureAppointmentsStartsAtNullableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        if (!await ColumnExistsAsync(db, "appointments", "StartsAt", cancellationToken))
+            return;
+
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                ALTER TABLE `appointments`
+                MODIFY COLUMN `StartsAt` datetime(6) NULL
+                """,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            Log($"appointments.StartsAt nullable skipped — {ex.Message}");
+        }
+    }
+
+    private static async Task EnsurePatientWhatsAppNurturesTableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `patient_whatsapp_nurtures` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `PatientId` int NOT NULL,
+                `AppointmentId` int NOT NULL,
+                `DoctorId` int NOT NULL,
+                `Stage` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `WhatsAppTo` varchar(40) CHARACTER SET utf8mb4 NULL,
+                `NextFollowUpAtUtc` datetime(6) NULL,
+                `Rating` int NULL,
+                `ExperienceText` varchar(2000) CHARACTER SET utf8mb4 NULL,
+                `LastOutboundMessageSid` varchar(64) CHARACTER SET utf8mb4 NULL,
+                `LastError` varchar(500) CHARACTER SET utf8mb4 NULL,
+                `CreatedAtUtc` datetime(6) NOT NULL,
+                `UpdatedAtUtc` datetime(6) NOT NULL,
+                `CompletedAtUtc` datetime(6) NULL,
+                PRIMARY KEY (`Id`),
+                UNIQUE KEY `IX_patient_whatsapp_nurtures_AppointmentId` (`AppointmentId`),
+                KEY `IX_patient_whatsapp_nurtures_WhatsAppTo` (`WhatsAppTo`),
+                KEY `IX_patient_whatsapp_nurtures_Stage_NextFollowUpAtUtc` (`Stage`, `NextFollowUpAtUtc`),
+                KEY `IX_patient_whatsapp_nurtures_PatientId` (`PatientId`),
+                CONSTRAINT `FK_patient_whatsapp_nurtures_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_patient_whatsapp_nurtures_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_patient_whatsapp_nurtures_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
+    }
+
+    private static async Task EnsureLeadHandoffsTableAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            CREATE TABLE IF NOT EXISTS `lead_handoffs` (
+                `Id` int NOT NULL AUTO_INCREMENT,
+                `SearchSessionId` int NULL,
+                `PatientId` int NULL,
+                `DoctorId` int NOT NULL,
+                `AppointmentId` int NULL,
+                `OfficeSmsSent` tinyint(1) NOT NULL DEFAULT 0,
+                `OfficeEmailSent` tinyint(1) NOT NULL DEFAULT 0,
+                `PatientSmsSent` tinyint(1) NOT NULL DEFAULT 0,
+                `PatientEmailSent` tinyint(1) NOT NULL DEFAULT 0,
+                `ErrorNotes` varchar(2000) CHARACTER SET utf8mb4 NULL,
+                `CreatedAt` datetime(6) NOT NULL,
+                PRIMARY KEY (`Id`),
+                KEY `IX_lead_handoffs_SearchSessionId_DoctorId` (`SearchSessionId`, `DoctorId`),
+                KEY `IX_lead_handoffs_PatientId` (`PatientId`),
+                KEY `IX_lead_handoffs_AppointmentId` (`AppointmentId`),
+                CONSTRAINT `FK_lead_handoffs_doctors_DoctorId` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE,
+                CONSTRAINT `FK_lead_handoffs_patients_PatientId` FOREIGN KEY (`PatientId`) REFERENCES `patients` (`Id`) ON DELETE SET NULL,
+                CONSTRAINT `FK_lead_handoffs_search_sessions_SearchSessionId` FOREIGN KEY (`SearchSessionId`) REFERENCES `search_sessions` (`Id`) ON DELETE SET NULL,
+                CONSTRAINT `FK_lead_handoffs_appointments_AppointmentId` FOREIGN KEY (`AppointmentId`) REFERENCES `appointments` (`Id`) ON DELETE SET NULL
+            ) CHARACTER SET=utf8mb4;
+            """,
+            cancellationToken);
     }
 
     private static async Task<bool> ColumnExistsAsync(

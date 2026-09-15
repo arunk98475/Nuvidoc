@@ -398,13 +398,13 @@ public static class NuviFlowContent
 
     public const string CallOfficesPermissionQuestion =
 
-        "Would you like me to call their offices to book an appointment?";
+        "Would you like me to share your info with one office you selected so they can connect with you?";
 
 
 
     public const string MatchRevealAfterListMessage =
 
-        "Above is the list of doctors I found that match your requirements. I think they could be a great fit. Here's who I found—and why I think each one could be the right choice.\n\nWould you like me to call their offices to book an appointment?";
+        "Above is the list of doctors I found that match your requirements. I think they could be a great fit. Here's who I found—and why I think each one could be the right choice.\n\nWould you like me to share your info with one office you selected so they can connect with you?";
 
 
 
@@ -420,9 +420,10 @@ public static class NuviFlowContent
 
 
 
+    // Legacy prompts kept for mid-session sessions already on these steps; new flow skips them.
     public const string CallOfficesAskQuestionsPrompt =
 
-        "So I can reach out to these docs, can I ask you a few questions?";
+        "So I can share your info with one office, can I ask a quick question?";
 
 
 
@@ -434,13 +435,13 @@ public static class NuviFlowContent
 
     public const string CallOfficesAllOrTopQuestion =
 
-        "Do I need to call all doctors or just top one?";
+        "Should I connect you with the top match, or the one you selected in the list?";
 
 
 
     public static readonly string[] CallOfficesAllOrTopOptions =
 
-        ["ALL", "Top one", "SELECTED"];
+        ["Top one", "This one"];
 
 
 
@@ -529,7 +530,7 @@ public static class NuviFlowContent
     public const string RescheduleBookingChip = "Reschedule Booking";
 
     public static readonly string[] ImplantQualificationQuestion1ReturningOptions =
-        ["Implants / missing teeth / denture replacement", CancelBookingChip, RescheduleBookingChip];
+        ["Yes", "No"];
 
     public const string CancelBookingNeverMindOption = "Never mind";
 

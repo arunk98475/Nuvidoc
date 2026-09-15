@@ -49,6 +49,8 @@ public class PatientAdminEditModel
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
     public DateTime? LastLoginAtUtc { get; set; }
+    /// <summary>Admin opt-out: stop all patient cultivation nurture messages.</summary>
+    public bool NurtureStopped { get; set; }
 }
 
 /// <summary>Admin settings for reminders to registered patients who have never booked.</summary>

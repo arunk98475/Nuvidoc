@@ -57,6 +57,20 @@ public interface IAppointmentService
     Task<IReadOnlyList<PatientAppointmentDto>> GetForPatientAsync(
         int patientId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Doctor allocates or moves a slot (Create Booking / Reschedule).</summary>
+    Task<(bool Success, string? Error, DoctorAppointmentDto? Appointment)> SetSlotAsDoctorAsync(
+        int doctorId,
+        int appointmentId,
+        DateTime startsAt,
+        bool isReschedule,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Doctor cancels a Nuvidoc booking/lead from Inbox.</summary>
+    Task<(bool Success, string? Error, DoctorAppointmentDto? Appointment)> CancelAsDoctorAsync(
+        int doctorId,
+        int appointmentId,
+        CancellationToken cancellationToken = default);
 }
 
 public class AppointmentService : IAppointmentService
@@ -275,10 +289,10 @@ public class AppointmentService : IAppointmentService
             query = query.Where(a => a.Status == status);
 
         if (from.HasValue)
-            query = query.Where(a => a.StartsAt >= from.Value);
+            query = query.Where(a => a.StartsAt != null && a.StartsAt >= from.Value);
 
         if (to.HasValue)
-            query = query.Where(a => a.StartsAt < to.Value);
+            query = query.Where(a => a.StartsAt != null && a.StartsAt < to.Value);
 
         return await query
             .OrderByDescending(a => a.UpdatedAt)
@@ -525,6 +539,106 @@ public class AppointmentService : IAppointmentService
         return (true, null);
     }
 
+    public async Task<(bool Success, string? Error, DoctorAppointmentDto? Appointment)> SetSlotAsDoctorAsync(
+        int doctorId,
+        int appointmentId,
+        DateTime startsAt,
+        bool isReschedule,
+        CancellationToken cancellationToken = default)
+    {
+        var appointment = await _db.Appointments
+            .FirstOrDefaultAsync(a => a.DoctorId == doctorId && a.Id == appointmentId, cancellationToken);
+        if (appointment == null)
+            return (false, "Appointment not found.", null);
+
+        if (AppointmentSources.IsPmsInbound(appointment.Source))
+            return (false, "PMS appointments are managed in your practice software.", null);
+
+        if (AppointmentStatuses.IsCanceled(appointment.Status))
+            return (false, "Canceled appointments cannot be booked. Create a new lead connection if needed.", null);
+
+        if (isReschedule && appointment.StartsAt is null)
+            return (false, "This lead has no booking yet. Use Create Booking.", null);
+
+        if (!isReschedule && appointment.StartsAt is not null)
+            return (false, "This lead already has a booking. Use Reschedule/Cancel.", null);
+
+        var slotTaken = await IsSlotOccupiedAsync(doctorId, startsAt, appointmentId, cancellationToken);
+        if (slotTaken)
+            return (false, "That time slot was just booked. Please choose another time.", null);
+
+        appointment.StartsAt = startsAt;
+        appointment.Status = isReschedule
+            ? AppointmentStatuses.PracticeRescheduled
+            : AppointmentStatuses.Confirmed;
+        appointment.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Doctor {DoctorId} {Action} appointment {Id} to {StartsAt}",
+            doctorId, isReschedule ? "rescheduled" : "booked", appointment.Id, appointment.StartsAt);
+
+        try
+        {
+            await _pms.PushAppointmentStatusAsync(appointment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS outbound status push failed for appointment {Id}", appointment.Id);
+        }
+
+        return (true, null, ToDoctorDto(appointment));
+    }
+
+    public async Task<(bool Success, string? Error, DoctorAppointmentDto? Appointment)> CancelAsDoctorAsync(
+        int doctorId,
+        int appointmentId,
+        CancellationToken cancellationToken = default)
+    {
+        var appointment = await _db.Appointments
+            .FirstOrDefaultAsync(a => a.DoctorId == doctorId && a.Id == appointmentId, cancellationToken);
+        if (appointment == null)
+            return (false, "Appointment not found.", null);
+
+        if (AppointmentSources.IsPmsInbound(appointment.Source))
+            return (false, "PMS appointments are managed in your practice software.", null);
+
+        if (AppointmentStatuses.IsCanceled(appointment.Status))
+            return (true, null, ToDoctorDto(appointment));
+
+        appointment.Status = AppointmentStatuses.PracticeCanceled;
+        appointment.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _pms.PushAppointmentStatusAsync(appointment, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "PMS outbound status push failed for appointment {Id}", appointment.Id);
+        }
+
+        return (true, null, ToDoctorDto(appointment));
+    }
+
+    private static DoctorAppointmentDto ToDoctorDto(Appointment a) => new()
+    {
+        Id = a.Id,
+        PatientId = a.PatientId,
+        SearchSessionId = a.SearchSessionId,
+        PatientName = a.PatientName,
+        PatientPhone = a.PatientPhone,
+        PatientEmail = a.PatientEmail,
+        PatientDateOfBirth = a.PatientDateOfBirth,
+        VisitReason = a.VisitReason,
+        StartsAt = a.StartsAt,
+        Status = a.Status,
+        Source = a.Source,
+        CreatedAt = a.CreatedAt,
+        UpdatedAt = a.UpdatedAt
+    };
+
     public async Task<int> CountActionRequiredAsync(int doctorId, CancellationToken cancellationToken = default)
     {
         var rows = await _db.Appointments.AsNoTracking()
@@ -547,10 +661,11 @@ public class AppointmentService : IAppointmentService
         var starts = await _db.Appointments.AsNoTracking()
             .Where(a =>
                 a.DoctorId == doctorId
+                && a.StartsAt != null
                 && a.StartsAt >= fromDt
                 && a.StartsAt < toDt
                 && ActiveStatuses.Contains(a.Status))
-            .Select(a => a.StartsAt)
+            .Select(a => a.StartsAt!.Value)
             .ToListAsync(cancellationToken);
 
         return starts.ToHashSet();
@@ -583,17 +698,29 @@ public class AppointmentService : IAppointmentService
     private async Task<bool> IsSlotOccupiedAsync(
         int doctorId,
         DateTime startsAt,
+        CancellationToken cancellationToken) =>
+        await IsSlotOccupiedAsync(doctorId, startsAt, excludeAppointmentId: null, cancellationToken);
+
+    private async Task<bool> IsSlotOccupiedAsync(
+        int doctorId,
+        DateTime startsAt,
+        int? excludeAppointmentId,
         CancellationToken cancellationToken)
     {
         var dayStart = startsAt.Date;
         var dayEnd = dayStart.AddDays(1);
-        var occupied = await _db.Appointments.AsNoTracking()
+        var query = _db.Appointments.AsNoTracking()
             .Where(a =>
                 a.DoctorId == doctorId
+                && a.StartsAt != null
                 && a.StartsAt >= dayStart.AddDays(-1)
                 && a.StartsAt < dayEnd.AddDays(1)
-                && ActiveStatuses.Contains(a.Status))
-            .Select(a => a.StartsAt)
+                && ActiveStatuses.Contains(a.Status));
+        if (excludeAppointmentId is > 0)
+            query = query.Where(a => a.Id != excludeAppointmentId.Value);
+
+        var occupied = await query
+            .Select(a => a.StartsAt!.Value)
             .ToListAsync(cancellationToken);
 
         return IsSlotBlocked(startsAt, occupied);

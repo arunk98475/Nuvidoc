@@ -2363,10 +2363,18 @@ public sealed class VoiceCallBookingService : IVoiceCallBookingService
         }
 
         var slotStart = appointment.StartsAt;
-        var appointmentDate = slotStart.ToString("yyyy-MM-dd");
-        var appointmentTime = slotStart.ToString("h:mm tt");
+        if (slotStart is null)
+        {
+            return new IntentCallRetryResult
+            {
+                Scheduled = false,
+                NotificationBody = "This appointment has no scheduled time yet."
+            };
+        }
+        var appointmentDate = slotStart.Value.ToString("yyyy-MM-dd");
+        var appointmentTime = slotStart.Value.ToString("h:mm tt");
         var appointmentDateTime =
-            $"{slotStart:dddd, MMMM d, yyyy} at {appointmentTime}";
+            $"{slotStart.Value:dddd, MMMM d, yyyy} at {appointmentTime}";
         var patientName = string.IsNullOrWhiteSpace(call.PatientName) ? "Patient" : call.PatientName;
         var isCancel = IsCancelIntent(call.CallIntent);
         DateOnly? patientDob = ElevenLabsTwilioCallingService.PreferPatientDateOfBirth(appointment.PatientDateOfBirth);

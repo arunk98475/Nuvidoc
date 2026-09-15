@@ -61,8 +61,8 @@ public class CalendarModel : PageModel
         if (appointmentId is > 0 && string.IsNullOrWhiteSpace(week))
         {
             var target = await _appointments.GetForDoctorByIdAsync(doctorId, appointmentId.Value, cancellationToken);
-            anchor = target != null
-                ? DateOnly.FromDateTime(target.StartsAt)
+            anchor = target?.StartsAt is DateTime s
+                ? DateOnly.FromDateTime(s)
                 : today;
         }
         else if (!DateOnly.TryParse(week, out anchor))
@@ -141,8 +141,8 @@ public class CalendarModel : PageModel
                 status = AppointmentStatuses.Normalize(appointment.Status),
                 statusLabel = AppointmentSources.PmsBookedDisplayLabel,
                 patientName = AppointmentSources.PmsBookedDisplayLabel,
-                startsAt = appointment.StartsAt.ToString("dddd MMM d 'at' h:mm tt"),
-                startsAtIso = appointment.StartsAt.ToString("o"),
+                startsAt = appointment.StartsAt?.ToString("dddd MMM d 'at' h:mm tt") ?? "—",
+                startsAtIso = appointment.StartsAt?.ToString("o"),
                 visitReason = AppointmentSources.PmsBookedDisplayLabel,
                 canConfirm = false,
                 canCancel = false,
@@ -234,9 +234,10 @@ public class CalendarModel : PageModel
             phone,
             email,
             memberSince = memberSince?.ToString("MMM d, yyyy"),
-            startsAt = appointment.StartsAt.ToString("dddd MMM d 'at' h:mm tt"),
-            startsAtIso = appointment.StartsAt.ToString("o"),
-            isPast = DateOnly.FromDateTime(appointment.StartsAt) < DateOnly.FromDateTime(DateTime.Today),
+            startsAt = appointment.StartsAt?.ToString("dddd MMM d 'at' h:mm tt") ?? "—",
+            startsAtIso = appointment.StartsAt?.ToString("o"),
+            isPast = appointment.StartsAt is DateTime start
+                && DateOnly.FromDateTime(start) < DateOnly.FromDateTime(DateTime.Today),
             visitReason = appointment.VisitReason,
             providerName = profile?.Name ?? ProviderName,
             practiceName = profile?.PracticeName,
@@ -245,7 +246,7 @@ public class CalendarModel : PageModel
             history = history.Select(h => new
             {
                 id = h.Id,
-                startsAt = h.StartsAt.ToString("MMM d, yyyy · h:mm tt"),
+                startsAt = h.StartsAt?.ToString("MMM d, yyyy · h:mm tt") ?? "—",
                 visitReason = h.VisitReason,
                 status = AppointmentStatuses.Normalize(h.Status),
                 statusLabel = StatusLabel(h.Status)
@@ -263,18 +264,20 @@ public class CalendarModel : PageModel
     {
         var slotStart = day.ToDateTime(new TimeOnly(hour, 0));
         var slotEnd = slotStart.AddHours(1);
-        return Appointments.FirstOrDefault(a => a.StartsAt >= slotStart && a.StartsAt < slotEnd);
+        return Appointments.FirstOrDefault(a =>
+            a.StartsAt is DateTime s && s >= slotStart && s < slotEnd);
     }
 
     private static IReadOnlyList<int> BuildHourStarts(IReadOnlyList<DoctorAppointmentDto> appointments)
     {
         const int defaultStart = 8;
         const int defaultEnd = 18;
-        if (appointments.Count == 0)
+        var withSlots = appointments.Where(a => a.StartsAt.HasValue).ToList();
+        if (withSlots.Count == 0)
             return Enumerable.Range(defaultStart, defaultEnd - defaultStart + 1).ToList();
 
-        var minHour = appointments.Min(a => a.StartsAt.Hour);
-        var maxHour = appointments.Max(a => a.StartsAt.Hour);
+        var minHour = withSlots.Min(a => a.StartsAt!.Value.Hour);
+        var maxHour = withSlots.Max(a => a.StartsAt!.Value.Hour);
         minHour = Math.Max(6, Math.Min(minHour, defaultStart));
         maxHour = Math.Min(21, Math.Max(maxHour, defaultEnd));
         return Enumerable.Range(minHour, maxHour - minHour + 1).ToList();

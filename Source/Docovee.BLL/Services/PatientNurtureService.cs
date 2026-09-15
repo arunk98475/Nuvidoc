@@ -17,10 +17,25 @@ public interface IPatientNurtureService
     Task<int> ProcessDueNurtureRemindersAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Cultivation nurture for patients until they leave feedback (or admin stops nurturing).
+/// Continues after lead handoff / optional doctor booking — WhatsApp/SMS/email check-ins
+/// like "Did you book?", "Did you go?", "Have you received treatment?", "How was it?".
+/// </summary>
 public sealed class PatientNurtureService : IPatientNurtureService
 {
+    private enum NurturePhase
+    {
+        AskBooked,
+        AskUpcoming,
+        AskAttended,
+        AskTreatment,
+        AskExperience
+    }
+
     private readonly DocoveeDbContext _db;
     private readonly IAppSettingsService _appSettings;
+    private readonly IPatientWhatsAppNurtureService _whatsAppNurture;
     private readonly IEmailSender _email;
     private readonly IBrandingService _branding;
     private readonly TwilioOptions _twilio;
@@ -30,6 +45,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
     public PatientNurtureService(
         DocoveeDbContext db,
         IAppSettingsService appSettings,
+        IPatientWhatsAppNurtureService whatsAppNurture,
         IEmailSender email,
         IBrandingService branding,
         IOptions<TwilioOptions> twilio,
@@ -38,6 +54,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
     {
         _db = db;
         _appSettings = appSettings;
+        _whatsAppNurture = whatsAppNurture;
         _email = email;
         _branding = branding;
         _twilio = twilio.Value;
@@ -53,18 +70,26 @@ public sealed class PatientNurtureService : IPatientNurtureService
         if (!settings.EnableSms && !settings.EnableWhatsApp && !settings.EnableEmail)
             return 0;
 
+        var sent = 0;
+        if (settings.EnableWhatsApp)
+            sent += await _whatsAppNurture.ProcessDueFollowUpsAsync(cancellationToken);
+
         var intervalDays = Math.Clamp(settings.IntervalDays, 1, 90);
         var stopAfterMonths = Math.Clamp(settings.StopAfterMonths, 1, 24);
         var now = ClinicTime.Now;
         var oldestCreatedUtc = DateTime.UtcNow.AddMonths(-(stopAfterMonths + 1));
 
+        // Continue nurturing after booking until feedback — stop only when admin opted out,
+        // patient left feedback/review, soft-deleted, or past stop window.
         var patients = await _db.Patients
             .AsNoTracking()
             .Where(p => !p.IsDeleted)
+            .Where(p => !p.NurtureStopped)
             .Where(p => p.CreatedAt >= oldestCreatedUtc)
-            .Where(p => !_db.Appointments.Any(a =>
-                a.PatientId == p.Id
-                && a.Source != AppointmentSources.PmsInbound))
+            .Where(p => !_db.DoctorPatientReviews.Any(r => r.PatientId == p.Id))
+            .Where(p => !_db.AppointmentFeedbackRequests.Any(f =>
+                f.PatientId == p.Id
+                && f.Stage == AppointmentFeedbackStages.Completed))
             .Select(p => new
             {
                 p.Id,
@@ -81,6 +106,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
 
         var patientIds = patients.Select(p => p.Id).ToList();
         var implantFlags = await LoadImplantFlagsAsync(patientIds, cancellationToken);
+        var appointmentStates = await LoadAppointmentStatesAsync(patientIds, cancellationToken);
         var priorSends = await _db.PatientNurtureSends
             .AsNoTracking()
             .Where(s => patientIds.Contains(s.PatientId))
@@ -92,7 +118,6 @@ public sealed class PatientNurtureService : IPatientNurtureService
 
         var siteName = string.IsNullOrWhiteSpace(_branding.SiteName) ? "NuviDoc" : _branding.SiteName;
         var baseUrl = FirstNonEmpty(_emailOptions.PublicBaseUrl, _twilio.PublicBaseUrl)?.TrimEnd('/') ?? "";
-        var sent = 0;
 
         foreach (var patient in patients)
         {
@@ -101,9 +126,9 @@ public sealed class PatientNurtureService : IPatientNurtureService
             if (now.Date > cutoffDate)
                 continue;
 
+            appointmentStates.TryGetValue(patient.Id, out var apptState);
             implantFlags.TryGetValue(patient.Id, out var isImplant);
             var firstName = FirstName(patient.FullName);
-            var (body, subject) = BuildCopy(firstName, siteName, baseUrl, isImplant);
 
             for (var stepDay = intervalDays; ; stepDay += intervalDays)
             {
@@ -117,6 +142,9 @@ public sealed class PatientNurtureService : IPatientNurtureService
 
                 if (!StepHasPendingSend(patient.Id, patient.PhoneVerified, patient.Username, stepDay, settings, sentKeys))
                     continue;
+
+                var phase = ResolvePhase(apptState, now, stepDay, intervalDays);
+                var (body, subject) = BuildCopy(firstName, siteName, baseUrl, isImplant, phase);
 
                 if (settings.EnableSms
                     && patient.PhoneVerified
@@ -134,7 +162,12 @@ public sealed class PatientNurtureService : IPatientNurtureService
                     && patient.PhoneVerified
                     && !sentKeys.Contains((patient.Id, stepDay, PatientNurtureChannels.WhatsApp)))
                 {
-                    if (TrySendWhatsApp(patient.Phone, firstName, body))
+                    if (await _whatsAppNurture.TryStartConversationAsync(
+                            patient.Id,
+                            patient.Phone,
+                            patient.FullName,
+                            stepDay,
+                            cancellationToken))
                     {
                         await RecordSendAsync(patient.Id, stepDay, PatientNurtureChannels.WhatsApp, cancellationToken);
                         sentKeys.Add((patient.Id, stepDay, PatientNurtureChannels.WhatsApp));
@@ -160,6 +193,68 @@ public sealed class PatientNurtureService : IPatientNurtureService
         }
 
         return sent;
+    }
+
+    private async Task<Dictionary<int, AppointmentNurtureState>> LoadAppointmentStatesAsync(
+        IReadOnlyList<int> patientIds,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _db.Appointments
+            .AsNoTracking()
+            .Where(a => a.PatientId != null
+                        && patientIds.Contains(a.PatientId.Value)
+                        && a.Source != AppointmentSources.PmsInbound)
+            .Select(a => new { PatientId = a.PatientId!.Value, a.StartsAt, a.Status })
+            .ToListAsync(cancellationToken);
+
+        var today = ClinicTime.Now.Date;
+        var result = new Dictionary<int, AppointmentNurtureState>();
+        foreach (var group in rows.GroupBy(r => r.PatientId))
+        {
+            var active = group.Where(g => !AppointmentStatuses.IsCanceled(g.Status)).ToList();
+            if (active.Count == 0)
+                continue;
+
+            var booked = active.Where(g => g.StartsAt != null).Select(g => g.StartsAt!.Value).ToList();
+            DateTime? nextStart = booked
+                .Where(s => s.Date >= today)
+                .OrderBy(s => s)
+                .Cast<DateTime?>()
+                .FirstOrDefault();
+            DateTime? latestStart = booked.Count == 0 ? null : booked.Max();
+
+            result[group.Key] = new AppointmentNurtureState
+            {
+                HasLeadOrBooking = true,
+                HasBookedSlot = booked.Count > 0,
+                NextStartsAt = nextStart,
+                LatestStartsAt = latestStart
+            };
+        }
+
+        return result;
+    }
+
+    private static NurturePhase ResolvePhase(
+        AppointmentNurtureState? state,
+        DateTime now,
+        int stepDay,
+        int intervalDays)
+    {
+        if (state is null || !state.HasLeadOrBooking || !state.HasBookedSlot)
+            return NurturePhase.AskBooked;
+
+        if (state.NextStartsAt is DateTime upcoming && upcoming.Date > now.Date)
+            return NurturePhase.AskUpcoming;
+
+        // Visit day or past — rotate check-in questions until feedback.
+        var cycle = Math.Max(1, stepDay / Math.Max(1, intervalDays));
+        return (cycle % 3) switch
+        {
+            1 => NurturePhase.AskAttended,
+            2 => NurturePhase.AskTreatment,
+            _ => NurturePhase.AskExperience
+        };
     }
 
     private async Task<Dictionary<int, bool>> LoadImplantFlagsAsync(
@@ -227,26 +322,39 @@ public sealed class PatientNurtureService : IPatientNurtureService
         string firstName,
         string siteName,
         string baseUrl,
-        bool implant)
+        bool implant,
+        NurturePhase phase)
     {
         var hello = string.IsNullOrWhiteSpace(firstName) ? "Hi" : $"Hi {firstName}";
         var link = string.IsNullOrWhiteSpace(baseUrl) ? siteName : baseUrl;
-        string body;
-        string subject;
-        if (implant)
-        {
-            subject = $"Ready when you are — dental implant consult on {siteName}";
-            body =
-                $"{hello}, still thinking about dental implants? When you're ready, {siteName} can help you find a dentist and book a consult. {link}";
-        }
-        else
-        {
-            subject = $"Ready to book your visit on {siteName}?";
-            body =
-                $"{hello}, you're signed up with {siteName} but haven't booked yet. When you're ready, we can help you find a dentist and schedule. {link}";
-        }
+        var appointmentsUrl = string.IsNullOrWhiteSpace(baseUrl)
+            ? "your appointments"
+            : $"{baseUrl.TrimEnd('/')}/Account/Appointments";
 
-        return (body, subject);
+        return phase switch
+        {
+            NurturePhase.AskBooked => (
+                implant
+                    ? $"{hello}, did you book your dental implant consult yet? {siteName} can still help you compare options — {link}"
+                    : $"{hello}, did you book with the office we connected you with? If not, reply here or open {link} and we'll help.",
+                $"Did you book? — {siteName}"),
+
+            NurturePhase.AskUpcoming => (
+                $"{hello}, your visit is coming up. Reply if you need to reschedule, or if anything changed. {link}",
+                $"Your upcoming visit — {siteName}"),
+
+            NurturePhase.AskAttended => (
+                $"{hello}, did you go to your appointment? Reply yes/no — we're here if you still need help. {link}",
+                $"Did you go? — {siteName}"),
+
+            NurturePhase.AskTreatment => (
+                $"{hello}, have you received treatment yet? Let us know how things are going. {link}",
+                $"Have you received treatment? — {siteName}"),
+
+            _ => (
+                $"{hello}, if you did get care — how was it? Reply here or leave feedback: {appointmentsUrl}",
+                $"How was your visit? — {siteName}")
+        };
     }
 
     private bool TrySendSms(string? phone, string body)
@@ -395,4 +503,12 @@ public sealed class PatientNurtureService : IPatientNurtureService
 
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
+
+    private sealed class AppointmentNurtureState
+    {
+        public bool HasLeadOrBooking { get; init; }
+        public bool HasBookedSlot { get; init; }
+        public DateTime? NextStartsAt { get; init; }
+        public DateTime? LatestStartsAt { get; init; }
+    }
 }

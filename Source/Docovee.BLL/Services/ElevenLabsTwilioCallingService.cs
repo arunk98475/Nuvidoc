@@ -69,6 +69,17 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
         NuviOutboundCallRequest request,
         CancellationToken cancellationToken = default)
     {
+        // Voice calling reserved for future; lead handoff is SMS/email.
+        if (!_voice.OutboundCallsEnabled)
+        {
+            return new NuviOutboundCallResult
+            {
+                Success = false,
+                Message = "Outbound voice calling is quarantined. Lead handoff uses SMS/email.",
+                ToNumber = request.ToNumber
+            };
+        }
+
         if (!IsConfigured)
         {
             return new NuviOutboundCallResult

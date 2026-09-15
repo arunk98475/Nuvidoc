@@ -33,7 +33,7 @@ public class DoctorAppointmentDto
     public string? PatientEmail { get; set; }
     public DateOnly? PatientDateOfBirth { get; set; }
     public string VisitReason { get; set; } = string.Empty;
-    public DateTime StartsAt { get; set; }
+    public DateTime? StartsAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public string Source { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
@@ -49,7 +49,7 @@ public class PatientAppointmentDto
     public string? DoctorPhotoUrl { get; set; }
     public string? DoctorLocation { get; set; }
     public string VisitReason { get; set; } = string.Empty;
-    public DateTime StartsAt { get; set; }
+    public DateTime? StartsAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool HasReview { get; set; }

@@ -81,7 +81,7 @@
                 <div class="pi-row pi-row-stack">
                     <div class="pi-row-top">
                         <div class="pi-row-body">
-                            <div class="pi-label">@a.StartsAt.ToString("MMM d, yyyy") · @a.StartsAt.ToString("h:mm tt")</div>
+                            <div class="pi-label">@(a.StartsAt?.ToString("MMM d, yyyy") ?? "—") · @(a.StartsAt?.ToString("h:mm tt") ?? "")</div>
                             <div class="pi-value">@a.DoctorName</div>
                             <p class="pi-hint">@a.DoctorSpecialty@(!string.IsNullOrEmpty(a.DoctorLocation) ? $" · {a.DoctorLocation}" : "")</p>
                             <p class="pi-hint">@a.VisitReason · @AppointmentsModel.StatusLabel(a.Status)</p>

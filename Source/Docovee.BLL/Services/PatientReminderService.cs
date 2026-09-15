@@ -112,7 +112,9 @@ public sealed class PatientReminderService : IPatientReminderService
                 continue;
             if (!AppointmentStatuses.IsActive(appt.Status))
                 continue;
-            if (appt.StartsAt <= now)
+            if (appt.StartsAt is not DateTime startsAt)
+                continue;
+            if (startsAt <= now)
                 continue;
 
             var settings = Deserialize(appt.Patient.ReminderSettingsJson);
@@ -122,7 +124,7 @@ public sealed class PatientReminderService : IPatientReminderService
 
             var createdPacific = ClinicTime.FromUtc(appt.CreatedAt);
 
-            foreach (var (kind, dueAt, enabled) in EnumerateDueTimes(appt.StartsAt, settings))
+            foreach (var (kind, dueAt, enabled) in EnumerateDueTimes(startsAt, settings))
             {
                 if (!enabled)
                     continue;
@@ -162,11 +164,14 @@ public sealed class PatientReminderService : IPatientReminderService
         PatientReminderSettingsDto settings,
         CancellationToken cancellationToken)
     {
+        if (appt.StartsAt is not DateTime startsAt)
+            return false;
+
         var practice = string.IsNullOrWhiteSpace(appt.Doctor?.PracticeName)
             ? (appt.Doctor?.Name ?? "your practice")
             : appt.Doctor.PracticeName;
-        var date = appt.StartsAt.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture);
-        var time = appt.StartsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
+        var date = startsAt.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture);
+        var time = startsAt.ToString("h:mm tt", CultureInfo.InvariantCulture);
         var body = $"You have appointment in {practice} on {date} at {time}";
         var title = "Appointment reminder";
 
@@ -197,9 +202,9 @@ public sealed class PatientReminderService : IPatientReminderService
                 DoctorId = appt.DoctorId,
                 DoctorName = appt.Doctor?.Name,
                 AppointmentId = appt.Id,
-                StartsAt = appt.StartsAt,
-                EndsAt = appt.StartsAt.AddHours(1),
-                SlotLabel = VoiceCallBookingService.FormatPstSlot(appt.StartsAt, appt.StartsAt.AddHours(1)),
+                StartsAt = startsAt,
+                EndsAt = startsAt.AddHours(1),
+                SlotLabel = VoiceCallBookingService.FormatPstSlot(startsAt, startsAt.AddHours(1)),
                 NotificationId = row.Id
             }, cancellationToken);
             any = true;
