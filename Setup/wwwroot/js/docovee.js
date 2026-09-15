@@ -440,7 +440,7 @@ function renderDoctorListItems(container, doctors) {
     card.innerHTML = `
       ${badges}
       <div class="nuvi-doctor-card-row">
-        <input type="checkbox" class="doctor-list-check" data-doctor-id="${d.id}" ${checked} />
+        <input type="radio" name="doctor-list-pick" class="doctor-list-check" data-doctor-id="${d.id}" ${checked} />
         <div style="flex:1;min-width:0">
           <div class="nuvi-doctor-card-top">
             <div class="nuvi-doctor-avatar">${escapeHtml(d.avatarInitials)}</div>
@@ -463,8 +463,12 @@ function renderDoctorListItems(container, doctors) {
     const cb = card.querySelector(".doctor-list-check");
     cb.onclick = (e) => {
       e.stopPropagation();
+      // Single office at a time.
+      selectedDoctorsForCall.clear();
       if (cb.checked) selectedDoctorsForCall.add(d.id);
-      else selectedDoctorsForCall.delete(d.id);
+      container.querySelectorAll(".doctor-list-check").forEach(other => {
+        if (other !== cb) other.checked = false;
+      });
     };
     card.onclick = (e) => {
       if (e.target === cb) return;
@@ -924,7 +928,9 @@ async function fetchChatMessage(body) {
     payload.longitude = userLongitude;
   }
   if (selectedDoctorsForCall.size > 0) {
-    payload.selectedDoctorIds = Array.from(selectedDoctorsForCall);
+    const oneId = Array.from(selectedDoctorsForCall)[0];
+    payload.selectedDoctorIds = [oneId];
+    if (payload.selectedDoctorId == null) payload.selectedDoctorId = oneId;
   }
   const res = await fetch("/api/chat/message", {
     method: "POST",
