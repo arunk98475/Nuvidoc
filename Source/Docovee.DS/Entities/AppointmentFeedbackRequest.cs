@@ -17,6 +17,8 @@ public class AppointmentFeedbackRequest
     public string? WaitingTime { get; set; }
     public string? Recommendation { get; set; }
     public string? ReviewText { get; set; }
+    /// <summary>E.164 lookup key for inbound SMS (and in-flight WhatsApp compat).</summary>
+    public string? PhoneE164 { get; set; }
     public string? WhatsAppTo { get; set; }
     public string? LastOutboundMessageSid { get; set; }
     public string? LastError { get; set; }
@@ -27,6 +29,7 @@ public class AppointmentFeedbackRequest
 public static class AppointmentFeedbackChannels
 {
     public const string Pending = "Pending";
+    public const string Sms = "Sms";
     public const string WhatsApp = "WhatsApp";
     public const string SmsFallback = "SmsFallback";
 }

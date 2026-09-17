@@ -389,11 +389,13 @@ public class DocoveeDbContext : DbContext
             entity.ToTable("patient_whatsapp_nurtures");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Stage).HasMaxLength(40).IsRequired();
+            entity.Property(e => e.PhoneE164).HasMaxLength(20);
             entity.Property(e => e.WhatsAppTo).HasMaxLength(40);
             entity.Property(e => e.ExperienceText).HasMaxLength(2000);
             entity.Property(e => e.LastOutboundMessageSid).HasMaxLength(64);
             entity.Property(e => e.LastError).HasMaxLength(500);
             entity.HasIndex(e => e.AppointmentId).IsUnique();
+            entity.HasIndex(e => e.PhoneE164);
             entity.HasIndex(e => e.WhatsAppTo);
             entity.HasIndex(e => new { e.Stage, e.NextFollowUpAtUtc });
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);
@@ -410,11 +412,13 @@ public class DocoveeDbContext : DbContext
             entity.Property(e => e.WaitingTime).HasMaxLength(50);
             entity.Property(e => e.Recommendation).HasMaxLength(50);
             entity.Property(e => e.ReviewText).HasMaxLength(2000);
+            entity.Property(e => e.PhoneE164).HasMaxLength(20);
             entity.Property(e => e.WhatsAppTo).HasMaxLength(40);
             entity.Property(e => e.LastOutboundMessageSid).HasMaxLength(64);
             entity.Property(e => e.LastError).HasMaxLength(500);
             entity.HasIndex(e => e.AppointmentId).IsUnique();
             entity.HasIndex(e => new { e.Stage, e.ScheduledAtUtc });
+            entity.HasIndex(e => e.PhoneE164);
             entity.HasIndex(e => e.WhatsAppTo);
             entity.HasOne(e => e.Appointment).WithMany().HasForeignKey(e => e.AppointmentId);
             entity.HasOne(e => e.Patient).WithMany().HasForeignKey(e => e.PatientId);

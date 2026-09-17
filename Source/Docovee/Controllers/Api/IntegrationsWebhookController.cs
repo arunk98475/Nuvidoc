@@ -10,18 +10,18 @@ namespace Docovee.Controllers.Api;
 public class IntegrationsWebhookController : ControllerBase
 {
     private readonly IVoiceCallBookingService _voiceBookings;
-    private readonly IPatientWhatsAppNurtureService _whatsAppNurture;
+    private readonly IPatientSmsNurtureService _smsNurture;
     private readonly IAppointmentFeedbackService _feedback;
     private readonly ILogger<IntegrationsWebhookController> _logger;
 
     public IntegrationsWebhookController(
         IVoiceCallBookingService voiceBookings,
-        IPatientWhatsAppNurtureService whatsAppNurture,
+        IPatientSmsNurtureService smsNurture,
         IAppointmentFeedbackService feedback,
         ILogger<IntegrationsWebhookController> logger)
     {
         _voiceBookings = voiceBookings;
-        _whatsAppNurture = whatsAppNurture;
+        _smsNurture = smsNurture;
         _feedback = feedback;
         _logger = logger;
     }
@@ -80,7 +80,29 @@ public class IntegrationsWebhookController : ControllerBase
     }
 
     /// <summary>
-    /// Twilio WhatsApp inbound webhook for post-booking feedback survey replies.
+    /// Twilio SMS inbound webhook for nurture and post-booking feedback replies.
+    /// Configure on the SMS sender: When a message comes in →
+    /// {PublicBaseUrl}/api/integrations/twilio/sms
+    /// </summary>
+    [HttpPost("twilio/sms")]
+    [AllowAnonymous]
+    public async Task<IActionResult> TwilioSms(CancellationToken cancellationToken)
+    {
+        var form = await Request.ReadFormAsync(cancellationToken);
+        var from = form["From"].ToString();
+        var body = form["Body"].ToString();
+
+        _logger.LogInformation(
+            "Twilio SMS inbound. From={From}, HasBody={HasBody}",
+            from,
+            !string.IsNullOrWhiteSpace(body));
+
+        await HandleInboundTextAsync(from, body, cancellationToken);
+        return Content("<Response></Response>", "text/xml");
+    }
+
+    /// <summary>
+    /// Compat path for in-flight WhatsApp conversations. New sends use SMS only.
     /// Configure on the WhatsApp sender: When a message comes in →
     /// {PublicBaseUrl}/api/integrations/twilio/whatsapp
     /// </summary>
@@ -96,38 +118,45 @@ public class IntegrationsWebhookController : ControllerBase
         if (string.IsNullOrWhiteSpace(listId))
             listId = form["ButtonPayload"].ToString();
 
+        var selection = FirstNonEmpty(listId, buttonPayload, body);
+
         _logger.LogInformation(
-            "Twilio WhatsApp inbound. From={From}, ListId={ListId}, HasBody={HasBody}",
+            "Twilio WhatsApp inbound (compat). From={From}, ListId={ListId}, HasBody={HasBody}",
             from,
             string.IsNullOrWhiteSpace(listId) ? "(none)" : listId,
             !string.IsNullOrWhiteSpace(body));
 
+        await HandleInboundTextAsync(from, selection, cancellationToken);
+        return Content("<Response></Response>", "text/xml");
+    }
+
+    private async Task HandleInboundTextAsync(
+        string from,
+        string? body,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            var handledByNurture = await _whatsAppNurture.HandleInboundWhatsAppAsync(
-                from,
-                body,
-                buttonPayload,
-                listId,
-                cancellationToken);
+            if (SmsReplyExtractionService.IsStopKeyword(body))
+            {
+                await _smsNurture.HandleStopRequestAsync(from, cancellationToken);
+                return;
+            }
+
+            var handledByNurture = await _smsNurture.HandleInboundSmsAsync(from, body, cancellationToken);
             if (!handledByNurture)
             {
-                await _feedback.HandleInboundWhatsAppAsync(
-                    from,
-                    body,
-                    buttonPayload,
-                    listId,
-                    cancellationToken);
+                await _feedback.HandleInboundSmsAsync(from, body, cancellationToken);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Twilio WhatsApp feedback handling failed");
+            _logger.LogWarning(ex, "Twilio inbound text handling failed");
         }
-
-        // Empty TwiML / 200 so Twilio does not retry.
-        return Content("<Response></Response>", "text/xml");
     }
+
+    private static string? FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
     // [HttpPost("sync")]
     // [AllowAnonymous]

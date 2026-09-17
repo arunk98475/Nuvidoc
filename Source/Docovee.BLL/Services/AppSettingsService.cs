@@ -347,9 +347,10 @@ public class AppSettingsService : IAppSettingsService
             StopAfterMonths = int.TryParse(Val(AppSettingKeys.BookingReminderStopAfterMonths), out var months)
                 ? Math.Clamp(months, MinBookingReminderStopAfterMonths, MaxBookingReminderStopAfterMonths)
                 : DefaultBookingReminderStopAfterMonths,
-            EnableWhatsApp = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableWhatsApp)),
             EnableEmail = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableEmail)),
             EnableSms = ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableSms))
+                       || ParseBoolSetting(Val(AppSettingKeys.BookingReminderEnableWhatsApp)),
+            EnableWhatsApp = false
         };
     }
 
@@ -360,17 +361,16 @@ public class AppSettingsService : IAppSettingsService
         var interval = Math.Clamp(settings.IntervalDays, MinBookingReminderIntervalDays, MaxBookingReminderIntervalDays);
         var months = Math.Clamp(settings.StopAfterMonths, MinBookingReminderStopAfterMonths, MaxBookingReminderStopAfterMonths);
         var enabled = settings.Enabled;
-        var whatsApp = settings.EnableWhatsApp;
         var email = settings.EnableEmail;
         var sms = settings.EnableSms;
 
-        if (enabled && !whatsApp && !email && !sms)
-            return (false, "Turn on at least one channel (WhatsApp, email, or SMS) when reminders are enabled.");
+        if (enabled && !email && !sms)
+            return (false, "Turn on at least one channel (email or SMS) when reminders are enabled.");
 
         await SetValueAsync(AppSettingKeys.BookingReminderEnabled, enabled ? "true" : "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderIntervalDays, interval.ToString(), cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderStopAfterMonths, months.ToString(), cancellationToken);
-        await SetValueAsync(AppSettingKeys.BookingReminderEnableWhatsApp, whatsApp ? "true" : "false", cancellationToken);
+        await SetValueAsync(AppSettingKeys.BookingReminderEnableWhatsApp, "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderEnableEmail, email ? "true" : "false", cancellationToken);
         await SetValueAsync(AppSettingKeys.BookingReminderEnableSms, sms ? "true" : "false", cancellationToken);
         return (true, null);

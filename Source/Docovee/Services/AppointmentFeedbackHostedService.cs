@@ -2,7 +2,7 @@ using Docovee.BLL.Services;
 
 namespace Docovee.Services;
 
-/// <summary>Sends post-booking WhatsApp/SMS feedback requests after the configured delay.</summary>
+/// <summary>Sends post-booking SMS feedback requests after the configured delay.</summary>
 public sealed class AppointmentFeedbackHostedService : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(10);

@@ -455,6 +455,7 @@ public static class SchemaUpdater
                 `WaitingTime` varchar(50) CHARACTER SET utf8mb4 NULL,
                 `Recommendation` varchar(50) CHARACTER SET utf8mb4 NULL,
                 `ReviewText` varchar(2000) CHARACTER SET utf8mb4 NULL,
+                `PhoneE164` varchar(20) CHARACTER SET utf8mb4 NULL,
                 `WhatsAppTo` varchar(40) CHARACTER SET utf8mb4 NULL,
                 `LastOutboundMessageSid` varchar(64) CHARACTER SET utf8mb4 NULL,
                 `LastError` varchar(500) CHARACTER SET utf8mb4 NULL,
@@ -463,6 +464,7 @@ public static class SchemaUpdater
                 PRIMARY KEY (`Id`),
                 UNIQUE KEY `IX_appointment_feedback_requests_AppointmentId` (`AppointmentId`),
                 KEY `IX_appointment_feedback_requests_Stage_Scheduled` (`Stage`, `ScheduledAtUtc`),
+                KEY `IX_appointment_feedback_requests_PhoneE164` (`PhoneE164`),
                 KEY `IX_appointment_feedback_requests_WhatsAppTo` (`WhatsAppTo`),
                 KEY `IX_appointment_feedback_requests_PatientId` (`PatientId`),
                 KEY `IX_appointment_feedback_requests_DoctorId` (`DoctorId`),
@@ -471,6 +473,8 @@ public static class SchemaUpdater
                 CONSTRAINT `FK_feedback_requests_doctors` FOREIGN KEY (`DoctorId`) REFERENCES `doctors` (`Id`) ON DELETE CASCADE
             ) CHARACTER SET=utf8mb4;
             """, cancellationToken);
+
+        await EnsureSmsConversationPhoneColumnsAsync(db, cancellationToken);
 
         // CMS — editable marketing/SEO pages
         await db.Database.ExecuteSqlRawAsync(
@@ -756,6 +760,7 @@ public static class SchemaUpdater
                 `AppointmentId` int NOT NULL,
                 `DoctorId` int NOT NULL,
                 `Stage` varchar(40) CHARACTER SET utf8mb4 NOT NULL,
+                `PhoneE164` varchar(20) CHARACTER SET utf8mb4 NULL,
                 `WhatsAppTo` varchar(40) CHARACTER SET utf8mb4 NULL,
                 `NextFollowUpAtUtc` datetime(6) NULL,
                 `Rating` int NULL,
@@ -767,6 +772,7 @@ public static class SchemaUpdater
                 `CompletedAtUtc` datetime(6) NULL,
                 PRIMARY KEY (`Id`),
                 UNIQUE KEY `IX_patient_whatsapp_nurtures_AppointmentId` (`AppointmentId`),
+                KEY `IX_patient_whatsapp_nurtures_PhoneE164` (`PhoneE164`),
                 KEY `IX_patient_whatsapp_nurtures_WhatsAppTo` (`WhatsAppTo`),
                 KEY `IX_patient_whatsapp_nurtures_Stage_NextFollowUpAtUtc` (`Stage`, `NextFollowUpAtUtc`),
                 KEY `IX_patient_whatsapp_nurtures_PatientId` (`PatientId`),
@@ -776,6 +782,45 @@ public static class SchemaUpdater
             ) CHARACTER SET=utf8mb4;
             """,
             cancellationToken);
+    }
+
+    private static async Task EnsureSmsConversationPhoneColumnsAsync(
+        DocoveeDbContext db,
+        CancellationToken cancellationToken)
+    {
+        await EnsureColumnAsync(db, "patient_whatsapp_nurtures", "PhoneE164", "varchar(20) NULL", cancellationToken);
+        await EnsureIndexAsync(
+            db,
+            "patient_whatsapp_nurtures",
+            "IX_patient_whatsapp_nurtures_PhoneE164",
+            "PhoneE164",
+            cancellationToken);
+        await BackfillPhoneE164FromWhatsAppToAsync(db, "patient_whatsapp_nurtures", cancellationToken);
+
+        await EnsureColumnAsync(db, "appointment_feedback_requests", "PhoneE164", "varchar(20) NULL", cancellationToken);
+        await EnsureIndexAsync(
+            db,
+            "appointment_feedback_requests",
+            "IX_appointment_feedback_requests_PhoneE164",
+            "PhoneE164",
+            cancellationToken);
+        await BackfillPhoneE164FromWhatsAppToAsync(db, "appointment_feedback_requests", cancellationToken);
+    }
+
+    private static async Task BackfillPhoneE164FromWhatsAppToAsync(
+        DocoveeDbContext db,
+        string tableName,
+        CancellationToken cancellationToken)
+    {
+        var table = QuoteIdent(tableName);
+        var sql =
+            "UPDATE " + table +
+            " SET `PhoneE164` = CASE" +
+            " WHEN LOWER(`WhatsAppTo`) LIKE 'whatsapp:%' THEN TRIM(SUBSTRING(`WhatsAppTo`, 10))" +
+            " ELSE TRIM(`WhatsAppTo`) END" +
+            " WHERE (`PhoneE164` IS NULL OR `PhoneE164` = '')" +
+            " AND `WhatsAppTo` IS NOT NULL AND TRIM(`WhatsAppTo`) <> ''";
+        await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 
     private static async Task EnsureLeadHandoffsTableAsync(
@@ -843,6 +888,43 @@ public static class SchemaUpdater
         var sql = "ALTER TABLE " + QuoteIdent(tableName)
             + " ADD " + QuoteIdent(columnName)
             + " " + SanitizeColumnDefinition(columnDefinition);
+        await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
+    }
+
+    private static async Task<bool> IndexExistsAsync(
+        DocoveeDbContext db,
+        string tableName,
+        string indexName,
+        CancellationToken cancellationToken)
+    {
+        var count = await db.Database
+            .SqlQueryRaw<int>(
+                """
+                SELECT COUNT(*) AS Value
+                FROM information_schema.statistics
+                WHERE table_schema = DATABASE()
+                  AND table_name = {0}
+                  AND index_name = {1}
+                """,
+                tableName,
+                indexName)
+            .FirstOrDefaultAsync(cancellationToken);
+        return count > 0;
+    }
+
+    private static async Task EnsureIndexAsync(
+        DocoveeDbContext db,
+        string tableName,
+        string indexName,
+        string columnName,
+        CancellationToken cancellationToken)
+    {
+        if (await IndexExistsAsync(db, tableName, indexName, cancellationToken))
+            return;
+
+        var sql = "CREATE INDEX " + QuoteIdent(indexName)
+            + " ON " + QuoteIdent(tableName)
+            + " (" + QuoteIdent(columnName) + ")";
         await db.Database.ExecuteSqlRawAsync(sql, cancellationToken);
     }
 

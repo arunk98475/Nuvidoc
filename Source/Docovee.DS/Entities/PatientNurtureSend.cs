@@ -7,7 +7,7 @@ public class PatientNurtureSend
     public Patient Patient { get; set; } = null!;
     /// <summary>Days since registration for this send step (e.g. 30, 60, 90).</summary>
     public int StepDay { get; set; }
-    /// <summary>Sms, WhatsApp, or Email.</summary>
+    /// <summary>Sms or Email.</summary>
     public string Channel { get; set; } = string.Empty;
     public DateTime SentAtUtc { get; set; } = DateTime.UtcNow;
 }

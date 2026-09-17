@@ -10,12 +10,12 @@ using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
-public interface IPatientWhatsAppNurtureService
+public interface IPatientSmsNurtureService
 {
     Task<int> ProcessDueFollowUpsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Starts the interactive WhatsApp nurture for a patient due on this step, if eligible.
+    /// Starts the interactive SMS nurture for a patient due on this step, if eligible.
     /// Returns true when a conversation was started (counts as one nurture send).
     /// </summary>
     Task<bool> TryStartConversationAsync(
@@ -26,31 +26,36 @@ public interface IPatientWhatsAppNurtureService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Handles inbound WhatsApp replies for the nurture flowchart.
+    /// Handles inbound SMS (or WhatsApp-compat) replies for the nurture flowchart.
     /// Returns true when the message was consumed by nurture (skip feedback handler).
     /// </summary>
-    Task<bool> HandleInboundWhatsAppAsync(
-        string fromWhatsApp,
+    Task<bool> HandleInboundSmsAsync(
+        string fromPhone,
         string? body,
-        string? buttonPayload,
-        string? listId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// STOP / unsubscribe: halt nurture, close open conversations, send one confirmation.
+    /// </summary>
+    Task HandleStopRequestAsync(string fromPhone, CancellationToken cancellationToken = default);
 }
 
-public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureService
+public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
 {
     private readonly DocoveeDbContext _db;
     private readonly ILeadHandoffService _leadHandoff;
     private readonly IAppointmentService _appointments;
     private readonly IDoctorQualityScoreService _qualityScore;
+    private readonly ISmsReplyExtractionService _extractor;
     private readonly TwilioOptions _twilio;
     private readonly IDocoveeLogger _logger;
 
-    public PatientWhatsAppNurtureService(
+    public PatientSmsNurtureService(
         DocoveeDbContext db,
         ILeadHandoffService leadHandoff,
         IAppointmentService appointments,
         IDoctorQualityScoreService qualityScore,
+        ISmsReplyExtractionService extractor,
         IOptions<TwilioOptions> twilio,
         IDocoveeLogger logger)
     {
@@ -58,6 +63,7 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
         _leadHandoff = leadHandoff;
         _appointments = appointments;
         _qualityScore = qualityScore;
+        _extractor = extractor;
         _twilio = twilio.Value;
         _logger = logger;
     }
@@ -85,7 +91,7 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
 
             var practice = PracticeLabel(row.Doctor);
             var msg = $"Hi again — did you go to your appointment with {practice}? Reply YES or NO.";
-            if (SendTextDetailed(row.WhatsAppTo, msg, out var sid, out var err))
+            if (SendTextDetailed(ConversationPhone(row), msg, out var sid, out var err))
             {
                 row.Stage = PatientWhatsAppNurtureStages.AskAttended;
                 row.NextFollowUpAtUtc = null;
@@ -127,8 +133,8 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
                 n => n.AppointmentId == appt.Id, cancellationToken))
             return false;
 
-        var waTo = NormalizeWhatsAppAddress(ElevenLabsTwilioCallingService.ToE164(phone));
-        if (string.IsNullOrWhiteSpace(waTo))
+        var e164 = ElevenLabsTwilioCallingService.ToE164(phone);
+        if (string.IsNullOrWhiteSpace(e164))
             return false;
 
         await _db.Entry(appt).Reference(a => a.Doctor).LoadAsync(cancellationToken);
@@ -138,9 +144,9 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
         var msg =
             $"{greeting}, did you book an appointment with {practice}? Reply YES or NO.";
 
-        if (!SendTextDetailed(waTo, msg, out var sid, out var err))
+        if (!SendTextDetailed(e164, msg, out var sid, out var err))
         {
-            _logger.LogWarning("WhatsApp nurture start failed patient={PatientId}: {Error}", patientId, err);
+            _logger.LogWarning("SMS nurture start failed patient={PatientId}: {Error}", patientId, err);
             return false;
         }
 
@@ -150,7 +156,7 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
             AppointmentId = appt.Id,
             DoctorId = appt.DoctorId,
             Stage = PatientWhatsAppNurtureStages.AskBooked,
-            WhatsAppTo = waTo,
+            PhoneE164 = e164,
             LastOutboundMessageSid = sid,
             CreatedAtUtc = DateTime.UtcNow,
             UpdatedAtUtc = DateTime.UtcNow
@@ -158,69 +164,78 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "WhatsApp nurture started patient={PatientId} appointment={AppointmentId} stepDay={StepDay}",
+            "SMS nurture started patient={PatientId} appointment={AppointmentId} stepDay={StepDay}",
             patientId, appt.Id, stepDay);
         return true;
     }
 
-    public async Task<bool> HandleInboundWhatsAppAsync(
-        string fromWhatsApp,
+    public async Task<bool> HandleInboundSmsAsync(
+        string fromPhone,
         string? body,
-        string? buttonPayload,
-        string? listId,
         CancellationToken cancellationToken = default)
     {
-        var toKey = NormalizeWhatsAppAddress(fromWhatsApp);
-        if (string.IsNullOrWhiteSpace(toKey))
+        var e164 = ElevenLabsTwilioCallingService.ToE164(fromPhone);
+        if (string.IsNullOrWhiteSpace(e164))
             return false;
 
-        var selection = FirstNonEmpty(listId, buttonPayload, body)?.Trim();
+        var selection = body?.Trim();
         if (string.IsNullOrWhiteSpace(selection))
             return false;
 
-        var nurture = await _db.PatientWhatsAppNurtures
-            .Include(n => n.Doctor)
-            .Include(n => n.Appointment)
-            .Where(n => n.WhatsAppTo == toKey
-                        && PatientWhatsAppNurtureStages.IsOpen(n.Stage))
-            .OrderByDescending(n => n.UpdatedAtUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-
+        var nurture = await FindOpenByPhoneAsync(e164, cancellationToken);
         if (nurture == null)
             return false;
 
         if (await IsNurtureBlockedAsync(nurture.PatientId, cancellationToken))
         {
             await CompleteAsync(nurture, cancellationToken);
-            SendText(nurture.WhatsAppTo, "Thanks — we won't send more check-ins.");
+            SendText(ConversationPhone(nurture), "Thanks — we won't send more check-ins.");
+            return true;
+        }
+
+        var extracted = await _extractor.ExtractAsync(
+            nurture.Stage,
+            QuestionHint(nurture.Stage),
+            selection,
+            cancellationToken);
+
+        if (extracted.IsOptOut)
+        {
+            await HandleStopRequestAsync(e164, cancellationToken);
+            return true;
+        }
+
+        if (extracted.IsUnclear)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return true;
         }
 
         switch (nurture.Stage)
         {
             case PatientWhatsAppNurtureStages.AskBooked:
-                await HandleAskBookedAsync(nurture, selection, cancellationToken);
+                await HandleAskBookedAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskContactPracticeNotBooked:
-                await HandleAskContactPracticeNotBookedAsync(nurture, selection, cancellationToken);
+                await HandleAskContactPracticeNotBookedAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskAttended:
-                await HandleAskAttendedAsync(nurture, selection, cancellationToken);
+                await HandleAskAttendedAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskUpcomingOrPassed:
-                await HandleAskUpcomingOrPassedAsync(nurture, selection, cancellationToken);
+                await HandleAskUpcomingOrPassedAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskUpcomingWindow:
-                await HandleAskUpcomingWindowAsync(nurture, selection, cancellationToken);
+                await HandleAskUpcomingWindowAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskContactPracticeMissed:
-                await HandleAskContactPracticeMissedAsync(nurture, selection, cancellationToken);
+                await HandleAskContactPracticeMissedAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskRating:
-                await HandleAskRatingAsync(nurture, selection, cancellationToken);
+                await HandleAskRatingAsync(nurture, extracted, cancellationToken);
                 break;
             case PatientWhatsAppNurtureStages.AskExperience:
-                await HandleAskExperienceAsync(nurture, body ?? selection, cancellationToken);
+                await HandleAskExperienceAsync(nurture, extracted, cancellationToken);
                 break;
             default:
                 return false;
@@ -229,14 +244,105 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
         return true;
     }
 
+    public async Task HandleStopRequestAsync(string fromPhone, CancellationToken cancellationToken = default)
+    {
+        var e164 = ElevenLabsTwilioCallingService.ToE164(fromPhone);
+        if (string.IsNullOrWhiteSpace(e164))
+            return;
+
+        var now = DateTime.UtcNow;
+        var openNurtures = await _db.PatientWhatsAppNurtures
+            .Where(n => PatientWhatsAppNurtureStages.IsOpen(n.Stage)
+                        && (n.PhoneE164 == e164
+                            || n.WhatsAppTo == "whatsapp:" + e164))
+            .ToListAsync(cancellationToken);
+
+        var openFeedback = await _db.AppointmentFeedbackRequests
+            .Where(f => f.Stage != AppointmentFeedbackStages.Completed
+                        && f.Stage != AppointmentFeedbackStages.NoShow
+                        && f.Stage != AppointmentFeedbackStages.Failed
+                        && f.Stage != AppointmentFeedbackStages.Pending
+                        && (f.PhoneE164 == e164
+                            || f.WhatsAppTo == "whatsapp:" + e164))
+            .ToListAsync(cancellationToken);
+
+        var patientIds = openNurtures.Select(n => n.PatientId)
+            .Concat(openFeedback.Where(f => f.PatientId.HasValue).Select(f => f.PatientId!.Value))
+            .ToHashSet();
+
+        var last10 = e164.Length >= 10 ? e164[^10..] : e164;
+        var extraPatients = await _db.Patients
+            .Where(p => !p.IsDeleted
+                        && (p.Phone == e164
+                            || p.Phone == last10
+                            || p.Phone == "1" + last10
+                            || p.Phone == "+1" + last10))
+            .Select(p => p.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var id in extraPatients)
+            patientIds.Add(id);
+
+        if (patientIds.Count > 0)
+        {
+            var patients = await _db.Patients
+                .Where(p => patientIds.Contains(p.Id))
+                .ToListAsync(cancellationToken);
+            foreach (var patient in patients)
+                patient.NurtureStopped = true;
+
+            var moreNurtures = await _db.PatientWhatsAppNurtures
+                .Where(n => patientIds.Contains(n.PatientId) && PatientWhatsAppNurtureStages.IsOpen(n.Stage))
+                .ToListAsync(cancellationToken);
+            foreach (var row in moreNurtures)
+            {
+                row.Stage = PatientWhatsAppNurtureStages.Completed;
+                row.CompletedAtUtc = now;
+                row.UpdatedAtUtc = now;
+            }
+
+            var moreFeedback = await _db.AppointmentFeedbackRequests
+                .Where(f => f.PatientId != null
+                            && patientIds.Contains(f.PatientId.Value)
+                            && f.Stage != AppointmentFeedbackStages.Completed
+                            && f.Stage != AppointmentFeedbackStages.NoShow
+                            && f.Stage != AppointmentFeedbackStages.Failed)
+                .ToListAsync(cancellationToken);
+            foreach (var row in moreFeedback)
+            {
+                row.Stage = AppointmentFeedbackStages.Failed;
+                row.LastError = "Patient opted out (STOP).";
+                row.UpdatedAtUtc = now;
+            }
+        }
+        else
+        {
+            foreach (var row in openNurtures)
+            {
+                row.Stage = PatientWhatsAppNurtureStages.Completed;
+                row.CompletedAtUtc = now;
+                row.UpdatedAtUtc = now;
+            }
+
+            foreach (var row in openFeedback)
+            {
+                row.Stage = AppointmentFeedbackStages.Failed;
+                row.LastError = "Patient opted out (STOP).";
+                row.UpdatedAtUtc = now;
+            }
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        SendText(e164, "You have been unsubscribed from NuviDoc check-ins. Reply START to your clinic if you need help later.");
+    }
+
     private async Task HandleAskBookedAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (IsYes(selection))
+        if (extracted.IsYes)
         {
-            SendText(nurture.WhatsAppTo,
+            SendText(ConversationPhone(nurture),
                 "Great! Did you go to your appointment? Reply YES or NO.");
             nurture.Stage = PatientWhatsAppNurtureStages.AskAttended;
             nurture.UpdatedAtUtc = DateTime.UtcNow;
@@ -244,10 +350,13 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
             return;
         }
 
-        if (!IsNo(selection))
+        if (!extracted.IsNo)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        SendText(nurture.WhatsAppTo,
+        SendText(ConversationPhone(nurture),
             "Should we contact the practice again on your behalf? Reply YES or NO.");
         nurture.Stage = PatientWhatsAppNurtureStages.AskContactPracticeNotBooked;
         nurture.UpdatedAtUtc = DateTime.UtcNow;
@@ -256,36 +365,39 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
 
     private async Task HandleAskContactPracticeNotBookedAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (IsYes(selection))
+        if (extracted.IsYes)
         {
             var (ok, error) = await _leadHandoff.ResendLeadToOfficeAsync(nurture.AppointmentId, cancellationToken);
             var practice = PracticeLabel(nurture.Doctor);
-            SendText(nurture.WhatsAppTo, ok
+            SendText(ConversationPhone(nurture), ok
                 ? $"We've contacted {practice} again. They may reach out soon. Thank you!"
                 : error ?? "We couldn't reach the practice right now. Please try calling them directly.");
             await CompleteAsync(nurture, cancellationToken);
             return;
         }
 
-        if (!IsNo(selection))
+        if (!extracted.IsNo)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        SendText(nurture.WhatsAppTo, "Thank you. We're here if you need us later.");
+        SendText(ConversationPhone(nurture), "Thank you. We're here if you need us later.");
         await CompleteAsync(nurture, cancellationToken);
     }
 
     private async Task HandleAskAttendedAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (IsYes(selection))
+        if (extracted.IsYes)
         {
             await MarkAttendedAsync(nurture, cancellationToken);
-            SendText(nurture.WhatsAppTo,
+            SendText(ConversationPhone(nurture),
                 "How was your visit? Reply with a star rating from 1 to 5 (5 is best).");
             nurture.Stage = PatientWhatsAppNurtureStages.AskRating;
             nurture.UpdatedAtUtc = DateTime.UtcNow;
@@ -293,10 +405,13 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
             return;
         }
 
-        if (!IsNo(selection))
+        if (!extracted.IsNo)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        SendText(nurture.WhatsAppTo,
+        SendText(ConversationPhone(nurture),
             "Which is true? Reply UPCOMING if your appointment is still ahead, or PASSED if the date has passed.");
         nurture.Stage = PatientWhatsAppNurtureStages.AskUpcomingOrPassed;
         nurture.UpdatedAtUtc = DateTime.UtcNow;
@@ -305,12 +420,12 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
 
     private async Task HandleAskUpcomingOrPassedAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (IsUpcoming(selection))
+        if (extracted.IsUpcoming)
         {
-            SendText(nurture.WhatsAppTo,
+            SendText(ConversationPhone(nurture),
                 "When is your appointment roughly? Reply: 10 DAYS, 20 DAYS, 30 DAYS, or 2 MONTHS.");
             nurture.Stage = PatientWhatsAppNurtureStages.AskUpcomingWindow;
             nurture.UpdatedAtUtc = DateTime.UtcNow;
@@ -318,10 +433,13 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
             return;
         }
 
-        if (!IsPassed(selection))
+        if (!extracted.IsPassed)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        SendText(nurture.WhatsAppTo,
+        SendText(ConversationPhone(nurture),
             "Would you like us to contact the practice again? Reply YES or NO.");
         nurture.Stage = PatientWhatsAppNurtureStages.AskContactPracticeMissed;
         nurture.UpdatedAtUtc = DateTime.UtcNow;
@@ -330,73 +448,91 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
 
     private async Task HandleAskUpcomingWindowAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        var days = ParseUpcomingWindowDays(selection);
-        if (days is null)
+        if (extracted.WindowDays is null)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        nurture.NextFollowUpAtUtc = DateTime.UtcNow.AddDays(days.Value);
+        nurture.NextFollowUpAtUtc = DateTime.UtcNow.AddDays(extracted.WindowDays.Value);
         nurture.Stage = PatientWhatsAppNurtureStages.FollowUpScheduled;
         nurture.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-        SendText(nurture.WhatsAppTo, "Thanks! We'll check back with you then.");
+        SendText(ConversationPhone(nurture), "Thanks! We'll check back with you then.");
     }
 
     private async Task HandleAskContactPracticeMissedAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (IsYes(selection))
+        if (extracted.IsYes)
         {
             var (ok, error) = await _leadHandoff.ResendLeadToOfficeAsync(nurture.AppointmentId, cancellationToken);
             var practice = PracticeLabel(nurture.Doctor);
-            SendText(nurture.WhatsAppTo, ok
+            SendText(ConversationPhone(nurture), ok
                 ? $"We've contacted {practice} again. They may reach out soon. Thank you!"
                 : error ?? "We couldn't reach the practice right now. Please try calling them directly.");
             await CompleteAsync(nurture, cancellationToken);
             return;
         }
 
-        if (!IsNo(selection))
+        if (!extracted.IsNo)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        SendText(nurture.WhatsAppTo, "Thank you. We're here if you need us later.");
+        SendText(ConversationPhone(nurture), "Thank you. We're here if you need us later.");
         await CompleteAsync(nurture, cancellationToken);
     }
 
     private async Task HandleAskRatingAsync(
         PatientWhatsAppNurture nurture,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        var rating = ParseRating(selection);
-        if (rating is null)
-            return;
+        if (extracted.Rating is null)
+        {
+            if (extracted.IsNoShow)
+            {
+                SendText(ConversationPhone(nurture),
+                    "Which is true? Reply UPCOMING if your appointment is still ahead, or PASSED if the date has passed.");
+                nurture.Stage = PatientWhatsAppNurtureStages.AskUpcomingOrPassed;
+                nurture.UpdatedAtUtc = DateTime.UtcNow;
+                await _db.SaveChangesAsync(cancellationToken);
+                return;
+            }
 
-        nurture.Rating = rating;
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
+            return;
+        }
+
+        nurture.Rating = extracted.Rating;
         nurture.Stage = PatientWhatsAppNurtureStages.AskExperience;
         nurture.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-        SendText(nurture.WhatsAppTo, "Please describe your experience in a few words.");
+        SendText(ConversationPhone(nurture), "Please describe your experience in a few words.");
     }
 
     private async Task HandleAskExperienceAsync(
         PatientWhatsAppNurture nurture,
-        string? text,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(text) || text.Trim().Length < 3)
+        var text = extracted.ExperienceText?.Trim();
+        if (string.IsNullOrWhiteSpace(text) || text.Length < 3 || !nurture.Rating.HasValue)
+        {
+            SendText(ConversationPhone(nurture), _extractor.ClarifyPrompt(nurture.Stage));
             return;
+        }
 
-        if (!nurture.Rating.HasValue)
-            return;
-
-        nurture.ExperienceText = text.Trim();
-        var saved = await SaveReviewAsync(nurture, text.Trim(), cancellationToken);
-        SendText(nurture.WhatsAppTo, saved
+        nurture.ExperienceText = text;
+        var saved = await SaveReviewAsync(nurture, text, cancellationToken);
+        SendText(ConversationPhone(nurture), saved
             ? "Thank you for your feedback!"
             : "Thanks! We saved your note and appreciate you sharing.");
         await CompleteAsync(nurture, cancellationToken);
@@ -491,6 +627,17 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
             n => n.PatientId == patientId && PatientWhatsAppNurtureStages.IsOpen(n.Stage),
             cancellationToken);
 
+    private async Task<PatientWhatsAppNurture?> FindOpenByPhoneAsync(
+        string e164,
+        CancellationToken cancellationToken) =>
+        await _db.PatientWhatsAppNurtures
+            .Include(n => n.Doctor)
+            .Include(n => n.Appointment)
+            .Where(n => PatientWhatsAppNurtureStages.IsOpen(n.Stage)
+                        && (n.PhoneE164 == e164 || n.WhatsAppTo == "whatsapp:" + e164))
+            .OrderByDescending(n => n.UpdatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
     private async Task<Appointment?> FindLatestLeadHandoffAppointmentAsync(
         int patientId,
         CancellationToken cancellationToken) =>
@@ -501,18 +648,19 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
             .OrderByDescending(a => a.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-    private void SendText(string? whatsAppTo, string body) =>
-        SendTextDetailed(whatsAppTo, body, out _, out _);
+    private void SendText(string? phoneE164, string body) =>
+        SendTextDetailed(phoneE164, body, out _, out _);
 
-    private bool SendTextDetailed(string? whatsAppTo, string body, out string? sid, out string? error)
+    private bool SendTextDetailed(string? phoneE164, string body, out string? sid, out string? error)
     {
         sid = null;
         error = null;
         try
         {
-            if (string.IsNullOrWhiteSpace(whatsAppTo))
+            var to = ElevenLabsTwilioCallingService.ToE164(phoneE164);
+            if (string.IsNullOrWhiteSpace(to))
             {
-                error = "Missing WhatsApp address.";
+                error = "Missing SMS address.";
                 return false;
             }
 
@@ -522,18 +670,17 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
                 return false;
             }
 
-            var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-            var to = NormalizeWhatsAppAddress(whatsAppTo);
-            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
+            if (string.IsNullOrWhiteSpace(from))
             {
-                error = "Invalid WhatsApp addresses.";
+                error = "Missing SMS from number.";
                 return false;
             }
 
             TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
             var msg = MessageResource.Create(new CreateMessageOptions(new PhoneNumber(to))
             {
-                From = new PhoneNumber(from),
+                From = new PhoneNumber(from.Trim()),
                 Body = body
             });
             sid = msg.Sid;
@@ -542,10 +689,26 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
         catch (Exception ex)
         {
             error = ex.Message;
-            _logger.LogWarning("WhatsApp nurture send failed: {Error}", ex.Message);
+            _logger.LogWarning("SMS nurture send failed: {Error}", ex.Message);
             return false;
         }
     }
+
+    private static string? ConversationPhone(PatientWhatsAppNurture row) =>
+        FirstNonEmpty(row.PhoneE164, ElevenLabsTwilioCallingService.ToE164(row.WhatsAppTo));
+
+    private static string QuestionHint(string stage) => stage switch
+    {
+        PatientWhatsAppNurtureStages.AskBooked => "Did you book an appointment? Reply YES or NO.",
+        PatientWhatsAppNurtureStages.AskContactPracticeNotBooked => "Should we contact the practice again? Reply YES or NO.",
+        PatientWhatsAppNurtureStages.AskAttended => "Did you go to your appointment? Reply YES or NO.",
+        PatientWhatsAppNurtureStages.AskUpcomingOrPassed => "Is the appointment UPCOMING or PASSED?",
+        PatientWhatsAppNurtureStages.AskUpcomingWindow => "When is the appointment? 10 DAYS, 20 DAYS, 30 DAYS, or 2 MONTHS.",
+        PatientWhatsAppNurtureStages.AskContactPracticeMissed => "Should we contact the practice again? Reply YES or NO.",
+        PatientWhatsAppNurtureStages.AskRating => "Rate the visit from 1 to 5.",
+        PatientWhatsAppNurtureStages.AskExperience => "Describe your experience in a few words.",
+        _ => "Reply to the previous question."
+    };
 
     private static string PracticeLabel(Doctor? doctor)
     {
@@ -556,68 +719,6 @@ public sealed class PatientWhatsAppNurtureService : IPatientWhatsAppNurtureServi
         if (!string.IsNullOrWhiteSpace(doctor.Name))
             return doctor.Name.Trim();
         return "the practice";
-    }
-
-    private static int? ParseRating(string selection)
-    {
-        var star = AppointmentFeedbackItemIds.ParseStarRating(selection);
-        if (star is >= 1 and <= 5)
-            return star;
-
-        if (int.TryParse(selection.Trim().Split(' ', '-')[0], out var n) && n is >= 1 and <= 5)
-            return n;
-
-        return null;
-    }
-
-    private static int? ParseUpcomingWindowDays(string selection)
-    {
-        var s = selection.Trim().ToLowerInvariant();
-        if (s.Contains("10") || s.Contains("ten"))
-            return 10;
-        if (s.Contains("20"))
-            return 20;
-        if (s.Contains("30"))
-            return 30;
-        if (s.Contains("2 month") || s.Contains("two month") || s.Contains("60"))
-            return 60;
-        return null;
-    }
-
-    private static bool IsYes(string s)
-    {
-        var t = s.Trim().ToLowerInvariant();
-        return t is "yes" or "y" or "yeah" or "yep" or "sure" or "ok" or "okay" or "booked";
-    }
-
-    private static bool IsNo(string s)
-    {
-        var t = s.Trim().ToLowerInvariant();
-        return t is "no" or "n" or "nope" or "not" or "not yet" or "haven't" or "havent";
-    }
-
-    private static bool IsUpcoming(string s)
-    {
-        var t = s.Trim().ToLowerInvariant();
-        return t.Contains("upcoming") || t.Contains("future") || t.Contains("ahead") || t.Contains("not yet");
-    }
-
-    private static bool IsPassed(string s)
-    {
-        var t = s.Trim().ToLowerInvariant();
-        return t.Contains("passed") || t.Contains("missed") || t.Contains("no show")
-               || t.Contains("noshow") || t.Contains("didn't go") || t.Contains("didnt go");
-    }
-
-    private static string? NormalizeWhatsAppAddress(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        var v = value.Trim();
-        if (v.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase))
-            return "whatsapp:" + v["whatsapp:".Length..].Trim();
-        var e164 = ElevenLabsTwilioCallingService.ToE164(v);
-        return string.IsNullOrWhiteSpace(e164) ? null : "whatsapp:" + e164;
     }
 
     private static string FirstName(string? fullName)

@@ -1,7 +1,8 @@
 namespace Docovee.DS.Entities;
 
 /// <summary>
-/// Interactive WhatsApp nurture conversation state (post lead-handoff until feedback or opt-out).
+/// Interactive SMS nurture conversation state (post lead-handoff until feedback or opt-out).
+/// Stored in patient_whatsapp_nurtures for backward compatibility.
 /// </summary>
 public class PatientWhatsAppNurture
 {
@@ -13,6 +14,8 @@ public class PatientWhatsAppNurture
     public int DoctorId { get; set; }
     public Doctor Doctor { get; set; } = null!;
     public string Stage { get; set; } = PatientWhatsAppNurtureStages.AskBooked;
+    /// <summary>E.164 lookup key for inbound SMS (and in-flight WhatsApp compat).</summary>
+    public string? PhoneE164 { get; set; }
     public string? WhatsAppTo { get; set; }
     public DateTime? NextFollowUpAtUtc { get; set; }
     public int? Rating { get; set; }

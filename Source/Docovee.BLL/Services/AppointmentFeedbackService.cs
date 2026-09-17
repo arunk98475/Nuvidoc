@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using Docovee.BLL.Configuration;
 using Docovee.DS;
 using Docovee.DS.Entities;
@@ -15,11 +14,9 @@ namespace Docovee.BLL.Services;
 public interface IAppointmentFeedbackService
 {
     Task<int> ProcessDueFeedbackRequestsAsync(CancellationToken cancellationToken = default);
-    Task HandleInboundWhatsAppAsync(
-        string fromWhatsApp,
+    Task<bool> HandleInboundSmsAsync(
+        string fromPhone,
         string? body,
-        string? buttonPayload,
-        string? listId,
         CancellationToken cancellationToken = default);
     Task<(bool Success, string? Error)> ReportNoShowAsPatientAsync(
         int patientId,
@@ -43,9 +40,8 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
     private readonly IAppSettingsService _appSettings;
     private readonly IAppointmentService _appointments;
     private readonly IDoctorReviewService _reviews;
-    private readonly IBrandingService _branding;
+    private readonly ISmsReplyExtractionService _extractor;
     private readonly TwilioOptions _twilio;
-    private readonly EmailOptions _emailOptions;
     private readonly IDocoveeLogger _logger;
 
     public AppointmentFeedbackService(
@@ -53,18 +49,16 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
         IAppSettingsService appSettings,
         IAppointmentService appointments,
         IDoctorReviewService reviews,
-        IBrandingService branding,
+        ISmsReplyExtractionService extractor,
         IOptions<TwilioOptions> twilio,
-        IOptions<EmailOptions> emailOptions,
         IDocoveeLogger logger)
     {
         _db = db;
         _appSettings = appSettings;
         _appointments = appointments;
         _reviews = reviews;
-        _branding = branding;
+        _extractor = extractor;
         _twilio = twilio.Value;
-        _emailOptions = emailOptions.Value;
         _logger = logger;
     }
 
@@ -112,19 +106,17 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
         return sent;
     }
 
-    public async Task HandleInboundWhatsAppAsync(
-        string fromWhatsApp,
+    public async Task<bool> HandleInboundSmsAsync(
+        string fromPhone,
         string? body,
-        string? buttonPayload,
-        string? listId,
         CancellationToken cancellationToken = default)
     {
-        var toKey = NormalizeWhatsAppAddress(fromWhatsApp);
-        if (string.IsNullOrWhiteSpace(toKey))
-            return;
+        var e164 = ElevenLabsTwilioCallingService.ToE164(fromPhone);
+        if (string.IsNullOrWhiteSpace(e164))
+            return false;
 
         var feedback = await _db.AppointmentFeedbackRequests
-            .Where(f => f.WhatsAppTo == toKey
+            .Where(f => (f.PhoneE164 == e164 || f.WhatsAppTo == "whatsapp:" + e164)
                 && f.Stage != AppointmentFeedbackStages.Completed
                 && f.Stage != AppointmentFeedbackStages.NoShow
                 && f.Stage != AppointmentFeedbackStages.Failed
@@ -134,29 +126,60 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
         if (feedback == null)
         {
-            _logger.LogInformation("No open feedback survey for WhatsApp {From}", toKey);
-            return;
+            _logger.LogInformation("No open feedback survey for SMS {From}", e164);
+            return false;
         }
 
-        var selection = FirstNonEmpty(listId, buttonPayload, body)?.Trim();
+        var selection = body?.Trim();
         if (string.IsNullOrWhiteSpace(selection))
-            return;
+            return true;
+
+        var extracted = await _extractor.ExtractAsync(
+            feedback.Stage,
+            QuestionHint(feedback.Stage),
+            selection,
+            cancellationToken);
+
+        if (extracted.IsOptOut)
+        {
+            feedback.Stage = AppointmentFeedbackStages.Failed;
+            feedback.LastError = "Patient opted out.";
+            feedback.UpdatedAtUtc = DateTime.UtcNow;
+            if (feedback.PatientId is int pid)
+            {
+                var patient = await _db.Patients.FirstOrDefaultAsync(p => p.Id == pid, cancellationToken);
+                if (patient != null)
+                    patient.NurtureStopped = true;
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+            TrySendSms(ConversationPhone(feedback), "You have been unsubscribed from NuviDoc check-ins.");
+            return true;
+        }
+
+        if (extracted.IsUnclear)
+        {
+            TrySendSms(ConversationPhone(feedback), _extractor.ClarifyPrompt(feedback.Stage));
+            return true;
+        }
 
         switch (feedback.Stage)
         {
             case AppointmentFeedbackStages.RatingSent:
-                await HandleRatingReplyAsync(feedback, selection, cancellationToken);
+                await HandleRatingReplyAsync(feedback, extracted, cancellationToken);
                 break;
             case AppointmentFeedbackStages.WaitingSent:
-                await HandleWaitingReplyAsync(feedback, selection, cancellationToken);
+                await HandleWaitingReplyAsync(feedback, extracted, cancellationToken);
                 break;
             case AppointmentFeedbackStages.RecommendSent:
-                await HandleRecommendReplyAsync(feedback, selection, cancellationToken);
+                await HandleRecommendReplyAsync(feedback, extracted, cancellationToken);
                 break;
             case AppointmentFeedbackStages.ReviewTextAwaiting:
-                await HandleReviewTextReplyAsync(feedback, body ?? selection, cancellationToken);
+                await HandleReviewTextReplyAsync(feedback, extracted, cancellationToken);
                 break;
         }
+
+        return true;
     }
 
     public async Task<(bool Success, string? Error)> ReportNoShowAsPatientAsync(
@@ -265,39 +288,19 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
             UpdatedAtUtc = DateTime.UtcNow
         };
 
-        var waTo = NormalizeWhatsAppAddress(ElevenLabsTwilioCallingService.ToE164(phone));
-        row.WhatsAppTo = waTo;
+        var e164 = ElevenLabsTwilioCallingService.ToE164(phone);
+        row.PhoneE164 = e164;
 
-        var (waOk, waSid, waError) = TrySendWhatsAppContent(
-            phone,
-            _twilio.WhatsAppFeedbackRatingContentSid,
-            new Dictionary<string, string>
-            {
-                ["1"] = doctorName,
-                ["2"] = bookedTime
-            });
+        var ratingQuestion =
+            $"How was your visit with {doctorName} on {bookedTime}? Reply 1-5 (5 is best), or DID NOT ATTEND.";
+        var (smsOk, smsSid, smsError) = TrySendSms(e164, ratingQuestion);
 
-        if (waOk)
-        {
-            row.Channel = AppointmentFeedbackChannels.WhatsApp;
-            row.Stage = AppointmentFeedbackStages.RatingSent;
-            row.SentAtUtc = DateTime.UtcNow;
-            row.LastOutboundMessageSid = waSid;
-            row.UpdatedAtUtc = DateTime.UtcNow;
-            _db.AppointmentFeedbackRequests.Add(row);
-            await _db.SaveChangesAsync(cancellationToken);
-            return true;
-        }
-
-        var smsOk = TrySendSmsFallback(phone, doctorName, bookedTime);
         if (smsOk)
         {
-            row.Channel = AppointmentFeedbackChannels.SmsFallback;
-            row.Stage = AppointmentFeedbackStages.Failed;
+            row.Channel = AppointmentFeedbackChannels.Sms;
+            row.Stage = AppointmentFeedbackStages.RatingSent;
             row.SentAtUtc = DateTime.UtcNow;
-            row.LastError = string.IsNullOrWhiteSpace(waError)
-                ? "WhatsApp unavailable; SMS fallback sent."
-                : $"WhatsApp failed ({waError}); SMS fallback sent.";
+            row.LastOutboundMessageSid = smsSid;
             row.UpdatedAtUtc = DateTime.UtcNow;
             _db.AppointmentFeedbackRequests.Add(row);
             await _db.SaveChangesAsync(cancellationToken);
@@ -306,7 +309,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
         row.Channel = AppointmentFeedbackChannels.Pending;
         row.Stage = AppointmentFeedbackStages.Failed;
-        row.LastError = FirstNonEmpty(waError, "No usable phone for WhatsApp or SMS.");
+        row.LastError = FirstNonEmpty(smsError, "No usable phone for SMS.");
         row.UpdatedAtUtc = DateTime.UtcNow;
         _db.AppointmentFeedbackRequests.Add(row);
         await _db.SaveChangesAsync(cancellationToken);
@@ -315,47 +318,35 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
     private async Task HandleRatingReplyAsync(
         AppointmentFeedbackRequest feedback,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        if (AppointmentFeedbackItemIds.IsNoShow(selection))
+        if (extracted.IsNoShow)
         {
             await ApplyNoShowAsync(feedback.DoctorId, feedback.AppointmentId, cancellationToken);
             feedback.Stage = AppointmentFeedbackStages.NoShow;
             feedback.UpdatedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            TrySendWhatsAppText(feedback.WhatsAppTo, "Thank you. We recorded that you did not attend.");
+            TrySendSms(ConversationPhone(feedback), "Thank you. We recorded that you did not attend.");
             return;
         }
 
-        var rating = AppointmentFeedbackItemIds.ParseStarRating(selection);
-        if (rating is null)
+        if (extracted.Rating is null)
         {
-            // Allow typed fallbacks like "5" or "5 stars"
-            if (int.TryParse(selection.Trim().Split(' ', '-')[0], out var n) && n is >= 1 and <= 5)
-                rating = n;
-            else if (selection.Contains("did not", StringComparison.OrdinalIgnoreCase)
-                     || selection.Contains("noshow", StringComparison.OrdinalIgnoreCase)
-                     || selection.Contains("no show", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleRatingReplyAsync(feedback, AppointmentFeedbackItemIds.NoShow, cancellationToken);
-                return;
-            }
-            else
-                return;
+            TrySendSms(ConversationPhone(feedback), _extractor.ClarifyPrompt(feedback.Stage));
+            return;
         }
 
         await ApplyShowedAsync(feedback.DoctorId, feedback.AppointmentId, cancellationToken);
-        feedback.Rating = rating;
+        feedback.Rating = extracted.Rating;
         feedback.Stage = AppointmentFeedbackStages.WaitingSent;
         feedback.UpdatedAtUtc = DateTime.UtcNow;
 
-        var (ok, sid, err) = TrySendWhatsAppContent(feedback.WhatsAppTo, _twilio.WhatsAppFeedbackWaitingContentSid, null);
+        var (ok, sid, err) = TrySendSms(
+            ConversationPhone(feedback),
+            "How was the waiting time? Reply Excellent, Good, Average, or Bad.");
         if (!ok)
-        {
             feedback.LastError = err;
-            TrySendWhatsAppText(feedback.WhatsAppTo, "How was the waiting time? Reply Excellent, Good, Average, or Bad.");
-        }
         else
             feedback.LastOutboundMessageSid = sid;
 
@@ -364,26 +355,24 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
     private async Task HandleWaitingReplyAsync(
         AppointmentFeedbackRequest feedback,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        var waiting = AppointmentFeedbackItemIds.ParseWaitingTime(selection)
-                      ?? PatientReviewOptions.NormalizeWaitingTime(selection);
-        if (waiting is null)
+        if (string.IsNullOrWhiteSpace(extracted.WaitingTime))
+        {
+            TrySendSms(ConversationPhone(feedback), _extractor.ClarifyPrompt(feedback.Stage));
             return;
+        }
 
-        feedback.WaitingTime = waiting;
+        feedback.WaitingTime = extracted.WaitingTime;
         feedback.Stage = AppointmentFeedbackStages.RecommendSent;
         feedback.UpdatedAtUtc = DateTime.UtcNow;
 
-        var (ok, sid, err) = TrySendWhatsAppContent(feedback.WhatsAppTo, _twilio.WhatsAppFeedbackRecommendContentSid, null);
+        var (ok, sid, err) = TrySendSms(
+            ConversationPhone(feedback),
+            "How would you recommend this doctor? Reply Highly Recommended, Neutral, or Not Recommended.");
         if (!ok)
-        {
             feedback.LastError = err;
-            TrySendWhatsAppText(
-                feedback.WhatsAppTo,
-                "How would you recommend this doctor? Reply Highly Recommended, Neutral, or Not Recommended.");
-        }
         else
             feedback.LastOutboundMessageSid = sid;
 
@@ -392,24 +381,24 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
     private async Task HandleRecommendReplyAsync(
         AppointmentFeedbackRequest feedback,
-        string selection,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
-        var recommendation = AppointmentFeedbackItemIds.ParseRecommendation(selection)
-                             ?? PatientReviewOptions.NormalizeRecommendation(selection);
-        if (recommendation is null)
+        if (string.IsNullOrWhiteSpace(extracted.Recommendation))
+        {
+            TrySendSms(ConversationPhone(feedback), _extractor.ClarifyPrompt(feedback.Stage));
             return;
+        }
 
-        feedback.Recommendation = recommendation;
+        feedback.Recommendation = extracted.Recommendation;
         feedback.Stage = AppointmentFeedbackStages.ReviewTextAwaiting;
         feedback.UpdatedAtUtc = DateTime.UtcNow;
 
-        var (ok, sid, err) = TrySendWhatsAppContent(feedback.WhatsAppTo, _twilio.WhatsAppFeedbackCommentContentSid, null);
+        var (ok, sid, err) = TrySendSms(
+            ConversationPhone(feedback),
+            "Please share your review in a few words.");
         if (!ok)
-        {
             feedback.LastError = err;
-            TrySendWhatsAppText(feedback.WhatsAppTo, "Please share your review.");
-        }
         else
             feedback.LastOutboundMessageSid = sid;
 
@@ -418,24 +407,31 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
     private async Task HandleReviewTextReplyAsync(
         AppointmentFeedbackRequest feedback,
-        string reviewText,
+        SmsReplyExtraction extracted,
         CancellationToken cancellationToken)
     {
+        var reviewText = extracted.ExperienceText?.Trim();
         if (string.IsNullOrWhiteSpace(reviewText))
+        {
+            TrySendSms(ConversationPhone(feedback), _extractor.ClarifyPrompt(feedback.Stage));
             return;
+        }
 
         if (!feedback.Rating.HasValue
             || string.IsNullOrWhiteSpace(feedback.WaitingTime)
             || string.IsNullOrWhiteSpace(feedback.Recommendation))
+        {
+            TrySendSms(ConversationPhone(feedback), _extractor.ClarifyPrompt(feedback.Stage));
             return;
+        }
 
         if (!feedback.PatientId.HasValue)
         {
             feedback.LastError = "Patient account required to save review.";
             feedback.UpdatedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            TrySendWhatsAppText(
-                feedback.WhatsAppTo,
+            TrySendSms(
+                ConversationPhone(feedback),
                 "Thanks! Please finish your review at https://www.nuvidoc.com/Account/Appointments");
             return;
         }
@@ -444,7 +440,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
             feedback.PatientId.Value,
             feedback.DoctorId,
             feedback.Rating.Value,
-            reviewText.Trim(),
+            reviewText,
             feedback.WaitingTime,
             feedback.Recommendation,
             appointmentId: feedback.AppointmentId,
@@ -455,15 +451,15 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
             feedback.LastError = error;
             feedback.UpdatedAtUtc = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
-            TrySendWhatsAppText(feedback.WhatsAppTo, error ?? "We could not save your review. Please try again later.");
+            TrySendSms(ConversationPhone(feedback), error ?? "We could not save your review. Please try again later.");
             return;
         }
 
-        feedback.ReviewText = reviewText.Trim();
+        feedback.ReviewText = reviewText;
         feedback.Stage = AppointmentFeedbackStages.Completed;
         feedback.UpdatedAtUtc = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
-        TrySendWhatsAppText(feedback.WhatsAppTo, "Thank you for your feedback!");
+        TrySendSms(ConversationPhone(feedback), "Thank you for your feedback!");
     }
 
     private async Task<(bool Success, string? Error)> ApplyNoShowAsync(
@@ -546,120 +542,46 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
                && string.Equals(appointment.PatientEmail, email, StringComparison.OrdinalIgnoreCase);
     }
 
-    private (bool Ok, string? Sid, string? Error) TrySendWhatsAppContent(
-        string? phoneOrWhatsApp,
-        string? contentSid,
-        Dictionary<string, string>? variables)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(contentSid))
-                return (false, null, "Feedback Content SID is not configured.");
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return (false, null, "Twilio credentials are not configured.");
-
-            var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-            var to = NormalizeWhatsAppAddress(
-                phoneOrWhatsApp?.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase) == true
-                    ? phoneOrWhatsApp
-                    : ElevenLabsTwilioCallingService.ToE164(phoneOrWhatsApp));
-            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
-                return (false, null, "Invalid WhatsApp addresses.");
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            var options = new CreateMessageOptions(new PhoneNumber(to))
-            {
-                From = new PhoneNumber(from),
-                ContentSid = contentSid.Trim()
-            };
-            if (variables is { Count: > 0 })
-                options.ContentVariables = JsonSerializer.Serialize(variables);
-
-            var msg = MessageResource.Create(options);
-            return (true, msg.Sid, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Feedback WhatsApp Content send failed: {Error}", ex.Message);
-            return (false, null, ex.Message);
-        }
-    }
-
-    private bool TrySendWhatsAppText(string? whatsAppTo, string body)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(whatsAppTo))
-                return false;
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return false;
-
-            var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-            var to = NormalizeWhatsAppAddress(whatsAppTo);
-            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
-                return false;
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(to))
-            {
-                From = new PhoneNumber(from),
-                Body = body
-            });
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Feedback WhatsApp text send failed: {Error}", ex.Message);
-            return false;
-        }
-    }
-
-    private bool TrySendSmsFallback(string? phone, string doctorName, string bookedTime)
+    private (bool Ok, string? Sid, string? Error) TrySendSms(string? phone, string body)
     {
         try
         {
             var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
             if (string.IsNullOrWhiteSpace(toE164))
-                return false;
+                return (false, null, "Missing SMS address.");
             if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return false;
+                return (false, null, "Twilio credentials are not configured.");
 
             var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
             if (string.IsNullOrWhiteSpace(from))
-                return false;
-
-            var baseUrl = FirstNonEmpty(_emailOptions.PublicBaseUrl, _twilio.PublicBaseUrl)?.TrimEnd('/')
-                          ?? "https://www.nuvidoc.com";
-            var link = $"{baseUrl}/Account/Appointments";
-            var site = _branding.SiteName;
-            var body =
-                $"Please rate your experience with {doctorName} on {bookedTime}, or let us know if you did not attend: {link} — {site}";
+                return (false, null, "Missing SMS from number.");
 
             TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
+            var msg = MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
             {
                 From = new PhoneNumber(from.Trim()),
                 Body = body
             });
-            return true;
+            return (true, msg.Sid, null);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning("Feedback SMS fallback failed: {Error}", ex.Message);
-            return false;
+            _logger.LogWarning("Feedback SMS send failed: {Error}", ex.Message);
+            return (false, null, ex.Message);
         }
     }
 
-    private static string? NormalizeWhatsAppAddress(string? value)
+    private static string? ConversationPhone(AppointmentFeedbackRequest row) =>
+        FirstNonEmpty(row.PhoneE164, ElevenLabsTwilioCallingService.ToE164(row.WhatsAppTo));
+
+    private static string QuestionHint(string stage) => stage switch
     {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        var v = value.Trim();
-        if (v.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase))
-            return "whatsapp:" + v["whatsapp:".Length..].Trim();
-        var e164 = ElevenLabsTwilioCallingService.ToE164(v);
-        return string.IsNullOrWhiteSpace(e164) ? null : "whatsapp:" + e164;
-    }
+        AppointmentFeedbackStages.RatingSent => "Rate the visit from 1 to 5, or DID NOT ATTEND.",
+        AppointmentFeedbackStages.WaitingSent => "How was the waiting time? Excellent, Good, Average, or Bad.",
+        AppointmentFeedbackStages.RecommendSent => "Recommend this doctor? Highly Recommended, Neutral, or Not Recommended.",
+        AppointmentFeedbackStages.ReviewTextAwaiting => "Share a short review in your own words.",
+        _ => "Reply to the previous question."
+    };
 
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));

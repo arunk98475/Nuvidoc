@@ -32,7 +32,7 @@ public static class AppSettingKeys
     public const string DoctorSearchResultCount = "DoctorSearchResultCount";
     public const string PromotedDoctorIds = "PromotedDoctorIds";
     public const string MaxAiQuestions = "MaxAiQuestions";
-    /// <summary>When true, send post-booking WhatsApp/SMS feedback requests after N hours.</summary>
+    /// <summary>When true, send post-booking SMS feedback requests after N hours.</summary>
     public const string FeedbackRequestEnabled = "FeedbackRequestEnabled";
     /// <summary>Hours after appointment CreatedAt before sending the feedback request.</summary>
     public const string FeedbackRequestHoursAfterBooking = "FeedbackRequestHoursAfterBooking";

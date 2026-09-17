@@ -6,9 +6,6 @@ using Docovee.DS.Models;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -19,8 +16,8 @@ public interface IPatientNurtureService
 
 /// <summary>
 /// Cultivation nurture for patients until they leave feedback (or admin stops nurturing).
-/// Continues after lead handoff / optional doctor booking — WhatsApp/SMS/email check-ins
-/// like "Did you book?", "Did you go?", "Have you received treatment?", "How was it?".
+/// Continues after lead handoff / optional doctor booking — SMS conversation + optional email
+/// check-ins like "Did you book?", "Did you go?", "Have you received treatment?", "How was it?".
 /// </summary>
 public sealed class PatientNurtureService : IPatientNurtureService
 {
@@ -35,7 +32,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
 
     private readonly DocoveeDbContext _db;
     private readonly IAppSettingsService _appSettings;
-    private readonly IPatientWhatsAppNurtureService _whatsAppNurture;
+    private readonly IPatientSmsNurtureService _smsNurture;
     private readonly IEmailSender _email;
     private readonly IBrandingService _branding;
     private readonly TwilioOptions _twilio;
@@ -45,7 +42,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
     public PatientNurtureService(
         DocoveeDbContext db,
         IAppSettingsService appSettings,
-        IPatientWhatsAppNurtureService whatsAppNurture,
+        IPatientSmsNurtureService smsNurture,
         IEmailSender email,
         IBrandingService branding,
         IOptions<TwilioOptions> twilio,
@@ -54,7 +51,7 @@ public sealed class PatientNurtureService : IPatientNurtureService
     {
         _db = db;
         _appSettings = appSettings;
-        _whatsAppNurture = whatsAppNurture;
+        _smsNurture = smsNurture;
         _email = email;
         _branding = branding;
         _twilio = twilio.Value;
@@ -67,12 +64,12 @@ public sealed class PatientNurtureService : IPatientNurtureService
         var settings = await _appSettings.GetPatientBookingReminderSettingsAsync(cancellationToken);
         if (!settings.Enabled)
             return 0;
-        if (!settings.EnableSms && !settings.EnableWhatsApp && !settings.EnableEmail)
+        if (!settings.EnableSms && !settings.EnableEmail)
             return 0;
 
         var sent = 0;
-        if (settings.EnableWhatsApp)
-            sent += await _whatsAppNurture.ProcessDueFollowUpsAsync(cancellationToken);
+        if (settings.EnableSms)
+            sent += await _smsNurture.ProcessDueFollowUpsAsync(cancellationToken);
 
         var intervalDays = Math.Clamp(settings.IntervalDays, 1, 90);
         var stopAfterMonths = Math.Clamp(settings.StopAfterMonths, 1, 24);
@@ -150,27 +147,15 @@ public sealed class PatientNurtureService : IPatientNurtureService
                     && patient.PhoneVerified
                     && !sentKeys.Contains((patient.Id, stepDay, PatientNurtureChannels.Sms)))
                 {
-                    if (TrySendSms(patient.Phone, body))
-                    {
-                        await RecordSendAsync(patient.Id, stepDay, PatientNurtureChannels.Sms, cancellationToken);
-                        sentKeys.Add((patient.Id, stepDay, PatientNurtureChannels.Sms));
-                        sent++;
-                    }
-                }
-
-                if (settings.EnableWhatsApp
-                    && patient.PhoneVerified
-                    && !sentKeys.Contains((patient.Id, stepDay, PatientNurtureChannels.WhatsApp)))
-                {
-                    if (await _whatsAppNurture.TryStartConversationAsync(
+                    if (await _smsNurture.TryStartConversationAsync(
                             patient.Id,
                             patient.Phone,
                             patient.FullName,
                             stepDay,
                             cancellationToken))
                     {
-                        await RecordSendAsync(patient.Id, stepDay, PatientNurtureChannels.WhatsApp, cancellationToken);
-                        sentKeys.Add((patient.Id, stepDay, PatientNurtureChannels.WhatsApp));
+                        await RecordSendAsync(patient.Id, stepDay, PatientNurtureChannels.Sms, cancellationToken);
+                        sentKeys.Add((patient.Id, stepDay, PatientNurtureChannels.Sms));
                         sent++;
                     }
                 }
@@ -357,76 +342,6 @@ public sealed class PatientNurtureService : IPatientNurtureService
         };
     }
 
-    private bool TrySendSms(string? phone, string body)
-    {
-        try
-        {
-            var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
-            if (string.IsNullOrWhiteSpace(toE164))
-                return false;
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return false;
-
-            var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-            if (string.IsNullOrWhiteSpace(from))
-                return false;
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
-            {
-                From = new PhoneNumber(from.Trim()),
-                Body = body
-            });
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Booking nurture SMS failed: {Error}", ex.Message);
-            return false;
-        }
-    }
-
-    private bool TrySendWhatsApp(string? phone, string firstName, string body)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(_twilio.WhatsAppNurtureContentSid))
-                return false;
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return false;
-
-            var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
-            if (string.IsNullOrWhiteSpace(toE164))
-                return false;
-
-            var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-            var to = NormalizeWhatsAppAddress(toE164);
-            if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
-                return false;
-
-            var shortText = body.Length > 200 ? body[..197] + "..." : body;
-            var variables = JsonSerializer.Serialize(new Dictionary<string, string>
-            {
-                ["1"] = string.IsNullOrWhiteSpace(firstName) ? "there" : firstName,
-                ["2"] = shortText
-            });
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(to))
-            {
-                From = new PhoneNumber(from),
-                ContentSid = _twilio.WhatsAppNurtureContentSid.Trim(),
-                ContentVariables = variables
-            });
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Booking nurture WhatsApp failed: {Error}", ex.Message);
-            return false;
-        }
-    }
-
     private async Task<bool> TrySendEmailAsync(
         string toAddress,
         string subject,
@@ -454,19 +369,6 @@ public sealed class PatientNurtureService : IPatientNurtureService
         }
     }
 
-    private static string? NormalizeWhatsAppAddress(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        var trimmed = value.Trim();
-        if (trimmed.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase))
-            return trimmed;
-        var e164 = ElevenLabsTwilioCallingService.ToE164(trimmed) ?? trimmed;
-        return e164.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase)
-            ? e164
-            : "whatsapp:" + e164;
-    }
-
     private static bool StepHasPendingSend(
         int patientId,
         bool phoneVerified,
@@ -478,10 +380,6 @@ public sealed class PatientNurtureService : IPatientNurtureService
         if (settings.EnableSms
             && phoneVerified
             && !sentKeys.Contains((patientId, stepDay, PatientNurtureChannels.Sms)))
-            return true;
-        if (settings.EnableWhatsApp
-            && phoneVerified
-            && !sentKeys.Contains((patientId, stepDay, PatientNurtureChannels.WhatsApp)))
             return true;
         if (settings.EnableEmail
             && HasEmailAddress(username)
