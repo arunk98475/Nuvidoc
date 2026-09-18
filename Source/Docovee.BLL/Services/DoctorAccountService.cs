@@ -97,7 +97,8 @@ public sealed class DoctorAccountService : IDoctorAccountService
             $"<p><a href=\"{Escape(link)}\">Verify email</a></p>" +
             $"<p>This link expires in {minutes} minutes. If you did not request this, ignore this email.</p>";
 
-        var send = await _email.SendAsync(email, subject, text, html, cancellationToken);
+        var sendTo = EmailOutboundRouting.ResolveDoctorEmail(_emailOptions, email) ?? email;
+        var send = await _email.SendAsync(sendTo, subject, text, html, cancellationToken);
         return send.Success
             ? Ok("Check your inbox for a verification link.")
             : Fail(send.Message);

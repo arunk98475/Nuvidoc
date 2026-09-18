@@ -122,7 +122,9 @@ public sealed class DoctorCallingEligibilityService : IDoctorCallingEligibilityS
         if (doctor.BillingCallBlockedNotifiedAtUtc.HasValue)
             return;
 
-        var to = FirstNonEmpty(doctor.BillingEmail, doctor.Username);
+        var to = EmailOutboundRouting.ResolveDoctorEmail(
+            _emailOptions,
+            FirstNonEmpty(doctor.BillingEmail, doctor.Username));
         if (string.IsNullOrWhiteSpace(to) || !to.Contains('@'))
         {
             _logger.LogWarning(

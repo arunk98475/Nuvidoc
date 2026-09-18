@@ -21,6 +21,13 @@ public class EmailOptions
     public int VerificationLinkExpiryMinutes { get; set; } = 60;
     public int PasswordResetLinkExpiryMinutes { get; set; } = 60;
 
+    /// <summary>
+    /// When set, all outbound emails to doctors/practices go to this address
+    /// instead of the doctor's email from the database. Leave empty for production.
+    /// Does not affect patient emails.
+    /// </summary>
+    public string? OverrideDoctorEmail { get; set; }
+
     public bool IsConfigured =>
         !string.IsNullOrWhiteSpace(FromAddress)
         && !string.IsNullOrWhiteSpace(AccessKeyId)

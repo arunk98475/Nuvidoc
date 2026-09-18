@@ -72,17 +72,20 @@ public sealed class LeadHandoffService : ILeadHandoffService
     private readonly DocoveeDbContext _db;
     private readonly IEmailSender _email;
     private readonly TwilioOptions _twilio;
+    private readonly EmailOptions _emailOptions;
     private readonly IDocoveeLogger _logger;
 
     public LeadHandoffService(
         DocoveeDbContext db,
         IEmailSender email,
         IOptions<TwilioOptions> twilio,
+        IOptions<EmailOptions> emailOptions,
         IDocoveeLogger logger)
     {
         _db = db;
         _email = email;
         _twilio = twilio.Value;
+        _emailOptions = emailOptions.Value;
         _logger = logger;
     }
 
@@ -122,10 +125,11 @@ public sealed class LeadHandoffService : ILeadHandoffService
             errors.Add(officeSms.error ?? "Office SMS failed.");
 
         var officeEmail = false;
-        if (LooksLikeEmail(doctor.Username))
+        var officeEmailTo = EmailOutboundRouting.ResolveDoctorEmail(_emailOptions, doctor.Username);
+        if (LooksLikeEmail(officeEmailTo))
         {
             officeEmail = await TrySendEmailAsync(
-                doctor.Username!,
+                officeEmailTo!,
                 $"Follow-up NuviDoc patient lead — {patientName}",
                 officeBody,
                 cancellationToken);
@@ -250,10 +254,11 @@ public sealed class LeadHandoffService : ILeadHandoffService
             errors.Add(officeSms.error ?? "Office SMS failed.");
 
         var officeEmail = false;
-        if (LooksLikeEmail(doctor.UsernameEmail))
+        var officeEmailTo = EmailOutboundRouting.ResolveDoctorEmail(_emailOptions, doctor.UsernameEmail);
+        if (LooksLikeEmail(officeEmailTo))
         {
             officeEmail = await TrySendEmailAsync(
-                doctor.UsernameEmail!,
+                officeEmailTo!,
                 $"New NuviDoc patient lead — {patientName}",
                 officeBody,
                 cancellationToken);
