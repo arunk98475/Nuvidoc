@@ -320,15 +320,19 @@ public sealed class LeadHandoffService : ILeadHandoffService
         string? timing,
         string practiceLabel)
     {
+        _ = visitReason;
         var sb = new StringBuilder();
-        sb.Append("NuviDoc lead for ").Append(practiceLabel).Append(". ");
-        sb.Append("Patient: ").Append(patientName);
+        sb.AppendLine("NuviDoc:");
+        sb.Append("Lead for ").Append(practiceLabel).AppendLine(".");
+        sb.AppendLine("Reason: Dental Implant.");
+        sb.Append("Patient name: ").Append(patientName);
         if (!string.IsNullOrWhiteSpace(patientPhone))
-            sb.Append(", phone ").Append(patientPhone.Trim());
-        sb.Append(". Reason: ").Append(visitReason).Append('.');
-        if (!string.IsNullOrWhiteSpace(timing))
-            sb.Append(" Preferred timing: ").Append(timing).Append('.');
-        sb.Append(" Please call the patient to schedule.");
+            sb.AppendLine(",").Append("phone : ").Append(patientPhone.Trim()).AppendLine(".");
+        else
+            sb.AppendLine(".");
+        //if (!string.IsNullOrWhiteSpace(timing))
+        //    sb.Append("Preferred timing: ").Append(timing.Trim()).AppendLine(".");
+        sb.Append("Please call the patient to schedule.");
         return sb.ToString();
     }
 
