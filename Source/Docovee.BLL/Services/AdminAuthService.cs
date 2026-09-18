@@ -319,7 +319,7 @@ public sealed class AdminAuthService : IAdminAuthService
         if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
             return (false, "Twilio is not configured for SMS.");
 
-        var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
+        var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
         if (string.IsNullOrWhiteSpace(toE164))
             return (false, "Admin SMS number is invalid.");
 
@@ -349,12 +349,12 @@ public sealed class AdminAuthService : IAdminAuthService
         if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
             return (false, "Twilio is not configured for WhatsApp.");
 
-        var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
+        var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
         if (string.IsNullOrWhiteSpace(toE164))
             return (false, "Admin WhatsApp number is invalid.");
 
         var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-        var to = NormalizeWhatsAppAddress(toE164);
+        var to = TwilioOutboundRouting.ResolveWhatsAppTo(_twilio, toE164);
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(_twilio.WhatsAppContentSid))
             return (false, "Twilio WhatsAppFromNumber and WhatsAppContentSid are required.");
 

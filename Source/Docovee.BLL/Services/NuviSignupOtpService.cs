@@ -149,7 +149,8 @@ public sealed class NuviSignupOtpService : INuviSignupOtpService
         if (string.IsNullOrWhiteSpace(from))
             throw new InvalidOperationException("Twilio SmsFromNumber or FromNumber is required for SMS verification.");
 
-        MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
+        var to = TwilioOutboundRouting.ResolveToNumber(_twilio, toE164) ?? toE164;
+        MessageResource.Create(new CreateMessageOptions(new PhoneNumber(to))
         {
             From = new PhoneNumber(from.Trim()),
             Body = $"Your NuviDoc verification code is {code}. It expires in {expiryMinutes} minutes."
@@ -159,7 +160,7 @@ public sealed class NuviSignupOtpService : INuviSignupOtpService
     private void SendWhatsApp(string toE164, string code, int expiryMinutes)
     {
         var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-        var to = NormalizeWhatsAppAddress(toE164);
+        var to = TwilioOutboundRouting.ResolveWhatsAppTo(_twilio, toE164);
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(_twilio.WhatsAppContentSid))
             throw new InvalidOperationException("Twilio WhatsAppFromNumber and WhatsAppContentSid are required for WhatsApp verification.");
 

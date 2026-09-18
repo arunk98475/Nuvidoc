@@ -354,7 +354,7 @@ public sealed class LeadHandoffService : ILeadHandoffService
     {
         try
         {
-            var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
+            var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
             if (string.IsNullOrWhiteSpace(toE164))
                 return (false, $"No valid {label} phone.");
             if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))

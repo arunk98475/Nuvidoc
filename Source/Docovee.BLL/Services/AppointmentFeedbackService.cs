@@ -546,7 +546,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
     {
         try
         {
-            var toE164 = ElevenLabsTwilioCallingService.ToE164(phone);
+            var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
             if (string.IsNullOrWhiteSpace(toE164))
                 return (false, null, "Missing SMS address.");
             if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))

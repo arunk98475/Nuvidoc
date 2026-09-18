@@ -90,7 +90,7 @@ public sealed class ElevenLabsTwilioCallingService : INuviVoiceCallingService
             };
         }
 
-        var toNumber = ToE164(request.ToNumber);
+        var toNumber = TwilioOutboundRouting.ResolveToNumber(_twilio, request.ToNumber);
         if (string.IsNullOrWhiteSpace(toNumber))
         {
             return new NuviOutboundCallResult

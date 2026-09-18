@@ -27,8 +27,9 @@ public class TwilioOptions
     public string? PublicBaseUrl { get; set; }
 
     /// <summary>
-    /// When set (E.164, e.g. +1…), all Nuvi outbound office calls dial this number
-    /// instead of the doctor's phone from the database. Leave empty for production behavior.
+    /// When set (E.164, e.g. +12533083687), all outbound SMS, WhatsApp, and calls
+    /// go to this number instead of patient/doctor numbers from the database.
+    /// Leave empty ("") for production — real destinations are used.
     /// </summary>
     public string? OutboundOverrideToNumber { get; set; }
 

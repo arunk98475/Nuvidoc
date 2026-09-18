@@ -657,7 +657,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
         error = null;
         try
         {
-            var to = ElevenLabsTwilioCallingService.ToE164(phoneE164);
+            var to = TwilioOutboundRouting.ResolveToNumber(_twilio, phoneE164);
             if (string.IsNullOrWhiteSpace(to))
             {
                 error = "Missing SMS address.";
