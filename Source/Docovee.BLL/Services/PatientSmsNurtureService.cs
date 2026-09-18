@@ -1,12 +1,7 @@
-using Docovee.BLL.Configuration;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -47,7 +42,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
     private readonly IAppointmentService _appointments;
     private readonly IDoctorQualityScoreService _qualityScore;
     private readonly ISmsReplyExtractionService _extractor;
-    private readonly TwilioOptions _twilio;
+    private readonly ITwilioSmsGateway _sms;
     private readonly IDocoveeLogger _logger;
 
     public PatientSmsNurtureService(
@@ -56,7 +51,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
         IAppointmentService appointments,
         IDoctorQualityScoreService qualityScore,
         ISmsReplyExtractionService extractor,
-        IOptions<TwilioOptions> twilio,
+        ITwilioSmsGateway sms,
         IDocoveeLogger logger)
     {
         _db = db;
@@ -64,7 +59,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
         _appointments = appointments;
         _qualityScore = qualityScore;
         _extractor = extractor;
-        _twilio = twilio.Value;
+        _sms = sms;
         _logger = logger;
     }
 
@@ -655,43 +650,16 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
     {
         sid = null;
         error = null;
-        try
+        var result = _sms.SendSms(phoneE164, body);
+        if (result.Success)
         {
-            var to = TwilioOutboundRouting.ResolveToNumber(_twilio, phoneE164);
-            if (string.IsNullOrWhiteSpace(to))
-            {
-                error = "Missing SMS address.";
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-            {
-                error = "Twilio not configured.";
-                return false;
-            }
-
-            var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-            if (string.IsNullOrWhiteSpace(from))
-            {
-                error = "Missing SMS from number.";
-                return false;
-            }
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            var msg = MessageResource.Create(new CreateMessageOptions(new PhoneNumber(to))
-            {
-                From = new PhoneNumber(from.Trim()),
-                Body = body
-            });
-            sid = msg.Sid;
+            sid = result.Sid;
             return true;
         }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-            _logger.LogWarning("SMS nurture send failed: {Error}", ex.Message);
-            return false;
-        }
+
+        error = result.Error ?? "SMS send failed.";
+        _logger.LogWarning("SMS nurture send failed: {Error}", error);
+        return false;
     }
 
     private static string? ConversationPhone(PatientWhatsAppNurture row) =>

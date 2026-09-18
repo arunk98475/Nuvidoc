@@ -8,9 +8,6 @@ using Docovee.DS.Models;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -26,9 +23,9 @@ public interface IPatientReminderService
 
 public sealed class PatientReminderService : IPatientReminderService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true
     };
 
@@ -36,18 +33,18 @@ public sealed class PatientReminderService : IPatientReminderService
 
     private readonly DocoveeDbContext _db;
     private readonly IPatientPushDispatcher _push;
-    private readonly TwilioOptions _twilio;
+    private readonly ITwilioSmsGateway _sms;
     private readonly IDocoveeLogger _logger;
 
     public PatientReminderService(
         DocoveeDbContext db,
         IPatientPushDispatcher push,
-        IOptions<TwilioOptions> twilio,
+        ITwilioSmsGateway sms,
         IDocoveeLogger logger)
     {
         _db = db;
         _push = push;
-        _twilio = twilio.Value;
+        _sms = sms;
         _logger = logger;
     }
 
@@ -231,22 +228,9 @@ public sealed class PatientReminderService : IPatientReminderService
 
     private void SendSms(string? phone, string body)
     {
-        var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
-        if (string.IsNullOrWhiteSpace(toE164))
-            return;
-        if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-            return;
-
-        var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-        if (string.IsNullOrWhiteSpace(from))
-            return;
-
-        TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-        MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
-        {
-            From = new PhoneNumber(from.Trim()),
-            Body = body
-        });
+        var result = _sms.SendSms(phone, body);
+        if (!result.Success && !string.IsNullOrWhiteSpace(result.Error))
+            _logger.LogWarning("Reminder SMS failed: {Error}", result.Error);
     }
 
     private static IEnumerable<(string Kind, DateTime DueAt, bool Enabled)> EnumerateDueTimes(
@@ -320,7 +304,4 @@ public sealed class PatientReminderService : IPatientReminderService
 
     private static bool HasEmailAddress(string? username) =>
         !string.IsNullOrWhiteSpace(username) && username.Contains('@');
-
-    private static string? FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 }

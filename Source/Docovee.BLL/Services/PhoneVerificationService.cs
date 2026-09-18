@@ -7,9 +7,6 @@ using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -53,17 +50,20 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
 {
     private readonly DocoveeDbContext _db;
     private readonly TwilioOptions _twilio;
+    private readonly ITwilioSmsGateway _sms;
     private readonly IHostEnvironment _environment;
     private readonly IDocoveeLogger _logger;
 
     public PhoneVerificationService(
         DocoveeDbContext db,
         IOptions<TwilioOptions> twilio,
+        ITwilioSmsGateway sms,
         IHostEnvironment environment,
         IDocoveeLogger logger)
     {
         _db = db;
         _twilio = twilio.Value;
+        _sms = sms;
         _environment = environment;
         _logger = logger;
     }
@@ -82,7 +82,8 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
         if (string.IsNullOrWhiteSpace(toE164))
             return FailSend("Add a valid phone number first.");
 
-        if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
+        if (!_twilio.UseMock
+            && (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken)))
             return FailSend("Twilio AccountSid and AuthToken are not configured.");
 
         var useWhatsApp = string.Equals(
@@ -100,7 +101,6 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
 
         try
         {
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
             if (useWhatsApp)
                 SendWhatsAppTemplate(toE164, code, expiryMinutes);
             else
@@ -190,10 +190,8 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
 
     private void SendWhatsAppTemplate(string toE164, string code, int expiryMinutes)
     {
-        var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-        var to = TwilioOutboundRouting.ResolveWhatsAppTo(_twilio, toE164);
-        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(_twilio.WhatsAppContentSid))
-            throw new InvalidOperationException("Twilio WhatsAppFromNumber and WhatsAppContentSid are required for WhatsApp verification.");
+        if (string.IsNullOrWhiteSpace(_twilio.WhatsAppContentSid) && !_twilio.UseMock)
+            throw new InvalidOperationException("Twilio WhatsAppContentSid is required for WhatsApp verification.");
 
         var variables = JsonSerializer.Serialize(new Dictionary<string, string>
         {
@@ -201,41 +199,22 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
             ["2"] = $"{expiryMinutes} min"
         });
 
-        var options = new CreateMessageOptions(new PhoneNumber(to))
-        {
-            From = new PhoneNumber(from),
-            ContentSid = _twilio.WhatsAppContentSid.Trim(),
-            ContentVariables = variables
-        };
-        MessageResource.Create(options);
+        var result = _sms.SendWhatsApp(
+            toE164,
+            body: $"Your NuviDoc verification code is {code}. It expires in {expiryMinutes} minutes.",
+            contentSid: _twilio.WhatsAppContentSid,
+            contentVariablesJson: variables);
+        if (!result.Success)
+            throw new InvalidOperationException(result.Error ?? "WhatsApp send failed.");
     }
 
     private void SendSms(string toE164, string code, int expiryMinutes)
     {
-        var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-        if (string.IsNullOrWhiteSpace(from))
-            throw new InvalidOperationException("Twilio SmsFromNumber or FromNumber is required for SMS verification.");
-
-        var to = TwilioOutboundRouting.ResolveToNumber(_twilio, toE164) ?? toE164;
-        var options = new CreateMessageOptions(new PhoneNumber(to))
-        {
-            From = new PhoneNumber(from.Trim()),
-            Body = $"Your NuviDoc verification code is {code}. It expires in {expiryMinutes} minutes."
-        };
-        MessageResource.Create(options);
-    }
-
-    private static string? NormalizeWhatsAppAddress(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        var trimmed = value.Trim();
-        if (trimmed.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase))
-            return trimmed;
-        var e164 = ElevenLabsTwilioCallingService.ToE164(trimmed) ?? trimmed;
-        return e164.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase)
-            ? e164
-            : "whatsapp:" + e164;
+        var result = _sms.SendSms(
+            toE164,
+            $"Your NuviDoc verification code is {code}. It expires in {expiryMinutes} minutes.");
+        if (!result.Success)
+            throw new InvalidOperationException(result.Error ?? "SMS send failed.");
     }
 
     private static string HashCode(string code)
@@ -243,9 +222,6 @@ public sealed class PhoneVerificationService : IPhoneVerificationService
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim()));
         return Convert.ToHexString(hash);
     }
-
-    private static string? FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 
     private static PhoneVerificationSendResult FailSend(string message) =>
         new() { Success = false, Message = message };

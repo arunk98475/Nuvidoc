@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Twilio Mock — NuviDoc testing</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --out: #3d7ea6;
+      --in: #3d9a6a;
+      --accent: #5b9fd4;
+      --danger: #c45c5c;
+      --warn: #c9a227;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--panel);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+    header .badge {
+      font-size: 0.75rem;
+      color: var(--warn);
+      border: 1px solid var(--warn);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: calc(100vh - 64px);
+    }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    aside {
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    aside h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .thread {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text);
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-bottom: 0.35rem;
+    }
+    .thread:hover, .thread.active {
+      background: #243044;
+      border-color: var(--border);
+    }
+    .thread .phone { font-weight: 600; font-size: 0.9rem; }
+    .thread .preview {
+      font-size: 0.75rem;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 0.2rem;
+    }
+    main {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      margin-top: 3rem;
+      line-height: 1.5;
+    }
+    .bubble {
+      max-width: min(640px, 92%);
+      padding: 0.75rem 0.9rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #15202b;
+    }
+    .bubble.outbound { align-self: flex-end; border-color: var(--out); }
+    .bubble.inbound { align-self: flex-start; border-color: var(--in); }
+    .bubble .meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .bubble .body {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+    .composer {
+      border-top: 1px solid var(--border);
+      padding: 1rem 1.25rem;
+      background: var(--panel);
+      display: grid;
+      gap: 0.6rem;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      min-width: 90px;
+    }
+    input, textarea {
+      flex: 1;
+      min-width: 160px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.55rem 0.7rem;
+      font: inherit;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    button {
+      background: var(--accent);
+      color: #0a1220;
+      border: none;
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .status {
+      font-size: 0.8rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+    .status.ok { color: var(--in); }
+    .status.err { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex;gap:0.75rem;align-items:center;">
+      <h1>Twilio Mock</h1>
+      <span class="badge">testing only</span>
+    </div>
+    <div class="row">
+      <button type="button" class="secondary" id="btnRefresh">Refresh</button>
+      <button type="button" class="secondary" id="btnClear">Clear inbox</button>
+    </div>
+  </header>
+  <div class="layout">
+    <aside>
+      <h2>Conversations</h2>
+      <div id="threads"></div>
+    </aside>
+    <main>
+      <div class="messages" id="messages">
+        <div class="empty">Waiting for outbound SMS from NuviDoc…<br />
+          Set <code>Twilio:UseMock=true</code> and run this app on port 5099.</div>
+      </div>
+      <div class="composer">
+        <div class="row">
+          <label>Reply as (From)</label>
+          <input id="replyFrom" placeholder="+1… patient/doctor phone for webhook match" />
+        </div>
+        <div class="row">
+          <label>Webhook</label>
+          <input id="webhookUrl" />
+        </div>
+        <div class="row">
+          <label>Message</label>
+          <textarea id="replyBody" placeholder="YES"></textarea>
+        </div>
+        <div class="row">
+          <button type="button" id="btnReply">Send reply → Nuvidoc webhook</button>
+          <span class="status" id="status"></span>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script>
+    let messages = [];
+    let selectedKey = null;
+    let config = { nuvidocSmsWebhookUrl: '', nuvidocFromNumber: '' };
+
+    const threadsEl = document.getElementById('threads');
+    const messagesEl = document.getElementById('messages');
+    const replyFrom = document.getElementById('replyFrom');
+    const webhookUrl = document.getElementById('webhookUrl');
+    const replyBody = document.getElementById('replyBody');
+    const statusEl = document.getElementById('status');
+
+    function conversationKey(m) {
+      return (m.intendedTo || m.to || m.from || '').trim();
+    }
+
+    function groupThreads() {
+      const map = new Map();
+      for (const m of messages) {
+        const key = conversationKey(m) || m.from;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(m);
+      }
+      return map;
+    }
+
+    function renderThreads() {
+      const groups = groupThreads();
+      threadsEl.innerHTML = '';
+      if (groups.size === 0) {
+        threadsEl.innerHTML = '<p class="preview">No messages yet</p>';
+        return;
+      }
+      for (const [key, list] of groups) {
+        const last = list[0];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'thread' + (key === selectedKey ? ' active' : '');
+        btn.innerHTML = `<div class="phone">${escapeHtml(key)}</div>
+          <div class="preview">${escapeHtml((last.body || '').slice(0, 80))}</div>`;
+        btn.onclick = () => {
+          selectedKey = key;
+          const intended = list.find(x => x.intendedTo)?.intendedTo
+            || list.find(x => x.direction === 'outbound')?.intendedTo
+            || key;
+          replyFrom.value = intended;
+          renderThreads();
+          renderMessages();
+        };
+        threadsEl.appendChild(btn);
+      }
+    }
+
+    function renderMessages() {
+      const groups = groupThreads();
+      const list = selectedKey ? (groups.get(selectedKey) || []) : messages;
+      const ordered = [...list].reverse();
+      if (ordered.length === 0) {
+        messagesEl.innerHTML = '<div class="empty">Select a conversation or wait for outbound SMS.</div>';
+        return;
+      }
+      messagesEl.innerHTML = '';
+      for (const m of ordered) {
+        const div = document.createElement('div');
+        div.className = 'bubble ' + m.direction;
+        const dir = m.direction === 'outbound' ? 'NuviDoc → phone' : 'Phone → NuviDoc';
+        const intended = m.intendedTo ? ` · intended ${m.intendedTo}` : '';
+        const wa = m.isWhatsApp ? ' · WhatsApp' : '';
+        const wh = m.webhookStatusCode != null
+          ? ` · webhook ${m.webhookStatusCode}`
+          : '';
+        div.innerHTML = `<div class="meta">
+            <span>${dir}${wa}</span>
+            <span>${new Date(m.at).toLocaleString()}</span>
+            <span>${escapeHtml(m.from)} → ${escapeHtml(m.to)}${escapeHtml(intended)}${wh}</span>
+          </div>
+          <div class="body">${escapeHtml(m.body)}</div>`;
+        messagesEl.appendChild(div);
+      }
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadConfig() {
+      const res = await fetch('/api/config');
+      config = await res.json();
+      webhookUrl.value = config.nuvidocSmsWebhookUrl || '';
+    }
+
+    async function loadMessages() {
+      const res = await fetch('/api/messages');
+      messages = await res.json();
+      if (!selectedKey && messages.length) {
+        selectedKey = conversationKey(messages[0]);
+        replyFrom.value = messages[0].intendedTo || selectedKey;
+      }
+      renderThreads();
+      renderMessages();
+    }
+
+    document.getElementById('btnRefresh').onclick = () => loadMessages();
+    document.getElementById('btnClear').onclick = async () => {
+      await fetch('/api/clear', { method: 'POST' });
+      selectedKey = null;
+      await loadMessages();
+    };
+
+    document.getElementById('btnReply').onclick = async () => {
+      statusEl.className = 'status';
+      statusEl.textContent = 'Sending…';
+      const payload = {
+        from: replyFrom.value.trim(),
+        conversationPhone: replyFrom.value.trim(),
+        to: config.nuvidocFromNumber,
+        body: replyBody.value,
+        webhookUrl: webhookUrl.value.trim()
+      };
+      const res = await fetch('/api/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        statusEl.className = 'status ok';
+        statusEl.textContent = `Webhook OK (${data.statusCode})`;
+        replyBody.value = '';
+      } else {
+        statusEl.className = 'status err';
+        statusEl.textContent = data.error || `Webhook failed (${data.statusCode || '?'})`;
+      }
+      await loadMessages();
+    };
+
+    loadConfig().then(loadMessages);
+    setInterval(loadMessages, 2500);
+  </script>
+</body>
+</html>

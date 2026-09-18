@@ -6,9 +6,6 @@ using Docovee.DS.Entities;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -71,20 +68,20 @@ public sealed class LeadHandoffService : ILeadHandoffService
 {
     private readonly DocoveeDbContext _db;
     private readonly IEmailSender _email;
-    private readonly TwilioOptions _twilio;
+    private readonly ITwilioSmsGateway _sms;
     private readonly EmailOptions _emailOptions;
     private readonly IDocoveeLogger _logger;
 
     public LeadHandoffService(
         DocoveeDbContext db,
         IEmailSender email,
-        IOptions<TwilioOptions> twilio,
+        ITwilioSmsGateway sms,
         IOptions<EmailOptions> emailOptions,
         IDocoveeLogger logger)
     {
         _db = db;
         _email = email;
-        _twilio = twilio.Value;
+        _sms = sms;
         _emailOptions = emailOptions.Value;
         _logger = logger;
     }
@@ -361,31 +358,15 @@ public sealed class LeadHandoffService : ILeadHandoffService
 
     private (bool ok, string? error) TrySendSms(string? phone, string body, string label)
     {
-        try
-        {
-            var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
-            if (string.IsNullOrWhiteSpace(toE164))
-                return (false, $"No valid {label} phone.");
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return (false, "Twilio not configured.");
-
-            var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-            if (string.IsNullOrWhiteSpace(from))
-                return (false, "Twilio SMS from-number missing.");
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
-            {
-                From = new PhoneNumber(from.Trim()),
-                Body = body
-            });
+        var result = _sms.SendSms(phone, body);
+        if (result.Success)
             return (true, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Lead handoff {Label} SMS failed: {Error}", label, ex.Message);
-            return (false, $"{label} SMS: {ex.Message}");
-        }
+
+        if (string.IsNullOrWhiteSpace(phone) && string.IsNullOrWhiteSpace(result.Error))
+            return (false, $"No valid {label} phone.");
+
+        _logger.LogWarning("Lead handoff {Label} SMS failed: {Error}", label, result.Error);
+        return (false, result.Error ?? $"{label} SMS failed.");
     }
 
     private async Task<bool> TrySendEmailAsync(
@@ -423,14 +404,4 @@ public sealed class LeadHandoffService : ILeadHandoffService
 
     private static string? NullIfWhite(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    private static string? FirstNonEmpty(params string?[] values)
-    {
-        foreach (var v in values)
-        {
-            if (!string.IsNullOrWhiteSpace(v))
-                return v;
-        }
-        return null;
-    }
 }

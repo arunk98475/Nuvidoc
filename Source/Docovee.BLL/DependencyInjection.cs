@@ -58,6 +58,11 @@ public static class DependencyInjection
         services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
         services.Configure<StripeOptions>(configuration.GetSection(StripeOptions.SectionName));
         services.AddScoped<IEmailSender, SesEmailSender>();
+        services.AddHttpClient("TwilioMock", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddScoped<ITwilioSmsGateway, TwilioSmsGateway>();
         services.AddScoped<IPatientEmailAuthService, PatientEmailAuthService>();
         services.AddScoped<IDoctorAccountService, DoctorAccountService>();
         services.AddScoped<IDoctorAccountDeletionService, DoctorAccountDeletionService>();

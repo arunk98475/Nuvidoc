@@ -17,9 +17,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -51,6 +48,7 @@ public sealed class AdminAuthService : IAdminAuthService
     private readonly IEmailSender _email;
     private readonly AdminOptions _adminOptions;
     private readonly TwilioOptions _twilio;
+    private readonly ITwilioSmsGateway _sms;
     private readonly SiteOptions _site;
     private readonly PasswordHasher<Admin> _passwordHasher = new();
 
@@ -63,6 +61,7 @@ public sealed class AdminAuthService : IAdminAuthService
         IEmailSender email,
         IOptions<AdminOptions> adminOptions,
         IOptions<TwilioOptions> twilio,
+        ITwilioSmsGateway sms,
         IOptions<SiteOptions> site)
     {
         _db = db;
@@ -73,6 +72,7 @@ public sealed class AdminAuthService : IAdminAuthService
         _email = email;
         _adminOptions = adminOptions.Value;
         _twilio = twilio.Value;
+        _sms = sms;
         _site = site.Value;
     }
 
@@ -316,69 +316,40 @@ public sealed class AdminAuthService : IAdminAuthService
 
     private (bool Success, string Message) SendSmsOtp(string phone, string code, int expiryMinutes)
     {
-        if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
+        if (!_twilio.UseMock
+            && (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken)))
             return (false, "Twilio is not configured for SMS.");
 
-        var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
-        if (string.IsNullOrWhiteSpace(toE164))
-            return (false, "Admin SMS number is invalid.");
-
-        var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-        if (string.IsNullOrWhiteSpace(from))
-            return (false, "Twilio SmsFromNumber or FromNumber is required.");
-
-        try
-        {
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
-            {
-                From = new PhoneNumber(from.Trim()),
-                Body = $"Your NuviDoc admin sign-in code is {code}. It expires in {expiryMinutes} minutes."
-            });
-            return (true, "SMS sent.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admin login SMS OTP failed");
-            return (false, "SMS delivery failed.");
-        }
+        var result = _sms.SendSms(
+            phone,
+            $"Your NuviDoc admin sign-in code is {code}. It expires in {expiryMinutes} minutes.");
+        return result.Success
+            ? (true, "SMS sent.")
+            : (false, result.Error ?? "SMS delivery failed.");
     }
 
     private (bool Success, string Message) SendWhatsAppOtp(string phone, string code, int expiryMinutes)
     {
-        if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
+        if (!_twilio.UseMock
+            && (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken)))
             return (false, "Twilio is not configured for WhatsApp.");
 
-        var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
-        if (string.IsNullOrWhiteSpace(toE164))
-            return (false, "Admin WhatsApp number is invalid.");
-
-        var from = NormalizeWhatsAppAddress(_twilio.WhatsAppFromNumber);
-        var to = TwilioOutboundRouting.ResolveWhatsAppTo(_twilio, toE164);
-        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(_twilio.WhatsAppContentSid))
+        if (string.IsNullOrWhiteSpace(_twilio.WhatsAppContentSid) && !_twilio.UseMock)
             return (false, "Twilio WhatsAppFromNumber and WhatsAppContentSid are required.");
 
-        try
+        var variables = JsonSerializer.Serialize(new Dictionary<string, string>
         {
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            var variables = JsonSerializer.Serialize(new Dictionary<string, string>
-            {
-                ["1"] = code,
-                ["2"] = $"{expiryMinutes} min"
-            });
-            MessageResource.Create(new CreateMessageOptions(new PhoneNumber(to))
-            {
-                From = new PhoneNumber(from),
-                ContentSid = _twilio.WhatsAppContentSid.Trim(),
-                ContentVariables = variables
-            });
-            return (true, "WhatsApp sent.");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Admin login WhatsApp OTP failed");
-            return (false, "WhatsApp delivery failed.");
-        }
+            ["1"] = code,
+            ["2"] = $"{expiryMinutes} min"
+        });
+        var result = _sms.SendWhatsApp(
+            phone,
+            body: $"Your NuviDoc admin sign-in code is {code}. It expires in {expiryMinutes} minutes.",
+            contentSid: _twilio.WhatsAppContentSid,
+            contentVariablesJson: variables);
+        return result.Success
+            ? (true, "WhatsApp sent.")
+            : (false, result.Error ?? "WhatsApp delivery failed.");
     }
 
     private async Task SignInAsync(
@@ -442,22 +413,6 @@ public sealed class AdminAuthService : IAdminAuthService
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim()));
         return Convert.ToHexString(hash);
     }
-
-    private static string? NormalizeWhatsAppAddress(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return null;
-        var trimmed = value.Trim();
-        if (trimmed.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase))
-            return trimmed;
-        var e164 = ElevenLabsTwilioCallingService.ToE164(trimmed) ?? trimmed;
-        return e164.StartsWith("whatsapp:", StringComparison.OrdinalIgnoreCase)
-            ? e164
-            : "whatsapp:" + e164;
-    }
-
-    private static string? FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
 
     private string LockedMessage(string username)
     {

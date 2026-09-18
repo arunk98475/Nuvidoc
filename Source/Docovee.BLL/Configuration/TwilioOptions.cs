@@ -67,4 +67,13 @@ public class TwilioOptions
 
     /// <summary>How long a phone verification code stays valid.</summary>
     public int VerifyCodeExpiryMinutes { get; set; } = 10;
+
+    /// <summary>
+    /// When true, outbound SMS/WhatsApp are posted to <see cref="MockBaseUrl"/> (TwilioMock app)
+    /// instead of the real Twilio API. Testing only — leave false in production.
+    /// </summary>
+    public bool UseMock { get; set; }
+
+    /// <summary>Base URL of the TwilioMock app (e.g. http://localhost:5099).</summary>
+    public string? MockBaseUrl { get; set; }
 }

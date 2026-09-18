@@ -1,13 +1,8 @@
 using System.Globalization;
-using Docovee.BLL.Configuration;
 using Docovee.DS;
 using Docovee.DS.Entities;
 using Docovee.logging;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
 
 namespace Docovee.BLL.Services;
 
@@ -41,7 +36,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
     private readonly IAppointmentService _appointments;
     private readonly IDoctorReviewService _reviews;
     private readonly ISmsReplyExtractionService _extractor;
-    private readonly TwilioOptions _twilio;
+    private readonly ITwilioSmsGateway _sms;
     private readonly IDocoveeLogger _logger;
 
     public AppointmentFeedbackService(
@@ -50,7 +45,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
         IAppointmentService appointments,
         IDoctorReviewService reviews,
         ISmsReplyExtractionService extractor,
-        IOptions<TwilioOptions> twilio,
+        ITwilioSmsGateway sms,
         IDocoveeLogger logger)
     {
         _db = db;
@@ -58,7 +53,7 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
         _appointments = appointments;
         _reviews = reviews;
         _extractor = extractor;
-        _twilio = twilio.Value;
+        _sms = sms;
         _logger = logger;
     }
 
@@ -544,31 +539,13 @@ public sealed class AppointmentFeedbackService : IAppointmentFeedbackService
 
     private (bool Ok, string? Sid, string? Error) TrySendSms(string? phone, string body)
     {
-        try
-        {
-            var toE164 = TwilioOutboundRouting.ResolveToNumber(_twilio, phone);
-            if (string.IsNullOrWhiteSpace(toE164))
-                return (false, null, "Missing SMS address.");
-            if (string.IsNullOrWhiteSpace(_twilio.AccountSid) || string.IsNullOrWhiteSpace(_twilio.AuthToken))
-                return (false, null, "Twilio credentials are not configured.");
+        var result = _sms.SendSms(phone, body);
+        if (result.Success)
+            return (true, result.Sid, null);
 
-            var from = FirstNonEmpty(_twilio.SmsFromNumber, _twilio.FromNumber);
-            if (string.IsNullOrWhiteSpace(from))
-                return (false, null, "Missing SMS from number.");
-
-            TwilioClient.Init(_twilio.AccountSid.Trim(), _twilio.AuthToken.Trim());
-            var msg = MessageResource.Create(new CreateMessageOptions(new PhoneNumber(toE164))
-            {
-                From = new PhoneNumber(from.Trim()),
-                Body = body
-            });
-            return (true, msg.Sid, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("Feedback SMS send failed: {Error}", ex.Message);
-            return (false, null, ex.Message);
-        }
+        if (!string.IsNullOrWhiteSpace(result.Error))
+            _logger.LogWarning("Feedback SMS send failed: {Error}", result.Error);
+        return (false, null, result.Error ?? "SMS send failed.");
     }
 
     private static string? ConversationPhone(AppointmentFeedbackRequest row) =>
