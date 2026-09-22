@@ -21,6 +21,13 @@ public interface IPatientSmsNurtureService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Admin-triggered start of the SMS nurture ("Did you book…") for a patient.
+    /// </summary>
+    Task<(bool Success, string Message)> StartNurtureManuallyAsync(
+        int patientId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Handles inbound SMS (or WhatsApp-compat) replies for the nurture flowchart.
     /// Returns true when the message was consumed by nurture (skip feedback handler).
     /// </summary>
@@ -112,20 +119,33 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
         string? phone,
         string? fullName,
         int stepDay,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await TryStartConversationCoreAsync(
+            patientId, phone, fullName, stepDay, forceRestart: false, cancellationToken);
+
+    private async Task<bool> TryStartConversationCoreAsync(
+        int patientId,
+        string? phone,
+        string? fullName,
+        int stepDay,
+        bool forceRestart,
+        CancellationToken cancellationToken)
     {
         if (await IsNurtureBlockedAsync(patientId, cancellationToken))
             return false;
 
-        if (await HasOpenConversationAsync(patientId, cancellationToken))
+        if (!forceRestart && await HasOpenConversationAsync(patientId, cancellationToken))
             return false;
 
         var appt = await FindLatestLeadHandoffAppointmentAsync(patientId, cancellationToken);
         if (appt == null)
             return false;
 
-        if (await _db.PatientWhatsAppNurtures.AnyAsync(
-                n => n.AppointmentId == appt.Id, cancellationToken))
+        var existingForAppt = await _db.PatientWhatsAppNurtures
+            .FirstOrDefaultAsync(n => n.AppointmentId == appt.Id, cancellationToken);
+
+        // AppointmentId is unique — never insert a second row for the same appointment.
+        if (!forceRestart && existingForAppt != null)
             return false;
 
         var e164 = ElevenLabsTwilioCallingService.ToE164(phone);
@@ -145,23 +165,102 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
             return false;
         }
 
-        _db.PatientWhatsAppNurtures.Add(new PatientWhatsAppNurture
+        var startedAt = DateTime.UtcNow;
+        if (forceRestart)
         {
-            PatientId = patientId,
-            AppointmentId = appt.Id,
-            DoctorId = appt.DoctorId,
-            Stage = PatientWhatsAppNurtureStages.AskBooked,
-            PhoneE164 = e164,
-            LastOutboundMessageSid = sid,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow
-        });
+            // Close other open nurtures for this patient (not the appointment row we will reuse).
+            var otherOpen = await _db.PatientWhatsAppNurtures
+                .Where(n => n.PatientId == patientId
+                            && n.AppointmentId != appt.Id
+                            && n.Stage != PatientWhatsAppNurtureStages.Completed)
+                .ToListAsync(cancellationToken);
+            foreach (var row in otherOpen)
+            {
+                row.Stage = PatientWhatsAppNurtureStages.Completed;
+                row.CompletedAtUtc = startedAt;
+                row.UpdatedAtUtc = startedAt;
+            }
+        }
+
+        if (existingForAppt != null)
+        {
+            // Reuse the unique AppointmentId row on manual restart.
+            existingForAppt.PatientId = patientId;
+            existingForAppt.DoctorId = appt.DoctorId;
+            existingForAppt.Stage = PatientWhatsAppNurtureStages.AskBooked;
+            existingForAppt.PhoneE164 = e164;
+            existingForAppt.LastOutboundMessageSid = sid;
+            existingForAppt.LastError = null;
+            existingForAppt.NextFollowUpAtUtc = null;
+            existingForAppt.CompletedAtUtc = null;
+            existingForAppt.Rating = null;
+            existingForAppt.ExperienceText = null;
+            existingForAppt.UpdatedAtUtc = startedAt;
+        }
+        else
+        {
+            _db.PatientWhatsAppNurtures.Add(new PatientWhatsAppNurture
+            {
+                PatientId = patientId,
+                AppointmentId = appt.Id,
+                DoctorId = appt.DoctorId,
+                Stage = PatientWhatsAppNurtureStages.AskBooked,
+                PhoneE164 = e164,
+                LastOutboundMessageSid = sid,
+                CreatedAtUtc = startedAt,
+                UpdatedAtUtc = startedAt
+            });
+        }
         await _db.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "SMS nurture started patient={PatientId} appointment={AppointmentId} stepDay={StepDay}",
-            patientId, appt.Id, stepDay);
+            "SMS nurture started patient={PatientId} appointment={AppointmentId} stepDay={StepDay} forceRestart={ForceRestart}",
+            patientId, appt.Id, stepDay, forceRestart);
         return true;
+    }
+
+    public async Task<(bool Success, string Message)> StartNurtureManuallyAsync(
+        int patientId,
+        CancellationToken cancellationToken = default)
+    {
+        var patient = await _db.Patients.AsNoTracking()
+            .Where(p => p.Id == patientId)
+            .Select(p => new
+            {
+                p.Id,
+                p.FullName,
+                p.Phone,
+                p.NurtureStopped,
+                p.IsDeleted
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (patient == null)
+            return (false, "Patient not found.");
+        if (patient.IsDeleted)
+            return (false, "Patient account is closed.");
+        if (patient.NurtureStopped)
+            return (false, "Nurture is stopped for this patient.");
+
+        var appt = await FindLatestLeadHandoffAppointmentAsync(patientId, cancellationToken);
+        if (appt == null)
+            return (false, "No lead-handoff appointment found. Nurture starts after a practice lead is shared.");
+
+        var e164 = ElevenLabsTwilioCallingService.ToE164(patient.Phone);
+        if (string.IsNullOrWhiteSpace(e164))
+            return (false, "Patient phone number is missing or invalid.");
+
+        var started = await TryStartConversationCoreAsync(
+            patient.Id,
+            patient.Phone,
+            patient.FullName,
+            stepDay: 0,
+            forceRestart: true,
+            cancellationToken);
+
+        return started
+            ? (true, "Nurture SMS sent (Did you book an appointment…?).")
+            : (false, "Could not start nurture. Check SMS configuration and try again.");
     }
 
     public async Task<bool> HandleInboundSmsAsync(
@@ -247,7 +346,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
 
         var now = DateTime.UtcNow;
         var openNurtures = await _db.PatientWhatsAppNurtures
-            .Where(n => PatientWhatsAppNurtureStages.IsOpen(n.Stage)
+            .Where(n => n.Stage != PatientWhatsAppNurtureStages.Completed
                         && (n.PhoneE164 == e164
                             || n.WhatsAppTo == "whatsapp:" + e164))
             .ToListAsync(cancellationToken);
@@ -286,7 +385,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
                 patient.NurtureStopped = true;
 
             var moreNurtures = await _db.PatientWhatsAppNurtures
-                .Where(n => patientIds.Contains(n.PatientId) && PatientWhatsAppNurtureStages.IsOpen(n.Stage))
+                .Where(n => patientIds.Contains(n.PatientId) && n.Stage != PatientWhatsAppNurtureStages.Completed)
                 .ToListAsync(cancellationToken);
             foreach (var row in moreNurtures)
             {
@@ -619,7 +718,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
 
     private async Task<bool> HasOpenConversationAsync(int patientId, CancellationToken cancellationToken) =>
         await _db.PatientWhatsAppNurtures.AnyAsync(
-            n => n.PatientId == patientId && PatientWhatsAppNurtureStages.IsOpen(n.Stage),
+            n => n.PatientId == patientId && n.Stage != PatientWhatsAppNurtureStages.Completed,
             cancellationToken);
 
     private async Task<PatientWhatsAppNurture?> FindOpenByPhoneAsync(
@@ -628,7 +727,7 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
         await _db.PatientWhatsAppNurtures
             .Include(n => n.Doctor)
             .Include(n => n.Appointment)
-            .Where(n => PatientWhatsAppNurtureStages.IsOpen(n.Stage)
+            .Where(n => n.Stage != PatientWhatsAppNurtureStages.Completed
                         && (n.PhoneE164 == e164 || n.WhatsAppTo == "whatsapp:" + e164))
             .OrderByDescending(n => n.UpdatedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
@@ -639,7 +738,9 @@ public sealed class PatientSmsNurtureService : IPatientSmsNurtureService
         await _db.Appointments
             .Where(a => a.PatientId == patientId
                         && a.Source == AppointmentSources.NuviLeadHandoff
-                        && !AppointmentStatuses.IsCanceled(a.Status))
+                        && a.Status != AppointmentStatuses.PracticeCanceled
+                        && a.Status != AppointmentStatuses.PatientCanceled
+                        && a.Status != AppointmentStatuses.Cancelled)
             .OrderByDescending(a => a.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 

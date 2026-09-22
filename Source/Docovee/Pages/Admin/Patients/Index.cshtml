@@ -1,10 +1,20 @@
 @page
 @model Docovee.Pages.Admin.Patients.IndexModel
+@using Docovee.BLL.Services
 @{
     ViewData["Title"] = "Patients";
 }
 
 <partial name="_PatientsNav" />
+
+@if (!string.IsNullOrEmpty(Model.SuccessMessage))
+{
+    <div class="alert-success">@Model.SuccessMessage</div>
+}
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert-error">@Model.ErrorMessage</div>
+}
 
 <div class="admin-card">
     <h1>Patients</h1>
@@ -35,6 +45,26 @@
 </div>
 
 <div class="admin-card">
+    <h2 class="admin-section-title">Nurture settings</h2>
+    <p class="hint">Controls when the automatic first nurture SMS is due after a patient creates their account. Full channel options are on Booking reminders.</p>
+    <form method="post" asp-page-handler="SaveNurtureSettings">
+        <input type="hidden" name="Name" value="@Model.Name" />
+        <input type="hidden" name="Phone" value="@Model.Phone" />
+        <input type="hidden" name="DateOfBirth" value="@(Model.DateOfBirth?.ToString("yyyy-MM-dd"))" />
+        <input type="hidden" name="IssueKeyword" value="@Model.IssueKeyword" />
+        <input type="hidden" name="PageNum" value="@Model.PageNum" />
+        <div class="form-grid">
+            <div class="form-group">
+                <label asp-for="FirstNurtureDaysAfterCreation">Days after account creation for first nurture</label>
+                <input asp-for="FirstNurtureDaysAfterCreation" type="number" min="1" max="90" class="form-control" />
+                <p class="hint">First automatic nurture is this many days after registration (same as Booking reminders interval).</p>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save nurture settings</button>
+    </form>
+</div>
+
+<div class="admin-card">
     @if (Model.Results.Items.Count == 0)
     {
         <p>No patients found. Try a search or create a new patient.</p>
@@ -47,6 +77,7 @@
                     <th>Name</th>
                     <th>Phone</th>
                     <th>DOB</th>
+                    <th>Account created</th>
                     <th>Specialty</th>
                     <th>Medical Issues (AI)</th>
                     <th>Actions</th>
@@ -55,6 +86,7 @@
             <tbody>
                 @foreach (var p in Model.Results.Items)
                 {
+                    var createdClinic = ClinicTime.FromUtc(p.CreatedAt);
                     <tr class="@(p.IsAccountClosed ? "row-closed" : null)">
                         <td>
                             <strong>@p.FullName</strong>
@@ -67,11 +99,29 @@
                         </td>
                         <td>@p.Phone</td>
                         <td>@p.DateOfBirth.ToString("MM/dd/yyyy")</td>
+                        <td>
+                            @createdClinic.ToString("MM/dd/yyyy")
+                            <br />
+                            <span style="font-size:12px;color:#6b8078;">@createdClinic.ToString("h:mm tt") Central</span>
+                        </td>
                         <td>@(p.LatestSpecialty ?? "—")</td>
                         <td style="max-width:280px;font-size:13px;">@(p.MedicalIssuesSummary ?? "—")</td>
                         <td>
                             <div class="actions">
                                 <a asp-page="Edit" asp-route-id="@p.Id" class="btn btn-secondary btn-sm">Edit</a>
+                                @if (!p.IsAccountClosed)
+                                {
+                                    <form method="post" asp-page-handler="StartNurture" style="display:inline;"
+                                          onsubmit="return confirm('Start nurture SMS for @p.FullName? (Did you book an appointment…)');">
+                                        <input type="hidden" name="patientId" value="@p.Id" />
+                                        <input type="hidden" name="Name" value="@Model.Name" />
+                                        <input type="hidden" name="Phone" value="@Model.Phone" />
+                                        <input type="hidden" name="DateOfBirth" value="@(Model.DateOfBirth?.ToString("yyyy-MM-dd"))" />
+                                        <input type="hidden" name="IssueKeyword" value="@Model.IssueKeyword" />
+                                        <input type="hidden" name="PageNum" value="@Model.PageNum" />
+                                        <button type="submit" class="btn btn-primary btn-sm">Nurture</button>
+                                    </form>
+                                }
                             </div>
                         </td>
                     </tr>
